@@ -67,11 +67,19 @@ run_case "unqualified long forbidden" 1 "src/bad2.c" 'long n;'
     exit $rc
 ) || fail=1
 
+# CASE 7: KNOWN LIMITATION pin -- a single line containing BOTH `long long X;` AND
+# unqualified `long Y;` currently passes the guard because Pass 2's `grep -v 'long long'`
+# filters the entire line. This case asserts the CURRENT documented behavior (exit 0).
+# If a future contributor tightens grep-guard.sh to per-token matching, this fixture
+# will fail -- forcing the update to be intentional and reviewed. See the
+# KNOWN LIMITATIONS block at the top of scripts/ci/grep-guard.sh.
+run_case "known limitation: mixed long long + long on one line" 0 "src/edge.c" 'long long ll; long n;'
+
 if [ "$fail" -ne 0 ]; then
     echo
     echo "test-grep-guard FAILED -- guard semantics are broken."
     exit 1
 fi
 
-echo "test-grep-guard: OK (all fixture cases passed)."
+echo "test-grep-guard: OK (all 7 fixture cases passed, incl. case 7 known-limitation pin)."
 exit 0

@@ -9,6 +9,34 @@
 # Exit codes: 0 = clean, 1 = forbidden token found, 2 = environment problem.
 #
 # See docs/DECISIONS.md ADR-0003 area (future) for the rationale behind this guard.
+#
+# -----------------------------------------------------------------------------
+# KNOWN LIMITATIONS
+# -----------------------------------------------------------------------------
+# The 'unqualified long' detection (Pass 2 below) is line-granular, not
+# token-granular. It runs `grep -nE '\blong\b' ... | grep -v 'long long'`,
+# which means a single source line that contains BOTH `long long X;` AND
+# unqualified `long Y;` will be filtered out by the `grep -v 'long long'`
+# pass and therefore will NOT be caught by this guard.
+#
+# This is an accepted limitation, not a bug:
+#
+#   - SPU-94's core C body never mixes `long long` and unqualified `long` on
+#     a single line; the whole point of BUILD-07 is that we don't use either
+#     unqualified form (we use int32_t / int64_t / int16_t exclusively).
+#   - Writing a per-token matcher requires either GNU grep -P (not portable
+#     per RESEARCH.md Pitfall 5) or an awk tokenizer (~30 lines of script we
+#     would then have to audit). The cost/benefit doesn't justify it today.
+#   - The accepted-as-is posture is PINNED by a fixture case in
+#     scripts/ci/test-grep-guard.sh with the label
+#     "known limitation: mixed long long + long on one line"
+#     that asserts the CURRENT documented behavior (exit 0 on the mixed line).
+#     If a future contributor tightens this guard to per-token matching,
+#     that fixture case will FAIL and force an intentional, reviewed update
+#     to both the script and the fixture -- the change cannot happen silently.
+#   - A future ADR in docs/DECISIONS.md may revisit this choice if SPU-94
+#     ever legitimately needs `long long` in core sources (currently: it does not).
+# -----------------------------------------------------------------------------
 
 set -euo pipefail
 
