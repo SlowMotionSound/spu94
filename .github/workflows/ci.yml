@@ -1,0 +1,131 @@
+# .github/workflows/ci.yml
+# Phase 1 CI: matrix build + static analysis + UBSan + grep guard + flag verification.
+# Every third-party action is pinned to a full commit SHA (T-01-01 supply chain).
+# The comment after each 'uses:' names the tag for readability — the SHA is authoritative.
+#
+# SHA pin lookup at implementation time (2026-04-18):
+#   actions/checkout v4.2.2 -> 11bd71901bbe5b1630ceea73d27597364c9af683
+# Upgrade discipline: when bumping an action, query
+#   curl -sfL https://api.github.com/repos/<owner>/<repo>/git/refs/tags/<tag>
+# and verify `object.type == "commit"` before swapping the SHA.
+
+name: ci
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: build (${{ matrix.compiler }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install toolchain + analysis tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build jq
+          if [ "${{ matrix.compiler }}" = "clang" ]; then
+            sudo apt-get install -y clang
+          fi
+      - name: Configure
+        env:
+          CC: ${{ matrix.compiler }}
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=Debug
+      - name: Verify determinism flags (BUILD-02)
+        run: bash scripts/ci/verify-flags.sh build/compile_commands.json
+      - name: Build
+        run: cmake --build build
+      - name: Verify both shared and static artifacts exist (BUILD-01)
+        run: |
+          test -f build/src/spu94/libspu94.so
+          test -f build/src/spu94/libspu94.a
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  grep-guard:
+    name: grep-guard (BUILD-07)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Run grep-guard on tree
+        run: bash scripts/ci/grep-guard.sh
+      - name: Run fixture meta-test on grep-guard itself
+        run: bash scripts/ci/test-grep-guard.sh
+
+  clang-tidy:
+    name: clang-tidy (BUILD-04)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build clang-tidy clang
+      - name: Configure (for compile_commands.json)
+        env:
+          CC: clang
+        run: cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: Run clang-tidy on core sources
+        run: |
+          # Scope: src/spu94 + include/spu94. Tests and vendored Unity excluded by HeaderFilterRegex.
+          find src/spu94 include/spu94 -type f \( -name '*.c' -o -name '*.h' \) -print0 \
+            | xargs -0 -r clang-tidy -p build --warnings-as-errors='*'
+
+  cppcheck:
+    name: cppcheck (BUILD-04)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build cppcheck
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: Run cppcheck
+        run: |
+          cppcheck \
+            --project=build/compile_commands.json \
+            --enable=warning,performance,portability \
+            --error-exitcode=1 \
+            --inline-suppr \
+            --suppress=missingIncludeSystem \
+            --suppress=*:tests/unit/vendor/* \
+            -i tests/unit/vendor
+
+  ubsan:
+    name: UBSan (BUILD-05)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build clang
+      - name: Configure with UBSan
+        env:
+          CC: clang
+          CFLAGS: '-fsanitize=undefined -fno-sanitize-recover=undefined -g -O1'
+          LDFLAGS: '-fsanitize=undefined -fno-sanitize-recover=undefined'
+        run: cmake -S . -B build-ubsan -G Ninja -DCMAKE_BUILD_TYPE=Debug
+      - name: Build (UBSan)
+        run: cmake --build build-ubsan
+      - name: Test (UBSan)
+        run: ctest --test-dir build-ubsan --output-on-failure

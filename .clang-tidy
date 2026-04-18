@@ -1,0 +1,31 @@
+# .clang-tidy
+# Phase 1 ruleset — conservative. Add checks in later phases as real code lands.
+# See BUILD-04 + RESEARCH.md §CI Wiring Details for rationale on the check selection.
+
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  misc-*,
+  performance-*,
+  portability-*,
+  readability-braces-around-statements,
+  readability-function-size,
+  -bugprone-easily-swappable-parameters,
+  -misc-include-cleaner
+
+# WarningsAsErrors causes clang-tidy to exit non-zero on any finding from the
+# enabled checks.
+WarningsAsErrors: '*'
+
+# Header filter: scan our own headers only. Do NOT scan vendored Unity headers.
+HeaderFilterRegex: '^(include|src)/spu94/.*\.h$'
+
+FormatStyle: none
+
+CheckOptions:
+  - key: readability-function-size.LineThreshold
+    value: '120'
+  - key: readability-function-size.StatementThreshold
+    value: '60'
