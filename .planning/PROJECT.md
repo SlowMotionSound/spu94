@@ -18,10 +18,11 @@ Rigor governs the algorithm; musicality governs everything that surrounds it. Th
 
 ### Active — Milestone 1 (reverb network + hard clip)
 
-- [ ] Implement all 24 SPU reverb registers with documented behavior
+- [ ] Implement all 33 SPU registers that affect reverb output with documented behavior — the 24 reverb-block registers in the `1F801DC0–DFE` range (vIIR, vWALL, dAPF1/2, dCOMB1-4, vCOMB1-4, dLSAME/dRSAME, dLDIFF/dRDIFF, dLAPF1/2, dRAPF1/2, vAPF1/2, etc.) plus the additional SPU registers whose values affect reverb output (`mBASE` buffer base, `vLOUT`/`vROUT` output gains, and related control/routing registers outside the DC0–DFE block)
 - [ ] Implement the all-pass + comb filter network topology on a work buffer
 - [ ] Implement fixed-point arithmetic with integer truncation (not rounding) matching SPU semantics
 - [ ] Implement hard clip / overflow behavior on the mix bus feeding the reverb
+- [ ] Implement the 39-tap half-band FIR at both I/O boundaries — nocash's documented coefficients verbatim — to correctly convert between the 44.1kHz host rate and the reverb's internal 22.05kHz processing rate. This is what closes the fidelity gap that lv2-psx-reverb explicitly leaves open.
 - [ ] Design the C API so that mid-stream register updates are a first-class use case — register writes during audio processing must not glitch, crash, or require reinitialization
 - [ ] Resolve and document the delay-length-register-change gray area: what happens when dCOMB1-4, dAPF1/2, or similar position-dependent registers change mid-stream (work-buffer reindexing, phase discontinuity policy, whether interpolation is in scope)
 - [ ] Provide a modulation test — continuously modulate each register (sine, sweep, random walk) during a live audio stream and verify output remains stable, bounded, and free of zipper noise or crashes
@@ -56,7 +57,9 @@ Rigor governs the algorithm; musicality governs everything that surrounds it. Th
 
 **Domain:** The PS1 SPU reverb is a Schroeder/Gardner-style network — all-pass filters and comb filters operating on a shared reverb work buffer in SPU RAM — whose musicality comes not from algorithmic sophistication but from *implementation artifacts*: 16-bit fixed-point arithmetic with truncation at each stage, hard-clipping overflow behavior, ADPCM source coloration, and period-appropriate DAC coloration. "Bit-accuracy is not optional — it is the sound." Any reimplementation that rounds instead of truncates, or replaces the fixed-point math with floats, loses the character.
 
-**Primary reference:** nocash's psx-spx documentation (problemkaputt.de / psx-spx.consoledev.net) fully documents every reverb register (vIIR, vWALL, dAPF1/2, dCOMB1-4, vCOMB1-4, dLSAME/dRSAME, dLDIFF/dRDIFF, dLAPF1/2, dRAPF1/2, vAPF1/2, etc.), the processing topology, and the factory preset register values. Secondary references: hitmen.c02.at SPU docs, archived Sony PSX SDK documentation. These are documentation of *facts* about the algorithm; they are safe to use as primary source material.
+**Primary reference:** nocash's psx-spx documentation (problemkaputt.de / psx-spx.consoledev.net) documents every SPU register that affects reverb (vIIR, vWALL, dAPF1/2, dCOMB1-4, vCOMB1-4, dLSAME/dRSAME, dLDIFF/dRDIFF, dLAPF1/2, dRAPF1/2, vAPF1/2, mBASE, vLOUT, vROUT, and related), the processing topology, the 39-tap half-band FIR coefficients for internal 44.1↔22.05kHz sample rate conversion, and the factory preset register values. Secondary references: hitmen.c02.at SPU docs, archived Sony PSX SDK documentation.
+
+**Caveat on nocash:** The psx-spx maintainers have publicly acknowledged that some content was derived from Sony confidential materials. SPU-94 treats nocash as a *factual reference* (register layouts, coefficients, algorithmic behavior — uncopyrightable facts are freely usable) but does not transcribe nocash's explanatory prose, tables, or phrasing into SPU-94's own documentation. All citations are paraphrased with a bibliography entry pointing back to the specific nocash section. This discipline is cheap and preserves options if the nocash text's status is ever challenged.
 
 **Witnesses (not sources):** Mednafen (GPLv2), lv2-psx-reverb (GPLv3), DuckStation, and MiSTer FPGA PSX core each contain independent implementations of the same spec. They are consulted as *behavioral witnesses* when the spec is ambiguous — their output audio can be diffed against SPU-94's output; their source code is not read as a primary activity. Where they agree and spec is silent, SPU-94 follows consensus and documents it. Where they disagree, Anthony's taste decides and the decision is logged.
 
@@ -88,6 +91,9 @@ Rigor governs the algorithm; musicality governs everything that surrounds it. Th
 | Linux primary, Daisy/Cortex-M cross-compile smoke test | Linux matches Anthony's workstation. Cortex-M smoke test validates the MCU-portability claim early instead of at M4+ when it's expensive to fix. | — Pending |
 | License pick deferred to end of M1 | MIT vs Apache-2.0 is a minor decision with low blast radius; picking now doesn't help. Placeholder LICENSE file until M1 ships. | — Pending |
 | SPU-94 is a living instrument, not a preset engine | Anthony's framing: presets are test fixtures, not the product. Every parameter that moves in the original algorithm must be runtime-controllable, glitch-free, and ready for modulation/CV. Shapes M1 API design (mid-stream register writes first-class) and M4 delivery (named musical levers with smoothing). | — Pending |
+| Implement 22.05kHz half-rate processing with nocash's 39-tap half-band FIR at both I/O boundaries | The SPU reverb hardware runs internally at 22.05kHz; the 39-tap half-band FIR is how Sony hardware converts to/from the 44.1kHz interface. Implementing this is what makes SPU-94 bit-faithful at the I/O boundary; skipping it is what gives lv2-psx-reverb its known "brightness" deviation from hardware. In the core library (not a boundary adapter) because it's part of what the PS1 console did. | — Pending |
+| lv2-psx-reverb explicitly excluded as a witness for frequency-response / sample-rate-accuracy | lv2-psx-reverb's README acknowledges it skips the half-band FIR by design. It remains a valid witness for reverb-network-behavior questions (comb/all-pass structure, register semantics), but cannot be trusted for anything involving spectral accuracy near and above 10kHz. Mednafen and DuckStation to be empirically tested at Phase 4 to determine their FIR implementation status. | — Pending |
+| Paraphrase nocash's prose; cite facts with bibliography | psx-spx maintainers acknowledge some content derives from Sony confidential materials. Facts (registers, coefficients, algorithms) are freely usable; nocash's specific wording is not. Cheap discipline that preserves legal options. | — Pending |
 
 ## Evolution
 
@@ -107,4 +113,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-18 after initialization*
+*Last updated: 2026-04-18 after initialization + research-phase corrections (register count, 39-tap FIR, nocash paraphrasing discipline, witness policy)*
