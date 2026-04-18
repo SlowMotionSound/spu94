@@ -1,0 +1,23 @@
+SPU-94 — License placeholder
+============================
+
+This project is pre-license-selection.
+
+No permissive license is granted by this file. In particular, this
+placeholder does NOT grant the rights of either MIT or Apache-2.0.
+
+The final permissive-license pick is deferred to the end of Milestone 1
+("v1.0 — reverb network + hard clip") per the SPU-94 project plan
+(see .planning/PROJECT.md "Key Decisions" and .planning/ROADMAP.md).
+
+Candidate licenses:
+  - MIT License
+  - Apache License 2.0
+
+Until the final pick is committed, this repository is shared only with
+the authors and collaborators named in the project's private
+communications; external distribution is not authorized.
+
+This placeholder will be replaced with the chosen LICENSE text
+(verbatim from the chosen license's canonical form) at the end of
+Milestone 1.
