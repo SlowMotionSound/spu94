@@ -1,0 +1,14 @@
+/build/
+/build-*/
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+compile_commands.json
+.cache/
+.vscode/
+.idea/
+__pycache__/
+*.pyc
