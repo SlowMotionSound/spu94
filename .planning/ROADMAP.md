@@ -32,7 +32,11 @@ Ship `libspu94` (plain C library) + ctypes Python bindings + `spu94` CLI that bi
   3. CI runs clang-tidy, cppcheck, compiler-warnings-as-errors, and UBSan with `no_sanitize("integer")` annotations on documented SPU saturation functions, and the suite goes green on an empty reverb core.
   4. A CI grep guard fails the build if `float`, `double`, `malloc`, `calloc`, `realloc`, `free`, or unqualified `long` appear in core library sources.
   5. `DECISIONS.md` exists and contains resolved entries for (a) Q15 multiply semantics (`>> 15` direction and signed-shift policy) and (b) vIIR = -0x8000 policy; `LICENSE` placeholder notes the MIT/Apache-2.0 pick is deferred to end of M1.
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 01-01-PLAN.md — Scaffold + CMake (OBJECT library, shared+static, determinism flags) + Q15 headers + Unity vendor + q15 unit tests
+- [ ] 01-02-PLAN.md — GitHub Actions CI (gcc+clang matrix, clang-tidy, cppcheck, UBSan) + grep-guard + verify-flags + fixture meta-test
+- [ ] 01-03-PLAN.md — docs/DECISIONS.md (ADR-0001 Q15 semantics, ADR-0002 vIIR anomaly, ADR-0003 UBSan surgical policy) + LICENSE placeholder
 
 ### Phase 2: Buffer + Register Infrastructure
 **Goal**: A caller can allocate an SPU-94 state, write any of the 33 registers at any time, and the buffer addressing + write-policy machinery behaves identically per spec regardless of call order.
