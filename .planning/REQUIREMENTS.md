@@ -142,62 +142,62 @@ Mapping of requirements to roadmap phases — populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CORE-01 | TBD | Pending |
-| CORE-02 | TBD | Pending |
-| CORE-03 | TBD | Pending |
-| CORE-04 | TBD | Pending |
-| CORE-05 | TBD | Pending |
-| CORE-06 | TBD | Pending |
-| CORE-07 | TBD | Pending |
-| CORE-08 | TBD | Pending |
-| CORE-09 | TBD | Pending |
-| CORE-10 | TBD | Pending |
-| API-01 | TBD | Pending |
-| API-02 | TBD | Pending |
-| API-03 | TBD | Pending |
-| API-04 | TBD | Pending |
-| API-05 | TBD | Pending |
-| API-06 | TBD | Pending |
-| API-07 | TBD | Pending |
-| API-08 | TBD | Pending |
-| API-09 | TBD | Pending |
-| PYBIND-01 | TBD | Pending |
-| PYBIND-02 | TBD | Pending |
-| PYBIND-03 | TBD | Pending |
-| PYBIND-04 | TBD | Pending |
-| PYBIND-05 | TBD | Pending |
-| PYBIND-06 | TBD | Pending |
-| CLI-01 | TBD | Pending |
-| CLI-02 | TBD | Pending |
-| CLI-03 | TBD | Pending |
-| CLI-04 | TBD | Pending |
-| TEST-01 | TBD | Pending |
-| TEST-02 | TBD | Pending |
-| TEST-03 | TBD | Pending |
-| TEST-04 | TBD | Pending |
-| TEST-05 | TBD | Pending |
-| TEST-06 | TBD | Pending |
-| TEST-07 | TBD | Pending |
-| TEST-08 | TBD | Pending |
-| BUILD-01 | TBD | Pending |
-| BUILD-02 | TBD | Pending |
-| BUILD-03 | TBD | Pending |
-| BUILD-04 | TBD | Pending |
-| BUILD-05 | TBD | Pending |
-| BUILD-06 | TBD | Pending |
-| BUILD-07 | TBD | Pending |
-| BUILD-08 | TBD | Pending |
-| DOCS-01 | TBD | Pending |
-| DOCS-02 | TBD | Pending |
-| DOCS-03 | TBD | Pending |
-| DOCS-04 | TBD | Pending |
-| DOCS-05 | TBD | Pending |
+| CORE-01 | Phase 1 | Pending |
+| CORE-02 | Phase 3 | Pending |
+| CORE-03 | Phase 2 | Pending |
+| CORE-04 | Phase 2 | Pending |
+| CORE-05 | Phase 3 | Pending |
+| CORE-06 | Phase 4 | Pending |
+| CORE-07 | Phase 4 | Pending |
+| CORE-08 | Phase 3 | Pending |
+| CORE-09 | Phase 5 | Pending |
+| CORE-10 | Phase 2 | Pending |
+| API-01 | Phase 2 | Pending |
+| API-02 | Phase 2 | Pending |
+| API-03 | Phase 5 | Pending |
+| API-04 | Phase 2 | Pending |
+| API-05 | Phase 5 | Pending |
+| API-06 | Phase 5 | Pending |
+| API-07 | Phase 2 | Pending |
+| API-08 | Phase 5 | Pending |
+| API-09 | Phase 2 | Pending |
+| PYBIND-01 | Phase 6 | Pending |
+| PYBIND-02 | Phase 6 | Pending |
+| PYBIND-03 | Phase 6 | Pending |
+| PYBIND-04 | Phase 6 | Pending |
+| PYBIND-05 | Phase 6 | Pending |
+| PYBIND-06 | Phase 6 | Pending |
+| CLI-01 | Phase 6 | Pending |
+| CLI-02 | Phase 6 | Pending |
+| CLI-03 | Phase 6 | Pending |
+| CLI-04 | Phase 6 | Pending |
+| TEST-01 | Phase 7 | Pending |
+| TEST-02 | Phase 2 | Pending |
+| TEST-03 | Phase 7 | Pending |
+| TEST-04 | Phase 7 | Pending |
+| TEST-05 | Phase 7 | Pending |
+| TEST-06 | Phase 3 | Pending |
+| TEST-07 | Phase 3 | Pending |
+| TEST-08 | Phase 7 | Pending |
+| BUILD-01 | Phase 1 | Pending |
+| BUILD-02 | Phase 1 | Pending |
+| BUILD-03 | Phase 8 | Pending |
+| BUILD-04 | Phase 1 | Pending |
+| BUILD-05 | Phase 1 | Pending |
+| BUILD-06 | Phase 7 | Pending |
+| BUILD-07 | Phase 1 | Pending |
+| BUILD-08 | Phase 7 | Pending |
+| DOCS-01 | Phase 1 | Pending |
+| DOCS-02 | Phase 7 | Pending |
+| DOCS-03 | Phase 7 | Pending |
+| DOCS-04 | Phase 6 | Pending |
+| DOCS-05 | Phase 1 | Pending |
 
 **Coverage:**
 - v1 requirements: 49 total
-- Mapped to phases: 0 (populated during roadmap)
-- Unmapped: 49 (expected at this stage)
+- Mapped to phases: 49
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-18*
-*Last updated: 2026-04-18 after initial definition*
+*Last updated: 2026-04-18 after roadmap creation (traceability populated)*
