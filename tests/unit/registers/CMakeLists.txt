@@ -13,3 +13,11 @@ target_link_libraries(test_register_io
         spu94_static
 )
 add_test(NAME register_io_unit COMMAND test_register_io)
+
+add_executable(test_register_facade test_register_facade.c)
+target_link_libraries(test_register_facade
+    PRIVATE
+        unity
+        spu94_static
+)
+add_test(NAME register_facade_unit COMMAND test_register_facade)
