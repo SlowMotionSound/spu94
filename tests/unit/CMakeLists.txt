@@ -11,3 +11,4 @@ target_include_directories(unity PUBLIC
 # (Intentionally omit target_link_libraries(unity PRIVATE spu94_warnings).)
 
 add_subdirectory(q15)
+add_subdirectory(state)
