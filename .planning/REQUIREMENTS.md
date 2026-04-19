@@ -18,7 +18,7 @@ Requirements for the first shipped artifact: a plain C library with Python bindi
 - [ ] **CORE-07**: 39-tap half-band FIR at the 22.05→44.1kHz output boundary — nocash's documented coefficients verbatim
 - [ ] **CORE-08**: Reproduce the documented vIIR=-0x8000 hardware anomaly (negates the final reverb result) for bit-fidelity
 - [ ] **CORE-09**: Ship all 10 documented PS1 factory reverb presets (Room, Studio A, Studio B, Studio C, Hall, Half Echo, Space Echo, Echo, Delay, Off) as register-config fixtures
-- [ ] **CORE-10**: Per-register mid-stream write policy — decided, documented in DECISIONS.md, implemented consistently (gain-type registers vs address/delay-type registers treated distinctly; mBASE handled as documented hardware special case)
+- [x] **CORE-10**: Per-register mid-stream write policy — decided, documented in DECISIONS.md, implemented consistently (gain-type registers vs address/delay-type registers treated distinctly; mBASE handled as documented hardware special case)
 
 ### API — C Library Public Surface
 
@@ -151,7 +151,7 @@ Mapping of requirements to roadmap phases — populated during roadmap creation.
 | CORE-07 | Phase 4 | Pending |
 | CORE-08 | Phase 3 | Pending |
 | CORE-09 | Phase 5 | Pending |
-| CORE-10 | Phase 2 | Pending |
+| CORE-10 | Phase 2 | Complete |
 | API-01 | Phase 2 | Complete |
 | API-02 | Phase 2 | Complete |
 | API-03 | Phase 5 | Pending |
