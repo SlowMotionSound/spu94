@@ -18,13 +18,13 @@ This architectural commitment is what lets both projects live without conflict:
 
 ## Natural contents
 
-- **Error Accumulator** (see `error-accumulator.md` at repo root) — quantization-error carry as a controlled parameter. Uses the `q15_mul_truncate_with_err` tap + `spu94_tick()` entry point already locked into Phase 2.
+- **Error Accumulator** (see `2026-04-19-error-accumulator-concept.md` in this notes directory) — quantization-error carry as a controlled parameter. Uses the `q15_mul_truncate_with_err` tap + `spu94_tick()` entry point already locked into Phase 2.
 - **Register write timing** — the per-register immediate/tick-latched table, exposed as editable.
 - **mBASE side-effect policy** — whatever SPU-94 locks in, Controllers can swap.
 - **Filter topology experiments** — "what if APF1 and APF2 swap?" "what if comb tap order changes?"
 - **Q15 rounding direction swap** — hear what the PS1's exact choice contributes vs alternatives.
 - **Saturation policy swap** — hard-clip vs wrap vs soft-knee.
-- **Inertial rotor hardware interface** — velocity-as-input control surface concept from `error-accumulator.md`.
+- **Inertial rotor hardware interface** — velocity-as-input control surface concept from `2026-04-19-error-accumulator-concept.md`.
 
 ## Critical invariant
 
@@ -39,5 +39,5 @@ SPU-94 core **must remain bit-faithful**. Controllers is a **consumer**, not a m
 
 ## Related seeds
 
-- `error-accumulator.md` (repo root) — the algorithm + hardware concept brief that triggered this framing.
+- `2026-04-19-error-accumulator-concept.md` (this directory) — the algorithm + hardware concept brief that triggered this framing.
 - `2026-04-18-prune-unused-scaffold.md` — unrelated cleanup note.

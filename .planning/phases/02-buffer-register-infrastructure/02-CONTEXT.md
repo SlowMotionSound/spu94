@@ -133,7 +133,7 @@ None — no pending todos matched Phase 2 scope at discussion time.
 
 ### Extensibility-Related (must read before planning register I/O and tick entry point)
 
-- `error-accumulator.md` (repo root) — algorithm + hardware-interface brief that triggered the extensibility taps + observability principle. Phase 2 must design in a way compatible with this project eventually consuming SPU-94's API.
+- `.planning/notes/2026-04-19-error-accumulator-concept.md` — algorithm + hardware-interface brief that triggered the extensibility taps + observability principle. Phase 2 must design in a way compatible with this project eventually consuming SPU-94's API.
 - `.planning/notes/2026-04-19-spu94-controllers-seed.md` — future-milestone brief for the SPU-94 Controllers exploration layer. Informs D-22/D-23/D-24 framing.
 
 ### External References (paraphrased only — do NOT transcribe)
@@ -193,7 +193,7 @@ None — no pending todos matched Phase 2 scope at discussion time.
 
 ### Raised in Discussion, Routed Elsewhere
 
-- **Error Accumulator algorithm and hardware** — out of scope for SPU-94 core; captured in `error-accumulator.md` at repo root. Phase 2's extensibility taps (D-18, D-19) and the observability principle (D-23) keep the door open. The EA itself lands as a flagship deliverable in the future SPU-94 Controllers milestone.
+- **Error Accumulator algorithm and hardware** — out of scope for SPU-94 core; captured in `.planning/notes/2026-04-19-error-accumulator-concept.md`. Phase 2's extensibility taps (D-18, D-19) and the observability principle (D-23) keep the door open. The EA itself lands as a flagship deliverable in the future SPU-94 Controllers milestone.
 - **SPU-94 Controllers milestone** — captured in `.planning/notes/2026-04-19-spu94-controllers-seed.md`. Late-stage milestone in this repo (post-M4 or M5). Iterative refinement to find what "feels right." Explicit action item: add to `ROADMAP.md` at M1 completion.
 - **Observer/callback pattern for register changes** (D-21) — deferred until Controllers demonstrates a polling-based UI cannot serve. 60 Hz polling covers visual refresh; realtime-audio-grade callback infrastructure costs aren't yet justified.
 - **Exposing intermediate tick-internal state** (comb tap outputs pre-sum, APF outputs, IIR accumulators) — Phase 3 question, not Phase 2. Phase 2 structures `spu94_tick()` so Phase 3 can expose these if needed, but adds nothing itself.

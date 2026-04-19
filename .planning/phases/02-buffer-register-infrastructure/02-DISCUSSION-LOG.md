@@ -11,7 +11,7 @@
 
 ## Pre-discussion: Error Accumulator + extensibility framing
 
-Before the gray-area discussion began, the user raised the Error Accumulator concept (`error-accumulator.md` at repo root) — a stateful progressive-quantization effect with physical rotor controller. Reviewed against SPU-94's bit-faithfulness commitment; determined EA is incompatible as a SPU-94 core feature (breaks the bit-faithfulness promise) but compatible as a companion/consumer project.
+Before the gray-area discussion began, the user raised the Error Accumulator concept (`.planning/notes/2026-04-19-error-accumulator-concept.md`) — a stateful progressive-quantization effect with physical rotor controller. Reviewed against SPU-94's bit-faithfulness commitment; determined EA is incompatible as a SPU-94 core feature (breaks the bit-faithfulness promise) but compatible as a companion/consumer project.
 
 **Outcome:** SPU-94 preserves bit-faithfulness; two specific extensibility taps added to Phase 2 scope to keep the EA door open; broader architectural principle (extensibility seams, observability) named and adopted.
 
@@ -149,7 +149,7 @@ Pre-framed with the distinction: **data behavior (bit-faithful, locked)** vs **r
 - Single git history tells the full story of how reverb core and control layer co-evolved.
 - Error Accumulator folds in as flagship first effect of this milestone.
 
-**Action item:** Add Controllers milestone to ROADMAP.md at M1 completion, with `error-accumulator.md` and `spu94-controllers-seed.md` attached as briefs.
+**Action item:** Add Controllers milestone to ROADMAP.md at M1 completion, with `2026-04-19-error-accumulator-concept.md` and `2026-04-19-spu94-controllers-seed.md` attached as briefs.
 
 ---
 
