@@ -30,6 +30,135 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-0005: Per-register mid-stream write-timing policy — split policy with swappable table
+
+**Status:** Accepted (2026-04-19, Phase 2)
+
+**Context:**
+
+The nocash psx-spx documentation is silent on what happens when an SPU
+reverb register is written mid-tick — i.e., during the 22.05 kHz stereo
+tick in which the reverb network is computing. The Sony BIOS procedure for
+setting up a new reverb effect is to disable reverb, write every register,
+then re-enable, which strongly implies that mid-stream writes are not a
+spec'd operation. SPU-94 nonetheless has to pick a defensible behavior
+because (a) PROJECT.md treats real-time modulation of every register as a
+first-class use case (reverb-as-living-instrument), and (b) the algorithm
+must not crash, glitch, or corrupt memory on a mid-stream write.
+
+The 35 reverb-affecting registers fall into two structural families:
+
+1. **Gain-type registers** (`v*`-prefix: vLOUT, vROUT, vIIR, vCOMB1..4,
+   vWALL, vAPF1, vAPF2, vLIN, vRIN — 12 total) participate in per-sample
+   multiplies. A faithful model of the multiplier reads each register at
+   the multiply site; a mid-tick write is naturally visible to the next
+   multiply that reads it.
+
+2. **Address/delay-type registers** (`d*` / `m*`-prefix — 22 total) index
+   into the reverb work buffer. The reverb algorithm's correctness depends
+   on a consistent pair of L and R addresses across a stereo tick. A
+   mid-tick change here would corrupt the L/R address relationship and
+   produce phase/buffer artifacts that have nothing to do with the
+   musical intent.
+
+`mBASE` is a third case: the register itself is `u16` and structurally
+belongs with the address family, but its update timing is IMMEDIATE so the
+config value is observable instantly. Its stateful side effect — snapping
+the running BufferAddress — is resolved separately by ADR-0006.
+
+**Decision:**
+
+SPU-94 ships a split mid-stream write policy:
+
+- **IMMEDIATE** for all 12 `v*` gain registers AND for `mBASE`.
+  Writes become visible to the next register read (and to the next
+  multiply, for `v*`) within the same tick. For `mBASE` the additional
+  side effect — `state->buffer_address := mBASE` — is invoked through
+  the `spu94_mbase_on_write` handler defined in
+  `src/spu94/spu94_write_policy.c`.
+
+- **TICK_LATCHED** for the remaining 22 `d*` / `m*` address/delay
+  registers. Writes stage into a shadow slot
+  (`state->pending_values[reg]`, with the corresponding bit set in
+  `state->pending_mask`) and are applied atomically at the start of
+  the next `spu94_tick()` call, before any buffer-address advance or
+  reverb computation.
+
+The policy is implemented as a `static const spu94_write_policy_t`
+35-entry array keyed by `spu94_reg_t`, defined in
+`src/spu94/spu94_write_policy.c`. **This array IS the swappable seam
+(D-05).** The future SPU-94 Controllers milestone (D-22, D-24) re-points
+the table at an alternative policy by linking its own translation unit
+that defines `spu94_write_policy_table` differently — without touching
+core engine code. SPU-94 itself ships the table pinned to the
+PS1-faithful split above.
+
+The pending-value shadow is observable to callers via
+`spu94_get_reg_i16_pending` and `spu94_get_reg_u16_pending`, which
+return what will be applied at the next tick. For IMMEDIATE-policy
+registers the pending and active readings always match — the engine
+mirrors IMMEDIATE writes into the pending slot specifically so that
+callers polling the `_pending` accessor never see a stale value.
+
+**Consequences:**
+
+- **Assumption flagged.** The exact per-register assignment (every `v*`
+  IMMEDIATE, every `d*` / `m*` TICK_LATCHED) is structurally defensible
+  but not spec-backed. It could be revised if hardware-witness evidence
+  in Phase 7 contradicts a specific entry. The seam exists precisely so
+  that revision is a one-line edit, not an architectural change.
+
+- **Test obligation.** Plan 05 will add per-register policy tests under
+  `tests/unit/registers/test_register_policy.c` that exercise:
+  - For every `v*` register: write -> `get == get_pending == value`.
+  - For every `d*` / `m*` register: write -> `get != get_pending`
+    immediately, then `spu94_tick()` -> `get == get_pending == value`.
+  - For `mBASE` specifically: the IMMEDIATE update of the config value
+    (the snap side effect itself is in ADR-0006's scope, exercised in
+    `tests/unit/buffer/test_buffer_mbase.c` per Plan 04).
+
+- **Pitfall 4 protection.** `spu94_apply_pending_writes()` is called
+  from EXACTLY one location — the first line of `spu94_tick()`. Any
+  future change that invokes it from a second site violates the
+  contract. A grep-based CI guard could be added if drift becomes a
+  concern; the call-site-uniqueness is currently enforced by code
+  review.
+
+- **Revision paths.**
+  - **Hardware witness (Milestone 5):** behavioral capture from an
+    original PS1 may show that some `v*` registers are actually
+    TICK_LATCHED on the real chip (e.g., if the multiplier reads at
+    tick start rather than per-sample). Resolution is a new ADR
+    superseding the relevant rows of this one.
+  - **Controllers milestone:** may want to add a third policy
+    (CROSSFADE — for zipper-free real-time gain modulation) by adding
+    a new `spu94_write_policy_t` enum value, new rows in the table,
+    and an additional case in the engine setter switch. This is an
+    additive ADR; the IMMEDIATE/TICK_LATCHED entries above remain
+    pinned for SPU-94's own consumers.
+  - **Per-tick observation:** if Phase 3 reveals that the reverb
+    algorithm needs a "did this tick flush any pending writes?"
+    signal for diagnostics, the apply function can return the mask
+    that was flushed. Pure-additive change; existing callers ignore
+    the return value.
+
+**Sources:**
+
+- Internal: `.planning/phases/02-buffer-register-infrastructure/02-RESEARCH.md`
+  § "Write-Timing Policy" and § "Per-Register Policy Table" — the research
+  notes that built the structural-family argument and the L/R consistency
+  requirement.
+- External (paraphrased, not transcribed): nocash psx-spx, SPU reverb
+  section. https://psx-spx.consoledev.net/soundprocessingunitspu/ —
+  facts used: the 22.05 kHz internal tick rate with L/R half-cycle
+  alternation; the BIOS "disable -> rewrite -> enable" reverb-setup
+  convention.
+- Prior ADR: ADR-0004 (extensibility taps) — same swappable-seam
+  architectural principle (D-22, D-23, D-24) applied to a different
+  piece of the API.
+
+---
+
 ## ADR-0004: Extensibility taps — `q15_mul_truncate_with_err` and `spu94_tick`
 
 **Status:** Accepted (2026-04-19, Phase 2)
