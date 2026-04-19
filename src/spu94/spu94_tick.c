@@ -19,6 +19,13 @@
 #include <spu94/spu94_registers.h>
 #include <stdint.h>
 
+/* Forward declaration. spu94_buffer_advance is internal to the library
+ * (defined in spu94_buffer.c, Plan 04). We do NOT publish it through any
+ * include/spu94/ header — the only caller in Phase 2 is the tick body
+ * below. Pitfall 4 still holds: exactly one call site per internal helper
+ * that mutates per-tick state. */
+void spu94_buffer_advance(spu94_state *state);
+
 void spu94_tick(spu94_state *state) {
     if (state == (spu94_state *)0) {
         return;
@@ -27,6 +34,11 @@ void spu94_tick(spu94_state *state) {
      * register value, so the L and R half-cycles of this tick observe a
      * consistent set of address/delay registers. */
     spu94_apply_pending_writes(state);
-    /* Plan 04 will add: spu94_buffer_advance(state); */
+    /* Step 2: advance the BufferAddress per the wrap formula
+     * (CORE-03; Plan 04). After apply_pending so the formula sees the
+     * latest mBASE — though mBASE is IMMEDIATE so this ordering is
+     * defensive against future policy changes more than functionally
+     * required today. */
+    spu94_buffer_advance(state);
     /* Phase 3 will add: the reverb-network computation. */
 }

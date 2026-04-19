@@ -9,6 +9,7 @@ add_library(spu94_obj OBJECT
     spu94_write_policy.c
     spu94_pending.c
     spu94_tick.c
+    spu94_buffer.c
 )
 
 # PUBLIC include dirs: downstream consumers of spu94_shared/static see them too.

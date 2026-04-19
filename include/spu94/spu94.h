@@ -161,6 +161,19 @@ void          spu94_destroy(spu94_state *state);
  * Null-safe: spu94_tick(NULL) is a no-op. */
 void          spu94_tick(spu94_state *state);
 
+/* ------------------------------------------------------------------------- */
+/* BufferAddress observability (CORE-03, D-23, ADR-0006)                     */
+/* ------------------------------------------------------------------------- */
+
+/* Return the current BufferAddress — byte offset into the reverb work
+ * buffer that the wrap-formula advance reads/writes (per ADR-0006). The
+ * value is updated once per spu94_tick() (advance), and additionally
+ * snapped to the new mBASE on any successful write to mBASE
+ * (snap-on-write). NULL state returns 0. The accessor is read-only;
+ * mutation happens only through spu94_tick (advance) or via writing
+ * mBASE (snap). */
+uint32_t      spu94_get_buffer_address(const spu94_state *state);
+
 #ifdef __cplusplus
 }
 #endif

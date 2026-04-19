@@ -9,9 +9,9 @@
  *
  * Composition (per ADR-0005 / RESEARCH.md § Per-Register Policy Table):
  *   - 12 v* gain registers           : IMMEDIATE
- *   - mBASE                          : IMMEDIATE (+ side-effect via
- *                                      spu94_mbase_on_write — Plan 04
- *                                      replaces this Plan 03 stub).
+ *   - mBASE                          : IMMEDIATE (+ side-effect handler
+ *                                      now living in spu94_buffer.c per
+ *                                      Plan 04 / ADR-0006).
  *   - 22 d-prefix/m-prefix delay/address regs    : TICK_LATCHED
  * Total: 13 IMMEDIATE + 22 TICK_LATCHED = 35.
  *
@@ -70,21 +70,10 @@ const spu94_write_policy_t spu94_write_policy_table[SPU94_REG__COUNT] = {
     [SPU94_REG_mRAPF2]  = SPU94_WRITE_TICK_LATCHED
 };
 
-/* mBASE write-side-effect handler. Plan 04 replaces the body with the
- * snap-on-write logic per ADR-0006:
- *     state->buffer_address = (uint32_t)new_mbase;
- * Defining the symbol here in Plan 03 keeps the library linkable while the
- * snap-on-write ADR text and tests land in Plan 04.
- *
- * Prototype is intentionally forward-declared here (and in
- * spu94_register_io.c which is the only caller) — there is no public
- * header declaration: the symbol is internal to the library. The
- * forward decl satisfies -Werror=missing-prototypes without leaking
- * the symbol into the public surface. */
-void spu94_mbase_on_write(struct spu94_state *state, uint16_t new_mbase);
-
-void spu94_mbase_on_write(struct spu94_state *state, uint16_t new_mbase) {
-    (void)state;
-    (void)new_mbase;
-    /* Intentionally empty in Plan 03 — Plan 04 lifts to the real handler. */
-}
+/* The Plan-03 stub for the mBASE write-side-effect handler previously lived
+ * here. Plan 04 lifted the real implementation to src/spu94/spu94_buffer.c
+ * (alongside the BufferAddress wrap arithmetic this side effect interacts
+ * with). ODR is preserved: exactly one definition of the handler symbol in
+ * the linked library, now in spu94_buffer.o. The forward declaration in
+ * spu94_register_io.c (the sole caller) is unchanged; it is satisfied at
+ * link time by the new home. See ADR-0006 for the snap-on-write semantics. */
