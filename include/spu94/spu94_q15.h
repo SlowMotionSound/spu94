@@ -4,6 +4,15 @@
 #include <stdint.h>
 #include <limits.h>
 
+/* C++ consumers (API-07): C uses the _Static_assert keyword (C11+); C++ uses
+ * static_assert (C++11+). Alias them so this header compiles cleanly through
+ * an extern "C" C++ consumer without forcing a C-style #include of
+ * <assert.h>. The aliasing is a no-op in C, where _Static_assert is already
+ * the keyword. */
+#ifdef __cplusplus
+#  define _Static_assert(cond, msg) static_assert(cond, msg)
+#endif
+
 /* SPU-94 Q15 fixed-point helpers.
  * PUBLIC API (D-08): consumers may use these directly.
  * Header-only, static inline (D-05, D-07): no separate .c file, no
