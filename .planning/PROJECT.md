@@ -113,4 +113,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-18 after initialization + research-phase corrections (register count, 39-tap FIR, nocash paraphrasing discipline, witness policy)*
+*Last updated: 2026-04-19 — Phase 1 complete (Q15 fixed-point helpers, CMake build with determinism flags, CI gates, DECISIONS.md seeded with ADR-0001/0002/0003, LICENSE placeholder).*

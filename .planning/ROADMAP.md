@@ -37,7 +37,7 @@ Plans:
 - [x] 01-01-PLAN.md — Scaffold + CMake (OBJECT library, shared+static, determinism flags) + Q15 headers + Unity vendor + q15 unit tests
 - [x] 01-02-PLAN.md — GitHub Actions CI (gcc+clang matrix, clang-tidy, cppcheck, UBSan) + grep-guard + verify-flags + fixture meta-test
 - [x] 01-03-PLAN.md — docs/DECISIONS.md (ADR-0001 Q15 semantics, ADR-0002 vIIR anomaly, ADR-0003 UBSan surgical policy) + LICENSE placeholder
-- [ ] 01-04-PLAN.md — Gap closure: KNOWN LIMITATIONS block in grep-guard.sh + fixture case 7 in test-grep-guard.sh
+- [x] 01-04-PLAN.md — Gap closure: KNOWN LIMITATIONS block in grep-guard.sh + fixture case 7 in test-grep-guard.sh
 
 ### Phase 2: Buffer + Register Infrastructure
 **Goal**: A caller can allocate an SPU-94 state, write any of the 33 registers at any time, and the buffer addressing + write-policy machinery behaves identically per spec regardless of call order.
