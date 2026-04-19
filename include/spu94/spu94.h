@@ -67,9 +67,10 @@ typedef enum {
 /* Upper bound for static/stack-allocated spu94_state storage (MCU / embedded
  * callers). The internal struct is guarded by
  *   _Static_assert(sizeof(struct spu94_state) <= SPU94_STATE_SIZE_MAX, ...)
- * in src/spu94/spu94_state.c, so growing the private struct past this bound
- * fails the build. Chosen generously (RESEARCH.md A7) — modest future field
- * additions in Plans 02-05 do not force a bump.
+ * in the internal header that owns the struct definition
+ * (src/spu94/spu94_state_internal.h), so growing the private struct past this
+ * bound fails the build. Chosen generously (RESEARCH.md A7) — modest future
+ * field additions in Plans 02-05 do not force a bump.
  *
  * Typical caller idiom (D-12):
  *   alignas(SPU94_STATE_ALIGN_MAX) unsigned char state_buf[SPU94_STATE_SIZE_MAX];
