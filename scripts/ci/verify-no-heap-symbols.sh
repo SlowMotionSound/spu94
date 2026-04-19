@@ -36,17 +36,37 @@ FAIL=0
 
 # Pass 1: undefined symbols (nm -u). Word boundaries prevent false positives
 # on symbols that happen to contain the forbidden words as substrings.
-if nm -u "$LIB" 2>/dev/null | grep -qE '\b(malloc|calloc|realloc|free)\b'; then
+#
+# Capture the tool output ONCE so a tool failure (corrupt library, missing
+# binary, permission error) is a distinct signal from "no forbidden symbols
+# found." Under `set -euo pipefail`, the previous `if nm ... | grep -q ...`
+# pattern masked tool failure entirely: the `if` swallows the pipeline exit
+# status, and `2>/dev/null` hid the diagnostic. That defeated the SC-1
+# guarantee — a silent `nm` failure looked like a clean library. Now any
+# non-zero `nm` exit aborts with exit 2, distinct from a forbidden-symbol
+# match (exit 1).
+NM_OUT=$(nm -u "$LIB" 2>&1) || {
+    echo "FAIL: nm failed on $LIB" >&2
+    echo "$NM_OUT" >&2
+    exit 2
+}
+if echo "$NM_OUT" | grep -qE '\b(malloc|calloc|realloc|free)\b'; then
     echo "FAIL: $LIB references heap functions via undefined symbols:" >&2
-    nm -u "$LIB" | grep -E '\b(malloc|calloc|realloc|free)\b' >&2 || true
+    echo "$NM_OUT" | grep -E '\b(malloc|calloc|realloc|free)\b' >&2
     FAIL=1
 fi
 
 # Pass 2: dynamic relocations (readelf -r). Catches the stripped-library case
-# where nm may not show all imports.
-if readelf -r "$LIB" 2>/dev/null | grep -qE '\b(malloc|calloc|realloc|free)\b'; then
+# where nm may not show all imports. Same capture-then-grep discipline as
+# Pass 1: tool failure exits 2; forbidden-symbol match sets FAIL=1.
+READELF_OUT=$(readelf -r "$LIB" 2>&1) || {
+    echo "FAIL: readelf failed on $LIB" >&2
+    echo "$READELF_OUT" >&2
+    exit 2
+}
+if echo "$READELF_OUT" | grep -qE '\b(malloc|calloc|realloc|free)\b'; then
     echo "FAIL: $LIB dynamic relocations reference heap functions:" >&2
-    readelf -r "$LIB" | grep -E '\b(malloc|calloc|realloc|free)\b' >&2 || true
+    echo "$READELF_OUT" | grep -E '\b(malloc|calloc|realloc|free)\b' >&2
     FAIL=1
 fi
 
