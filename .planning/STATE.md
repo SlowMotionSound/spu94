@@ -2,46 +2,50 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-last_updated: "2026-04-19T15:19:54.488Z"
+status: executing
+last_updated: "2026-04-19T19:49:51.360Z"
 progress:
   total_phases: 8
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
-  percent: 100
+  total_plans: 9
+  completed_plans: 5
+  percent: 56
 ---
 
 # STATE: SPU-94
 
-**Last updated:** 2026-04-18
+**Last updated:** 2026-04-19
 
 ## Project Reference
 
 **Project:** SPU-94 — bit-faithful PS1 SPU reverb DSP
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current Focus:** Phase 01 — foundation-fixed-point-math-build-infrastructure
+**Current Focus:** Phase 02 — buffer-register-infrastructure
 
 ## Current Position
 
-Phase: 01 (foundation-fixed-point-math-build-infrastructure) — EXECUTING
-Plan: 1 of 3
+Phase: 02 (buffer-register-infrastructure) — EXECUTING
+Plan: 2 of 5
 
 - **Milestone:** 1 (v1.0)
 - **Phase:** 2
-- **Plan:** Not started
-- **Status:** Ready to plan
-- **Progress:** Phase 0/8
+- **Plan:** 02-01 complete; ready for 02-02
+- **Status:** Executing Phase 02
+- **Progress:** [██████░░░░] 56%
 
 ```
-[........] 0/8 phases complete
+[█.......] 1/8 phases complete (Plan 02-01 of Phase 02 done; 4 plans remain in Phase 02)
 ```
 
 ## Performance Metrics
 
-- Phases completed: 0
-- Plans completed: 0
-- Requirements validated: 0 / 49
+- Phases completed: 1
+- Plans completed: 5 (Phase 1: 4, Phase 2: 1)
+- Requirements validated: 17 / 49 (Phase 1: 13, Plan 02-01: API-01, API-02, API-07, API-09)
+
+| Plan | Duration | Tasks | Files | Notes |
+|------|----------|-------|-------|-------|
+| 02-01 | ~5m 24s | 3 (1 TDD) | 13 | spu94_state chassis + verify-no-heap CI + API-07 consumer tests |
 
 ## Accumulated Context
 
@@ -57,10 +61,21 @@ Plan: 1 of 3
 - LEVERS-CATALOG.md catalogued during M1, used by M4 (lever abstraction deferred).
 - License pick (MIT vs Apache-2.0) deferred to end of M1.
 
+### Phase 2 Plan 01 Decisions (locked)
+
+- SPU94_STATE_SIZE_MAX = 16384u; actual sizeof(struct spu94_state) at end of Plan 01 = 168 bytes (97× headroom; `_Static_assert` pins it).
+- SPU94_STATE_ALIGN_MAX = 16u (covers int64_t + future SIMD on every M1 target).
+- spu94_init contract: NULL/undersized/misaligned state_buf → NULL; NULL+0 work_buf legal; NULL+nonzero work_buf → NULL.
+- spu94_reset contract: zero work buffer + zero state, preserve work_buf pointer + size.
+- No `<string.h>` in core; hand-rolled byte-loop zero-fill keeps libspu94.so heap-import-free (verified by both `nm -u` and `readelf -r`).
+- `_Static_assert -> static_assert` aliased under `__cplusplus` in spu94_q15.h to satisfy API-07 C++ consumer compile.
+- verify-no-heap-symbols.sh wired as its own CI job (matches grep-guard / clang-tidy / cppcheck / ubsan one-concern-per-job style).
+- `pending_mask` is uint64 (35 bits used, 29 reserved) so `__builtin_ctzll` works on the full mask.
+
 ### Gray-Area Decisions Pending (to be logged in DECISIONS.md)
 
 - Phase 1: Q15 multiply semantics (`>> 15` direction); vIIR = -0x8000 policy.
-- Phase 2: per-register mid-stream write policy; mBASE-write side effect on work buffer.
+- Phase 2: per-register mid-stream write policy (Plan 03); mBASE-write side effect (Plan 04, ADR-0006 := snap-on-write resolved by research, ADR text written in Plan 04 Task 2).
 - Phase 3: comb-sum intermediate accumulation precision; register-write timing between L-tick and R-tick.
 - Phase 4: lv2-psx-reverb witness exclusion on frequency-response axis (documented).
 - Phase 7: witness-diff tolerance calibration per preset.
@@ -68,7 +83,7 @@ Plan: 1 of 3
 ### Open Questions
 
 - Comb-sum intermediate precision — nocash silent; resolve in Phase 3 with witness check.
-- mBASE-write buffer behavior — ipatix zeroes, hardware may not; resolve in Phase 2.
+- mBASE-write buffer behavior — RESOLVED via Phase 2 research as snap-on-write (ADR-0006); Plan 04 lands the implementation through the D-11 seam.
 - FIR integer accumulation width — verify 32-bit intermediate suffices for 39-tap Q15 × int16 sum in Phase 4.
 
 ### Blockers
@@ -77,21 +92,22 @@ None.
 
 ### Todos
 
-- Start Phase 1: `/gsd-plan-phase 1`.
+- Continue Phase 2: execute Plan 02-02 (register identity table).
+- Plan 04 Task 2: write ADR-0006 entry in docs/DECISIONS.md (snap-on-write).
 
 ## Session Continuity
 
-### Last Session (2026-04-18)
+### Last Session (2026-04-19)
 
-- Initialized PROJECT.md; ran research (ARCHITECTURE, FEATURES, PITFALLS, STACK, SUMMARY).
-- Incorporated research corrections into PROJECT.md (register count 24→33, 39-tap FIR, nocash paraphrase discipline, lv2-psx-reverb frequency-response exclusion).
-- Defined REQUIREMENTS.md with 49 v1 requirements across 7 categories (CORE, API, PYBIND, CLI, TEST, BUILD, DOCS).
-- Created ROADMAP.md: 8 phases, 100% requirement coverage, success criteria derived goal-backward.
-- Updated REQUIREMENTS.md traceability table with phase assignments.
+- Executed Phase 2 Plan 01: spu94_state chassis (opaque handle, lifecycle API, result enum, size/align bounds with `_Static_assert`).
+- Added linker-symbol heap-free proof script + dedicated `verify-no-heap` CI job (Phase 2 SC 1).
+- Added C99 + C++ extern-C consumer compile tests (Phase 2 SC 6 / API-07).
+- Auto-fixed C++ static_assert keyword mismatch in spu94_q15.h (API-07 surface forced by Plan 01).
+- 4 commits land Plan 01 atomically (RED + GREEN + Task 2 + Task 3); all CI gates green; ctest 4/4.
 
 ### Next Session
 
-- `/gsd-plan-phase 1` — plan Phase 1 (Foundation: Fixed-Point Math + Build Infrastructure).
+- `/gsd-execute-phase` (continue) — execute Plan 02-02 (register identity table).
 
 ---
 *State initialized: 2026-04-18 at roadmap completion*

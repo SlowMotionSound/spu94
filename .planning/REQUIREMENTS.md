@@ -22,15 +22,15 @@ Requirements for the first shipped artifact: a plain C library with Python bindi
 
 ### API — C Library Public Surface
 
-- [ ] **API-01**: Opaque handle type with caller-allocated state (no heap allocations in the library)
-- [ ] **API-02**: Init/reset/destroy lifecycle functions; caller provides work buffer memory
+- [x] **API-01**: Opaque handle type with caller-allocated state (no heap allocations in the library)
+- [x] **API-02**: Init/reset/destroy lifecycle functions; caller provides work buffer memory
 - [ ] **API-03**: `spu94_process` function taking int16 stereo input and producing int16 stereo output at 44.1kHz, block-based
 - [ ] **API-04**: Typed register read/write functions covering all 35 registers (via enum/constant identifiers, not magic numbers)
 - [ ] **API-05**: Bulk preset-load function accepting a preset struct for atomic register updates
 - [ ] **API-06**: Mid-stream register writes are first-class — no crashes, no buffer corruption, no required reinitialization; register modulation is a supported use case, not an edge case
-- [ ] **API-07**: Public header `spu94.h` is C99/C11 compliant, uses no C++-only features, wraps cleanly via `extern "C"` for future JUCE/C++ consumers
+- [x] **API-07**: Public header `spu94.h` is C99/C11 compliant, uses no C++-only features, wraps cleanly via `extern "C"` for future JUCE/C++ consumers
 - [ ] **API-08**: No heap allocations in any hot-path function; no locks; no syscalls; no variable-latency operations; verified via static analysis and benchmark
-- [ ] **API-09**: Core library depends only on the freestanding C subset (no malloc, no stdio, no pthreads) — proves MCU portability at the API level
+- [x] **API-09**: Core library depends only on the freestanding C subset (no malloc, no stdio, no pthreads) — proves MCU portability at the API level
 
 ### PYBIND — Python Bindings
 
@@ -152,15 +152,15 @@ Mapping of requirements to roadmap phases — populated during roadmap creation.
 | CORE-08 | Phase 3 | Pending |
 | CORE-09 | Phase 5 | Pending |
 | CORE-10 | Phase 2 | Pending |
-| API-01 | Phase 2 | Pending |
-| API-02 | Phase 2 | Pending |
+| API-01 | Phase 2 | Complete |
+| API-02 | Phase 2 | Complete |
 | API-03 | Phase 5 | Pending |
 | API-04 | Phase 2 | Pending |
 | API-05 | Phase 5 | Pending |
 | API-06 | Phase 5 | Pending |
-| API-07 | Phase 2 | Pending |
+| API-07 | Phase 2 | Complete |
 | API-08 | Phase 5 | Pending |
-| API-09 | Phase 2 | Pending |
+| API-09 | Phase 2 | Complete |
 | PYBIND-01 | Phase 6 | Pending |
 | PYBIND-02 | Phase 6 | Pending |
 | PYBIND-03 | Phase 6 | Pending |
