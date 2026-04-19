@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdalign.h>
+#include <stdio.h>
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -85,14 +86,18 @@ void test_mbase_does_not_mutate_work_buf(void) {
     spu94_set_reg_u16(g_state, SPU94_REG_mBASE, 0x5678u);
     spu94_set_reg_u16(g_state, SPU94_REG_mBASE, 0x0000u);
 
-    /* Every byte of work_buf must still be 0xAB. */
+    /* Every byte of work_buf must still be 0xAB. Format the mismatch with
+     * the offending index + observed byte so a regression points straight
+     * at the corrupted offset. TEST_FAIL_MESSAGE on first mismatch avoids
+     * spamming on a long sequence of failures. */
     for (size_t i = 0; i < WORK_BUF_SIZE; ++i) {
         if (g_work_buf[i] != 0xABu) {
-            char msg[64];
-            /* Use Unity's formatted message via TEST_FAIL_MESSAGE on first
-             * mismatch -- avoids spamming on a long sequence of failures. */
-            (void)msg;
-            TEST_FAIL_MESSAGE("work_buf was mutated by mBASE snap (Plan 04 ADR-0006 violation)");
+            char msg[96];
+            snprintf(msg, sizeof msg,
+                "work_buf[%zu] = 0x%02X (expected 0xAB) -- ADR-0006 violation: "
+                "mBASE snap mutated caller work buffer",
+                i, (unsigned)g_work_buf[i]);
+            TEST_FAIL_MESSAGE(msg);
         }
     }
 }
