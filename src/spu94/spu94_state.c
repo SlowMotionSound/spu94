@@ -21,6 +21,7 @@
  *   02-RESEARCH.md § Register Inventory.
  */
 
+#include "spu94_state_internal.h"
 #include <spu94/spu94.h>
 #include <stdalign.h>
 #include <stddef.h>
@@ -30,34 +31,10 @@
 /* Internal struct definition                                                */
 /* ------------------------------------------------------------------------- */
 
-struct spu94_state {
-    /* Caller-provided work buffer (D-13). Not freed by this library. */
-    unsigned char *work_buf;
-    size_t         work_buf_size;
-
-    /* BufferAddress — byte offset into the reverb work buffer.
-     * Initial value per 02-RESEARCH.md § BufferAddress Arithmetic:
-     *   mBASE = 0 at init; writing mBASE sets BufferAddress := mBASE,
-     *   so the initial BufferAddress is also 0. The wrap formula
-     *   `MAX(mBASE, (addr+2) AND 0x7FFFE)` is Plan 04's concern. */
-    uint32_t       buffer_address;
-
-    /* Active register values (Plan 02 populates; declared now to size the
-     * state correctly on the first pass). 35 = 33-register canonical count
-     * + vLIN + vRIN per RESEARCH.md § Register Inventory Interpretation. */
-    int16_t        reg_values[35];
-
-    /* Pending (tick-latched) register values (Plan 03). pending_mask has one
-     * bit per register; at tick start, set bits indicate slots to copy
-     * pending -> active. 35 bits used; upper 29 bits of the u64 reserved. */
-    int16_t        pending_values[35];
-    uint64_t       pending_mask;
-};
-
-/* Pin the shell-type bounds. A future plan that grows the struct past these
- * limits fails the build; the fix is an intentional macro bump in spu94.h. */
-_Static_assert(sizeof(struct spu94_state) <= SPU94_STATE_SIZE_MAX,
-    "spu94_state grew beyond SPU94_STATE_SIZE_MAX; bump the macro in spu94.h");
+/* `struct spu94_state` and the `_Static_assert(sizeof <= SPU94_STATE_SIZE_MAX)`
+ * guard live in spu94_state_internal.h (single ODR-safe home — see Plan 03
+ * Task 1). The alignment guard remains here because alignof() on the struct
+ * type is naturally checked in the TU that owns the lifecycle code. */
 _Static_assert(alignof(struct spu94_state) <= SPU94_STATE_ALIGN_MAX,
     "spu94_state alignment requirement exceeds SPU94_STATE_ALIGN_MAX");
 

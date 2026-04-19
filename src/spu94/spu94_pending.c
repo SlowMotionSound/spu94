@@ -1,0 +1,36 @@
+/* src/spu94/spu94_pending.c
+ * Phase 2 Plan 03 Task 2: pending-write shadow flush.
+ *
+ * spu94_apply_pending_writes() iterates state->pending_mask, copying
+ * pending_values[i] into reg_values[i] for every set bit, then clearing
+ * the entire mask in one assignment.
+ *
+ * Pitfall 4 (pending leak): this function is called from EXACTLY ONE
+ * location — the first line of spu94_tick(). Any future change that
+ * introduces a second call site violates the contract documented in
+ * ADR-0005 and risks re-applying the same pending value twice or
+ * partially-applying writes mid-tick. A future grep-based CI guard could
+ * mechanically enforce this if drift becomes a concern.
+ */
+
+#include "spu94_state_internal.h"
+#include <spu94/spu94_registers.h>
+#include <stdint.h>
+
+void spu94_apply_pending_writes(spu94_state *state) {
+    if (state == (spu94_state *)0) {
+        return;
+    }
+    uint64_t mask = state->pending_mask;
+    /* At most 35 bits; a simple sequential scan is fine and fully
+     * branch-predictable. __builtin_ctzll iteration would be marginally
+     * faster on sparse masks but adds compiler-portability concerns
+     * (clang on Windows has no __builtin_ctzll without intrin shims).
+     * Deferred unless profiling shows this loop in a hot path. */
+    for (int i = 0; i < (int)SPU94_REG__COUNT; ++i) {
+        if (mask & (UINT64_C(1) << i)) {
+            state->reg_values[i] = state->pending_values[i];
+        }
+    }
+    state->pending_mask = 0u;
+}

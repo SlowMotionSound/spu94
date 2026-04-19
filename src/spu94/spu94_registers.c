@@ -10,6 +10,7 @@
  * `reg_values[]` storage Plan 01 already reserved in struct spu94_state.
  */
 
+#include "spu94_state_internal.h"
 #include <spu94/spu94_registers.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -114,14 +115,25 @@ const char *spu94_reg_name(spu94_reg_t reg) {
     return spu94_reg_names[reg];
 }
 
-/* Snapshot stub for Plan 02. Plan 03 wires this to the real reg_values[]
- * storage that Plan 01 reserved in struct spu94_state. NULL out is a no-op. */
+/* Atomic snapshot — copies the 35 ACTIVE register values out of the state.
+ * Plan 03 wires this to read state->reg_values[] (Plan 01 reserved the slot).
+ *
+ * Contract:
+ *   - out == NULL  -> no-op.
+ *   - state == NULL && out != NULL  -> zeroes out (deterministic for callers
+ *     that snapshot before init has run, e.g., diagnostic dumps).
+ *   - else  -> copy the 35 active values in enum order. */
 void spu94_snapshot_registers(const spu94_state *state, int16_t out[SPU94_REG__COUNT]) {
-    (void)state;  /* Plan 03 reads state->reg_values */
     if (out == (int16_t *)0) {
         return;
     }
+    if (state == (const spu94_state *)0) {
+        for (int i = 0; i < (int)SPU94_REG__COUNT; ++i) {
+            out[i] = 0;
+        }
+        return;
+    }
     for (int i = 0; i < (int)SPU94_REG__COUNT; ++i) {
-        out[i] = 0;
+        out[i] = state->reg_values[i];
     }
 }

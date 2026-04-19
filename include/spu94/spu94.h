@@ -27,6 +27,36 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 #include <spu94/spu94_q15.h>
+
+/* spu94_result_t MUST be declared before <spu94/spu94_registers.h> is
+ * included: the engine-layer setter declarations in spu94_registers.h
+ * (Plan 03) return spu94_result_t. Reordering this include makes the
+ * type visible to those signatures without forcing spu94_registers.h
+ * to take a transitive dependency on the umbrella header. */
+
+/* ------------------------------------------------------------------------- */
+/* Result codes (D-07)                                                       */
+/* ------------------------------------------------------------------------- */
+
+/* Return-code enum for the register-write API (Plan 03 onward). Declared in
+ * Plan 01 so downstream plans can reference it without header churn.
+ *
+ * Contract:
+ *   - SPU94_OK == 0; callers may write `if (spu94_set_* (...))` to detect any
+ *     non-OK outcome.
+ *   - New codes are APPEND-ONLY. Existing names and numeric values are stable
+ *     across minor-version bumps. Callers that ignore the return value
+ *     continue to work when new codes are added.
+ *   - Data behavior is bit-faithful regardless of the return code (D-08):
+ *     clamping/wrapping happens per PS1 hardware; the code describes it.
+ */
+typedef enum {
+    SPU94_OK            = 0,
+    SPU94_CLAMPED       = 1, /* value was saturated to fit the register */
+    SPU94_UNKNOWN_REG   = 2, /* register id out of range — no-op write   */
+    SPU94_TYPE_MISMATCH = 3  /* signed/unsigned accessor mismatch        */
+} spu94_result_t;
+
 #include <spu94/spu94_registers.h>
 
 /* ------------------------------------------------------------------------- */
@@ -63,28 +93,10 @@ extern "C" {
  * (allowed in C11+ but not C99). API-07 requires this header to compile under
  * C99-pedantic, so the typedef has a single home. */
 
-/* ------------------------------------------------------------------------- */
-/* Result codes (D-07)                                                       */
-/* ------------------------------------------------------------------------- */
-
-/* Return-code enum for the register-write API (Plan 03 onward). Declared in
- * Plan 01 so downstream plans can reference it without header churn.
- *
- * Contract:
- *   - SPU94_OK == 0; callers may write `if (spu94_set_* (...))` to detect any
- *     non-OK outcome.
- *   - New codes are APPEND-ONLY. Existing names and numeric values are stable
- *     across minor-version bumps. Callers that ignore the return value
- *     continue to work when new codes are added.
- *   - Data behavior is bit-faithful regardless of the return code (D-08):
- *     clamping/wrapping happens per PS1 hardware; the code describes it.
- */
-typedef enum {
-    SPU94_OK            = 0,
-    SPU94_CLAMPED       = 1, /* value was saturated to fit the register */
-    SPU94_UNKNOWN_REG   = 2, /* register id out of range — no-op write   */
-    SPU94_TYPE_MISMATCH = 3  /* signed/unsigned accessor mismatch        */
-} spu94_result_t;
+/* spu94_result_t is declared above (before <spu94/spu94_registers.h>) so the
+ * Plan 03 engine-layer setter signatures can refer to it without circular
+ * includes. The duplicate typedef previously lived here in Plan 01; moved
+ * upward in Plan 03 with no API change. */
 
 /* ------------------------------------------------------------------------- */
 /* Lifecycle API (D-14)                                                      */

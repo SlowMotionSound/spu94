@@ -14,7 +14,7 @@
  *   - spu94_snapshot_registers reads the active reg_values[] (no longer
  *     a zero-fill stub once Plan 03 wires it).
  *   - For an IMMEDIATE-policy v* register, get == get_pending always.
- *   - For a TICK_LATCHED d*/m* register, after a write get != get_pending
+ *   - For a TICK_LATCHED d-prefix/m-prefix register, after a write get != get_pending
  *     until the next spu94_tick.
  */
 
