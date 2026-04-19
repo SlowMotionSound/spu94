@@ -4,7 +4,9 @@
  * Inline table — no fixture loader (D-10).
  */
 #include "unity.h"
+#include <spu94/spu94.h>
 #include <spu94/spu94_q15.h>
+#include <stdalign.h>
 #include <stdint.h>
 #include <limits.h>
 #include <stdio.h>
@@ -89,10 +91,108 @@ void test_q15_add_sat_table(void) {
     TEST_ASSERT_EQUAL_INT16(100,       q15_add_sat(50, 50));
 }
 
+/* --- q15_mul_truncate_with_err: error tap (Plan 02 Task 2 / D-18) --- */
+
+/* Reproduces q15_mul_truncate's behavior bit-exactly when err_out == NULL,
+ * AND additionally writes the truncation remainder when err_out != NULL.
+ * Remainder formula: remainder = product - (shifted << 15). */
+void test_q15_mul_truncate_with_err_null_matches_base(void) {
+    /* For every Phase 1 reference case, _with_err(NULL) must equal _truncate. */
+    size_t n = sizeof(mul_cases)/sizeof(mul_cases[0]);
+    for (size_t i = 0; i < n; ++i) {
+        int16_t base = q15_mul_truncate(mul_cases[i].a, mul_cases[i].b);
+        int16_t got  = q15_mul_truncate_with_err(mul_cases[i].a, mul_cases[i].b, NULL);
+        char msg[160];
+        snprintf(msg, sizeof(msg),
+                 "case %zu: %s — _with_err(NULL) must equal _truncate",
+                 i, mul_cases[i].why);
+        TEST_ASSERT_EQUAL_INT16_MESSAGE(base, got, msg);
+    }
+}
+
+void test_q15_mul_truncate_with_err_remainder_table(void) {
+    /* Hand-computed remainders. remainder = product - (shifted << 15). */
+    int16_t err = 0x5A5A; /* sentinel: confirms the function writes */
+
+    /* (100, 100): product=10000, shifted=0, remainder=10000 - 0 = 10000. */
+    int16_t r = q15_mul_truncate_with_err(100, 100, &err);
+    TEST_ASSERT_EQUAL_INT16(0,     r);
+    TEST_ASSERT_EQUAL_INT16(10000, err);
+
+    /* (32, 1024): product=32768, shifted=1, remainder=32768 - 32768 = 0. */
+    err = 0x5A5A;
+    r = q15_mul_truncate_with_err(32, 1024, &err);
+    TEST_ASSERT_EQUAL_INT16(1, r);
+    TEST_ASSERT_EQUAL_INT16(0, err);
+
+    /* (1, 1): product=1, shifted=0, remainder=1. */
+    err = 0x5A5A;
+    r = q15_mul_truncate_with_err(1, 1, &err);
+    TEST_ASSERT_EQUAL_INT16(0, r);
+    TEST_ASSERT_EQUAL_INT16(1, err);
+
+    /* (0, 0): product=0, shifted=0, remainder=0. */
+    err = 0x5A5A;
+    r = q15_mul_truncate_with_err(0, 0, &err);
+    TEST_ASSERT_EQUAL_INT16(0, r);
+    TEST_ASSERT_EQUAL_INT16(0, err);
+
+    /* (-1, 1): product=-1, ASR>>15 = -1, remainder = -1 - (-1 << 15)
+       = -1 - (-32768) = 32767. */
+    err = 0x5A5A;
+    r = q15_mul_truncate_with_err(-1, 1, &err);
+    TEST_ASSERT_EQUAL_INT16(-1, r);
+    TEST_ASSERT_EQUAL_INT16(32767, err);
+
+    /* INT16_MAX^2: product=1073676289, shifted=32766, remainder
+       = 1073676289 - (32766 << 15) = 1073676289 - 1073709056? Let's compute:
+       32766 << 15 = 32766 * 32768 = 1073709056? No — actually 32766 * 32768
+       = 1073676288. So remainder = 1073676289 - 1073676288 = 1. */
+    err = 0x5A5A;
+    r = q15_mul_truncate_with_err(INT16_MAX, INT16_MAX, &err);
+    TEST_ASSERT_EQUAL_INT16(32766, r);
+    TEST_ASSERT_EQUAL_INT16(1, err);
+}
+
+void test_q15_mul_truncate_with_err_saturation_remainder_is_pre_saturation(void) {
+    /* INT16_MIN * INT16_MIN: product = +2^30 = 1073741824. ASR >>15 = +32768.
+       sat_s16(+32768) = INT16_MAX. The header documents that the remainder is
+       PRE-saturation: remainder = product - (shifted << 15)
+                                  = 1073741824 - (32768 << 15)
+                                  = 1073741824 - 1073741824
+                                  = 0. */
+    int16_t err = 0x5A5A;
+    int16_t r = q15_mul_truncate_with_err(INT16_MIN, INT16_MIN, &err);
+    TEST_ASSERT_EQUAL_INT16(INT16_MAX, r);
+    TEST_ASSERT_EQUAL_INT16(0, err);
+}
+
+/* --- spu94_tick public stub (D-19) --- */
+
+void test_spu94_tick_null_safe(void) {
+    /* Should not crash. */
+    spu94_tick(NULL);
+}
+
+void test_spu94_tick_noop_on_valid_state(void) {
+    alignas(SPU94_STATE_ALIGN_MAX) unsigned char buf[SPU94_STATE_SIZE_MAX];
+    spu94_state *s = spu94_init(buf, SPU94_STATE_SIZE_MAX, NULL, 0);
+    TEST_ASSERT_NOT_NULL(s);
+    /* Plan 02 stub — must not crash; observable side effects are Phase 3+. */
+    spu94_tick(s);
+    spu94_tick(s);
+    spu94_destroy(s);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_q15_mul_truncate_table);
     RUN_TEST(test_sat_s16_boundaries);
     RUN_TEST(test_q15_add_sat_table);
+    RUN_TEST(test_q15_mul_truncate_with_err_null_matches_base);
+    RUN_TEST(test_q15_mul_truncate_with_err_remainder_table);
+    RUN_TEST(test_q15_mul_truncate_with_err_saturation_remainder_is_pre_saturation);
+    RUN_TEST(test_spu94_tick_null_safe);
+    RUN_TEST(test_spu94_tick_noop_on_valid_state);
     return UNITY_END();
 }
