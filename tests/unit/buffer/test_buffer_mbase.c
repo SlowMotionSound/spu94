@@ -92,7 +92,10 @@ void test_mbase_does_not_mutate_work_buf(void) {
      * spamming on a long sequence of failures. */
     for (size_t i = 0; i < WORK_BUF_SIZE; ++i) {
         if (g_work_buf[i] != 0xABu) {
-            char msg[96];
+            /* 128 bytes leaves headroom for the widest %zu (size_t can be
+             * up to 20 chars on 64-bit) plus the literal text; gcc
+             * -Wformat-truncation is satisfied. */
+            char msg[128];
             snprintf(msg, sizeof msg,
                 "work_buf[%zu] = 0x%02X (expected 0xAB) -- ADR-0006 violation: "
                 "mBASE snap mutated caller work buffer",
