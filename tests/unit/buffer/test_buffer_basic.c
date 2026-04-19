@@ -86,17 +86,24 @@ void test_hundred_ticks_advances_to_200(void) {
     TEST_ASSERT_EQUAL_UINT32(200u, spu94_get_buffer_address(s));
 }
 
-void test_advance_from_top_wraps_to_zero(void) {
+void test_advance_from_max_u16_mbase_with_floor_active(void) {
     spu94_state *s = fresh_state();
     TEST_ASSERT_NOT_NULL(s);
-    /* Snap to 0x7FFFE via mBASE write, then tick. (0x7FFFE+2)&0x7FFFE=0;
-     * MAX(0,0)=0. */
+    /* mBASE is a uint16_t register; 0xFFFE is the largest value reachable via
+     * the public API. Snap-on-write places buffer_address at 0xFFFE, then
+     * mBASE remains the floor for subsequent advances. The true wrap-from-top
+     * corner (buffer_address == 0x7FFFE -> 0) is unreachable through the
+     * public API and is exercised exclusively by the Python ctypes fuzz
+     * harness (tests/python/fuzz_buffer.py, 262K-tick brute force; see also
+     * tests/unit/buffer/test_buffer_wrap.c lines 1-10). */
     TEST_ASSERT_EQUAL_INT(SPU94_OK,
         spu94_set_reg_u16(s, SPU94_REG_mBASE, (uint16_t)0xFFFEu));
-    /* mBASE is u16: 0xFFFE fits exactly. buffer_address should now be 0xFFFE. */
     TEST_ASSERT_EQUAL_UINT32(0xFFFEu, spu94_get_buffer_address(s));
-    /* But mBASE==0xFFFE is still the floor; advance from 0xFFFE goes to
-     * MAX(0xFFFE, (0xFFFE+2)&0x7FFFE) = MAX(0xFFFE, 0x10000) = 0x10000. */
+    /* Advance from 0xFFFE: MAX(0xFFFE, (0xFFFE+2)&0x7FFFE)
+     *                    = MAX(0xFFFE, 0x10000) = 0x10000.
+     * The wrap mask 0x7FFFE leaves 0x10000 untouched, so the floor does not
+     * fire — this verifies the floor-active arm of the formula at the upper
+     * end of the u16 mBASE range. */
     spu94_tick(s);
     TEST_ASSERT_EQUAL_UINT32(0x10000u, spu94_get_buffer_address(s));
 }
@@ -184,7 +191,7 @@ int main(void) {
     RUN_TEST(test_reset_restores_buffer_address_to_zero);
     RUN_TEST(test_one_tick_advances_by_two_from_zero);
     RUN_TEST(test_hundred_ticks_advances_to_200);
-    RUN_TEST(test_advance_from_top_wraps_to_zero);
+    RUN_TEST(test_advance_from_max_u16_mbase_with_floor_active);
     RUN_TEST(test_advance_with_mBASE_floor_active);
     RUN_TEST(test_mBASE_snap_on_write_immediate);
     RUN_TEST(test_odd_mBASE_passes_through_verbatim);
