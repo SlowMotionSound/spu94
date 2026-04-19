@@ -58,6 +58,7 @@ typedef enum {
 } spu94_result_t;
 
 #include <spu94/spu94_registers.h>
+#include <spu94/spu94_register_facade.h>
 
 /* ------------------------------------------------------------------------- */
 /* State sizing and alignment                                                */

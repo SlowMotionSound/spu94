@@ -8,7 +8,7 @@
  *     pending-readback.
  *   - i16 / u16 typing is preserved by the facade (compile-time check).
  *   - Spot-check every register family — v* signed, mBASE u16 IMMEDIATE,
- *     d*/m* u16 TICK_LATCHED.
+ *     d-prefix/m-prefix u16 TICK_LATCHED.
  *   - Sentinel registers vLIN / vRIN have wrappers (the registers added
  *     during research per CONTEXT.md "32-vs-33 reconciliation").
  */
