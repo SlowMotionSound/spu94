@@ -12,7 +12,7 @@ Requirements for the first shipped artifact: a plain C library with Python bindi
 - [ ] **CORE-01**: Fixed-point Q15 arithmetic with integer truncation (not rounding), matching SPU saturation and overflow semantics
 - [ ] **CORE-02**: Hard clip / saturation behavior on the mix bus (-0x8000..+0x7FFF), matching hardware
 - [ ] **CORE-03**: Reverb work buffer with correct wrap-address math per nocash (`BufferAddress = MAX(mBASE, (BufferAddress+2) AND 0x7FFFE)`) and documented mBASE-write side effects
-- [ ] **CORE-04**: All 35 SPU registers that affect reverb output, each implemented with documented behavior (the 32 reverb-block registers at `0x1F801DC0–0x1F801DFE` — including `vLIN`/`vRIN` reverb input volumes — plus `mBASE`, `vLOUT`, `vROUT`)
+- [x] **CORE-04**: All 35 SPU registers that affect reverb output, each implemented with documented behavior (the 32 reverb-block registers at `0x1F801DC0–0x1F801DFE` — including `vLIN`/`vRIN` reverb input volumes — plus `mBASE`, `vLOUT`, `vROUT`)
 - [ ] **CORE-05**: All-pass + comb filter network topology matching nocash's documented processing order (input scale → SAME IIR → DIFF IIR → 4-tap comb → APF1 → APF2 → output scale → buffer advance)
 - [ ] **CORE-06**: 39-tap half-band FIR at the 44.1→22.05kHz input boundary — nocash's documented coefficients verbatim
 - [ ] **CORE-07**: 39-tap half-band FIR at the 22.05→44.1kHz output boundary — nocash's documented coefficients verbatim
@@ -25,7 +25,7 @@ Requirements for the first shipped artifact: a plain C library with Python bindi
 - [x] **API-01**: Opaque handle type with caller-allocated state (no heap allocations in the library)
 - [x] **API-02**: Init/reset/destroy lifecycle functions; caller provides work buffer memory
 - [ ] **API-03**: `spu94_process` function taking int16 stereo input and producing int16 stereo output at 44.1kHz, block-based
-- [ ] **API-04**: Typed register read/write functions covering all 35 registers (via enum/constant identifiers, not magic numbers)
+- [x] **API-04**: Typed register read/write functions covering all 35 registers (via enum/constant identifiers, not magic numbers)
 - [ ] **API-05**: Bulk preset-load function accepting a preset struct for atomic register updates
 - [ ] **API-06**: Mid-stream register writes are first-class — no crashes, no buffer corruption, no required reinitialization; register modulation is a supported use case, not an edge case
 - [x] **API-07**: Public header `spu94.h` is C99/C11 compliant, uses no C++-only features, wraps cleanly via `extern "C"` for future JUCE/C++ consumers
@@ -145,7 +145,7 @@ Mapping of requirements to roadmap phases — populated during roadmap creation.
 | CORE-01 | Phase 1 | Pending |
 | CORE-02 | Phase 3 | Pending |
 | CORE-03 | Phase 2 | Pending |
-| CORE-04 | Phase 2 | Pending |
+| CORE-04 | Phase 2 | Complete |
 | CORE-05 | Phase 3 | Pending |
 | CORE-06 | Phase 4 | Pending |
 | CORE-07 | Phase 4 | Pending |
@@ -155,7 +155,7 @@ Mapping of requirements to roadmap phases — populated during roadmap creation.
 | API-01 | Phase 2 | Complete |
 | API-02 | Phase 2 | Complete |
 | API-03 | Phase 5 | Pending |
-| API-04 | Phase 2 | Pending |
+| API-04 | Phase 2 | Complete |
 | API-05 | Phase 5 | Pending |
 | API-06 | Phase 5 | Pending |
 | API-07 | Phase 2 | Complete |

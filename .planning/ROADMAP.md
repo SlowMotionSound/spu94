@@ -53,7 +53,7 @@ Plans:
 **Plans:** 5 plans
 Plans:
 - [x] 02-01-PLAN.md — State chassis: opaque `spu94_state` + lifecycle API + linker-level no-heap proof + C99/C++ consumer compile tests
-- [ ] 02-02-PLAN.md — Register identity surface (35-entry enum + hw_offset + name + snapshot decl), q15 error tap, `spu94_tick` stub, ADR-0004
+- [x] 02-02-PLAN.md — Register identity surface (35-entry enum + hw_offset + name + snapshot decl), q15 error tap, `spu94_tick` stub, ADR-0004
 - [ ] 02-03-PLAN.md — Register I/O engine + 35 facade wrappers + split write-timing policy table + pending shadow + tick flush + ADR-0005
 - [ ] 02-04-PLAN.md — BufferAddress wrap formula + mBASE snap-on-write (resolves D-09/D-10) + observability accessor + ADR-0006
 - [ ] 02-05-PLAN.md — Test battery: register roundtrip/types/policy/edges + buffer wrap/mBASE + Python ctypes 10^6-step fuzz + q15_with_err cases

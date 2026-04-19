@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-04-19T19:49:51.360Z"
+last_updated: "2026-04-19T20:02:37.088Z"
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 9
-  completed_plans: 5
-  percent: 56
+  completed_plans: 6
+  percent: 67
 ---
 
 # STATE: SPU-94
@@ -25,27 +25,28 @@ progress:
 ## Current Position
 
 Phase: 02 (buffer-register-infrastructure) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 
 - **Milestone:** 1 (v1.0)
 - **Phase:** 2
-- **Plan:** 02-01 complete; ready for 02-02
+- **Plan:** 02-02 complete; ready for 02-03
 - **Status:** Executing Phase 02
-- **Progress:** [██████░░░░] 56%
+- **Progress:** [███████░░░] 67%
 
 ```
-[█.......] 1/8 phases complete (Plan 02-01 of Phase 02 done; 4 plans remain in Phase 02)
+[█.......] 1/8 phases complete (Plans 02-01, 02-02 of Phase 02 done; 3 plans remain in Phase 02)
 ```
 
 ## Performance Metrics
 
 - Phases completed: 1
-- Plans completed: 5 (Phase 1: 4, Phase 2: 1)
-- Requirements validated: 17 / 49 (Phase 1: 13, Plan 02-01: API-01, API-02, API-07, API-09)
+- Plans completed: 6 (Phase 1: 4, Phase 2: 2)
+- Requirements validated: 20 / 49 (Phase 1: 13, Plan 02-01: API-01/02/07/09, Plan 02-02: CORE-04, API-04, API-07 reaffirmed)
 
 | Plan | Duration | Tasks | Files | Notes |
 |------|----------|-------|-------|-------|
 | 02-01 | ~5m 24s | 3 (1 TDD) | 13 | spu94_state chassis + verify-no-heap CI + API-07 consumer tests |
+| 02-02 | ~7m 7s | 3 (2 TDD) | 11 | register identity (35-enum + tables) + q15 error tap + spu94_tick stub + ADR-0004 |
 
 ## Accumulated Context
 
@@ -72,6 +73,19 @@ Plan: 2 of 5
 - verify-no-heap-symbols.sh wired as its own CI job (matches grep-guard / clang-tidy / cppcheck / ubsan one-concern-per-job style).
 - `pending_mask` is uint64 (35 bits used, 29 reserved) so `__builtin_ctzll` works on the full mask.
 
+### Phase 2 Plan 02 Decisions (locked)
+
+- `spu94_reg_t` enum order: vLOUT, vROUT, mBASE, then reverb block 0x1DC0..0x1DFE in ascending hardware-offset order (vLIN/vRIN at indices 33/34). `SPU94_REG__COUNT = 35` pinned by `_Static_assert` in spu94_registers.c AND in test_register_identity.c.
+- `spu94_reg_name` returns the BARE name (e.g., "vIIR", not "SPU94_REG_vIIR") per CONTEXT D-17.
+- Out-of-range `spu94_reg_name` returns NULL (not "" empty string); out-of-range `spu94_reg_hw_offset` returns 0xFFFF.
+- `q15_mul_truncate_with_err` remainder is PRE-saturation: `INT16_MIN^2` returns result=INT16_MAX, err=0 (the saturation discard is recoverable separately). Documented in header AND in ADR-0004 with a revision-path note.
+- `q15_mul_truncate` is now a one-line wrapper passing err_out=NULL — bit-identical to Phase 1; reference test table unchanged.
+- `spu94_tick(spu94_state*)` lives in src/spu94/spu94_tick.c with an empty body. NULL-safe. Plans 03/04/Phase 3 fill it in.
+- `spu94_state` typedef has a SINGLE home: forward-declared in spu94_registers.h. spu94.h does NOT re-typedef it (would break -std=c99 -pedantic / API-07).
+- `spu94_registers.h` does NOT include `spu94/spu94.h` — only forward-declares the opaque type. Sub-headers must never include the umbrella header (one-way include rule).
+- `spu94_placeholder.c` removed in this plan; src/spu94 now contains spu94_state.c + spu94_registers.c + spu94_tick.c (three real TUs).
+- ADR-0004 added at line 33 of docs/DECISIONS.md (prepended above ADR-0001) — documents q15 error tap + spu94_tick as intentional public seams per D-22/D-23/D-24.
+
 ### Gray-Area Decisions Pending (to be logged in DECISIONS.md)
 
 - Phase 1: Q15 multiply semantics (`>> 15` direction); vIIR = -0x8000 policy.
@@ -92,22 +106,25 @@ None.
 
 ### Todos
 
-- Continue Phase 2: execute Plan 02-02 (register identity table).
+- Continue Phase 2: execute Plan 02-03 (per-register read/write API + write-timing policy + ADR-0005).
+- Plan 03: wire `spu94_snapshot_registers` body to read `state->reg_values[]` (Plan 01 reserved the storage; Plan 02 declared the function with a zero-fill stub).
+- Plan 03: route `apply_pending_writes` through `spu94_tick(state)` at tick-start.
+- Plan 04: route `spu94_buffer_advance` through `spu94_tick(state)`.
 - Plan 04 Task 2: write ADR-0006 entry in docs/DECISIONS.md (snap-on-write).
 
 ## Session Continuity
 
 ### Last Session (2026-04-19)
 
-- Executed Phase 2 Plan 01: spu94_state chassis (opaque handle, lifecycle API, result enum, size/align bounds with `_Static_assert`).
-- Added linker-symbol heap-free proof script + dedicated `verify-no-heap` CI job (Phase 2 SC 1).
-- Added C99 + C++ extern-C consumer compile tests (Phase 2 SC 6 / API-07).
-- Auto-fixed C++ static_assert keyword mismatch in spu94_q15.h (API-07 surface forced by Plan 01).
-- 4 commits land Plan 01 atomically (RED + GREEN + Task 2 + Task 3); all CI gates green; ctest 4/4.
+- Executed Phase 2 Plan 02: register identity surface (35-entry enum + parallel hw_offset/name tables + atomic snapshot stub) + q15 error-observation tap + spu94_tick public stub + ADR-0004.
+- Refactored `q15_mul_truncate` to a thin wrapper around the new `_with_err`; Phase 1 reference table still bit-identical green.
+- Auto-fixed circular include (spu94.h <-> spu94_registers.h) by forward-declaring spu94_state in the registers header; auto-fixed C99-pedantic duplicate-typedef issue by removing the duplicate from spu94.h.
+- Removed `src/spu94/spu94_placeholder.c` (Phase 1 scaffold superseded by 3 real TUs).
+- 5 commits land Plan 02 atomically (Task 1 RED+GREEN, Task 2 RED+GREEN, Task 3 ADR); all CI gates green; ctest 5/5.
 
 ### Next Session
 
-- `/gsd-execute-phase` (continue) — execute Plan 02-02 (register identity table).
+- `/gsd-execute-phase` (continue) — execute Plan 02-03 (per-register read/write API + write-timing policy table + ADR-0005).
 
 ---
 *State initialized: 2026-04-18 at roadmap completion*
