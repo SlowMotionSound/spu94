@@ -85,7 +85,12 @@ spu94_state *spu94_init(void *state_buf, size_t state_buf_size,
 
     s->work_buf       = (unsigned char *)work_buf;
     s->work_buf_size  = work_buf_size;
-    s->buffer_address = 0u; /* mBASE = 0 at init; snap-on-write makes addr=0 */
+    s->buffer_address = 0u; /* invariant from D-14: BufferAddress = mBASE = 0
+                             * post-init. spu94_zero_bytes already cleared
+                             * the mBASE storage cell; this assignment makes
+                             * the BufferAddress invariant explicit without
+                             * routing through the snap-on-write handler
+                             * (which is not invoked during init). */
 
     return s;
 }
