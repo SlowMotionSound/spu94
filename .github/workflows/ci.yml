@@ -109,6 +109,23 @@ jobs:
             --suppress=*:tests/unit/vendor/* \
             -i tests/unit/vendor
 
+  verify-no-heap:
+    name: verify-no-heap (API-01 / SC 1)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+      - name: Build
+        run: cmake --build build
+      - name: Verify libspu94.so does not import heap functions
+        run: bash scripts/ci/verify-no-heap-symbols.sh build/src/spu94/libspu94.so
+
   ubsan:
     name: UBSan (BUILD-05)
     runs-on: ubuntu-latest
