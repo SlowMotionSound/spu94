@@ -11,7 +11,7 @@ Requirements for the first shipped artifact: a plain C library with Python bindi
 
 - [ ] **CORE-01**: Fixed-point Q15 arithmetic with integer truncation (not rounding), matching SPU saturation and overflow semantics
 - [ ] **CORE-02**: Hard clip / saturation behavior on the mix bus (-0x8000..+0x7FFF), matching hardware
-- [ ] **CORE-03**: Reverb work buffer with correct wrap-address math per nocash (`BufferAddress = MAX(mBASE, (BufferAddress+2) AND 0x7FFFE)`) and documented mBASE-write side effects
+- [x] **CORE-03**: Reverb work buffer with correct wrap-address math per nocash (`BufferAddress = MAX(mBASE, (BufferAddress+2) AND 0x7FFFE)`) and documented mBASE-write side effects
 - [x] **CORE-04**: All 35 SPU registers that affect reverb output, each implemented with documented behavior (the 32 reverb-block registers at `0x1F801DC0–0x1F801DFE` — including `vLIN`/`vRIN` reverb input volumes — plus `mBASE`, `vLOUT`, `vROUT`)
 - [ ] **CORE-05**: All-pass + comb filter network topology matching nocash's documented processing order (input scale → SAME IIR → DIFF IIR → 4-tap comb → APF1 → APF2 → output scale → buffer advance)
 - [ ] **CORE-06**: 39-tap half-band FIR at the 44.1→22.05kHz input boundary — nocash's documented coefficients verbatim
@@ -144,7 +144,7 @@ Mapping of requirements to roadmap phases — populated during roadmap creation.
 |-------------|-------|--------|
 | CORE-01 | Phase 1 | Pending |
 | CORE-02 | Phase 3 | Pending |
-| CORE-03 | Phase 2 | Pending |
+| CORE-03 | Phase 2 | Complete |
 | CORE-04 | Phase 2 | Complete |
 | CORE-05 | Phase 3 | Pending |
 | CORE-06 | Phase 4 | Pending |
