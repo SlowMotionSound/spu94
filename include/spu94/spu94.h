@@ -27,6 +27,7 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 #include <spu94/spu94_q15.h>
+#include <spu94/spu94_registers.h>
 
 /* ------------------------------------------------------------------------- */
 /* State sizing and alignment                                                */
@@ -55,9 +56,12 @@ extern "C" {
 /* Opaque state handle (D-12)                                                */
 /* ------------------------------------------------------------------------- */
 
-/* Forward declaration; the real struct is private to src/spu94/spu94_state.c.
- * Callers may only hold spu94_state * (not spu94_state by value). */
-typedef struct spu94_state spu94_state;
+/* The opaque spu94_state type is forward-declared in <spu94/spu94_registers.h>
+ * (included above). Callers may only hold spu94_state * (not by value); the
+ * real struct is private to src/spu94/spu94_state.c. We do NOT re-typedef it
+ * here — duplicate typedefs of the same name break -std=c99 -pedantic
+ * (allowed in C11+ but not C99). API-07 requires this header to compile under
+ * C99-pedantic, so the typedef has a single home. */
 
 /* ------------------------------------------------------------------------- */
 /* Result codes (D-07)                                                       */

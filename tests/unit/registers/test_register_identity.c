@@ -13,8 +13,10 @@
 #include "unity.h"
 #include <spu94/spu94.h>
 #include <spu94/spu94_registers.h>
+#include <stdalign.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 
 void setUp(void) {}

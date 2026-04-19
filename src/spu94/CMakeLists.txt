@@ -5,6 +5,7 @@
 add_library(spu94_obj OBJECT
     spu94_placeholder.c
     spu94_state.c
+    spu94_registers.c
 )
 
 # PUBLIC include dirs: downstream consumers of spu94_shared/static see them too.
