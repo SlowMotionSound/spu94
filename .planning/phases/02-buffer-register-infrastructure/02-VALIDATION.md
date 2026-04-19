@@ -1,10 +1,11 @@
 ---
 phase: 2
 slug: buffer-register-infrastructure
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-04-19
+approved: 2026-04-19
 ---
 
 # Phase 2 — Validation Strategy
@@ -116,6 +117,6 @@ All 9 phase requirements have automated verification. Zero manual-only gaps.
 - [ ] Wave 0 covers all ❌ references in the per-task map — tracked above; checked before execution starts
 - [ ] No watch-mode flags — confirmed (all commands are single-shot)
 - [ ] Feedback latency < 90s full suite (dominated by 10⁶-step fuzz)
-- [ ] `nyquist_compliant: true` will be set in frontmatter after Wave 0 scaffolding lands and the plan-checker confirms per-task verify coverage
+- [x] `nyquist_compliant: true` set in frontmatter (plan-checker verified per-task coverage 2026-04-19)
 
-**Approval:** pending
+**Approval:** approved 2026-04-19 (post plan-checker pass — `wave_0_complete` flips to true once the Wave-0 test scaffolding lands during Plan 01 execution).
