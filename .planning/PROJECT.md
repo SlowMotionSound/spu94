@@ -18,7 +18,7 @@ Rigor governs the algorithm; musicality governs everything that surrounds it. Th
 
 ### Active — Milestone 1 (reverb network + hard clip)
 
-- [ ] Implement all 33 SPU registers that affect reverb output with documented behavior — the 24 reverb-block registers in the `1F801DC0–DFE` range (vIIR, vWALL, dAPF1/2, dCOMB1-4, vCOMB1-4, dLSAME/dRSAME, dLDIFF/dRDIFF, dLAPF1/2, dRAPF1/2, vAPF1/2, etc.) plus the additional SPU registers whose values affect reverb output (`mBASE` buffer base, `vLOUT`/`vROUT` output gains, and related control/routing registers outside the DC0–DFE block)
+- [ ] Implement all 35 SPU registers that affect reverb output with documented behavior — the 32 reverb-block registers at `1F801DC0–DFE` (filter coefficients `vIIR`/`vWALL`/`vCOMB1-4`/`vAPF1/2`, comb/APF delay addresses `dCOMB1-4`/`dAPF1/2`, SAME/DIFF/APF delay-address pairs `dLSAME`/`dRSAME`/`dLDIFF`/`dRDIFF`/`dLAPF1/2`/`dRAPF1/2`, plus reverb input volumes `vLIN`/`vRIN`) plus `mBASE` buffer base and `vLOUT`/`vROUT` output gains (outside the `DC0–DFE` block)
 - [ ] Implement the all-pass + comb filter network topology on a work buffer
 - [ ] Implement fixed-point arithmetic with integer truncation (not rounding) matching SPU semantics
 - [ ] Implement hard clip / overflow behavior on the mix bus feeding the reverb

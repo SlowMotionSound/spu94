@@ -10,15 +10,15 @@ Phase 2 delivers the **chassis** of the SPU-94 library — the state machinery, 
 
 **In scope:**
 - Opaque state type with caller-allocated storage (no heap allocations in the library)
-- All 33 SPU reverb-affecting registers (the 24 reverb-block registers `0x1F801DC0–0x1F801DFE` plus `mBASE`, `vLOUT`, `vROUT`, and other routing/control registers that participate in the reverb output)
+- All 35 SPU reverb-affecting registers (the 32 reverb-block registers at `0x1F801DC0–0x1F801DFE` — including `vLIN` and `vRIN` reverb input volumes — plus `mBASE`, `vLOUT`, `vROUT`)
 - Typed read/write API for every register with compiler-enforced signed-vs-unsigned distinction
 - Per-register mid-stream write policy (split: `v*` immediate, `d*`/`m*` tick-latched) as a swappable policy table
 - Work-buffer wrap math: `BufferAddress = MAX(mBASE, (BufferAddress+2) AND 0x7FFFE)` across 10⁶ fuzzed steps
-- mBASE-write side-effect policy (preliminary: floor-only; **final answer deferred to Phase 2 research**)
+- mBASE-write side-effect policy: **snap-on-write** (BufferAddress := mBASE on any mBASE write, per psx-spx primary source). Floor-only preserved as a swappable alternative via the D-11 seam for the future Controllers milestone.
 - Per-register unit tests (ROADMAP Phase 2 success criterion 4; REQ TEST-02)
 - `spu94.h` compiles clean under `-std=c99 -pedantic` and under an `extern "C"` C++ consumer stub (REQ API-07)
 - Two extensibility taps locked in during discussion: `q15_mul_truncate_with_err` (error-remainder observability) and `spu94_tick()` (public per-tick processing entry point)
-- ADR-0004 (extensibility taps) and ADR-0005 (write-timing policy table) added to `docs/DECISIONS.md`; ADR-0006 (mBASE side-effect) staged pending research
+- ADR-0004 (extensibility taps), ADR-0005 (write-timing policy table), and ADR-0006 (mBASE side-effect := snap-on-write, resolved via Phase 2 research) added to `docs/DECISIONS.md`
 
 **Explicitly NOT in scope:**
 - Reverb algorithm (Phase 3)
@@ -37,7 +37,7 @@ Phase 2 delivers the **chassis** of the SPU-94 library — the state machinery, 
 
 - **D-01: Two-layer API.** The public register I/O surface has two layers:
   1. **Engine layer** — typed generic functions: `spu94_set_reg_i16`, `spu94_set_reg_u16`, `spu94_get_reg_i16`, `spu94_get_reg_u16`, `spu94_get_reg_i16_pending`, `spu94_get_reg_u16_pending`. Used internally, used for iteration, used for Python binding.
-  2. **Facade layer** — 33 hand-written `static inline` per-register wrappers (e.g., `spu94_set_vIIR`, `spu94_get_dCOMB1`). Zero runtime cost (compiled away). Provides readable call sites.
+  2. **Facade layer** — 35 hand-written `static inline` per-register wrappers (e.g., `spu94_set_vIIR`, `spu94_get_dCOMB1`). Zero runtime cost (compiled away). Provides readable call sites.
 - **D-02: Signed/unsigned distinction is structural, not documentary.** Gain-type (`v*`-prefixed) registers use the `_i16` variants; delay/address-type (`d*`/`m*`) use `_u16`. The compiler enforces the distinction. ROADMAP Phase 2 success criterion 2 is met by construction.
 - **D-03: Hand-written wrappers, not macro-generated.** ~66 one-line wrappers are maintained by hand in a dedicated header file. Boring, auditable, visible to any future reader in five minutes. The ability of auditors to verify the library's bit-faithfulness claims by reading the code is worth the maintenance cost.
 
@@ -56,12 +56,8 @@ Phase 2 delivers the **chassis** of the SPU-94 library — the state machinery, 
 
 ### mBASE Write Side Effects
 
-- **D-09: Preliminary policy is floor-only.** Writing a new value to `mBASE` updates the wrap floor; `BufferAddress` continues from its current position until it would wrap past `0x7FFFE`, at which point it snaps to the new `mBASE`. No implicit buffer clear, no implicit position reset.
-- **D-10: FINAL DECISION DEFERRED TO PHASE 2 RESEARCH.** The research step must provide an evidence table covering:
-  - Full nocash SPU/reverb section read for any implicit side-effect language the formula section doesn't mention
-  - Behavioral witness comparison: Mednafen, lv2-psx-reverb, DuckStation (output-only per PROJECT.md witness policy)
-  - PSX homebrew / demo code exercising mid-stream `mBASE` writes, if findable
-  Research output feeds ADR-0006 in `docs/DECISIONS.md` with the resolution and its evidence basis.
+- **D-09: Snap-on-write (resolved via Phase 2 research).** Writing `mBASE` sets `BufferAddress := mBASE` immediately. This matches the psx-spx primary source verbatim: *"Writing a value to mBASE does additionally set the current buffer address to that value."* No implicit buffer clear. The jump can produce audible discontinuity — that is hardware-accurate behavior and is SPU-94's default. Smoothed alternatives (floor-only, crossfade) live behind the D-11 seam for the future Controllers milestone.
+- **D-10: Resolved. ADR-0006 := snap-on-write.** Evidence: nocash / psx-spx states verbatim "Writing a value to mBASE does additionally set the current buffer address to that value" (SPU / reverb section, primary source). Full research trail in `02-RESEARCH.md` § "mBASE Side-Effect Evidence". Behavioral witness comparison (Mednafen / lv2-psx-reverb / DuckStation) is moved to Phase 7 verification, not a Phase 2 blocker — primary-source language is unambiguous.
 - **D-11: The side-effect handler is a swappable seam.** Whatever the research lands on, the implementation is structured as a function slot that Controllers can later swap for alternative behaviors (clear-on-write, crossfade-on-write, etc.) without touching core SPU-94 code.
 
 ### State Allocation Shape
@@ -86,7 +82,7 @@ Phase 2 delivers the **chassis** of the SPU-94 library — the state machinery, 
 
 ### Register Observability
 
-- **D-20: Atomic full-state snapshot.** `spu94_snapshot_registers(state, int16_t out[33])` grabs all 33 active register values at a consistent instant. Used for preset capture, witness diffs, debug dumps, Controllers UI.
+- **D-20: Atomic full-state snapshot.** `spu94_snapshot_registers(state, int16_t out[35])` grabs all 35 active register values at a consistent instant. Used for preset capture, witness diffs, debug dumps, Controllers UI.
 - **D-21: Change callbacks are NOT included in Phase 2.** Observer/callback pattern deferred — realtime-audio-grade cost concerns (function-pointer dispatch, re-entrancy, allocation) outweigh the benefit when polling at UI-refresh rates (~60 Hz) catches all meaningful visual updates. If Controllers later demonstrates a need for push notifications, they are added then.
 
 ### Architectural Principles (span all decisions above)
@@ -99,7 +95,7 @@ Phase 2 delivers the **chassis** of the SPU-94 library — the state machinery, 
 
 - **ADR-0004:** Extensibility taps — documents `q15_mul_truncate_with_err` and `spu94_tick()` as intentional public seams, not accidental API surface. Required Phase 2 deliverable.
 - **ADR-0005:** Per-register write-timing policy table — documents the split policy, lists every register's timing assignment (v* immediate, d*/m* tick-latched, with any exceptions), explains the seam-table structure. Required Phase 2 deliverable.
-- **ADR-0006:** mBASE write side-effect resolution — filled in after Phase 2 research. Preliminary lean: floor-only. Evidence table required. Required Phase 2 deliverable.
+- **ADR-0006:** mBASE write side-effect — **snap-on-write**. Resolved via Phase 2 research (psx-spx primary source, verbatim: "Writing a value to mBASE does additionally set the current buffer address to that value"). Evidence in `02-RESEARCH.md` § "mBASE Side-Effect Evidence". D-11 seam preserves floor-only / crossfade as Controllers-swappable alternatives. Required Phase 2 deliverable.
 
 ### Claude's Discretion (within the locked decisions above)
 
@@ -107,7 +103,7 @@ Phase 2 delivers the **chassis** of the SPU-94 library — the state machinery, 
 - Exact shape of the policy-table data structure (array vs switch vs generated lookup)
 - Naming of the `spu94_result_t` enum's internal identifiers beyond the three committed above
 - Whether `spu94_reg_name` returns the register name as-is (`"vIIR"`) or with a prefix (`"SPU94_REG_vIIR"`)
-- Internal file layout under `include/spu94/` — whether the 33 wrapper functions live in `spu94.h` directly, in a `spu94_registers.h` sub-include, or elsewhere
+- Internal file layout under `include/spu94/` — whether the 35 wrapper functions live in `spu94.h` directly, in a `spu94_registers.h` sub-include, or elsewhere
 - Exact boundary between "what `spu94_init` does" vs "what `spu94_reset` does"
 - Test-harness organization under `tests/unit/` (new subdirectories for buffer/register coverage)
 - Whether the mBASE side-effect seam is exposed as a function pointer in Phase 2 or left internal until Controllers needs it (the decision here is a Phase 2 question; the rationale must be logged)
@@ -138,7 +134,7 @@ None — no pending todos matched Phase 2 scope at discussion time.
 
 ### External References (paraphrased only — do NOT transcribe)
 
-- **nocash PSX SPU documentation** (problemkaputt.de / psx-spx.consoledev.net) — the primary authority for the 33 register addresses, the wrap formula `BufferAddress = MAX(mBASE, (addr+2) AND 0x7FFFE)`, and any implicit mBASE-write side-effect language. Phase 2 researcher must read the full SPU/reverb section, not just the register table.
+- **nocash PSX SPU documentation** (problemkaputt.de / psx-spx.consoledev.net) — the primary authority for the 35 register addresses, the wrap formula `BufferAddress = MAX(mBASE, (addr+2) AND 0x7FFFE)`, and the mBASE-write snap-on-write side effect. Research captured in `02-RESEARCH.md`.
 - **nocash + any findable PSX homebrew** — for the mBASE research (D-10).
 
 ### Not to be read as primary source
@@ -169,7 +165,7 @@ None — no pending todos matched Phase 2 scope at discussion time.
 ### Integration Points
 
 - **Phase 3 (reverb algorithm)** consumes `spu94_tick(state)` as the entry point and reads registers via `spu94_get_reg_i16` / `spu94_get_reg_u16`. Phase 2's opaque state layout must accommodate the work-buffer references and internal accumulators Phase 3 will add.
-- **Phase 5 (public API + presets)** wraps `spu94_tick()` in a block-based `spu94_process` entry point. Phase 5's `spu94_load_preset` uses the per-register write API to atomically update all 33 registers.
+- **Phase 5 (public API + presets)** wraps `spu94_tick()` in a block-based `spu94_process` entry point. Phase 5's `spu94_load_preset` uses the per-register write API to atomically update all 35 registers.
 - **Phase 6 (Python binding)** consumes the engine layer (D-01) directly via ctypes; uses `spu94_state_size()` to size its buffer; uses `spu94_reg_name()` and `spu94_reg_hw_offset()` for Python-side reflection.
 - **Phase 7 (verification)** uses `spu94_snapshot_registers` (D-20) for golden-file generation and witness-diff state capture.
 - **Phase 8 (MCU cross-compile)** uses `SPU94_STATE_SIZE_MAX` (D-12) to stack-allocate on Cortex-M7 where the SRAM budget is tight.

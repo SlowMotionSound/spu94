@@ -12,7 +12,7 @@ Ship `libspu94` (plain C library) + ctypes Python bindings + `spu94` CLI that bi
 ## Phases
 
 - [ ] **Phase 1: Foundation — Fixed-Point Math + Build Infrastructure** — Q15 helpers, CMake/CI determinism flags, DECISIONS.md seeded
-- [ ] **Phase 2: Buffer + Register Infrastructure** — work buffer, 33-register state, mid-stream write policy, opaque-handle lifecycle API
+- [ ] **Phase 2: Buffer + Register Infrastructure** — work buffer, 35-register state, mid-stream write policy, opaque-handle lifecycle API
 - [ ] **Phase 3: Core Reverb Algorithm + Hard Clip** — SAME/DIFF IIR + 4-tap comb + APF1/APF2 topology, mix-bus clip, vIIR anomaly
 - [ ] **Phase 4: Sample Rate Conversion (39-tap half-band FIR)** — 44.1↔22.05 kHz I/O boundaries with nocash coefficients
 - [ ] **Phase 5: Public API + Presets Integration** — `spu94_process` orchestration, 10 factory presets, glitch-free mid-stream writes end-to-end
@@ -40,14 +40,14 @@ Plans:
 - [x] 01-04-PLAN.md — Gap closure: KNOWN LIMITATIONS block in grep-guard.sh + fixture case 7 in test-grep-guard.sh
 
 ### Phase 2: Buffer + Register Infrastructure
-**Goal**: A caller can allocate an SPU-94 state, write any of the 33 registers at any time, and the buffer addressing + write-policy machinery behaves identically per spec regardless of call order.
+**Goal**: A caller can allocate an SPU-94 state, write any of the 35 registers at any time, and the buffer addressing + write-policy machinery behaves identically per spec regardless of call order.
 **Depends on**: Phase 1
 **Requirements**: CORE-03, CORE-04, CORE-10, API-01, API-02, API-04, API-07, API-09, TEST-02
 **Success Criteria** (what must be TRUE):
   1. A caller can compute state size, allocate storage externally, and call `spu94_init` / `spu94_reset` / destroy without the library touching the heap (verified by a linker-level symbol check that `malloc`/`free` are not referenced from core).
-  2. All 33 SPU reverb registers are writable and readable via typed enum identifiers, round-trip correctly, and signed (v*) vs unsigned (d*, m*) interpretation is preserved across write/read.
+  2. All 35 SPU reverb registers are writable and readable via typed enum identifiers, round-trip correctly, and signed (v*) vs unsigned (d*, m*) interpretation is preserved across write/read.
   3. `BufferAddress` advance honors the `MAX(mBASE, (addr+2) AND 0x7FFFE)` rule across 10^6 fuzzed steps with no out-of-bounds access, and mBASE writes follow the policy documented in `DECISIONS.md`.
-  4. Per-register unit tests exercise each of the 33 registers in isolation — value sweeps, edge cases, and zero-value-meaningful cases — and all pass.
+  4. Per-register unit tests exercise each of the 35 registers in isolation — value sweeps, edge cases, and zero-value-meaningful cases — and all pass.
   5. `DECISIONS.md` contains entries for (a) per-register mid-stream write policy (immediate vs tick-latched, with mBASE as documented special case) and (b) mBASE-write side-effect behavior on the work buffer.
   6. `spu94.h` compiles cleanly under `-std=c99 -pedantic` and under a `extern "C"` C++ consumer stub; the header depends only on the freestanding C subset.
 **Plans**: TBD
@@ -81,7 +81,7 @@ Plans:
 **Requirements**: CORE-09, API-03, API-05, API-06, API-08
 **Success Criteria** (what must be TRUE):
   1. A caller drives `spu94_process` with block-based int16 stereo at 44.1 kHz and receives int16 stereo at 44.1 kHz, with the 22.05 kHz reverb tick and FIR resampling fully hidden behind the API.
-  2. All 10 PS1 factory reverb presets (Room, Studio A/B/C, Hall, Half Echo, Space Echo, Echo, Delay, Off) are loadable via a bulk `spu94_load_preset` call that writes all 33 registers atomically, and each preset produces non-zero reverb tails for non-silent input (except Off, which is silent).
+  2. All 10 PS1 factory reverb presets (Room, Studio A/B/C, Hall, Half Echo, Space Echo, Echo, Delay, Off) are loadable via a bulk `spu94_load_preset` call that writes all 35 registers atomically, and each preset produces non-zero reverb tails for non-silent input (except Off, which is silent).
   3. A caller can write any register at any block boundary during live processing and the output contains no crashes, no buffer corruption, no required `spu94_reset` call; the mid-stream write policy from Phase 2 is honored end-to-end.
   4. A benchmark-driven audit confirms `spu94_process` performs no heap allocations, holds no locks, issues no syscalls, and exhibits no variable-latency operations across 10^5 consecutive blocks.
 **Plans**: TBD
@@ -106,9 +106,9 @@ Plans:
   1. The spec-conformance suite enumerates every nocash-documented reverb behavior and each has at least one passing dedicated test; a coverage table in the repo maps behaviors to tests.
   2. The witness-diff harness cross-correlates SPU-94 output vs lv2-psx-reverb output per preset and reports aligned RMS divergence within documented per-preset tolerances, with the frequency-response axis explicitly excluded per the Phase 4 decision.
   3. Golden-file regression tests exist for each of the 10 presets × a standard input set (impulse, white noise, 1 kHz sine, silence), each with a SHA-256 sidecar, and files are byte-identical across clean Docker-pinned CI and the host dev environment.
-  4. The modulation test sweeps every one of the 33 registers (sine, frequency sweep, random walk) during live processing and the output is bounded, stable, free of zipper noise on gain-type registers, and free of buffer corruption on address/delay-type registers — matching the Phase 2 write policy.
+  4. The modulation test sweeps every one of the 35 registers (sine, frequency sweep, random walk) during live processing and the output is bounded, stable, free of zipper noise on gain-type registers, and free of buffer corruption on address/delay-type registers — matching the Phase 2 write policy.
   5. A pytest-benchmark harness runs `spu94_process` under regression tracking and fails CI on pathological timing regressions or any hot-path allocation signal.
-  6. `docs/LEVERS-CATALOG.md` annotates each of the 33 registers with its musical role, modulation cost (free / sample-quantized / catastrophic), expected zipper behavior, and suggested M4 lever grouping; `docs/BIBLIOGRAPHY.md` cites every nocash section and Sony SDK reference used, with all prose paraphrased (nothing transcribed).
+  6. `docs/LEVERS-CATALOG.md` annotates each of the 35 registers with its musical role, modulation cost (free / sample-quantized / catastrophic), expected zipper behavior, and suggested M4 lever grouping; `docs/BIBLIOGRAPHY.md` cites every nocash section and Sony SDK reference used, with all prose paraphrased (nothing transcribed).
 **Plans**: TBD
 
 ### Phase 8: MCU Cross-Compile + CI Hardening

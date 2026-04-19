@@ -12,7 +12,7 @@ Requirements for the first shipped artifact: a plain C library with Python bindi
 - [ ] **CORE-01**: Fixed-point Q15 arithmetic with integer truncation (not rounding), matching SPU saturation and overflow semantics
 - [ ] **CORE-02**: Hard clip / saturation behavior on the mix bus (-0x8000..+0x7FFF), matching hardware
 - [ ] **CORE-03**: Reverb work buffer with correct wrap-address math per nocash (`BufferAddress = MAX(mBASE, (BufferAddress+2) AND 0x7FFFE)`) and documented mBASE-write side effects
-- [ ] **CORE-04**: All 33 SPU registers that affect reverb output, each implemented with documented behavior (the 24 reverb-block registers plus mBASE, vLOUT, vROUT, and related routing/control registers)
+- [ ] **CORE-04**: All 35 SPU registers that affect reverb output, each implemented with documented behavior (the 32 reverb-block registers at `0x1F801DC0–0x1F801DFE` — including `vLIN`/`vRIN` reverb input volumes — plus `mBASE`, `vLOUT`, `vROUT`)
 - [ ] **CORE-05**: All-pass + comb filter network topology matching nocash's documented processing order (input scale → SAME IIR → DIFF IIR → 4-tap comb → APF1 → APF2 → output scale → buffer advance)
 - [ ] **CORE-06**: 39-tap half-band FIR at the 44.1→22.05kHz input boundary — nocash's documented coefficients verbatim
 - [ ] **CORE-07**: 39-tap half-band FIR at the 22.05→44.1kHz output boundary — nocash's documented coefficients verbatim
@@ -25,7 +25,7 @@ Requirements for the first shipped artifact: a plain C library with Python bindi
 - [ ] **API-01**: Opaque handle type with caller-allocated state (no heap allocations in the library)
 - [ ] **API-02**: Init/reset/destroy lifecycle functions; caller provides work buffer memory
 - [ ] **API-03**: `spu94_process` function taking int16 stereo input and producing int16 stereo output at 44.1kHz, block-based
-- [ ] **API-04**: Typed register read/write functions covering all 33 registers (via enum/constant identifiers, not magic numbers)
+- [ ] **API-04**: Typed register read/write functions covering all 35 registers (via enum/constant identifiers, not magic numbers)
 - [ ] **API-05**: Bulk preset-load function accepting a preset struct for atomic register updates
 - [ ] **API-06**: Mid-stream register writes are first-class — no crashes, no buffer corruption, no required reinitialization; register modulation is a supported use case, not an edge case
 - [ ] **API-07**: Public header `spu94.h` is C99/C11 compliant, uses no C++-only features, wraps cleanly via `extern "C"` for future JUCE/C++ consumers
@@ -51,7 +51,7 @@ Requirements for the first shipped artifact: a plain C library with Python bindi
 ### TEST — Verification
 
 - [ ] **TEST-01**: Spec-conformance test suite — each nocash-documented reverb behavior has a corresponding test
-- [ ] **TEST-02**: Register-level unit tests — each of the 33 registers exercised in isolation (value sweeps, edge cases, zero-value-meaningful cases)
+- [ ] **TEST-02**: Register-level unit tests — each of the 35 registers exercised in isolation (value sweeps, edge cases, zero-value-meaningful cases)
 - [ ] **TEST-03**: Witness-diff harness running the same input through lv2-psx-reverb (output-only; no source reading) and comparing outputs; lv2-psx-reverb is excluded from the frequency-response axis per Key Decisions
 - [ ] **TEST-04**: Golden-file regression tests — each preset and reference test case has a snapshot-and-compare golden file; byte-stable across reproducible-build environments
 - [ ] **TEST-05**: Modulation test — every register modulated during a live audio stream (sine, sweep, random walk); output verified bounded, stable, non-corrupting, and matching the decided write-policy semantics
