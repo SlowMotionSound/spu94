@@ -3,9 +3,9 @@
 # link the same objects. Guarantees flag-identical artifacts (BUILD-01, BUILD-02).
 
 add_library(spu94_obj OBJECT
-    spu94_placeholder.c
     spu94_state.c
     spu94_registers.c
+    spu94_tick.c
 )
 
 # PUBLIC include dirs: downstream consumers of spu94_shared/static see them too.

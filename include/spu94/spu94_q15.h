@@ -45,6 +45,45 @@ static inline int16_t sat_s16(int32_t x) {
     return (int16_t)x;
 }
 
+/* D-18: Error-observation tap for the Error Accumulator use case
+ * (see .planning/notes/2026-04-19-error-accumulator-concept.md). ADR-0004
+ * documents this as an intentional public seam, not accidental API surface.
+ *
+ * Same math as q15_mul_truncate (ADR-0001 semantics: ASR >>15, sat_s16):
+ *   full_product = (int32_t)a * (int32_t)b;
+ *   shifted      = full_product >> 15;   // ASR, verified by _Static_assert
+ *   result       = sat_s16(shifted);
+ *
+ * Additionally, when err_out != NULL, writes the discarded truncation
+ * remainder:
+ *   *err_out = (int16_t)(full_product - ((int32_t)shifted << 15));
+ *
+ * The remainder is the bits the >>15 shift threw away, in the range
+ * [0, 32767] for non-negative products and [-32768, -1] for negative
+ * products under ASR semantics. It always fits in int16_t.
+ *
+ * Saturation: on the INT16_MIN*INT16_MIN edge case, `result` is INT16_MAX
+ * (ADR-0001). The remainder written to *err_out is the PRE-SATURATION value
+ * (the truncation remainder from the >>15 shift, not the additional
+ * saturation discard). For INT16_MIN^2 specifically, remainder = 0 because
+ * the product (+2^30) is exactly divisible by 2^15. Callers that care about
+ * the saturation discard can infer it from `result == INT16_MAX && shifted
+ * > INT16_MAX` — the discard equals shifted - INT16_MAX.
+ *
+ * err_out == NULL is permitted; when NULL, the function is indistinguishable
+ * from q15_mul_truncate. */
+static inline int16_t q15_mul_truncate_with_err(int16_t a, int16_t b, int16_t *err_out) {
+    int32_t product = (int32_t)a * (int32_t)b;
+    int32_t shifted = product >> 15;  /* ASR, per _Static_assert above */
+    if (err_out != (int16_t *)0) {
+        /* Remainder = product - (shifted << 15). Always fits in int16_t
+         * because `shifted` captures all bits except the low 15. */
+        int32_t remainder = product - (shifted << 15);
+        *err_out = (int16_t)remainder;
+    }
+    return sat_s16(shifted);
+}
+
 /* Signed Q15 multiply, ASR-direction truncation, saturated to int16.
  *
  * Contract:
@@ -53,11 +92,13 @@ static inline int16_t sat_s16(int32_t x) {
  * Edge case: INT16_MIN * INT16_MIN produces intermediate +2^30; >> 15 = +2^15;
  * +2^15 does not fit in int16_t, so sat_s16 clamps to INT16_MAX.
  *
+ * Implemented as a thin wrapper around q15_mul_truncate_with_err passing
+ * err_out = NULL (Plan 02 / ADR-0004). Bit-identical to the Phase 1 version
+ * by construction; the Phase 1 q15 reference table continues to pass.
+ *
  * See include/spu94/spu94_q15.h header block for full policy + ADR-0001 reference. */
 static inline int16_t q15_mul_truncate(int16_t a, int16_t b) {
-    int32_t product = (int32_t)a * (int32_t)b;
-    int32_t shifted = product >> 15; /* ASR, per _Static_assert above */
-    return sat_s16(shifted);
+    return q15_mul_truncate_with_err(a, b, (int16_t *)0);
 }
 
 /* Saturating signed add in int16 range.
