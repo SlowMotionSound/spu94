@@ -51,7 +51,7 @@ Requirements for the first shipped artifact: a plain C library with Python bindi
 ### TEST — Verification
 
 - [ ] **TEST-01**: Spec-conformance test suite — each nocash-documented reverb behavior has a corresponding test
-- [ ] **TEST-02**: Register-level unit tests — each of the 35 registers exercised in isolation (value sweeps, edge cases, zero-value-meaningful cases)
+- [x] **TEST-02**: Register-level unit tests — each of the 35 registers exercised in isolation (value sweeps, edge cases, zero-value-meaningful cases)
 - [ ] **TEST-03**: Witness-diff harness running the same input through lv2-psx-reverb (output-only; no source reading) and comparing outputs; lv2-psx-reverb is excluded from the frequency-response axis per Key Decisions
 - [ ] **TEST-04**: Golden-file regression tests — each preset and reference test case has a snapshot-and-compare golden file; byte-stable across reproducible-build environments
 - [ ] **TEST-05**: Modulation test — every register modulated during a live audio stream (sine, sweep, random walk); output verified bounded, stable, non-corrupting, and matching the decided write-policy semantics
@@ -172,7 +172,7 @@ Mapping of requirements to roadmap phases — populated during roadmap creation.
 | CLI-03 | Phase 6 | Pending |
 | CLI-04 | Phase 6 | Pending |
 | TEST-01 | Phase 7 | Pending |
-| TEST-02 | Phase 2 | Pending |
+| TEST-02 | Phase 2 | Complete |
 | TEST-03 | Phase 7 | Pending |
 | TEST-04 | Phase 7 | Pending |
 | TEST-05 | Phase 7 | Pending |

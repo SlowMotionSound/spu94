@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-04-19T20:33:18.963Z"
+last_updated: "2026-04-19T20:52:00.149Z"
 progress:
   total_phases: 8
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 9
-  completed_plans: 8
-  percent: 89
+  completed_plans: 9
+  percent: 100
 ---
 
 # STATE: SPU-94
@@ -20,28 +20,28 @@ progress:
 
 **Project:** SPU-94 — bit-faithful PS1 SPU reverb DSP
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current Focus:** Phase 02 — buffer-register-infrastructure
+**Current Focus:** Phase 02 — COMPLETE; ready for Phase 03 (reverb algorithm)
 
 ## Current Position
 
-Phase: 02 (buffer-register-infrastructure) — EXECUTING
-Plan: 5 of 5
+Phase: 02 (buffer-register-infrastructure) — COMPLETE
+Plan: 5 of 5 (all complete)
 
 - **Milestone:** 1 (v1.0)
-- **Phase:** 2
-- **Plan:** 02-04 complete; ready for 02-05
-- **Status:** Executing Phase 02
-- **Progress:** [█████████░] 89%
+- **Phase:** 2 (complete)
+- **Plan:** 02-05 complete; Phase 02 closed
+- **Status:** Phase 02 complete; ready to transition to Phase 03
+- **Progress:** [██████████] 100%
 
 ```
-[█.......] 1/8 phases complete (Plans 02-01, 02-02, 02-03, 02-04 of Phase 02 done; 1 plan remains in Phase 02)
+[██......] 2/8 phases complete (Phase 01 done; Phase 02 done — Plans 02-01..05 all green)
 ```
 
 ## Performance Metrics
 
-- Phases completed: 1
-- Plans completed: 8 (Phase 1: 4, Phase 2: 4)
-- Requirements validated: 25 / 49 (Phase 1: 13, Plan 02-01: API-01/02/07/09, Plan 02-02: CORE-04, API-04, API-07 reaffirmed, Plan 02-03: CORE-04 reaffirmed, CORE-10 partial, API-04 reaffirmed, Plan 02-04: CORE-03, CORE-10 complete)
+- Phases completed: 2
+- Plans completed: 9 (Phase 1: 4, Phase 2: 5)
+- Requirements validated: 26 / 49 (Phase 1: 13, Plan 02-01: API-01/02/07/09, Plan 02-02: CORE-04, API-04, API-07 reaffirmed, Plan 02-03: CORE-04 reaffirmed, CORE-10 partial, API-04 reaffirmed, Plan 02-04: CORE-03, CORE-10 complete, Plan 02-05: TEST-02 + CORE-03/04/10 reaffirmed)
 
 | Plan | Duration | Tasks | Files | Notes |
 |------|----------|-------|-------|-------|
@@ -49,6 +49,7 @@ Plan: 5 of 5
 | 02-02 | ~7m 7s | 3 (2 TDD) | 11 | register identity (35-enum + tables) + q15 error tap + spu94_tick stub + ADR-0004 |
 | 02-03 | ~11m 44s | 4 (2 TDD) | 15 | engine register I/O + 35-entry policy table + facade (105 wrappers) + ADR-0005 |
 | 02-04 | ~6m 18s | 2 (1 TDD) | 9 | buffer arithmetic + mBASE snap-on-write + ADR-0006 + spu94_get_buffer_address |
+| 02-05 | ~8m 30s | 4 (test-only) | 12 | per-register battery + buffer wrap/mBASE tests + Python 10^6 ctypes fuzz + structured q15_with_err table; ctest 15/15 |
 
 ## Accumulated Context
 
@@ -102,6 +103,19 @@ Plan: 5 of 5
 - ADR-0005 added at line 33 of `docs/DECISIONS.md` (prepended above ADR-0004) — documents the split write-timing policy + per-register assignments + seam structure + Pitfall 4 protection.
 - `sizeof(struct spu94_state) == 168 bytes` unchanged from end of Plan 01 (Plan 03 used reserved fields, did not add new ones; 16216 bytes headroom remaining vs `SPU94_STATE_SIZE_MAX`).
 
+### Phase 2 Plan 05 Decisions (locked)
+
+- Plan 02-05 lands tests-only -- 6 new C Unity TUs (4 register + 2 buffer) + Python ctypes fuzz harness + 2 new q15 tests. Zero production code change; `nm` confirms 19 T-symbols (unchanged from Plan 04 end state).
+- 33 net-new C RUN_TEST entries: 17 across 4 register TUs (round-trip 3 + types 6 + policy 4 + edges 4), 14 across 2 buffer TUs (wrap 7 + mBASE 7), 2 in q15 (structured `_with_err` reference table + null-passthrough).
+- Python fuzz harness `tests/python/fuzz_buffer.py` runs 10^6 random ops per invocation (~2.46 s on dev workstation, ~407K ops/s) with an INDEPENDENT Python state model (mirrors `(buffer_address, mBASE)` and applies `MAX(mBASE, (ba+2) & 0x7FFFE)` per tick); divergence in EITHER direction fails the test. Stronger than the wrap inequalities alone.
+- Halfword-alignment exception scoped to `(ba & 1) != 0 IMPLIES ba == mBASE` (the snap-on-write or odd-MAX-result case). Persists across non-mBASE register writes; cleared by the next tick or another `set_mBASE`.
+- Pre-Phase-6 ctypes design: hand-synced enum IDs in `fuzz_buffer.py`. Phase 6 replaces with ctypes IntEnum derived from the C header at import time.
+- Pitfall 7 (stale library build) mitigated via `set_tests_properties(fuzz_buffer PROPERTIES ENVIRONMENT "SPU94_LIB=$<TARGET_FILE:spu94_shared>")` -- CMake re-evaluates the generator expression on every test invocation, so the harness loads the just-built `.so`.
+- Coverage-boundary comment block in `test_buffer_wrap.c` documents why the `mBASE=0 + ba=0x7FFFE` wrap-to-zero corner is the Python fuzz harness's job (262K-tick reach from init exceeds C-test budget).
+- TDD RED/GREEN split intentionally collapsed: Plan 05 is exclusively retroactive test coverage for already-correct Plans 01-04 implementations; tests pass on first compile, leaving no meaningful "RED" state. Single `test(...)` commit per task.
+- Auto-fixed (3): `d*/m*` shorthand in a comment (Plans 03+04 recurrence); over-narrow odd-`ba` exception caught by the property-test mechanism it was meant to govern; boundary-comment regex needed both substrings on one line.
+- Phase 2 success criteria 1-6 ALL met at end of Plan 05; phase complete; ready for Phase 3 (reverb algorithm) which builds inside `spu94_tick`'s already-shaped body.
+
 ### Phase 2 Plan 04 Decisions (locked)
 
 - BufferAddress wrap formula `MAX(mBASE, (buffer_address + 2) AND 0x7FFFE)` implemented in byte arithmetic in `src/spu94/spu94_buffer.c::spu94_buffer_advance` using an inline ternary (`(advanced > mbase) ? advanced : mbase`) — no `max()` macro to hide intent (acceptance criterion).
@@ -135,27 +149,26 @@ None.
 
 ### Todos
 
-- Continue Phase 2: execute Plan 02-05 (per-register policy test battery + buffer-corner tests + Python ctypes 10⁶-step fuzz harness).
-- Plan 05: `tests/unit/buffer/test_buffer_wrap.c` (formula corners — wrap-to-zero, mBASE-floor, single-tick advance from arbitrary address).
-- Plan 05: `tests/unit/buffer/test_buffer_mbase.c` (snap behavior + full sentinel sweep for the work-buffer-unchanged invariant).
-- Plan 05: `tests/python/fuzz_buffer.py` — ctypes harness running 10⁶ random ops with per-step invariant `buffer_address >= mBASE && buffer_address <= 0x7FFFE && ((buffer_address & 1) == 0 OR last_op_was_odd_mbase_snap)` (T-02-28).
-- Plan 05: per-register policy test battery (35 registers × {set, set-then-tick, set-wrong-type} × policy expectation) — completes ADR-0005's test obligation.
+- Phase 2 complete. Next: `/gsd-transition` to transition to Phase 3.
+- Phase 3 (reverb algorithm) builds inside the already-shaped `spu94_tick` body (Plan 04 left it as `apply_pending_writes -> buffer_advance -> [Phase 3 inserts here]`).
+- Phase 3 will exercise the contract pinned by Plan 05's tests (any wrap-formula or mBASE-snap regression in Phase 3 will surface in the fuzz harness at a specific (seed, step) pair).
+- Phase 3 will use `q15_mul_truncate_with_err` for the per-multiply error observation that the future Error Accumulator concept depends on (D-18 / ADR-0004; tests landed in Plan 02 + Plan 05).
 
 ## Session Continuity
 
 ### Last Session (2026-04-19)
 
-- Executed Phase 2 Plan 04: created `src/spu94/spu94_buffer.c` with three functions — `spu94_buffer_advance` (CORE-03 wrap formula, byte arithmetic, inline ternary), `spu94_mbase_on_write` (real snap-on-write body, lifted from Plan 03 stub), `spu94_get_buffer_address` (public observability accessor, D-23).
-- Wired `spu94_buffer_advance` into `spu94_tick` after `apply_pending_writes` (final Phase-2 tick body shape).
-- Removed the Plan-03 stub of `spu94_mbase_on_write` from `spu94_write_policy.c` (ODR preserved; nm confirms exactly one definition, now in `spu94_buffer.o`).
-- Added ADR-0006 to `docs/DECISIONS.md` (line 33, prepended above ADR-0005) — snap-on-write resolution + wrap formula + D-11 seam + bit-0 pass-through pin + paraphrase-only discipline (psx-spx URL cited; verbatim sentence absent).
-- New test suite `tests/unit/buffer/test_buffer_basic.c` with 11 Unity cases covering null-safety, init/reset zeroing, single/multi-tick advance, wrap-from-top, mBASE floor, snap-on-write, odd-mBASE pass-through, work-buffer-unchanged invariant, and tick-order observability. ctest 8/8 green.
-- Auto-fixed: -Werror=missing-prototypes on the two new internal symbols (added forward decls at top of `spu94_buffer.c`); leftover `spu94_mbase_on_write` mentions in `spu94_write_policy.c` comments after stub removal (reworded to "the mBASE write-side-effect handler"); ADR-0006 wrap formula notation switched from lowercase `max(...)` to uppercase `MAX(...)` to satisfy the `grep -q 'MAX' docs/DECISIONS.md` acceptance criterion.
-- 3 commits land Plan 04 (Task 1 RED `b6d03bc`, Task 1 GREEN `ecd17d4`, Task 2 ADR `4b55f86`); ctest 8/8 green; grep-guard + verify-no-heap green.
+- Executed Phase 2 Plan 05 -- the test battery + Python ctypes fuzz harness that closes Phase 2.
+- Created 6 C Unity TUs: `test_register_roundtrip.c` (3 tests; all-35 round-trip + snapshot + facade parity), `test_register_types.c` (6 tests; classifier + TYPE_MISMATCH per i16/u16 + UNKNOWN_REG + edge preservation), `test_register_policy.c` (4 tests; IMMEDIATE per-reg + TICK_LATCHED per-reg + multi-pending atomic flush + mixed window), `test_register_edges.c` (4 tests; INT16_MIN/MAX/0 every i16 + 5 u16 boundaries every u16 + vIIR=-0x8000 round-trip + zero meaningful), `test_buffer_wrap.c` (7 tests; advance-from-zero + floor-active + mBASE=0 32-tick + 0xFFFE snap + halfword/bounded/floor invariants), `test_buffer_mbase.c` (7 tests; immediate snap + multi-snap + snap-to-zero + 4 KB sentinel work-buf-unchanged sweep + set+tick + pending readback + reset).
+- Created `tests/python/fuzz_buffer.py` (10^6 random ops; independent Python state model; ~407K ops/s; 2.46 s per 10^6 run) with golden seed `0xC0FFEE`. Wired as ctest target `fuzz_buffer` via `tests/python/CMakeLists.txt` (find_package Python3 3.10; `$<TARGET_FILE:spu94_shared>` env-var generator expression for Pitfall 7 mitigation).
+- Appended 2 new tests to `tests/unit/q15/test_q15.c` (structured `q15_err_case_t` reference table for `_with_err` remainder + null-passthrough across the Phase-1 mul_cases table).
+- Auto-fixed: `(22 d*/m*)` shorthand in a doc comment (the recurring Plans 03/04 issue); over-narrow odd-`buffer_address` exception in fuzz_buffer.py (caught at step 5 of first smoke run; replaced with independent Python model that validates `(ba & 1) != 0 IMPLIES ba == mBASE`); boundary-comment regex needed both substrings on one line.
+- 4 commits land Plan 05: `b788a28` (Task 1 register battery), `e70ba9e` (Task 2 buffer battery), `0b2dd20` (Task 3 Python fuzz), `13be09e` (Task 4 q15 structured table). ctest 15/15 green; grep-guard + verify-no-heap clean. nm: 19 T-symbols (unchanged from Plan 04 -- tests-only landing).
+- Phase 2 success criteria 1-6 ALL met. Phase 2 complete.
 
 ### Next Session
 
-- `/gsd-execute-phase` (continue) — execute Plan 02-05 (per-register policy test battery + buffer-corner tests + Python ctypes 10⁶-step fuzz harness; closes ADR-0005 + ADR-0006 test obligations and ROADMAP Phase 2 SC 3).
+- `/gsd-transition` -- transition from Phase 2 to Phase 3 (reverb algorithm). Phase 3's reverb-network computation slots into `spu94_tick`'s body as the third statement (after `apply_pending_writes` and `buffer_advance`). Plan 05's fuzz harness becomes the regression-protection mechanism that catches any Phase 3 buffer-arithmetic or write-timing drift.
 
 ---
 *State initialized: 2026-04-18 at roadmap completion*

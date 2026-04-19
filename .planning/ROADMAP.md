@@ -56,7 +56,7 @@ Plans:
 - [x] 02-02-PLAN.md — Register identity surface (35-entry enum + hw_offset + name + snapshot decl), q15 error tap, `spu94_tick` stub, ADR-0004
 - [x] 02-03-PLAN.md — Register I/O engine + 35 facade wrappers + split write-timing policy table + pending shadow + tick flush + ADR-0005
 - [x] 02-04-PLAN.md — BufferAddress wrap formula + mBASE snap-on-write (resolves D-09/D-10) + observability accessor + ADR-0006
-- [ ] 02-05-PLAN.md — Test battery: register roundtrip/types/policy/edges + buffer wrap/mBASE + Python ctypes 10^6-step fuzz + q15_with_err cases
+- [x] 02-05-PLAN.md — Test battery: register roundtrip/types/policy/edges + buffer wrap/mBASE + Python ctypes 10^6-step fuzz + q15_with_err cases
 
 ### Phase 3: Core Reverb Algorithm + Hard Clip
 **Goal**: The per-22.05 kHz-tick reverb algorithm — SAME/DIFF IIR, 4-tap comb, APF1, APF2 — plus the mix-bus hard clip, run correctly against every documented spec behavior at the algorithmic level.
