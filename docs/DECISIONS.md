@@ -30,6 +30,163 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-0006: mBASE write side effect — snap-on-write
+
+**Status:** Accepted (2026-04-19, Phase 2)
+
+**Context:**
+
+Phase 2's discussion identified the mBASE-write side-effect question as a
+gray area worth resolving with primary-source research before locking a
+behavior. The preliminary CONTEXT.md lean (D-09) was "floor-only — writing
+mBASE updates the wrap floor but does not reset BufferAddress." The
+research step (see `02-RESEARCH.md` § "mBASE Side-Effect Evidence")
+contradicted the preliminary lean: the nocash psx-spx SPU documentation
+states in plain language that an mBASE write additionally sets the current
+buffer address to the written value. The wrap formula itself (see this
+ADR's Decision section) uses `max(mBASE, ...)` so mBASE already acts as a
+floor on every subsequent tick — the write-time snap is an additional,
+stateful side effect that the formula alone does not produce.
+
+Secondary and tertiary sources (hitmen c02 SPU doc, jsgroth PS1 SPU Part 3
+writeup, findable PSX homebrew) are silent on the mid-stream mBASE-write
+case, consistent with the Sony BIOS reverb-setup procedure that disables
+reverb before changing registers. GPL witnesses (Mednafen, lv2-psx-reverb,
+DuckStation) were not read per PROJECT.md licensing posture; their output
+audio remains a candidate witness for Milestone 5 hardware-comparison
+work, but their source code is not a primary input to this resolution.
+
+**Decision:**
+
+Writing `mBASE` snaps the reverb work-buffer pointer:
+
+```
+On any write to mBASE with value N:
+    state->reg_values[SPU94_REG_mBASE] = (int16_t)N      (engine layer)
+    state->buffer_address = (uint32_t)N                  (this ADR)
+```
+
+No implicit work-buffer clear. No crossfade. No tick-alignment delay. The
+jump can produce an audible discontinuity in the reverb tail; that is
+hardware-accurate behavior and SPU-94's default.
+
+BufferAddress advance (once per stereo tick, from `spu94_buffer_advance`
+called inside `spu94_tick` after `spu94_apply_pending_writes`):
+
+```
+buffer_address = MAX(mBASE, (buffer_address + 2) AND 0x7FFFE)
+```
+
+(Mathematical `MAX` — the implementation in `spu94_buffer.c` uses an
+inline ternary, not a `max()` macro, to keep the operation visible at
+the call site.)
+
+- Byte addressing. The `+2` advances by one 16-bit halfword per stereo
+  tick.
+- `0x7FFFE` masks to the 512 KB-2 SPU RAM region with halfword alignment
+  (bit 0 always clear after an advance).
+- The `max(mBASE, ...)` clause floors the advance to mBASE even without
+  the write-time snap; the snap is for the mid-stream-write case
+  specifically.
+
+Implemented in `src/spu94/spu94_buffer.c`:
+- `spu94_buffer_advance(state)` — the wrap formula.
+- `spu94_mbase_on_write(state, new_mbase)` — the snap side effect.
+- `spu94_get_buffer_address(state)` — read-only observability accessor
+  (D-23) on the running address.
+
+`spu94_mbase_on_write` is the D-11 seam. SPU-94 keeps it internal (not
+runtime-swappable) in Phase 2. The future Controllers milestone may
+re-point it at alternative behaviors (floor-only, crossfade-on-write,
+clear-and-snap) by re-linking an alternative translation unit, or by
+promoting it to a runtime function pointer via an additive ADR.
+
+**Bit-faithfulness note (T-02-18):** The snap passes the written `u16`
+value through verbatim. An odd mBASE produces an odd `buffer_address`
+for exactly one step, until the next `spu94_buffer_advance` clears bit 0
+through the `AND 0x7FFFE` mask. The primary source is silent on bit-0
+masking at write time; SPU-94 defaults to verbatim pass-through and
+documents this exception in the threat register and in Plan 05's
+T-02-28 fuzz invariant. The snap MUST NOT be patched to add `& ~1u` —
+that would diverge from the bit-faithful interpretation.
+
+**Consequences:**
+
+- **Bit-faithful to primary source.** SPU-94's mBASE behavior matches the
+  plain-language nocash statement. No invented side effect (buffer clear,
+  crossfade, tick-alignment) that the spec does not describe.
+
+- **D-09 revised.** The preliminary D-09 "floor-only" lean is superseded
+  by this ADR. The D-11 seam structure is preserved so a future reversal
+  is cheap if hardware-witness evidence (Milestone 5) contradicts the
+  plain-language reading.
+
+- **Audible discontinuity accepted.** Because the snap is instantaneous,
+  writing mBASE during active reverb jumps the reverb's work-buffer
+  read pointer, which manifests as a click or phase jump in the audio
+  tail. This is accepted as hardware-accurate. Controllers may later
+  add a smoothing layer for musical use cases — but that is the
+  Controllers layer, not core SPU-94.
+
+- **Test obligations:**
+  - Plan 04 ships `tests/unit/buffer/test_buffer_basic.c` with eleven
+    Unity cases covering null-safety, init/reset zeroing, single-tick
+    advance, 100-tick cumulative advance, the wrap corner at the top of
+    the address window, the mBASE-floor case, the snap-on-write
+    immediate effect, the odd-mBASE pass-through, the work-buffer
+    untouched invariant, and the tick-order observability check
+    (apply_pending_writes runs before buffer_advance).
+  - Plan 05 will add `tests/unit/buffer/test_buffer_wrap.c` for the
+    formula corners at finer resolution and `tests/unit/buffer/test_buffer_mbase.c`
+    with a full sentinel-pattern check that the snap leaves work_buf
+    bytewise unchanged.
+  - Plan 05 will add the Python ctypes fuzz harness
+    (`tests/python/fuzz_buffer.py`) running 10^6 random operations,
+    asserting after each step that
+    `buffer_address >= mBASE && buffer_address <= 0x7FFFE` and that
+    `(buffer_address & 1) == 0` holds *unless* the most recent op was
+    a snap with an odd value (the T-02-28 exception).
+
+- **Revision paths:**
+  - Milestone 5 hardware witness contradicts "snap exactly on write" —
+    a new ADR supersedes with the observed behavior; the D-11 seam
+    makes the change a one-file edit.
+  - Controllers needs a runtime-swappable handler — additive ADR that
+    promotes the internal handler to a function-pointer slot in
+    `spu94_state`. No break to existing callers.
+  - Hardware witness shows bit 0 IS masked at snap time — flip the
+    snap body to `state->buffer_address = (uint32_t)new_mbase & ~1u;`
+    in a new ADR; the T-02-28 invariant relaxes accordingly.
+
+**Sources:**
+
+- External (paraphrased, cite-only): nocash psx-spx, "Reverb Volume and
+  Address Registers (R/W)" subsection, which in plain language describes
+  that an mBASE write additionally sets the current buffer address to
+  the written value. URL:
+  https://psx-spx.consoledev.net/soundprocessingunitspu/
+  (extracted via WebFetch on 2026-04-19; paraphrased here per
+  PROJECT.md licensing posture — no prose or tables transcribed).
+- External (paraphrased): nocash psx-spx, "SPU Reverb Formula" section,
+  which defines the `max(mBASE, (addr+2) AND 0x7FFFE)` wrap formula.
+  Same URL. Used verbatim for the arithmetic (uncopyrightable facts,
+  not prose).
+- External (absence-of-evidence): hitmen c02 SPU documentation, jsgroth
+  PS1 SPU Part 3 blog series — neither documents a different mBASE
+  side effect; no contradiction.
+- Internal: `.planning/phases/02-buffer-register-infrastructure/02-RESEARCH.md`
+  § "mBASE Side-Effect Evidence" — full evidence table, secondary-
+  source survey, and contradiction-with-D-09 flag.
+- Internal: `src/spu94/spu94_buffer.c` — the implementation this ADR
+  documents.
+- Prior ADR: ADR-0005 (write-timing policy table) — mBASE's IMMEDIATE
+  policy is established there; the snap side effect documented here
+  fires AFTER the register-value update. ADR-0005's text references
+  the Plan-03 location of the handler in `spu94_write_policy.c`; the
+  handler was lifted to `spu94_buffer.c` in Plan 04 (ODR preserved).
+
+---
+
 ## ADR-0005: Per-register mid-stream write-timing policy — split policy with swappable table
 
 **Status:** Accepted (2026-04-19, Phase 2)
