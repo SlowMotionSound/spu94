@@ -50,7 +50,13 @@ Plans:
   4. Per-register unit tests exercise each of the 35 registers in isolation — value sweeps, edge cases, and zero-value-meaningful cases — and all pass.
   5. `DECISIONS.md` contains entries for (a) per-register mid-stream write policy (immediate vs tick-latched, with mBASE as documented special case) and (b) mBASE-write side-effect behavior on the work buffer.
   6. `spu94.h` compiles cleanly under `-std=c99 -pedantic` and under a `extern "C"` C++ consumer stub; the header depends only on the freestanding C subset.
-**Plans**: TBD
+**Plans:** 5 plans
+Plans:
+- [ ] 02-01-PLAN.md — State chassis: opaque `spu94_state` + lifecycle API + linker-level no-heap proof + C99/C++ consumer compile tests
+- [ ] 02-02-PLAN.md — Register identity surface (35-entry enum + hw_offset + name + snapshot decl), q15 error tap, `spu94_tick` stub, ADR-0004
+- [ ] 02-03-PLAN.md — Register I/O engine + 35 facade wrappers + split write-timing policy table + pending shadow + tick flush + ADR-0005
+- [ ] 02-04-PLAN.md — BufferAddress wrap formula + mBASE snap-on-write (resolves D-09/D-10) + observability accessor + ADR-0006
+- [ ] 02-05-PLAN.md — Test battery: register roundtrip/types/policy/edges + buffer wrap/mBASE + Python ctypes 10^6-step fuzz + q15_with_err cases
 
 ### Phase 3: Core Reverb Algorithm + Hard Clip
 **Goal**: The per-22.05 kHz-tick reverb algorithm — SAME/DIFF IIR, 4-tap comb, APF1, APF2 — plus the mix-bus hard clip, run correctly against every documented spec behavior at the algorithmic level.
