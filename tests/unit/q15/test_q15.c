@@ -167,6 +167,73 @@ void test_q15_mul_truncate_with_err_saturation_remainder_is_pre_saturation(void)
     TEST_ASSERT_EQUAL_INT16(0, err);
 }
 
+/* --- q15_mul_truncate_with_err: structured reference table (Plan 05 Task 4) ---
+ * Plan 02 Task 2 landed inline TEST_ASSERT-style coverage of _with_err
+ * (the three test functions above). Plan 05 Task 4 adds the structured
+ * table form alongside, mirroring the test_q15_mul_truncate_table pattern
+ * from Phase 1: a {a, b, expected_result, expected_err, why} table that
+ * a reviewer can audit row-by-row in one place. ADR-0004's test obligation
+ * was met by Plan 02; this is the audit-friendly restatement.
+ *
+ * Hand-computed remainder: remainder = full_product - (shifted << 15).
+ * Pre-saturation per ADR-0004. */
+
+typedef struct {
+    int16_t a;
+    int16_t b;
+    int16_t expected_result;
+    int16_t expected_err;
+    const char *why;
+} q15_err_case_t;
+
+static const q15_err_case_t err_cases[] = {
+    {  100,        100,         0,     10000,
+        "100*100=10000 >> 15 = 0; remainder = 10000 - 0 = 10000" },
+    {   32,       1024,         1,         0,
+        "32*1024 = 32768; shifted=1; remainder = 32768 - 32768 = 0" },
+    {INT16_MAX, INT16_MAX,  32766,         1,
+        "32767*32767 = 1073676289; shifted=32766; remainder = "
+        "1073676289 - 1073676288 = 1" },
+    {  -1,          1,         -1,    32767,
+        "-1*1 = -1; ASR>>15 = -1; remainder = -1 - (-1<<15) = -1+32768 = 32767" },
+    {INT16_MIN, INT16_MIN, INT16_MAX,     0,
+        "INT16_MIN^2 = +2^30; shifted = +2^15 saturates to INT16_MAX; "
+        "pre-saturation remainder = 0 (product is exactly divisible by 2^15)" },
+};
+
+void test_q15_mul_truncate_with_err_remainder(void) {
+    size_t n = sizeof(err_cases)/sizeof(err_cases[0]);
+    for (size_t i = 0; i < n; ++i) {
+        int16_t err = (int16_t)0x7777;   /* sentinel; confirms function writes */
+        int16_t got = q15_mul_truncate_with_err(
+            err_cases[i].a, err_cases[i].b, &err);
+        char msg[224];
+        snprintf(msg, sizeof(msg), "case %zu result: %s",
+                 i, err_cases[i].why);
+        TEST_ASSERT_EQUAL_INT16_MESSAGE(
+            err_cases[i].expected_result, got, msg);
+        snprintf(msg, sizeof(msg), "case %zu err: %s",
+                 i, err_cases[i].why);
+        TEST_ASSERT_EQUAL_INT16_MESSAGE(
+            err_cases[i].expected_err, err, msg);
+    }
+}
+
+void test_q15_mul_truncate_with_err_null_passthrough(void) {
+    /* For every row in the existing Phase-1 mul_cases reference table,
+     * _with_err(NULL) must equal _truncate. Belt-and-suspenders alongside
+     * test_q15_mul_truncate_with_err_null_matches_base above (which makes
+     * the same assertion via the TEST_ASSERT-equality form). Both pass
+     * because q15_mul_truncate is now a thin wrapper around _with_err. */
+    size_t n = sizeof(mul_cases)/sizeof(mul_cases[0]);
+    for (size_t i = 0; i < n; ++i) {
+        int16_t ref = q15_mul_truncate(mul_cases[i].a, mul_cases[i].b);
+        int16_t got = q15_mul_truncate_with_err(
+            mul_cases[i].a, mul_cases[i].b, (int16_t *)0);
+        TEST_ASSERT_EQUAL_INT16(ref, got);
+    }
+}
+
 /* --- spu94_tick public stub (D-19) --- */
 
 void test_spu94_tick_null_safe(void) {
@@ -192,6 +259,8 @@ int main(void) {
     RUN_TEST(test_q15_mul_truncate_with_err_null_matches_base);
     RUN_TEST(test_q15_mul_truncate_with_err_remainder_table);
     RUN_TEST(test_q15_mul_truncate_with_err_saturation_remainder_is_pre_saturation);
+    RUN_TEST(test_q15_mul_truncate_with_err_remainder);
+    RUN_TEST(test_q15_mul_truncate_with_err_null_passthrough);
     RUN_TEST(test_spu94_tick_null_safe);
     RUN_TEST(test_spu94_tick_noop_on_valid_state);
     return UNITY_END();
