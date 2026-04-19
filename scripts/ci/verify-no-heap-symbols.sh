@@ -34,8 +34,13 @@ fi
 
 FAIL=0
 
-# Pass 1: undefined symbols (nm -u). Word boundaries prevent false positives
-# on symbols that happen to contain the forbidden words as substrings.
+# Pass 1: undefined symbols (nm -u). The (^|[^A-Za-z0-9_]) ... ([^A-Za-z0-9_]|$)
+# anchors prevent false positives on symbols that contain the forbidden words
+# as substrings. We deliberately do NOT use \b here: \b treats `_` as a word
+# character, so a future widening of the list (e.g., `aligned_alloc`,
+# `posix_memalign`) would silently miss symbols like `__aligned_alloc_hook` or
+# `xmalloc`. The explicit non-[A-Za-z0-9_] boundaries match any underscore-
+# adjacent variant of a forbidden symbol, future-proofing the gate.
 #
 # Capture the tool output ONCE so a tool failure (corrupt library, missing
 # binary, permission error) is a distinct signal from "no forbidden symbols
@@ -50,23 +55,25 @@ NM_OUT=$(nm -u "$LIB" 2>&1) || {
     echo "$NM_OUT" >&2
     exit 2
 }
-if echo "$NM_OUT" | grep -qE '\b(malloc|calloc|realloc|free)\b'; then
+if echo "$NM_OUT" | grep -qE '(^|[^A-Za-z0-9_])(malloc|calloc|realloc|free)([^A-Za-z0-9_]|$)'; then
     echo "FAIL: $LIB references heap functions via undefined symbols:" >&2
-    echo "$NM_OUT" | grep -E '\b(malloc|calloc|realloc|free)\b' >&2
+    echo "$NM_OUT" | grep -E '(^|[^A-Za-z0-9_])(malloc|calloc|realloc|free)([^A-Za-z0-9_]|$)' >&2
     FAIL=1
 fi
 
 # Pass 2: dynamic relocations (readelf -r). Catches the stripped-library case
 # where nm may not show all imports. Same capture-then-grep discipline as
-# Pass 1: tool failure exits 2; forbidden-symbol match sets FAIL=1.
+# Pass 1: tool failure exits 2; forbidden-symbol match sets FAIL=1. Uses the
+# same non-[A-Za-z0-9_] boundary pattern as Pass 1 so the two checks share a
+# regex contract (see the Pass 1 comment block above).
 READELF_OUT=$(readelf -r "$LIB" 2>&1) || {
     echo "FAIL: readelf failed on $LIB" >&2
     echo "$READELF_OUT" >&2
     exit 2
 }
-if echo "$READELF_OUT" | grep -qE '\b(malloc|calloc|realloc|free)\b'; then
+if echo "$READELF_OUT" | grep -qE '(^|[^A-Za-z0-9_])(malloc|calloc|realloc|free)([^A-Za-z0-9_]|$)'; then
     echo "FAIL: $LIB dynamic relocations reference heap functions:" >&2
-    echo "$READELF_OUT" | grep -E '\b(malloc|calloc|realloc|free)\b' >&2
+    echo "$READELF_OUT" | grep -E '(^|[^A-Za-z0-9_])(malloc|calloc|realloc|free)([^A-Za-z0-9_]|$)' >&2
     FAIL=1
 fi
 
