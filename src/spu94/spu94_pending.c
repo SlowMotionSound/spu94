@@ -15,6 +15,7 @@
 
 #include "spu94_state_internal.h"
 #include <spu94/spu94_registers.h>
+#include <stddef.h>
 #include <stdint.h>
 
 void spu94_apply_pending_writes(spu94_state *state) {
@@ -27,7 +28,12 @@ void spu94_apply_pending_writes(spu94_state *state) {
      * faster on sparse masks but adds compiler-portability concerns
      * (clang on Windows has no __builtin_ctzll without intrin shims).
      * Deferred unless profiling shows this loop in a hot path. */
-    for (int i = 0; i < (int)SPU94_REG__COUNT; ++i) {
+    /* size_t index matches the spu94_zero_bytes / spu94_snapshot_registers
+     * sibling style and removes the signed/unsigned mismatch against
+     * SPU94_REG__COUNT. The shift `UINT64_C(1) << i` is well-defined: i is
+     * in [0, SPU94_REG__COUNT) = [0, 35), well below the 64-bit operand
+     * width, so no UB on the unsigned literal. */
+    for (size_t i = 0; i < (size_t)SPU94_REG__COUNT; ++i) {
         if (mask & (UINT64_C(1) << i)) {
             state->reg_values[i] = state->pending_values[i];
         }
