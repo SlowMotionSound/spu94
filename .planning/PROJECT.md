@@ -113,4 +113,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-19 — Phase 1 complete (Q15 fixed-point helpers, CMake build with determinism flags, CI gates, DECISIONS.md seeded with ADR-0001/0002/0003, LICENSE placeholder).*
+*Last updated: 2026-04-19 — Phase 2 complete (opaque `spu94_state_t` chassis with caller-allocated storage, all 35-register identity surface + typed read/write semantics, split write-timing policy, BufferAddress wrap arithmetic with mBASE snap-on-write, ADR-0004/0005/0006 filed, full Unity test battery + Python ctypes fuzz harness — 15/15 ctest green, libspu94.so heap-free).*
