@@ -12,3 +12,4 @@ target_include_directories(unity PUBLIC
 
 add_subdirectory(q15)
 add_subdirectory(state)
+add_subdirectory(registers)
