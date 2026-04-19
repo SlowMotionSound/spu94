@@ -30,6 +30,104 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-0004: Extensibility taps — `q15_mul_truncate_with_err` and `spu94_tick`
+
+**Status:** Accepted (2026-04-19, Phase 2)
+
+**Context:**
+
+Phase 2 lands two intentional API-surface commitments that the phase-context
+discussion designated as "extensibility taps": `q15_mul_truncate_with_err` in
+the Q15 fixed-point surface, and the public `spu94_tick` per-stereo-tick
+processing entry point. Both exist to serve future consumers — specifically, a
+planned SPU-94 Controllers milestone (an exploration/modulation layer that
+consumes SPU-94's public API as-is) and a separate Error Accumulator project
+(a performance-oriented audio effect that reuses the Q15 primitives) — without
+forcing those consumers to re-implement anything in SPU-94's bit-faithful core.
+
+Neither tap is load-bearing for the reverb algorithm itself. Both are
+observability and composition hooks. Landing them in Phase 2 avoids the cost
+of retrofitting them later, when consumers exist and their API expectations
+have become sticky. This ADR records them so they read as deliberate seams
+rather than accidental public surface.
+
+**Decision:**
+
+SPU-94 exposes two extensibility taps as public, stable API:
+
+1. `q15_mul_truncate_with_err(int16_t a, int16_t b, int16_t *err_out)` — the
+   Q15 multiply primitive whose math is pinned by ADR-0001. Additionally
+   writes the truncation remainder (the bits discarded by the `>>15` shift)
+   via `err_out` when non-NULL. Passing `NULL` is permitted and makes the
+   function behaviorally identical to `q15_mul_truncate`, which is now a thin
+   wrapper. The remainder is *pre-saturation*: for the `INT16_MIN * INT16_MIN`
+   edge case, the saturated result is `INT16_MAX` (per ADR-0001) while the
+   reported remainder is zero (the product `+2^30` is exactly divisible by
+   `2^15`). Callers that need the additional saturation discard can infer it
+   from the difference between the pre-saturation shifted value and
+   `INT16_MAX`.
+
+2. `spu94_tick(spu94_state *state)` — the per-22.05 kHz-stereo-tick processing
+   entry point. In Phase 2 it is a no-op stub; Phase 3 implements the reverb
+   algorithm inside it; Phase 5's `spu94_process` wraps it as a loop.
+   Observers (Controllers, Error Accumulator telemetry, test harnesses)
+   interleave reads of public accessors between ticks with the guarantee that
+   the observed state is instantaneous and consistent. The function is
+   null-safe: `spu94_tick(NULL)` is a no-op.
+
+**Consequences:**
+
+- *Tradeoff accepted:* Two functions in the public API surface that the core
+  reverb algorithm does not strictly need. Offset: both are committed by
+  CONTEXT.md decisions D-18 and D-19, so the marginal cost is essentially
+  zero — we were going to add them anyway, and adding them later would cost
+  more because downstream consumers would have adapted to their absence.
+
+- *Bit-faithfulness preserved:* Neither tap alters the reverb data path. The
+  `err_out` parameter is a side channel (a write-only observation hook); the
+  `spu94_tick` body in Phase 2 is empty and will be filled in Phase 3 with
+  the reverb algorithm, whose correctness is orthogonal to the existence of
+  the function name. ADR-0001's Q15 semantics are preserved bit-exactly:
+  `q15_mul_truncate` is now a wrapper that passes `err_out = NULL`; the
+  Phase 1 Q15 reference table continues to pass unchanged.
+
+- *Observer ergonomics:* External projects (Error Accumulator consuming
+  `_with_err`; Controllers milestone consuming the tick-boundary observer
+  contract) now have a stable target. If either consumer discovers a need
+  not covered here, the response is either "add a new seam" (cheap, additive
+  ADR) or "reshape this one" (requires a new ADR superseding this one).
+
+- *Test obligations:* Phase 1's Q15 test table must continue to pass against
+  the refactored `q15_mul_truncate` — verified in Plan 02 Task 2 alongside a
+  new remainder-verification table for `q15_mul_truncate_with_err` and two
+  `spu94_tick` null-safety tests. Plan 05's per-register battery will
+  re-exercise the remainder observation in the larger integration context.
+
+- *Revision paths:*
+  - If a future use case shows the remainder signedness convention is wrong
+    for the Error Accumulator's needs, a new ADR supersedes this one and
+    every `_with_err` call site is revisited.
+  - If `spu94_tick` ever needs to change signature (e.g., returning a status
+    code), a new ADR records the break and the migration story.
+  - The `err_out` parameter type (`int16_t *`) may need widening to
+    `int32_t *` if future callers need the full pre-shift product; that is
+    an additive ADR (a second accessor), not a break.
+
+**Sources:**
+
+- Internal: `.planning/notes/2026-04-19-error-accumulator-concept.md` —
+  algorithm + hardware brief motivating the per-multiply remainder tap.
+- Internal: `.planning/notes/2026-04-19-spu94-controllers-seed.md` — future
+  exploration-layer milestone; drives the tick-boundary observer contract.
+- Internal: `.planning/phases/02-buffer-register-infrastructure/02-CONTEXT.md`
+  § D-18, D-19, D-22, D-23, D-24 — discussion-time locked decisions
+  (extensibility taps, seams principle, observability principle, Controllers
+  as future consumer).
+- Prior ADR: ADR-0001 (Q15 multiply semantics) — `_with_err` preserves the
+  ASR + saturation semantics pinned there.
+
+---
+
 ## ADR-0001: Q15 multiply semantics — truncation direction and INT16_MIN² edge case
 
 **Status:** Accepted (2026-04-18, Phase 1)
