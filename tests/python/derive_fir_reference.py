@@ -138,7 +138,52 @@ def fresh_state():
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--dump", action="store_true")
+    p.add_argument("--dump-test-tables", action="store_true",
+                   help="Print C-syntax reference tables for Plan 02 Task 3 test TUs.")
     args = p.parse_args()
+    if args.dump_test_tables:
+        # Decimator impulse response: unit impulse (+0x7FFF) then 79 zeros;
+        # collect 40 retained 22.05 kHz outputs.
+        state = fresh_state()
+        inputs = [INT16_MAX] + [0] * 79
+        dec_outs = []
+        for x in inputs:
+            state['dl'], state['pl'], out_ = decimate_push(
+                state['dl'], state['pl'], x)
+            if out_ is not None:
+                dec_outs.append(out_)
+        while len(dec_outs) < 40:
+            dec_outs.append(0)
+        print("/* Decimator impulse response (40 retained 22.05 kHz outputs): */")
+        print("static const int16_t decimator_impulse_ref[40] = {")
+        for i in range(0, 40, 8):
+            row = ", ".join(f"(int16_t)0x{x & 0xFFFF:04X}" for x in dec_outs[i:i+8])
+            print(f"    {row},")
+        print("};")
+        # Decimator DC for +0x0400 input, 200 samples; last retained output.
+        state = fresh_state()
+        dec_outs = []
+        for _ in range(200):
+            state['dl'], state['pl'], out_ = decimate_push(
+                state['dl'], state['pl'], 0x0400)
+            if out_ is not None:
+                dec_outs.append(out_)
+        print(f"/* Decimator DC settled (input +0x0400): */")
+        print(f"#define DECIMATOR_DC_SETTLED ((int16_t)0x{dec_outs[-1] & 0xFFFF:04X})  /* = {dec_outs[-1]} */")
+        # Interpolator impulse (22.05 kHz +0x7FFF, fresh state): phase-0 + phase-1.
+        delay = [0] * 39
+        delay, p0, p1 = interpolate_push(delay, INT16_MAX)
+        print(f"/* Interpolator impulse (first call after fresh state, input +0x7FFF): */")
+        print(f"#define INTERP_IMPULSE_P0 ((int16_t)0x{p0 & 0xFFFF:04X})  /* = {p0} */")
+        print(f"#define INTERP_IMPULSE_P1 ((int16_t)0x{p1 & 0xFFFF:04X})  /* = {p1} */")
+        # Interpolator DC (+0x0400, 40 samples, settled).
+        delay = [0] * 39
+        last_p0 = 0; last_p1 = 0
+        for _ in range(40):
+            delay, last_p0, last_p1 = interpolate_push(delay, 0x0400)
+        print(f"/* Interpolator DC settled (input +0x0400): */")
+        print(f"#define INTERP_DC_P0 ((int16_t)0x{last_p0 & 0xFFFF:04X})  /* = {last_p0} */")
+        print(f"#define INTERP_DC_P1 ((int16_t)0x{last_p1 & 0xFFFF:04X})  /* = {last_p1} */")
     if args.dump:
         print("# Sum of coefficients (DC gain, Q15):", sum(SPU94_FIR_COEF),
               f"= 0x{sum(SPU94_FIR_COEF) & 0xFFFF:04X}")

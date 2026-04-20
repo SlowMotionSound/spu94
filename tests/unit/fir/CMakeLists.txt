@@ -21,3 +21,13 @@ add_executable(test_fir_overflow_proof test_fir_overflow_proof.c)
 target_link_libraries(test_fir_overflow_proof PRIVATE unity spu94_static)
 add_test(NAME fir_overflow_proof COMMAND test_fir_overflow_proof)
 set_tests_properties(fir_overflow_proof PROPERTIES LABELS "fir")
+
+add_executable(test_fir_decimate test_fir_decimate.c)
+target_link_libraries(test_fir_decimate PRIVATE unity spu94_static)
+add_test(NAME fir_decimate COMMAND test_fir_decimate)
+set_tests_properties(fir_decimate PROPERTIES LABELS "fir")
+
+add_executable(test_fir_interpolate test_fir_interpolate.c)
+target_link_libraries(test_fir_interpolate PRIVATE unity spu94_static)
+add_test(NAME fir_interpolate COMMAND test_fir_interpolate)
+set_tests_properties(fir_interpolate PROPERTIES LABELS "fir")
