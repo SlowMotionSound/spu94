@@ -302,17 +302,92 @@ void spu94_reverb_diff_iir(spu94_state *state,
     }
 }
 
+/* =====================================================================
+ * Stage: 4-tap COMB (CORE-05, D-07) — Plan 03
+ *
+ * Nocash E1 (paraphrased, source: psx-spx.consoledev.net/soundprocessingunitspu/):
+ *   Lout = vCOMB1*[mLCOMB1] + vCOMB2*[mLCOMB2]
+ *        + vCOMB3*[mLCOMB3] + vCOMB4*[mLCOMB4]
+ *   Rout = vCOMB1*[mRCOMB1] + vCOMB2*[mRCOMB2]
+ *        + vCOMB3*[mRCOMB3] + vCOMB4*[mRCOMB4]
+ *
+ * D-07 LOCKED: the 4-tap sum uses CASCADING sat_s16 after EACH add, NOT
+ * an int32 accumulator with a single final clamp. Per the user's taste-
+ * driven decision (CONTEXT.md § D-07), cascading clamps produce richer
+ * distortion character at input extremes and a more interesting overflow
+ * signal feeding the D-11 err_comb accumulator. Diverges from most
+ * behavioral witnesses (DuckStation / Mednafen-PSX use int32 accumulate);
+ * revert lever documented in ADR-0007 (landed Plan 04).
+ *
+ * q15_add_sat() internally widens to int32 and calls sat_s16, so each
+ * invocation is one clamp point. Three cascading add+clamps per side
+ * (after the first multiply establishes the initial accumulator).
+ *
+ * D-11 scope (i): every Q15 multiply feeds state->err_comb via
+ * q15_mul_truncate_with_err's pre-saturation remainder. Four multiplies
+ * per side; 8 remainders per call total.
+ * ===================================================================== */
 void spu94_reverb_comb(spu94_state *state,
                        int16_t vCOMB1_snap, int16_t vCOMB2_snap,
                        int16_t vCOMB3_snap, int16_t vCOMB4_snap,
                        int16_t *Lout_out, int16_t *Rout_out)
 {
-    (void)state;
-    (void)vCOMB1_snap; (void)vCOMB2_snap;
-    (void)vCOMB3_snap; (void)vCOMB4_snap;
-    if (Lout_out != (int16_t *)0) *Lout_out = 0;
-    if (Rout_out != (int16_t *)0) *Rout_out = 0;
-    /* Plan 03 body. */
+    if (state == (spu94_state *)0) return;
+    if (Lout_out == (int16_t *)0 || Rout_out == (int16_t *)0) return;
+
+    /* L side — read 4 taps via the m*COMB* halfword indexes. */
+    uint16_t mLCOMB1 = spu94_get_reg_u16(state, SPU94_REG_mLCOMB1);
+    uint16_t mLCOMB2 = spu94_get_reg_u16(state, SPU94_REG_mLCOMB2);
+    uint16_t mLCOMB3 = spu94_get_reg_u16(state, SPU94_REG_mLCOMB3);
+    uint16_t mLCOMB4 = spu94_get_reg_u16(state, SPU94_REG_mLCOMB4);
+
+    int16_t tL1 = reverb_buf_read(state, mLCOMB1);
+    int16_t tL2 = reverb_buf_read(state, mLCOMB2);
+    int16_t tL3 = reverb_buf_read(state, mLCOMB3);
+    int16_t tL4 = reverb_buf_read(state, mLCOMB4);
+
+    int16_t e = 0;
+    int16_t p1 = q15_mul_truncate_with_err(vCOMB1_snap, tL1, &e);
+    state->err_comb += (int32_t)e;
+    int16_t p2 = q15_mul_truncate_with_err(vCOMB2_snap, tL2, &e);
+    state->err_comb += (int32_t)e;
+    int16_t p3 = q15_mul_truncate_with_err(vCOMB3_snap, tL3, &e);
+    state->err_comb += (int32_t)e;
+    int16_t p4 = q15_mul_truncate_with_err(vCOMB4_snap, tL4, &e);
+    state->err_comb += (int32_t)e;
+
+    /* D-07 CASCADING sat_s16 — three clamp points per side. */
+    int16_t accL = p1;
+    accL = q15_add_sat(accL, p2);   /* sat #1 (D-07 cascade) */
+    accL = q15_add_sat(accL, p3);   /* sat #2 */
+    accL = q15_add_sat(accL, p4);   /* sat #3 */
+    *Lout_out = accL;
+
+    /* R side — mirror structure with mRCOMB1..4. */
+    uint16_t mRCOMB1 = spu94_get_reg_u16(state, SPU94_REG_mRCOMB1);
+    uint16_t mRCOMB2 = spu94_get_reg_u16(state, SPU94_REG_mRCOMB2);
+    uint16_t mRCOMB3 = spu94_get_reg_u16(state, SPU94_REG_mRCOMB3);
+    uint16_t mRCOMB4 = spu94_get_reg_u16(state, SPU94_REG_mRCOMB4);
+
+    int16_t tR1 = reverb_buf_read(state, mRCOMB1);
+    int16_t tR2 = reverb_buf_read(state, mRCOMB2);
+    int16_t tR3 = reverb_buf_read(state, mRCOMB3);
+    int16_t tR4 = reverb_buf_read(state, mRCOMB4);
+
+    int16_t pR1 = q15_mul_truncate_with_err(vCOMB1_snap, tR1, &e);
+    state->err_comb += (int32_t)e;
+    int16_t pR2 = q15_mul_truncate_with_err(vCOMB2_snap, tR2, &e);
+    state->err_comb += (int32_t)e;
+    int16_t pR3 = q15_mul_truncate_with_err(vCOMB3_snap, tR3, &e);
+    state->err_comb += (int32_t)e;
+    int16_t pR4 = q15_mul_truncate_with_err(vCOMB4_snap, tR4, &e);
+    state->err_comb += (int32_t)e;
+
+    int16_t accR = pR1;
+    accR = q15_add_sat(accR, pR2);
+    accR = q15_add_sat(accR, pR3);
+    accR = q15_add_sat(accR, pR4);
+    *Rout_out = accR;
 }
 
 void spu94_reverb_apf1(spu94_state *state,
@@ -350,8 +425,11 @@ void spu94_reverb_body(spu94_state *state)
     /* Plan 02: IIR coefficients snapshotted once per pair (D-08). */
     const int16_t vIIR_snap  = spu94_get_reg_i16(state, SPU94_REG_vIIR);
     const int16_t vWALL_snap = spu94_get_reg_i16(state, SPU94_REG_vWALL);
-    /* (Plan 03 snapshot: vAPF1, vAPF2, vCOMB1..4, dAPF1, dAPF2.
-     * In Plan 02 the comb/APF stages still do not run yet.) */
+    /* Plan 03: comb + APF coefficient snapshots (D-08 pair-start freeze). */
+    const int16_t vCOMB1_snap = spu94_get_reg_i16(state, SPU94_REG_vCOMB1);
+    const int16_t vCOMB2_snap = spu94_get_reg_i16(state, SPU94_REG_vCOMB2);
+    const int16_t vCOMB3_snap = spu94_get_reg_i16(state, SPU94_REG_vCOMB3);
+    const int16_t vCOMB4_snap = spu94_get_reg_i16(state, SPU94_REG_vCOMB4);
 
     /* Phase 3 Plan 01: no public mix-bus feed yet. Phase 5's
      * spu94_process will populate left_in/right_in from the host's
@@ -377,13 +455,14 @@ void spu94_reverb_body(spu94_state *state)
     spu94_reverb_same_iir(state, Lin, Rin, vIIR_snap, vWALL_snap);
     spu94_reverb_diff_iir(state, Lin, Rin, vIIR_snap, vWALL_snap);
 
-    /* Plan 03 will insert here:
-     *   spu94_reverb_comb(state, vCOMB1_snap, ..., &Lout, &Rout);
-     *   spu94_reverb_apf1(state, vAPF1_snap, dAPF1_snap, &Lout, &Rout);
-     *   spu94_reverb_apf2(state, vAPF2_snap, dAPF2_snap, &Lout, &Rout);
-     */
-    int16_t Lout = 0;  /* Plans 02/03 replace with APF2 output. */
+    /* Plan 03: 4-tap comb (D-07 cascading sat_s16). */
+    int16_t Lout = 0;
     int16_t Rout = 0;
+    spu94_reverb_comb(state, vCOMB1_snap, vCOMB2_snap,
+                      vCOMB3_snap, vCOMB4_snap, &Lout, &Rout);
+    /* Plan 03 APF1 + APF2 wiring lands alongside those stage bodies
+     * (Lout / Rout above then flows into the APFs, and the APF2 output
+     * becomes the input to output_scale below). */
 
     int32_t LeftOutput = 0, RightOutput = 0;
     spu94_reverb_output_scale(state, Lout, Rout, vLOUT_snap, vROUT_snap,

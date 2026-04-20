@@ -202,6 +202,52 @@ def ref_diff_iir(buf: dict, Lin: int, Rin: int, vIIR: int, vWALL: int,
     return new_buf, err_total
 
 
+def ref_comb(buf: dict, regs: dict,
+             vCOMB1: int, vCOMB2: int, vCOMB3: int, vCOMB4: int,
+             buffer_address: int = 0) -> tuple[int, int, int]:
+    """Nocash E1 (paraphrased, source: psx-spx.consoledev.net/soundprocessingunitspu/):
+        Lout = vCOMB1*[mLCOMB1] + vCOMB2*[mLCOMB2]
+             + vCOMB3*[mLCOMB3] + vCOMB4*[mLCOMB4]
+        Rout = vCOMB1*[mRCOMB1] + vCOMB2*[mRCOMB2]
+             + vCOMB3*[mRCOMB3] + vCOMB4*[mRCOMB4]
+
+    D-07 LOCKED: cascading sat_s16 after each add (NOT int32 accumulate).
+    The 4-tap sum clamps after every intermediate add; each q15_add_sat
+    is one clamp point, producing three cascading clamps per side. This
+    diverges from the DuckStation / Mednafen-PSX witnesses (which use
+    int32 accumulate) per the user's taste-driven decision in CONTEXT.md.
+
+    Each Q15 multiply uses q15_mul_truncate_with_err (ADR-0001 ASR
+    truncation; pre-saturation remainder feeds err accumulator per D-11
+    scope (i)).
+
+    Returns (Lout, Rout, err_total).  err_total sums pre-saturation
+    truncation remainders across all 8 multiplies (L+R x 4 taps each).
+    """
+    err_total = 0
+
+    def _side(tap_keys: tuple[str, ...]) -> int:
+        """Run one side's 4-tap cascading sum. Closes over err_total."""
+        nonlocal err_total
+        taps = [_buf_read(buf, buffer_address, regs[k]) for k in tap_keys]
+        vs = (vCOMB1, vCOMB2, vCOMB3, vCOMB4)
+        prods = []
+        for v, t in zip(vs, taps):
+            p, err = q15_mul_truncate_with_err(v, t)
+            err_total += err
+            prods.append(p)
+        # D-07 cascading sat: acc = p1; acc = sat(acc + p2); acc = sat(acc + p3); acc = sat(acc + p4).
+        acc = prods[0]
+        acc = sat_s16(acc + prods[1])  # sat #1
+        acc = sat_s16(acc + prods[2])  # sat #2
+        acc = sat_s16(acc + prods[3])  # sat #3
+        return acc
+
+    Lout = _side(('mLCOMB1', 'mLCOMB2', 'mLCOMB3', 'mLCOMB4'))
+    Rout = _side(('mRCOMB1', 'mRCOMB2', 'mRCOMB3', 'mRCOMB4'))
+    return Lout, Rout, err_total
+
+
 def _fmt_signed_hex(x: int) -> str:
     return f"-{abs(x):#x}" if x < 0 else f"{x:#x}"
 
