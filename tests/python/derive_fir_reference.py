@@ -140,7 +140,34 @@ if __name__ == "__main__":
     p.add_argument("--dump", action="store_true")
     p.add_argument("--dump-test-tables", action="store_true",
                    help="Print C-syntax reference tables for Plan 02 Task 3 test TUs.")
+    p.add_argument("--dump-chain-tables", action="store_true",
+                   help="Print C-syntax reference tables for Plan 03 Task 2 chain tests.")
     args = p.parse_args()
+    if args.dump_chain_tables:
+        # Chain impulse response: 80 44.1 kHz output samples through
+        # chain_step (reverb bypass). Input: +0x7FFF at t=0, 79 zeros.
+        state = fresh_state()
+        outs = []
+        impulse_inputs = [INT16_MAX] + [0] * 79
+        for x in impulse_inputs:
+            l_out, r_out = chain_step(state, x, x, reverb_bypass=True)
+            outs.append(l_out)
+        print("/* Chain impulse response (80 44.1 kHz outputs, reverb bypassed): */")
+        print("static const int16_t chain_impulse_ref[80] = {")
+        for i in range(0, 80, 8):
+            row = ", ".join(f"(int16_t)0x{x & 0xFFFF:04X}" for x in outs[i:i + 8])
+            print(f"    {row},")
+        print("};")
+        peak_idx = max(range(80), key=lambda i: abs(outs[i]))
+        print(f"#define CHAIN_IMPULSE_PEAK_INDEX {peak_idx}  /* expected 38 per D-09 */")
+        # Chain DC settled (+0x0400 input, 200 samples).
+        state = fresh_state()
+        outs = []
+        for _ in range(200):
+            l_out, r_out = chain_step(state, 0x0400, 0x0400, reverb_bypass=True)
+            outs.append(l_out)
+        settled = outs[-1]
+        print(f"#define CHAIN_DC_SETTLED ((int16_t)0x{settled & 0xFFFF:04X})  /* = {settled} */")
     if args.dump_test_tables:
         # Decimator impulse response: unit impulse (+0x7FFF) then 79 zeros;
         # collect 40 retained 22.05 kHz outputs.

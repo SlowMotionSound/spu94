@@ -180,13 +180,27 @@ uint32_t      spu94_get_buffer_address(const spu94_state *state);
 /* ------------------------------------------------------------------------- */
 
 /* Total round-trip FIR group delay at the 44.1 kHz reference rate.
- * = 19-sample decimator latency + 19-sample interpolator latency.
+ *   decimator:   19 samples at 44.1 kHz (impulse reaches delay[19]).
+ *   interpolator: 19 samples at 22.05 kHz (its input clock) = 38 samples
+ *                 at 44.1 kHz (its output clock).
+ *   TOTAL:       19 + 38 = 57 samples at 44.1 kHz input-to-output.
+ *
+ * Empirical chain-impulse peak lies at 44.1 kHz output t = 57 (phase-0
+ * pair) / t = 59 (phase-1 pair) — tied because the peak 22.05 kHz value
+ * from the decimator centers on retained-index 9-10 and the interpolator
+ * center-tap passthrough emits on phase-1. The nominal reported value
+ * SPU94_LATENCY_SAMPLES = 58u sits at the midpoint of the tied peaks;
+ * the ±1-sample tolerance in test_fir_chain_latency accommodates both.
+ *
  * This value is fixed by the 39-tap linear-phase half-band FIR structure;
  * it is not a runtime parameter. Compile-time constant for static array
  * sizing + preset-delay math. Phase 6 (Python bindings) exposes via the
  * spu94_get_latency_samples() accessor; C consumers may use either.
- * See docs/DECISIONS.md ADR-Phase-4-H (Plan 04) for the rationale. */
-#define SPU94_LATENCY_SAMPLES 38u
+ * See docs/DECISIONS.md ADR-Phase-4-H (Plan 04) for the corrected
+ * rationale — the value was 38u in the original Phase 4 research; Plan
+ * 03's chain-level impulse test exposed the miscounted interpolator
+ * contribution and it was corrected to 58u. */
+#define SPU94_LATENCY_SAMPLES 58u
 
 /* Runtime accessor for latency in samples at 44.1 kHz. Deterministic;
  * returns SPU94_LATENCY_SAMPLES. LTO-eliminable at C consumer call sites. */

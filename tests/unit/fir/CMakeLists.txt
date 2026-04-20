@@ -31,3 +31,18 @@ add_executable(test_fir_interpolate test_fir_interpolate.c)
 target_link_libraries(test_fir_interpolate PRIVATE unity spu94_static)
 add_test(NAME fir_interpolate COMMAND test_fir_interpolate)
 set_tests_properties(fir_interpolate PROPERTIES LABELS "fir")
+
+add_executable(test_fir_chain_latency test_fir_chain_latency.c)
+target_link_libraries(test_fir_chain_latency PRIVATE unity spu94_static)
+add_test(NAME fir_chain_latency COMMAND test_fir_chain_latency)
+set_tests_properties(fir_chain_latency PROPERTIES LABELS "fir")
+
+add_executable(test_fir_impulse test_fir_impulse.c)
+target_link_libraries(test_fir_impulse PRIVATE unity spu94_static)
+add_test(NAME fir_impulse COMMAND test_fir_impulse)
+set_tests_properties(fir_impulse PROPERTIES LABELS "fir")
+
+add_executable(test_fir_dc test_fir_dc.c)
+target_link_libraries(test_fir_dc PRIVATE unity spu94_static)
+add_test(NAME fir_dc COMMAND test_fir_dc)
+set_tests_properties(fir_dc PROPERTIES LABELS "fir")
