@@ -46,3 +46,8 @@ add_executable(test_fir_dc test_fir_dc.c)
 target_link_libraries(test_fir_dc PRIVATE unity spu94_static)
 add_test(NAME fir_dc COMMAND test_fir_dc)
 set_tests_properties(fir_dc PROPERTIES LABELS "fir")
+
+add_executable(test_fir_err_overflow_taps test_fir_err_overflow_taps.c)
+target_link_libraries(test_fir_err_overflow_taps PRIVATE unity spu94_static)
+add_test(NAME fir_err_overflow_taps COMMAND test_fir_err_overflow_taps)
+set_tests_properties(fir_err_overflow_taps PROPERTIES LABELS "fir")
