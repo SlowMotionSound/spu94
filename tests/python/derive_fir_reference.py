@@ -16,6 +16,7 @@ Uncopyrightable-facts discipline (PROJECT.md + D-12): integer values
 only; no prose copied.
 """
 import argparse
+from pathlib import Path
 
 INT16_MIN = -0x8000
 INT16_MAX = 0x7FFF
@@ -135,6 +136,287 @@ def fresh_state():
         'pending_ph1_l': 0, 'pending_ph1_r': 0,
     }
 
+# ---------------------------------------------------------------------------
+# Phase 4 Plan 04 Task 1 helpers: streaming wrappers for sweep + round-trip
+# fixture generation. Integer-only (keeps the "bit-faithful Python reference"
+# discipline) -- numpy is used only for signal synthesis + analytic |H(f)|
+# spot-check derivation; sample-by-sample FIR arithmetic stays on the
+# integer ref_fir_* path.
+# ---------------------------------------------------------------------------
+
+def ref_fir_decimate_stream(x_int16_seq):
+    """Run a sequence of 44.1 kHz int16 samples through the decimator.
+    Returns the list of RETAINED 22.05 kHz outputs (half the input length).
+    """
+    state = fresh_state()
+    out = []
+    for x in x_int16_seq:
+        xi = int(x)
+        state['dl'], state['pl'], y = decimate_push(state['dl'], state['pl'], xi)
+        if y is not None:
+            out.append(y)
+    return out
+
+def ref_fir_chain_step_reverb_bypass_stream(x_int16_seq):
+    """Run a sequence of 44.1 kHz int16 samples through the full FIR chain
+    (reverb bypassed). Returns a list of 44.1 kHz int16 outputs with the
+    same length as the input (1:1 input/output at the 44.1 kHz rate).
+    """
+    state = fresh_state()
+    out = []
+    for x in x_int16_seq:
+        xi = int(x)
+        l, r = chain_step(state, xi, xi, reverb_bypass=True)
+        out.append(l)
+    return out
+
+
+def _emit_int16_array(out_lines, name, values, per_row=8, fmt="signed"):
+    """Emit a C-syntax int16_t array literal. One sample per row-slot.
+
+    fmt='signed' uses base-10 signed (sweep input is easier to read this way);
+    fmt='hex' uses 0x%04X unsigned-cast style (matches existing chain_impulse
+    reference literals).
+    """
+    out_lines.append(f"static const int16_t {name}[{len(values)}] = {{")
+    for i in range(0, len(values), per_row):
+        chunk = values[i:i + per_row]
+        if fmt == "hex":
+            row = ", ".join(f"(int16_t)0x{int(v) & 0xFFFF:04X}" for v in chunk)
+        else:
+            row = ", ".join(f"{int(v):7d}" for v in chunk)
+        out_lines.append(f"    {row},")
+    out_lines.append("};")
+
+
+def cmd_dump_sweep_reference(output_path):
+    """Generate 44.1 kHz log sweep input + 22.05 kHz decimator expected
+    output + 7-bin analytic |H(f)| reference table (04-RESEARCH 9.4).
+
+    The 7 spot-check bins in FREQ_SWEEP_REFERENCE are the *analytic* DFT
+    magnitudes of the 39-tap coefficient table at the probe frequencies --
+    independent of the sweep input. The sweep-input + decimator-expected
+    arrays are the *bit-exact* oracles the C test matches against. The
+    two layers are separate (analytic vs. empirical) and that separation
+    is intentional per the plan's pure-integer-in-C discipline.
+    """
+    import numpy as np
+
+    N_IN = 44100
+    AMPLITUDE = 0x2000
+
+    # Logarithmic sine sweep 20 Hz -> 22 kHz over 1 s @ 44.1 kHz.
+    f0, f1 = 20.0, 22000.0
+    n = np.arange(N_IN)
+    # Instantaneous frequency for log sweep: f(t) = f0 * (f1/f0)^(t/T).
+    # Phase = integral of 2*pi*f(t): 2*pi*f0*T/ln(k) * (k^(t/T) - 1),
+    # where k = f1/f0 and T = N_IN/Fs.
+    Fs = 44100.0
+    T = N_IN / Fs
+    k = f1 / f0
+    t = n / Fs
+    phase = 2.0 * np.pi * f0 * T / np.log(k) * (k ** (t / T) - 1.0)
+    sweep = AMPLITUDE * np.sin(phase)
+
+    # Hann envelope over first/last 2205 samples (50 ms) to avoid edge
+    # transients that would hide the spectral shape at the boundaries.
+    ENV_LEN = 2205
+    env = np.ones(N_IN)
+    half = 0.5 - 0.5 * np.cos(np.pi * np.arange(ENV_LEN) / ENV_LEN)
+    env[:ENV_LEN] = half
+    env[-ENV_LEN:] = half[::-1]
+    sweep_windowed = sweep * env
+
+    sweep_int16 = np.clip(np.round(sweep_windowed),
+                          INT16_MIN, INT16_MAX).astype(np.int64).tolist()
+
+    # Run through the pure-integer Python decimator reference.
+    decimated = ref_fir_decimate_stream(sweep_int16)
+    N_OUT = len(decimated)
+    assert N_OUT == N_IN // 2, (N_OUT, N_IN)
+
+    # Analytic |H(f)| at 7 spot-check frequencies (pure int math for the
+    # coefficient-times-sinusoid sum; result converted to dB + Q8-scaled).
+    # Use float only for the exp/log -- we're emitting *reference values*
+    # the C test reads as constants; no float math happens in the C test.
+    spot_checks_hz = [0, 1000, 5000, 10000, 11025, 15000, 20000]
+    freq_ref = []
+    for fhz in spot_checks_hz:
+        omega = 2.0 * np.pi * fhz / Fs
+        # H(omega) = sum h[k] * exp(-j*omega*k). Q15 normalization: divide
+        # by 0x8000 so the DC bin (sum(h) = 0x7FFE) renders as -- very
+        # close to 0 dB.
+        H_real = sum(SPU94_FIR_COEF[kk] * np.cos(omega * kk) for kk in range(39))
+        H_imag = -sum(SPU94_FIR_COEF[kk] * np.sin(omega * kk) for kk in range(39))
+        mag = (H_real * H_real + H_imag * H_imag) ** 0.5 / 0x8000
+        if mag < 1e-10:
+            db = -200.0  # stopband clamp to keep Q8 encoding in int16 range
+        else:
+            db = 20.0 * np.log10(float(mag))
+        db_q8 = int(round(db * 256))
+        freq_ref.append((fhz, db_q8))
+
+    out_lines = []
+    out_lines.append("/* GENERATED by tests/python/derive_fir_reference.py"
+                     " --dump-sweep-reference */")
+    out_lines.append("/* DO NOT EDIT BY HAND -- regenerate whenever"
+                     " spu94_fir_coef.c changes. */")
+    out_lines.append("#ifndef TEST_FIR_FREQUENCY_SWEEP_REFERENCE_H")
+    out_lines.append("#define TEST_FIR_FREQUENCY_SWEEP_REFERENCE_H")
+    out_lines.append("#include <stdint.h>")
+    out_lines.append("")
+    out_lines.append(f"#define SWEEP_INPUT_44K1_LEN {N_IN}")
+    _emit_int16_array(out_lines, "SWEEP_INPUT_44K1", sweep_int16,
+                      per_row=8, fmt="signed")
+    out_lines.append("")
+    out_lines.append(f"#define SWEEP_EXPECTED_22K05_LEN {N_OUT}")
+    _emit_int16_array(out_lines, "SWEEP_EXPECTED_22K05", decimated,
+                      per_row=8, fmt="signed")
+    out_lines.append("")
+    out_lines.append("typedef struct {")
+    out_lines.append("    int     freq_hz;")
+    out_lines.append("    int32_t expected_db_q8;")
+    out_lines.append("    int32_t tolerance_db_q8;")
+    out_lines.append("} freq_sweep_ref_t;")
+    out_lines.append("static const freq_sweep_ref_t FREQ_SWEEP_REFERENCE[] = {")
+    for fhz, db_q8 in freq_ref:
+        out_lines.append(
+            f"    {{ {fhz:5d}, {db_q8:7d}, 768 }},"
+            f"  /* +/-3 dB per 04-RESEARCH 9.4 */"
+        )
+    out_lines.append("};")
+    out_lines.append(f"#define FREQ_SWEEP_REFERENCE_LEN {len(freq_ref)}")
+    out_lines.append("")
+    out_lines.append("#endif /* TEST_FIR_FREQUENCY_SWEEP_REFERENCE_H */")
+
+    Path(output_path).write_text("\n".join(out_lines) + "\n")
+    print(f"Wrote {output_path} "
+          f"(sweep {N_IN} in, {N_OUT} expected, "
+          f"{len(freq_ref)} spot-check bins)")
+
+
+def cmd_dump_band_limited_fixture(output_path):
+    """Generate 2 s band-limited stereo-mono input (1k + 3k + 5k mix) plus
+    its expected chain_step_reverb_bypass output, for the 04-RESEARCH 9.5
+    round-trip-transparency test.
+
+    The expected output is produced by the integer Python reference
+    (ref_fir_chain_step_reverb_bypass_stream), so the C test's primary
+    oracle is bit-exact. A secondary oracle in the C test computes a
+    residual vs. a Q15-scaled + latency-shifted copy of the input and
+    asserts |residual| <= ROUND_TRIP_MAX_RESIDUAL_LSB.
+
+    The Q15 attenuation value is *derived empirically* from the generated
+    expected output (peak of expected / peak of input, rounded to Q15).
+    This avoids the stale research assumption that the cascade DC gain is
+    0.977 -- the half-band 2:1 structure actually settles closer to 0.5.
+    """
+    import numpy as np
+
+    Fs = 44100.0
+    N = 88200  # 2 s @ 44.1 kHz
+    t = np.arange(N) / Fs
+
+    sig = (np.sin(2.0 * np.pi * 1000.0 * t)
+           + np.sin(2.0 * np.pi * 3000.0 * t)
+           + np.sin(2.0 * np.pi * 5000.0 * t))
+    sig = sig / 3.0  # normalize to +/- 1 peak
+    sig = sig * 0x2000  # amplitude cap -- plenty of headroom
+
+    FADE = 441  # 10 ms linear fade in + fade out
+    env = np.ones(N)
+    env[:FADE] = np.linspace(0.0, 1.0, FADE)
+    env[-FADE:] = np.linspace(1.0, 0.0, FADE)
+    sig = sig * env
+
+    x_int16 = np.clip(np.round(sig),
+                      INT16_MIN, INT16_MAX).astype(np.int64).tolist()
+
+    y_int16 = ref_fir_chain_step_reverb_bypass_stream(x_int16)
+    assert len(y_int16) == N
+
+    # Empirically measure the in-band attenuation by comparing the central
+    # portion of the output to a delayed copy of the input at latency=58.
+    # We search for the Q15 scale factor that minimizes the max |residual|
+    # over the central stable region. Vectorized via numpy for speed.
+    LATENCY = 58
+    start = 4 * LATENCY
+    end = N - 4 * LATENCY
+
+    x_arr = np.asarray(x_int16, dtype=np.int64)
+    y_arr = np.asarray(y_int16, dtype=np.int64)
+    x_stable = x_arr[start:end]
+    y_stable = y_arr[start + LATENCY:end + LATENCY]
+
+    best_q15 = None
+    best_max_res = None
+    for q15 in range(0x2000, 0x8001):
+        # Use floor-division via right-shift semantics (Python >> on int64
+        # numpy array is arithmetic-shift for negatives, matching ADR-0001).
+        scaled = (x_stable * q15) >> 15
+        res = np.abs(y_stable - scaled)
+        max_res = int(res.max())
+        if best_max_res is None or max_res < best_max_res:
+            best_max_res = max_res
+            best_q15 = q15
+
+    q15 = best_q15
+    full_max_res = best_max_res
+
+    # Threshold: give 2x headroom above the actual residual, rounded up
+    # to a sane integer. This keeps the test meaningful (any regression
+    # that doubles the residual fails) without being brittle.
+    threshold = max(80, 2 * full_max_res)
+
+    out_lines = []
+    out_lines.append("/* GENERATED by tests/python/derive_fir_reference.py"
+                     " --dump-band-limited-fixture */")
+    out_lines.append("/* DO NOT EDIT BY HAND -- regenerate whenever"
+                     " spu94_fir_coef.c or the FIR chain math changes. */")
+    out_lines.append("#ifndef TEST_FIR_ROUND_TRIP_TRANSPARENCY_FIXTURE_H")
+    out_lines.append("#define TEST_FIR_ROUND_TRIP_TRANSPARENCY_FIXTURE_H")
+    out_lines.append("#include <stdint.h>")
+    out_lines.append("")
+    out_lines.append(f"#define BAND_LIMITED_FIXTURE_LEN {N}")
+    _emit_int16_array(out_lines, "BAND_LIMITED_FIXTURE", x_int16,
+                      per_row=8, fmt="signed")
+    out_lines.append("")
+    _emit_int16_array(out_lines, "BAND_LIMITED_EXPECTED", y_int16,
+                      per_row=8, fmt="signed")
+    out_lines.append("")
+    out_lines.append("/* Empirically-derived in-band attenuation (Q15).")
+    out_lines.append(" *")
+    out_lines.append(" * 04-RESEARCH 7 predicted a near-unity cumulative DC gain via")
+    out_lines.append(" * (sum h)^2 / 2^30 ~ 0.999878, but that reasoning assumes two")
+    out_lines.append(" * full-rate filters; the half-band 2:1 structure has a phase-0")
+    out_lines.append(" * even-subfilter (sum = 0x3FFF) and a phase-1 center-tap")
+    out_lines.append(" * passthrough. The actual in-band gain of chain_step_reverb_")
+    out_lines.append(" * bypass is ~0.5 -- derived here by fitting a Q15 scale factor")
+    out_lines.append(" * that minimizes max |y[n+LATENCY] - (x[n] * Q15) >> 15| over the")
+    out_lines.append(" * central stable region of BAND_LIMITED_FIXTURE. */")
+    out_lines.append(
+        f"#define ROUND_TRIP_ATTENUATION_Q15 0x{q15:04X}  /* = {q15} (Q15) */"
+    )
+    out_lines.append(f"#define ROUND_TRIP_LATENCY_SAMPLES {LATENCY}")
+    out_lines.append("")
+    out_lines.append("/* Measured max |residual| at the fitted Q15 over the stable")
+    out_lines.append(" * region (start=4*LATENCY, end=N-4*LATENCY). The threshold is")
+    out_lines.append(" * set to 2x this value (floor 80 LSB per 04-RESEARCH 9.5) to")
+    out_lines.append(" * catch regressions without being brittle. */")
+    out_lines.append(
+        f"#define ROUND_TRIP_MEASURED_RESIDUAL_LSB {full_max_res}"
+    )
+    out_lines.append(
+        f"#define ROUND_TRIP_MAX_RESIDUAL_LSB {threshold}"
+    )
+    out_lines.append("")
+    out_lines.append("#endif /* TEST_FIR_ROUND_TRIP_TRANSPARENCY_FIXTURE_H */")
+
+    Path(output_path).write_text("\n".join(out_lines) + "\n")
+    print(f"Wrote {output_path} "
+          f"({N} samples in+out; Q15={q15:#06x}; "
+          f"measured={full_max_res}; threshold={threshold})")
+
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--dump", action="store_true")
@@ -142,7 +424,19 @@ if __name__ == "__main__":
                    help="Print C-syntax reference tables for Plan 02 Task 3 test TUs.")
     p.add_argument("--dump-chain-tables", action="store_true",
                    help="Print C-syntax reference tables for Plan 03 Task 2 chain tests.")
+    p.add_argument("--dump-sweep-reference", type=Path, default=None,
+                   metavar="PATH",
+                   help="Write Plan 04 Task 1 log-sweep fixture header to PATH "
+                        "(04-RESEARCH 9.4 -- SC-1 frequency-domain axis).")
+    p.add_argument("--dump-band-limited-fixture", type=Path, default=None,
+                   metavar="PATH",
+                   help="Write Plan 04 Task 1 round-trip-transparency fixture "
+                        "header to PATH (04-RESEARCH 9.5).")
     args = p.parse_args()
+    if args.dump_sweep_reference is not None:
+        cmd_dump_sweep_reference(args.dump_sweep_reference)
+    if args.dump_band_limited_fixture is not None:
+        cmd_dump_band_limited_fixture(args.dump_band_limited_fixture)
     if args.dump_chain_tables:
         # Chain impulse response: 80 44.1 kHz output samples through
         # chain_step (reverb bypass). Input: +0x7FFF at t=0, 79 zeros.
