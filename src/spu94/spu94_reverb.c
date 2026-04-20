@@ -64,6 +64,8 @@ static inline void reverb_buf_write(spu94_state *s,
     if (s->work_buf == (unsigned char *)0) return;
     uint32_t byte_off = (s->buffer_address
                          + (uint32_t)halfword_offset * 2u) & 0x7FFFEu;
+    /* Out-of-range write: silent discard (defensive; buffer too small for
+     * this address; stage output is lost but state is not corrupted). */
     if ((size_t)byte_off + 1u >= s->work_buf_size) return;
     uint16_t u = (uint16_t)value;
     s->work_buf[byte_off]       = (unsigned char)(u & 0xFFu);
