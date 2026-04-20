@@ -86,6 +86,13 @@ struct spu94_state {
     int32_t        err_fir_interpolator;
     int32_t        fir_overflow_decimator;
     int32_t        fir_overflow_interpolator;
+
+    /* Phase 4 Plan 03 (Pitfall 7): cached interpolator phase-1 output.
+     * The wrapper emits phase-0 on retained-phase 44.1 kHz calls, then
+     * caches phase-1 here. The next 44.1 kHz call (non-retained phase)
+     * emits the cached value. Single source of truth for phase ordering. */
+    int16_t        fir_pending_l_phase1;
+    int16_t        fir_pending_r_phase1;
 };
 
 /* Pin the shell-type bounds. A future plan that grows the struct past these
