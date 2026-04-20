@@ -39,6 +39,37 @@
 extern const int16_t spu94_fir_coef[39];
 
 /* -------------------------------------------------------------------- */
+/* D-01 literal 39-multiply audit reference. Test-visible; always       */
+/* compiled (internal linkage via the src/ TU home). NEVER called from  */
+/* production hot path -- spu94_fir_chain_step calls spu94_fir_decimate */
+/* (folded form) only. Used by tests/unit/fir/test_fir_bit_identity.c   */
+/* to prove folded-form == literal-form under D-03 clamp-once. See      */
+/* 04-RESEARCH section 8 for the algebraic proof; 04-RESEARCH Pitfall 4 */
+/* for the SHA-256 sidecar that catches single-bit transcription drift. */
+/*                                                                      */
+/* history[0] = newest sample, history[38] = oldest. This matches the   */
+/* Python reference in tests/python/derive_fir_reference.py -- the bit- */
+/* identity test pumps identical inputs into both and compares outputs. */
+/* -------------------------------------------------------------------- */
+void spu94_fir_decimate_literal_reference(const int16_t history[39],
+                                          int16_t *output,
+                                          int32_t *acc_out,
+                                          int32_t *err_out);
+
+/* -------------------------------------------------------------------- */
+/* D-01 folded-form audit reference. TEST-VISIBLE companion to          */
+/* spu94_fir_decimate_literal_reference. Takes history[] with           */
+/* history[0]=newest convention (bypasses circular-buffer plumbing);    */
+/* produces bit-identical output to the literal form under D-03         */
+/* clamp-once regime. Proven by test_fir_bit_identity. Never called     */
+/* from production hot path.                                            */
+/* -------------------------------------------------------------------- */
+void spu94_fir_folded_reference(const int16_t history[39],
+                                int16_t *output,
+                                int32_t *acc_out,
+                                int32_t *err_out);
+
+/* -------------------------------------------------------------------- */
 /* Decimator stage (CORE-06).                                            */
 /* Pushes one 44.1 kHz stereo sample into the per-channel delay lines   */
 /* (fir_delay_l_in / fir_delay_r_in) and advances the decimator phase   */
