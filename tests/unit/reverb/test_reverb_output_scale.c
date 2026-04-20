@@ -35,34 +35,26 @@ typedef struct {
     int16_t vROUT;
     int32_t exp_L;      /* int32 widened from the Q15 saturated int16 result */
     int32_t exp_R;
-    int32_t exp_err_delta;  /* err_l + err_r contributed by this call */
     const char *name;
 } output_scale_case_t;
 
 static const output_scale_case_t g_cases[] = {
     /* Zeroes: no multiply, no truncation, no err. */
-    { 0, 0, 0x1234, -0x5678, 0, 0, 0, "zero Lout/Rout" },
-    { 0x1234, -0x5678, 0, 0, 0, 0, 0, "zero vLOUT/vROUT" },
-    /* Unit Q15 scale: mul by 0x7FFF = (x*0x7FFF)>>15.
-     * For x=0x1234: product = 0x1234*0x7FFF = 0x91ABDCC; >>15 = 0x1233;
-     *   remainder = product - (0x1233<<15) = 0x91ABDCC - 0x91980000... compute:
-     * Actually compute exactly: 0x1234 * 0x7FFF = 0x91ABDCC (bit math).
-     *   0x1234 = 4660;  0x7FFF = 32767;  4660*32767 = 152,695,220 = 0x91A3DCC.
-     *   Let's trust the Q15 helpers + recompute below with known-safe values. */
+    { 0, 0, 0x1234, -0x5678, 0, 0, "zero Lout/Rout" },
+    { 0x1234, -0x5678, 0, 0, 0, 0, "zero vLOUT/vROUT" },
     /* Use INT16_MAX*INT16_MAX case — well-known from Phase 1 test table:
      *   (0x7FFF * 0x7FFF) = 0x3FFF0001; >>15 = 0x7FFE; remainder = 0x8001. */
     { (int16_t)0x7FFF, (int16_t)0x7FFF, (int16_t)0x7FFF, (int16_t)0x7FFF,
       (int32_t)0x7FFE, (int32_t)0x7FFE,
-      (int32_t)(0x8001) + (int32_t)(0x8001),  /* two remainders sum (int16 extension: -32767 each? see note) */
       "0x7FFF*0x7FFF each" },
     /* INT16_MIN*INT16_MIN: product = +0x40000000; >>15 = +0x8000 = +32768;
      *   sat_s16 -> INT16_MAX. Remainder = product - (0x8000 << 15)
      *                                   = 0x40000000 - 0x40000000 = 0. */
     { INT16_MIN, INT16_MIN, INT16_MIN, INT16_MIN,
-      (int32_t)INT16_MAX, (int32_t)INT16_MAX, 0,
+      (int32_t)INT16_MAX, (int32_t)INT16_MAX,
       "INT16_MIN^2 saturates to INT16_MAX, remainder zero" },
     /* Q15 identity: mul by 0 -> zero, everywhere. */
-    { INT16_MAX, INT16_MIN, 0, 0, 0, 0, 0, "mul by 0" },
+    { INT16_MAX, INT16_MIN, 0, 0, 0, 0, "mul by 0" },
 };
 static const size_t g_n = sizeof(g_cases) / sizeof(g_cases[0]);
 
