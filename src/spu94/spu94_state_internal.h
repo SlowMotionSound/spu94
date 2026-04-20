@@ -61,6 +61,31 @@ struct spu94_state {
      * surface (drives future Controllers use cases per Deferred Ideas
      * in 03-CONTEXT.md). */
     int32_t        overflow_magnitude;
+
+    /* -----------------------------------------------------------------
+     * Phase 4: sample-rate-conversion FIR state + observability.
+     * D-08 per-channel delay lines (4 rings x 39 int16 + 4 uint8
+     *   indices). D-05 overflow-magnitude taps (2 int32). D-06
+     *   aggregate post-shift err taps (2 int32). uint8 phase
+     *   trackers for decimator and interpolator (Pitfall 7 single
+     *   source of truth). Zeroed wholesale by spu94_reset (existing
+     *   byte-loop covers). Layout confirmed by 04-RESEARCH
+     *   Runtime State Inventory + Accumulator Width Proof.
+     * ----------------------------------------------------------------- */
+    int16_t        fir_delay_l_in[39];
+    int16_t        fir_delay_r_in[39];
+    uint8_t        fir_idx_l_in;
+    uint8_t        fir_idx_r_in;
+    int16_t        fir_delay_l_out[39];
+    int16_t        fir_delay_r_out[39];
+    uint8_t        fir_idx_l_out;
+    uint8_t        fir_idx_r_out;
+    uint8_t        fir_decimate_phase;
+    uint8_t        fir_interpolate_phase;
+    int32_t        err_fir_decimator;
+    int32_t        err_fir_interpolator;
+    int32_t        fir_overflow_decimator;
+    int32_t        fir_overflow_interpolator;
 };
 
 /* Pin the shell-type bounds. A future plan that grows the struct past these
