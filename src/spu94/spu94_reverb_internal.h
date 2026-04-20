@@ -9,7 +9,13 @@
 #ifndef SPU94_REVERB_INTERNAL_H
 #define SPU94_REVERB_INTERNAL_H
 
-#include <spu94/spu94_registers.h>  /* spu94_state typedef */
+/* Include the umbrella header, not spu94_registers.h directly. The
+ * registers sub-header's engine-layer setter signatures return
+ * spu94_result_t (declared in spu94.h). Including the umbrella ensures
+ * the type is visible whether this internal header is included first or
+ * after spu94.h by a test TU. */
+#include <spu94/spu94.h>            /* spu94_result_t + spu94_state */
+#include <spu94/spu94_registers.h>  /* spu94_reg_t enum */
 #include <stdint.h>
 
 /* Top-level reverb-body caller. Invoked exactly once from spu94_tick

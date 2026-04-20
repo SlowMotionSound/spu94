@@ -8,6 +8,7 @@ add_library(spu94_obj OBJECT
     spu94_register_io.c
     spu94_write_policy.c
     spu94_pending.c
+    spu94_reverb.c
     spu94_tick.c
     spu94_buffer.c
 )

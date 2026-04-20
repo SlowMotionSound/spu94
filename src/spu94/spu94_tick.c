@@ -26,6 +26,12 @@
  * that mutates per-tick state. */
 void spu94_buffer_advance(spu94_state *state);
 
+/* Forward declaration. spu94_reverb_body is internal to the library
+ * (defined in spu94_reverb.c, Phase 3 Plan 01). Internal-header
+ * symbol — not published through any include/spu94/ header.
+ * Pitfall 4: exactly one call site — the tick body below. */
+void spu94_reverb_body(spu94_state *state);
+
 void spu94_tick(spu94_state *state) {
     if (state == (spu94_state *)0) {
         return;
@@ -40,5 +46,8 @@ void spu94_tick(spu94_state *state) {
      * defensive against future policy changes more than functionally
      * required today. */
     spu94_buffer_advance(state);
-    /* Phase 3 will add: the reverb-network computation. */
+    /* Step 3: run the reverb-network computation (Phase 3 Plan 01 onward).
+     * Reads v* snapshots (D-08), scales, clips (CORE-02, D-09), runs the
+     * IIR/comb/APF network (Plans 02/03), and emits output-scale products. */
+    spu94_reverb_body(state);
 }
