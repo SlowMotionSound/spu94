@@ -41,3 +41,10 @@ add_test(NAME reverb_apf1 COMMAND test_reverb_apf1)
 add_executable(test_reverb_apf2 test_reverb_apf2.c)
 target_link_libraries(test_reverb_apf2 PRIVATE unity spu94_static)
 add_test(NAME reverb_apf2 COMMAND test_reverb_apf2)
+
+# Plan 04 Task 1: TEST-07 fixed-point edge battery. Q15 saturation,
+# truncation direction (ADR-0001 re-assertion at stage level), and
+# Pitfall-1/7/8 signed-overflow guards at every stage.
+add_executable(test_reverb_edges test_reverb_edges.c)
+target_link_libraries(test_reverb_edges PRIVATE unity spu94_static)
+add_test(NAME reverb_edges COMMAND test_reverb_edges)
