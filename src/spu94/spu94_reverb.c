@@ -28,6 +28,49 @@ int16_t  spu94_get_reg_i16(const spu94_state *state, spu94_reg_t reg);
 uint16_t spu94_get_reg_u16(const spu94_state *state, spu94_reg_t reg);
 
 /* =====================================================================
+ * Reverb work-buffer tap helpers (Plan 02)
+ *
+ * Nocash register values for m* / d* are halfword indexes (u16, 0..0xFFFF
+ * with `-2` meaning "one halfword earlier in the ring"). Byte offset =
+ * halfword_idx * 2. The 0x7FFFE mask matches Phase 2 Plan 04's
+ * buffer_advance wrap rule (byte-aligned halfword ring at max 0x80000
+ * bytes). Pitfall 1 reminder: halfword subtraction wraps naturally in
+ * uint16_t; callers pass `(reg_value - 2)` as a u16 and the helper
+ * computes the byte offset.
+ *
+ * If work_buf_size is smaller than 0x80000 (caller supplies a smaller
+ * buffer — legal per Phase 2 init contract), out-of-range reads return
+ * 0 and writes are discarded; the 0x7FFFE mask alone already gives the
+ * hardware-correct address, and the extra bounds check is defensive.
+ * Little-endian halfword format matches the Phase 2 buffer TU
+ * convention (host-endian-agnostic serialization of the ring).
+ * ===================================================================== */
+static inline int16_t reverb_buf_read(const spu94_state *s,
+                                      uint16_t halfword_offset)
+{
+    if (s->work_buf == (unsigned char *)0) return 0;
+    uint32_t byte_off = (s->buffer_address
+                         + (uint32_t)halfword_offset * 2u) & 0x7FFFEu;
+    if ((size_t)byte_off + 1u >= s->work_buf_size) return 0;
+    /* Little-endian halfword read. */
+    return (int16_t)((uint16_t)s->work_buf[byte_off]
+                   | ((uint16_t)s->work_buf[byte_off + 1u] << 8));
+}
+
+static inline void reverb_buf_write(spu94_state *s,
+                                    uint16_t halfword_offset,
+                                    int16_t value)
+{
+    if (s->work_buf == (unsigned char *)0) return;
+    uint32_t byte_off = (s->buffer_address
+                         + (uint32_t)halfword_offset * 2u) & 0x7FFFEu;
+    if ((size_t)byte_off + 1u >= s->work_buf_size) return;
+    uint16_t u = (uint16_t)value;
+    s->work_buf[byte_off]       = (unsigned char)(u & 0xFFu);
+    s->work_buf[byte_off + 1u]  = (unsigned char)((u >> 8) & 0xFFu);
+}
+
+/* =====================================================================
  * Stage: input_scale
  * Nocash: "Lin = vLIN * LeftInput; Rin = vRIN * RightInput"
  * Widens int16 x int16 to int32 (no shift here — the hard_clip stage
@@ -106,13 +149,82 @@ void spu94_reverb_output_scale(spu94_state *state,
  * Each stub is intentionally a no-op: no state mutation, no buffer I/O.
  * ===================================================================== */
 
+/* =====================================================================
+ * Stage: SAME IIR (CORE-05, CORE-08, D-10) — Plan 02
+ *
+ * Nocash E1 (paraphrased, source: psx-spx.consoledev.net/soundprocessingunitspu/):
+ *   [mLSAME] = (Lin + [dLSAME]*vWALL - [mLSAME-2])*vIIR + [mLSAME-2]  ;L-to-L
+ *   [mRSAME] = (Rin + [dRSAME]*vWALL - [mRSAME-2])*vIIR + [mRSAME-2]  ;R-to-R
+ *
+ * D-10 anomaly: vIIR == -0x8000 negates the final memory-written result
+ * (Pitfall 5: negation runs AFTER saturation, BEFORE the store). The
+ * int32 widening guards against INT16_MIN-negation UB (Pitfall 1).
+ *
+ * D-11 scope (i): every Q15 multiply feeds state->err_same_iir via
+ * q15_mul_truncate_with_err's pre-saturation remainder. Each side has
+ * two multiplies (wall tap + iir); L+R = 4 remainders per call.
+ * ===================================================================== */
 void spu94_reverb_same_iir(spu94_state *state,
                            int16_t Lin, int16_t Rin,
                            int16_t vIIR_snap, int16_t vWALL_snap)
 {
-    (void)state; (void)Lin; (void)Rin;
-    (void)vIIR_snap; (void)vWALL_snap;
-    /* Plan 02 body. */
+    if (state == (spu94_state *)0) return;
+
+    /* L side: [mLSAME] = (Lin + [dLSAME]*vWALL - [mLSAME-2])*vIIR + [mLSAME-2] */
+    {
+        uint16_t dLSAME = spu94_get_reg_u16(state, SPU94_REG_dLSAME);
+        uint16_t mLSAME = spu94_get_reg_u16(state, SPU94_REG_mLSAME);
+        int16_t  tap_d    = reverb_buf_read(state, dLSAME);
+        int16_t  tap_prev = reverb_buf_read(state, (uint16_t)(mLSAME - 2u));
+
+        int16_t err = 0;
+        int16_t wall_prod = q15_mul_truncate_with_err(tap_d, vWALL_snap, &err);
+        state->err_same_iir += (int32_t)err;
+
+        int16_t acc = q15_add_sat(Lin, wall_prod);
+        /* Subtract tap_prev. Widen to int32 before negating to guard the
+         * INT16_MIN-negation UB edge (Pitfall 1). */
+        acc = q15_add_sat(acc, sat_s16(-(int32_t)tap_prev));
+
+        err = 0;
+        int16_t iir_prod = q15_mul_truncate_with_err(acc, vIIR_snap, &err);
+        state->err_same_iir += (int32_t)err;
+
+        int16_t result = q15_add_sat(iir_prod, tap_prev);
+
+        /* D-10 anomaly branch: AFTER saturation, BEFORE memory write
+         * (Pitfall 5). sat_s16 guards the INT16_MIN->+INT16_MAX edge. */
+        if (vIIR_snap == INT16_MIN) {
+            result = sat_s16(-(int32_t)result);
+        }
+        reverb_buf_write(state, mLSAME, result);
+    }
+
+    /* R side: [mRSAME] = (Rin + [dRSAME]*vWALL - [mRSAME-2])*vIIR + [mRSAME-2] */
+    {
+        uint16_t dRSAME = spu94_get_reg_u16(state, SPU94_REG_dRSAME);
+        uint16_t mRSAME = spu94_get_reg_u16(state, SPU94_REG_mRSAME);
+        int16_t  tap_d    = reverb_buf_read(state, dRSAME);
+        int16_t  tap_prev = reverb_buf_read(state, (uint16_t)(mRSAME - 2u));
+
+        int16_t err = 0;
+        int16_t wall_prod = q15_mul_truncate_with_err(tap_d, vWALL_snap, &err);
+        state->err_same_iir += (int32_t)err;
+
+        int16_t acc = q15_add_sat(Rin, wall_prod);
+        acc = q15_add_sat(acc, sat_s16(-(int32_t)tap_prev));
+
+        err = 0;
+        int16_t iir_prod = q15_mul_truncate_with_err(acc, vIIR_snap, &err);
+        state->err_same_iir += (int32_t)err;
+
+        int16_t result = q15_add_sat(iir_prod, tap_prev);
+
+        if (vIIR_snap == INT16_MIN) {
+            result = sat_s16(-(int32_t)result);
+        }
+        reverb_buf_write(state, mRSAME, result);
+    }
 }
 
 void spu94_reverb_diff_iir(spu94_state *state,
@@ -169,9 +281,11 @@ void spu94_reverb_body(spu94_state *state)
     const int16_t vRIN_snap  = spu94_get_reg_i16(state, SPU94_REG_vRIN);
     const int16_t vLOUT_snap = spu94_get_reg_i16(state, SPU94_REG_vLOUT);
     const int16_t vROUT_snap = spu94_get_reg_i16(state, SPU94_REG_vROUT);
-    /* (Plans 02/03 snapshot: vIIR, vWALL, vAPF1, vAPF2, vCOMB1..4,
-     * dAPF1, dAPF2. In Plan 01 these are unread — the IIR/comb/APF
-     * stages do not run yet.) */
+    /* Plan 02: IIR coefficients snapshotted once per pair (D-08). */
+    const int16_t vIIR_snap  = spu94_get_reg_i16(state, SPU94_REG_vIIR);
+    const int16_t vWALL_snap = spu94_get_reg_i16(state, SPU94_REG_vWALL);
+    /* (Plan 03 snapshot: vAPF1, vAPF2, vCOMB1..4, dAPF1, dAPF2.
+     * In Plan 02 the comb/APF stages still do not run yet.) */
 
     /* Phase 3 Plan 01: no public mix-bus feed yet. Phase 5's
      * spu94_process will populate left_in/right_in from the host's
@@ -189,12 +303,12 @@ void spu94_reverb_body(spu94_state *state)
     int32_t overflow = 0;
     spu94_reverb_hard_clip(Lin_wide, Rin_wide, &Lin, &Rin, &overflow);
     state->overflow_magnitude += overflow;
-    (void)Lin; (void)Rin;  /* Plans 02/03 feed these into same_iir/diff_iir. */
 
-    /* Plan 02 will insert here:
-     *   spu94_reverb_same_iir(state, Lin, Rin, vIIR_snap, vWALL_snap);
-     *   spu94_reverb_diff_iir(state, Lin, Rin, vIIR_snap, vWALL_snap);
-     * Plan 03 will insert here:
+    /* Plan 02: SAME IIR (CORE-05, CORE-08). DIFF IIR follows in Task 2. */
+    spu94_reverb_same_iir(state, Lin, Rin, vIIR_snap, vWALL_snap);
+    /* Plan 02 DIFF IIR goes here in Task 2. */
+
+    /* Plan 03 will insert here:
      *   spu94_reverb_comb(state, vCOMB1_snap, ..., &Lout, &Rout);
      *   spu94_reverb_apf1(state, vAPF1_snap, dAPF1_snap, &Lout, &Rout);
      *   spu94_reverb_apf2(state, vAPF2_snap, dAPF2_snap, &Lout, &Rout);

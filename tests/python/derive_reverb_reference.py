@@ -88,6 +88,120 @@ def ref_output_scale(Lout: int, Rout: int,
 # keep derivation independent of any GPL emulator source (Pitfall 9).
 
 
+# --- Buffer helpers shared by Plan 02 + Plan 03 stage references ------
+# The work buffer is modeled as a dict keyed by *byte offset*, holding
+# int16 values. Address arithmetic mirrors the Phase 2 Plan 04 wrap:
+#     byte_off = (buffer_address + halfword_offset * 2) & 0x7FFFE
+# A missing key reads as 0 (buffer is implicitly zero-initialized).
+# Halfword offsets are unsigned 16-bit; subtraction wraps mod 2^16, so
+# callers mask with 0xFFFF when subtracting (e.g. `(mLSAME - 2) & 0xFFFF`).
+
+def _buf_read(buf: dict, buffer_address: int, halfword_offset: int) -> int:
+    byte_off = (buffer_address + (halfword_offset & 0xFFFF) * 2) & 0x7FFFE
+    return buf.get(byte_off, 0)
+
+
+def _buf_write(buf: dict, buffer_address: int, halfword_offset: int,
+               value: int) -> None:
+    byte_off = (buffer_address + (halfword_offset & 0xFFFF) * 2) & 0x7FFFE
+    buf[byte_off] = sat_s16(value)
+
+
+def ref_same_iir(buf: dict, Lin: int, Rin: int, vIIR: int, vWALL: int,
+                 regs: dict, buffer_address: int = 0) -> tuple[dict, int]:
+    """Nocash E1 (paraphrased, source: psx-spx.consoledev.net/soundprocessingunitspu/):
+        [mLSAME] = (Lin + [dLSAME]*vWALL - [mLSAME-2])*vIIR + [mLSAME-2]
+        [mRSAME] = (Rin + [dRSAME]*vWALL - [mRSAME-2])*vIIR + [mRSAME-2]
+
+    Each Q15 multiply uses q15_mul_truncate_with_err (ADR-0001 ASR
+    truncation; pre-saturation remainder feeds err accumulator per D-11
+    scope (i)).  D-10: if vIIR == -0x8000 (INT16_MIN), the FINAL result
+    (the value written to memory) is negated — after saturation, before
+    store. The negation itself is protected by sat_s16 to avoid
+    INT16_MIN-negation UB (Pitfall 1).
+
+    Returns (new_buf_dict, err_total).  The err total is pre-saturation
+    truncation remainder summed over the four Q15 multiplies (2 wall + 2
+    iir) for L+R sides.
+    """
+    new_buf = dict(buf)
+    err_total = 0
+
+    for Xin, dXSAME_key, mXSAME_key in (
+        (Lin, 'dLSAME', 'mLSAME'),
+        (Rin, 'dRSAME', 'mRSAME'),
+    ):
+        dX = regs[dXSAME_key]
+        mX = regs[mXSAME_key]
+        tap_d    = _buf_read(new_buf, buffer_address, dX)
+        tap_prev = _buf_read(new_buf, buffer_address, (mX - 2) & 0xFFFF)
+
+        wall_prod, err = q15_mul_truncate_with_err(tap_d, vWALL)
+        err_total += err
+
+        acc = sat_s16(Xin + wall_prod)
+        # Subtract tap_prev with INT16_MIN-negation guard (Pitfall 1):
+        acc = sat_s16(acc + sat_s16(-tap_prev))
+
+        iir_prod, err = q15_mul_truncate_with_err(acc, vIIR)
+        err_total += err
+
+        result = sat_s16(iir_prod + tap_prev)
+
+        # D-10 anomaly branch: AFTER saturation, BEFORE memory write
+        # (Pitfall 5). sat_s16 guards INT16_MIN-negation UB (Pitfall 1).
+        if vIIR == INT16_MIN:
+            result = sat_s16(-result)
+
+        _buf_write(new_buf, buffer_address, mX, result)
+
+    return new_buf, err_total
+
+
+def ref_diff_iir(buf: dict, Lin: int, Rin: int, vIIR: int, vWALL: int,
+                 regs: dict, buffer_address: int = 0) -> tuple[dict, int]:
+    """Nocash E1 (paraphrased):
+        [mLDIFF] = (Lin + [dRDIFF]*vWALL - [mLDIFF-2])*vIIR + [mLDIFF-2]  ;R-to-L
+        [mRDIFF] = (Rin + [dLDIFF]*vWALL - [mRDIFF-2])*vIIR + [mRDIFF-2]  ;L-to-R
+
+    Structurally identical to ref_same_iir but with the cross-side wall
+    tap pairing (dRDIFF feeds the L-side write to mLDIFF; dLDIFF feeds
+    the R-side write to mRDIFF). D-10 anomaly applies at each write.
+    Returns (new_buf_dict, err_total).
+    """
+    new_buf = dict(buf)
+    err_total = 0
+
+    # L side: Lin + [dRDIFF]*vWALL -> mLDIFF (cross-side: R tap feeds L).
+    # R side: Rin + [dLDIFF]*vWALL -> mRDIFF (cross-side: L tap feeds R).
+    for Xin, dX_cross_key, mX_key in (
+        (Lin, 'dRDIFF', 'mLDIFF'),
+        (Rin, 'dLDIFF', 'mRDIFF'),
+    ):
+        dX = regs[dX_cross_key]
+        mX = regs[mX_key]
+        tap_d    = _buf_read(new_buf, buffer_address, dX)
+        tap_prev = _buf_read(new_buf, buffer_address, (mX - 2) & 0xFFFF)
+
+        wall_prod, err = q15_mul_truncate_with_err(tap_d, vWALL)
+        err_total += err
+
+        acc = sat_s16(Xin + wall_prod)
+        acc = sat_s16(acc + sat_s16(-tap_prev))
+
+        iir_prod, err = q15_mul_truncate_with_err(acc, vIIR)
+        err_total += err
+
+        result = sat_s16(iir_prod + tap_prev)
+
+        if vIIR == INT16_MIN:
+            result = sat_s16(-result)
+
+        _buf_write(new_buf, buffer_address, mX, result)
+
+    return new_buf, err_total
+
+
 def _fmt_signed_hex(x: int) -> str:
     return f"-{abs(x):#x}" if x < 0 else f"{x:#x}"
 
