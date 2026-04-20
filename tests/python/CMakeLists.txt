@@ -30,3 +30,17 @@ add_test(
 set_tests_properties(fuzz_reverb PROPERTIES
     ENVIRONMENT "SPU94_LIB=$<TARGET_FILE:spu94_shared>"
 )
+
+# Phase 4 Plan 04 Task 2 (D-16): 10^6-step fuzz of the full 44.1 kHz FIR
+# chain via spu94_fir_chain_step_reverb_bypass. Same SPU94_LIB plumbing
+# pattern (Pitfall-7 mitigation); dual labels so `ctest -L fir` and
+# `ctest -L fuzz` both pick it up.
+add_test(
+    NAME fuzz_fir
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/fuzz_fir.py
+)
+
+set_tests_properties(fuzz_fir PROPERTIES
+    ENVIRONMENT "SPU94_LIB=$<TARGET_FILE:spu94_shared>"
+    LABELS "fuzz;fir"
+)
