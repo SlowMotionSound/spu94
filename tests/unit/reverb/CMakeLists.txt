@@ -48,3 +48,11 @@ add_test(NAME reverb_apf2 COMMAND test_reverb_apf2)
 add_executable(test_reverb_edges test_reverb_edges.c)
 target_link_libraries(test_reverb_edges PRIVATE unity spu94_static)
 add_test(NAME reverb_edges COMMAND test_reverb_edges)
+
+# Plan 04 Task 2: SC-1 composition equivalence. spu94_reverb_body must
+# equal sequential stage-by-stage composition, byte-for-byte, under
+# three seeded random register configurations. Also re-asserts Pitfall
+# 8 (buffer_address unchanged across reverb_body).
+add_executable(test_reverb_body test_reverb_body.c)
+target_link_libraries(test_reverb_body PRIVATE unity spu94_static)
+add_test(NAME reverb_body COMMAND test_reverb_body)

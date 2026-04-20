@@ -17,3 +17,16 @@ add_test(
 set_tests_properties(fuzz_buffer PROPERTIES
     ENVIRONMENT "SPU94_LIB=$<TARGET_FILE:spu94_shared>"
 )
+
+# Phase 3 Plan 04 Task 2: ROADMAP Phase 3 SC-4 -- 10^6-step fuzz of the
+# full reverb network. Same SPU94_LIB plumbing pattern (generator
+# expression ensures the test picks up the fresh .so every run,
+# Pitfall-7 mitigation from Phase 2 Plan 05).
+add_test(
+    NAME fuzz_reverb
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/fuzz_reverb.py
+)
+
+set_tests_properties(fuzz_reverb PROPERTIES
+    ENVIRONMENT "SPU94_LIB=$<TARGET_FILE:spu94_shared>"
+)
