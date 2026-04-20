@@ -227,13 +227,79 @@ void spu94_reverb_same_iir(spu94_state *state,
     }
 }
 
+/* =====================================================================
+ * Stage: DIFF IIR (CORE-05, CORE-08, D-10) — Plan 02
+ *
+ * Nocash E1 (paraphrased, source: psx-spx.consoledev.net/soundprocessingunitspu/):
+ *   [mLDIFF] = (Lin + [dRDIFF]*vWALL - [mLDIFF-2])*vIIR + [mLDIFF-2]  ;R-to-L
+ *   [mRDIFF] = (Rin + [dLDIFF]*vWALL - [mRDIFF-2])*vIIR + [mRDIFF-2]  ;L-to-R
+ *
+ * Structurally identical to SAME IIR with ONE distinction: the wall tap
+ * read uses the *cross-side* d* register. The L side's wall tap reads
+ * via dRDIFF (not dLDIFF); the R side's reads via dLDIFF. This is the
+ * "R-to-L / L-to-R" scattering that distinguishes DIFF from SAME.
+ *
+ * D-10 anomaly + D-11 per-multiply err tap apply identically to SAME IIR.
+ * ===================================================================== */
 void spu94_reverb_diff_iir(spu94_state *state,
                            int16_t Lin, int16_t Rin,
                            int16_t vIIR_snap, int16_t vWALL_snap)
 {
-    (void)state; (void)Lin; (void)Rin;
-    (void)vIIR_snap; (void)vWALL_snap;
-    /* Plan 02 body. */
+    if (state == (spu94_state *)0) return;
+
+    /* L side: [mLDIFF] = (Lin + [dRDIFF]*vWALL - [mLDIFF-2])*vIIR + [mLDIFF-2]
+     * NOTE: cross-side tap — dRDIFF (not dLDIFF) feeds the L-side write. */
+    {
+        uint16_t dRDIFF = spu94_get_reg_u16(state, SPU94_REG_dRDIFF);
+        uint16_t mLDIFF = spu94_get_reg_u16(state, SPU94_REG_mLDIFF);
+        int16_t  tap_d    = reverb_buf_read(state, dRDIFF);
+        int16_t  tap_prev = reverb_buf_read(state, (uint16_t)(mLDIFF - 2u));
+
+        int16_t err = 0;
+        int16_t wall_prod = q15_mul_truncate_with_err(tap_d, vWALL_snap, &err);
+        state->err_diff_iir += (int32_t)err;
+
+        int16_t acc = q15_add_sat(Lin, wall_prod);
+        acc = q15_add_sat(acc, sat_s16(-(int32_t)tap_prev));
+
+        err = 0;
+        int16_t iir_prod = q15_mul_truncate_with_err(acc, vIIR_snap, &err);
+        state->err_diff_iir += (int32_t)err;
+
+        int16_t result = q15_add_sat(iir_prod, tap_prev);
+
+        if (vIIR_snap == INT16_MIN) {
+            result = sat_s16(-(int32_t)result);
+        }
+        reverb_buf_write(state, mLDIFF, result);
+    }
+
+    /* R side: [mRDIFF] = (Rin + [dLDIFF]*vWALL - [mRDIFF-2])*vIIR + [mRDIFF-2]
+     * NOTE: cross-side tap — dLDIFF (not dRDIFF) feeds the R-side write. */
+    {
+        uint16_t dLDIFF = spu94_get_reg_u16(state, SPU94_REG_dLDIFF);
+        uint16_t mRDIFF = spu94_get_reg_u16(state, SPU94_REG_mRDIFF);
+        int16_t  tap_d    = reverb_buf_read(state, dLDIFF);
+        int16_t  tap_prev = reverb_buf_read(state, (uint16_t)(mRDIFF - 2u));
+
+        int16_t err = 0;
+        int16_t wall_prod = q15_mul_truncate_with_err(tap_d, vWALL_snap, &err);
+        state->err_diff_iir += (int32_t)err;
+
+        int16_t acc = q15_add_sat(Rin, wall_prod);
+        acc = q15_add_sat(acc, sat_s16(-(int32_t)tap_prev));
+
+        err = 0;
+        int16_t iir_prod = q15_mul_truncate_with_err(acc, vIIR_snap, &err);
+        state->err_diff_iir += (int32_t)err;
+
+        int16_t result = q15_add_sat(iir_prod, tap_prev);
+
+        if (vIIR_snap == INT16_MIN) {
+            result = sat_s16(-(int32_t)result);
+        }
+        reverb_buf_write(state, mRDIFF, result);
+    }
 }
 
 void spu94_reverb_comb(spu94_state *state,
@@ -304,9 +370,12 @@ void spu94_reverb_body(spu94_state *state)
     spu94_reverb_hard_clip(Lin_wide, Rin_wide, &Lin, &Rin, &overflow);
     state->overflow_magnitude += overflow;
 
-    /* Plan 02: SAME IIR (CORE-05, CORE-08). DIFF IIR follows in Task 2. */
+    /* Plan 02: SAME then DIFF IIR (CORE-05, CORE-08). Nocash order —
+     * SAME IIR writes to [mLSAME]/[mRSAME] feed no DIFF tap, so the
+     * two stages are independent within a pair; we keep nocash's
+     * pseudocode order verbatim for readability. */
     spu94_reverb_same_iir(state, Lin, Rin, vIIR_snap, vWALL_snap);
-    /* Plan 02 DIFF IIR goes here in Task 2. */
+    spu94_reverb_diff_iir(state, Lin, Rin, vIIR_snap, vWALL_snap);
 
     /* Plan 03 will insert here:
      *   spu94_reverb_comb(state, vCOMB1_snap, ..., &Lout, &Rout);
