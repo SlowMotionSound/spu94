@@ -40,6 +40,27 @@ struct spu94_state {
      * spu94_get_reg_*_pending readback always returns a meaningful value. */
     int16_t        pending_values[SPU94_REG__COUNT];
     uint64_t       pending_mask;  /* bit i set -> pending_values[i] awaits flush */
+
+    /* Phase 3 Plan 01 (D-11): per-stage truncation-err accumulators.
+     * Every q15_mul_truncate_with_err call in the reverb network writes
+     * its pre-saturation remainder to one of these via += accumulation.
+     * Read-only observability (D-23); no public accessor yet (D-04).
+     * Zeroed by spu94_reset (existing hand-rolled byte-loop covers). */
+    int32_t        err_input_scale;
+    int32_t        err_same_iir;
+    int32_t        err_diff_iir;
+    int32_t        err_comb;
+    int32_t        err_apf1;
+    int32_t        err_apf2;
+    int32_t        err_output_scale;
+
+    /* Phase 3 Plan 01 (D-11 extension): high-bits-lost observable on
+     * the hard-clip stage. |input| - INT16_MAX for inputs outside
+     * ±INT16_MAX, zero otherwise. Sibling to the err_* truncation-low-
+     * bits stream — together they form the complete precision-loss
+     * surface (drives future Controllers use cases per Deferred Ideas
+     * in 03-CONTEXT.md). */
+    int32_t        overflow_magnitude;
 };
 
 /* Pin the shell-type bounds. A future plan that grows the struct past these
