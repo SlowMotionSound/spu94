@@ -30,6 +30,552 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-0011: Per-multiply err-tap + overflow-magnitude observable
+
+**Status:** Accepted (2026-04-19, Phase 3)
+
+**Context:**
+
+Every Q15 multiply in the reverb network discards the low 15 bits of the
+full 32-bit product when it shifts right by 15 to re-scale. The hard-clip
+stage additionally discards the high bits of any int32 input whose
+magnitude exceeds INT16_MAX when it saturates to int16. Together, these
+two forms of precision loss describe the reverb's complete discard
+surface: low bits thrown away by the shift + high bits thrown away by
+the clamp. CONTEXT.md D-11 and the Controllers-milestone seed in
+Deferred Ideas both wanted this surface observable so that future
+musical features (drive meter, soft-clip warmth, overflow-modulated
+feedback, err-stream envelopes) can consume it without having to fake
+the data after the fact.
+
+Three scopes were on the table: (i) wire every multiply to a per-stage
+err accumulator and add an overflow-magnitude out-param on the clip;
+(ii) wire only the feedback-loop multiplies (the ones that amplify
+drift across ticks); (iii) skip per-multiply wiring in Phase 3 and
+revisit when a consumer exists.
+
+**Decision:**
+
+Scope (i). Every Q15 multiply in every reverb stage runs through
+`q15_mul_truncate_with_err` and its truncation remainder accumulates
+into a per-stage int32 field on `struct spu94_state`
+(`err_input_scale`, `err_same_iir`, `err_diff_iir`, `err_comb`,
+`err_apf1`, `err_apf2`, `err_output_scale`). The hard-clip stage
+additionally emits an overflow-magnitude out-param — `|input| -
+INT16_MAX` for int32 inputs outside the int16 range, zero otherwise —
+which `spu94_reverb_body` accumulates into a sibling
+`overflow_magnitude` state field.
+
+Scope (ii) was rejected: limiting observability to the feedback
+multiplies would have required a second multiply helper and a per-site
+routing decision, and would have left the comb's + APF's non-feedback
+discards invisible. Scope (iii) was rejected because retrofitting the
+per-multiply wiring after Controllers consumers exist is strictly more
+expensive than adding it day-one.
+
+**Consequences:**
+
+- Runtime cost: one int32 add per multiply + one int32 add in the
+  clip. No runtime branches, no conditional logic, no allocations.
+- Test obligation: Phase 3 Plan 04's `test_reverb_edges` and per-stage
+  test TUs assert err is zero for non-saturating input, nonzero and
+  monotonic under saturating input, and matches the Python reference
+  script's remainder exactly. `test_reverb_body` asserts that the
+  full-body path and the stage-by-stage path accumulate the same err
+  and overflow totals.
+- No public API surface in Phase 3. The err and overflow fields live
+  in `struct spu94_state` and are read-only per D-23.
+- Controllers (M4) forward-dependency: public read-only getters for
+  each field are the one-line addition that turns the taps into a
+  musical feature surface. No reverb-code change is needed for that
+  step; all the wiring is already in place.
+
+**Alternatives Considered:**
+
+- Scope (ii) — feedback multiplies only. Rejected: partial coverage
+  without a clean stopping principle.
+- Scope (iii) — defer to Phase 4+. Rejected: refit cost.
+- Widening `err_out` to int32. Considered; kept at int16 per ADR-0004
+  because the pre-saturation remainder always fits in int16 by
+  construction (`remainder = product - (shifted << 15)`).
+
+**Seam (D-22):**
+
+The accumulator fields are struct members. A future Controllers
+milestone adds public read-only accessors without touching reverb code.
+A future refactor that wants per-multiply stream observability (rather
+than summed-per-stage) adds a callback parameter to
+`q15_mul_truncate_with_err`'s existing signature (`err_out`) without
+breaking the current API — that is the point of ADR-0004's extensibility
+tap.
+
+**Revision Path:**
+
+- Plugin-era user testing reveals that one or more err fields are
+  useless or misleading: demote or remove that field in a superseding
+  ADR; the struct size shrinks.
+- Hardware capture (M5) reveals an additional precision-loss surface
+  (e.g., ADPCM decoder bit-churn): add a sibling int32 field in a new
+  ADR; this ADR is not superseded but extended.
+
+**Sources:**
+
+- psx-spx.consoledev.net/soundprocessingunitspu/ — primary source for
+  the reverb multiplies whose discards this ADR observes. Paraphrased.
+- Internal: `.planning/phases/03-core-reverb-algorithm-hard-clip/03-CONTEXT.md`
+  § Post-Research Decisions (D-11 — scope + Phase 3 expansion).
+- Internal: `.planning/notes/2026-04-19-error-accumulator-concept.md`
+  (the originating Controllers use-case note behind ADR-0004).
+- Prior ADR: ADR-0004 (extensibility taps: `q15_mul_truncate_with_err`
+  is the underlying mechanism this ADR consumes across every stage).
+- Prior ADR: ADR-0001 (Q15 multiply semantics — the shift that
+  produces the truncation remainder).
+- Prior ADR: ADR-0009 (hard-clip stage placement — the site of the
+  overflow-magnitude emit).
+
+---
+
+## ADR-0010: vIIR = INT16_MIN anomaly mechanism
+
+**Status:** Accepted (2026-04-19, Phase 3) — implements the intent of
+ADR-0002.
+
+**Context:**
+
+The nocash documentation describes a quirk of the reverb IIR stages:
+when the vIIR coefficient register is written with exactly INT16_MIN
+(`-0x8000`), the value the IIR stage stores to memory ends up negated
+relative to what the straightforward arithmetic would have produced.
+The documentation reports the observable effect; it does not describe a
+hardware mechanism. ADR-0002 (Phase 1) committed SPU-94 to reproducing
+the observable effect; Phase 3 had to pick an implementation pattern.
+
+Two approaches were considered. The first: an explicit branch at the
+point of the memory write that detects `vIIR == INT16_MIN` and negates
+the final result. The second: search for a specific saturation-
+arithmetic sequence that produces the observable effect as an emergent
+consequence of the INT16_MIN operand running through the normal
+arithmetic path.
+
+**Decision:**
+
+Explicit branch at the memory-write point of each IIR stage (SAME and
+DIFF). Inside `spu94_reverb_same_iir` and `spu94_reverb_diff_iir`,
+after the normal arithmetic has produced the saturated int16 `result`:
+
+```c
+if (vIIR_snap == INT16_MIN) {
+    result = sat_s16(-(int32_t)result);
+}
+reverb_buf_write(state, mXSAME, result);
+```
+
+The `int32_t` widening before negation guards against INT16_MIN-
+negation undefined behavior (Pitfall 1 from 03-RESEARCH.md); the
+saturating cast back to int16 handles the `+0x8000` overflow that
+appears when the pre-negation `result` was exactly INT16_MIN.
+
+**Consequences:**
+
+- Observable behavior matches the nocash description exactly.
+- Mechanism is auditable: one explicit branch per IIR stage, greppable
+  (`grep -c 'vIIR_snap == INT16_MIN' src/spu94/spu94_reverb.c` should
+  return 4 — L+R per stage, 2 stages).
+- No runtime cost when `vIIR != INT16_MIN`; a single compare + branch
+  otherwise.
+- Test obligation: `test_reverb_same_iir` / `test_reverb_diff_iir` and
+  `test_reverb_edges` all assert the anomaly fires at `vIIR =
+  INT16_MIN` and a control case at `vIIR = INT16_MIN + 1` does not.
+
+**Alternatives Considered:**
+
+- **Emergent-from-saturation variant.** Try to find an arithmetic
+  sequence where the INT16_MIN operand produces the negation naturally
+  (e.g., via a specific ordering of saturations, sign flips, and
+  shifts). Rejected: the nocash documentation tells us what the
+  observable effect is, not how the hardware arrives at it;
+  speculating at an undocumented mechanism risks drifting away from
+  observable correctness when the speculation is wrong at a different
+  operand combination. Explicit is the honest option.
+- **No guard** (native `-result` negation). Rejected immediately —
+  undefined behavior at `result == INT16_MIN` (Pitfall 1).
+
+**Seam (D-22):**
+
+The branch itself is the seam. If hardware capture (M5) ever reveals
+an emergent mechanism that produces the same observable at the
+INT16_MIN edge but a different observable at (for example) INT16_MIN
+combined with specific wall-tap values, replace the branch body with
+the captured arithmetic in a superseding ADR. The call sites do not
+change.
+
+**Revision Path:**
+
+- M5 hardware capture discloses a specific emergent pattern: replace
+  the branch body with the captured arithmetic; ADR-0010 is superseded.
+- M5 discloses that the anomaly does NOT fire at exactly INT16_MIN but
+  at some other specific value: adjust the compare; supersede ADR-0010.
+- Nocash updates to describe a different observable behavior: re-open
+  both ADR-0002 and ADR-0010.
+
+**Sources:**
+
+- psx-spx.consoledev.net/soundprocessingunitspu/ — primary source for
+  the observable description (paraphrased, not transcribed, per the
+  project DOCS-03 paraphrase discipline).
+- Internal: `.planning/phases/03-core-reverb-algorithm-hard-clip/03-CONTEXT.md`
+  § Post-Research Decisions (D-10).
+- Internal: `.planning/phases/03-core-reverb-algorithm-hard-clip/03-RESEARCH.md`
+  § Pitfall 1 (INT16_MIN-negation UB).
+- Witness (behavioral, license-tagged, not read as primary source):
+  DuckStation's 2019 reverb commit uses a comparable explicit-branch
+  pattern. DuckStation re-licensed to CC-BY-NC-ND in September 2024;
+  SPU-94 does not consume DuckStation source as a primary input per
+  the PROJECT.md licensing posture.
+- Prior ADR: ADR-0002 (vIIR anomaly — reproduce-target commitment).
+- Prior ADR: ADR-0001 (Q15 multiply semantics — the saturation the
+  pre-negation `result` has already been through).
+
+---
+
+## ADR-0009: Hard-clip stage placement
+
+**Status:** Accepted (2026-04-19, Phase 3)
+
+**Context:**
+
+The reverb algorithm has a mix-bus saturation step on its input path —
+CORE-02 in ROADMAP. The stage fits naturally between input-scale
+(which emits an int32 widened product) and same-iir (which expects an
+int16). Two factoring options were on the table: (a) fold the
+saturation into input-scale's tail as an implicit `sat_s16`, or (b)
+factor it out as its own named function between input-scale and
+same-iir.
+
+CORE-02 explicitly requires that the hard-clip be "independently
+testable" — it is one of the five Phase 3 success criteria. The
+factoring decision therefore turns on test architecture as much as
+implementation aesthetics.
+
+**Decision:**
+
+Hard-clip is its own stage function (`spu94_reverb_hard_clip`) between
+`spu94_reverb_input_scale` and `spu94_reverb_same_iir`. The function
+accepts int32 L and R inputs, emits int16 L and R outputs plus an
+overflow-magnitude int32 out-param, and has no dependency on
+`spu94_state` (it is a pure function over its arguments).
+
+```c
+void spu94_reverb_hard_clip(int32_t Lin_wide, int32_t Rin_wide,
+                            int16_t *Lin_out, int16_t *Rin_out,
+                            int32_t *overflow_out);
+```
+
+The overflow-magnitude out-param is the sibling observable to the
+per-stage err accumulators — see ADR-0011 for the rationale behind
+the complete-precision-loss surface.
+
+**Consequences:**
+
+- CORE-02 "independently testable" is satisfied with zero extra test
+  scaffolding: `tests/unit/reverb/test_reverb_hard_clip.c` drives the
+  function directly with int32 boundary inputs and asserts `sat_s16`
+  behavior bit-for-bit.
+- The function has no `spu94_state` dependency, so tests do not need
+  to set up a state fixture. This is the cheapest possible test
+  environment.
+- One additional function call per tick, negligible cost (the body is
+  two `sat_s16` calls + an overflow-magnitude computation; compiler
+  inlines trivially through LTO).
+
+**Alternatives Considered:**
+
+- **Fold into input-scale with implicit `sat_s16`.** Rejected: makes
+  CORE-02 testing require a test fixture that can observe the post-
+  scale-pre-IIR value, which is the same level of observability
+  indirection the D-04 decision explicitly avoided for stage outputs.
+  Independently-testable means testable without fixture indirection.
+- **Fold into same-iir's input read.** Rejected for the same reason,
+  plus it would mix the saturation step with the IIR arithmetic in a
+  way that makes the Pitfall-1 + Pitfall-7 analysis harder.
+
+**Seam (D-22):**
+
+The function slot in `spu94_reverb_body`. The body-caller can be
+re-routed through a different clip (or no clip) by swapping one call,
+keeping every other stage untouched. This is the hook a future
+Controllers milestone uses to expose alternative clipping shapes (soft
+clip, asymmetric clip, bypass) without touching the stage functions
+themselves.
+
+**Revision Path:**
+
+- Plugin-era user testing wants a soft-clip or bypass mode:
+  Controllers layer adds a policy pointer or stage-function slot;
+  additive ADR; ADR-0009 is not superseded.
+- M5 hardware capture reveals that the clip has richer per-sample
+  behavior than `sat_s16` (e.g., a soft knee, asymmetric roll-off):
+  supersede ADR-0009 with the captured arithmetic; the function
+  signature is stable so call sites do not change.
+
+**Sources:**
+
+- psx-spx.consoledev.net/soundprocessingunitspu/ — primary source for
+  the mix-bus saturation behavior (paraphrased).
+- Internal: `.planning/phases/03-core-reverb-algorithm-hard-clip/03-CONTEXT.md`
+  § Post-Research Decisions (D-09).
+- Internal: `.planning/REQUIREMENTS.md` CORE-02.
+- Prior ADR: ADR-0001 (Q15 semantics — `sat_s16` is the underlying
+  saturation primitive).
+- Prior ADR: ADR-0011 (overflow-magnitude observable — the clip is
+  the site of its emit).
+
+---
+
+## ADR-0008: L/R register-write timing within a 22.05 kHz tick
+
+**Status:** Accepted (2026-04-19, Phase 3)
+
+**Context:**
+
+The reverb algorithm processes one stereo sample pair per 22.05 kHz
+tick. Internally, the pair comprises an L half-step and an R
+half-step. The nocash documentation is silent on whether coefficient
+registers (the `v*` family in particular) are read once per pair or
+re-read fresh for each half-step. Both readings are consistent with
+the written documentation; behavioral witnesses SPU-94 consulted
+(witness: Mednafen, DuckStation, lv2-psx-reverb — all license-tagged
+as GPL and therefore not read as primary sources per PROJECT.md)
+appear to freeze once per pair, but those witnesses are consulted as
+observable behavior, not as source-read primary material.
+
+SPU-94 must pick a defensible default that preserves bit-faithfulness
+for the M1 milestone (plain stereo reverb on realistic preset material)
+while leaving a seam for the M4 Controllers milestone to expose
+half-step modulation if users want it.
+
+**Decision:**
+
+Freeze-once-per-pair. At the top of `spu94_reverb_body`, every v-
+register that the body's stages consume is read into a const local
+snapshot (`vLIN_snap`, `vRIN_snap`, `vLOUT_snap`, `vROUT_snap`,
+`vIIR_snap`, `vWALL_snap`, `vCOMB1..4_snap`, `vAPF1_snap`,
+`vAPF2_snap`). The snapshots are passed down to the stage functions
+by value. Stages never re-read the v-registers from state. A
+coefficient written mid-tick by the host lands in the register file
+on write (v-registers are IMMEDIATE per ADR-0005), but its effect on
+the reverb math is deferred until the next pair — both L and R halves
+of the current pair observe the pre-write value.
+
+**Consequences:**
+
+- Atomic L/R behavior within a tick. The pair acts as a single
+  indivisible processing unit from the arithmetic's perspective,
+  matching the tick-atomicity principle ADR-0005 pinned for mid-tick
+  writes.
+- Bit-faithful default for M1 preset material. If real PS1 silicon
+  freezes once per pair (the behavioral-witness reading supports
+  this), SPU-94 matches; if it re-reads per half-step, the M4
+  Controllers toggle (see Seam below) exposes the other shape.
+- Test obligation: `test_reverb_body` re-reads the same snapshots
+  when reproducing the stage-by-stage path. The equivalence assertion
+  implicitly pins the snapshot-once discipline.
+- Mid-tick v-register writes are visible via the `_pending` accessor
+  from the time they are written until the next pair begins; they are
+  not invisible, just deferred.
+
+**Alternatives Considered:**
+
+- **Re-read v-registers fresh for the R half-step.** Equally valid
+  under the nocash silence. Rejected as default for M1: bit-
+  faithfulness to the behavioral-witness consensus is the safer
+  default when the primary source is silent, AND the semantics
+  (pair-rate modulation vs half-step modulation) differ audibly at
+  high modulation rates, so shipping both as alternate modes is the
+  right long-term shape.
+
+**Seam (D-22):**
+
+Body-caller level. Stage functions take v-register values as
+parameters; swapping "snapshot once" vs "re-read for R" is a change
+localized to `spu94_reverb_body`. No stage function changes.
+
+**M4 Controllers seed — Extended Modulation Mode:**
+
+See the Deferred Ideas section of 03-CONTEXT.md. The M4 Controllers
+milestone exposes re-read-fresh-for-R as an opt-in "Extended
+Modulation Mode" toggle on top of the default freeze-once-per-pair
+behavior. Use cases: audio-rate LFOs, fast envelopes, FM-style
+parameter modulation, cross-rate tricks that pair-rate snapshots
+cannot reach. Doubles the modulation temporal resolution from
+22.05 kHz (pair rate) to 44.1 kHz (half-step rate) for users who
+want that expressiveness, while M1's default preserves the bit-
+faithful behavior for users who want that.
+
+**Revision Path:**
+
+- M5 hardware capture reveals the real chip re-reads per half-step:
+  flip the default in a superseding ADR; the M4 toggle still exposes
+  both modes.
+- M5 reveals a third option (e.g., a specific register is re-read but
+  others are not): add a per-register policy column in a new ADR.
+
+**Sources:**
+
+- psx-spx.consoledev.net/soundprocessingunitspu/ — primary source for
+  the 22.05 kHz tick rate and the L-then-R processing order. Silent
+  on per-half-step v-register timing, which is the absence-of-
+  evidence this ADR addresses.
+- Internal: `.planning/phases/03-core-reverb-algorithm-hard-clip/03-CONTEXT.md`
+  § Post-Research Decisions (D-08).
+- Internal: `.planning/phases/03-core-reverb-algorithm-hard-clip/03-RESEARCH.md`
+  § Test Strategy and § Pitfall 4 (mid-tick re-read hazard).
+- Prior ADR: ADR-0005 (IMMEDIATE vs TICK_LATCHED write policy — this
+  ADR extends the IMMEDIATE policy's effective visibility).
+
+---
+
+## ADR-0007: comb-sum accumulation precision — cascading `sat_s16` after each add
+
+**Status:** Accepted (2026-04-19, Phase 3)
+
+**User lock date:** 2026-04-19 (supplemental post-research discuss pass)
+
+**Context:**
+
+The reverb's 4-tap comb sums four Q15 products per side per tick. The
+comb-sum precision question (ROADMAP Phase 3 SC-5a) is whether the
+intermediate accumulator behaves as a widening int32 value clamped
+once at the end, or as an int16 saturator clamping after every add.
+The nocash documentation describes the formula as an addition of four
+terms but is silent on the intermediate comb-sum precision. Both
+shapes give identical output whenever the sum fits in int16 range;
+they diverge at operand combinations that force intermediate
+saturation.
+
+Two variants were on the table:
+
+- **Variant A (int32 accumulate):** widen each product to int32, sum
+  all four, call `sat_s16` once on the final sum. This is the
+  mathematically cleanest form and the one the behavioral-witness
+  consensus (witness: DuckStation and Mednafen-PSX, both GPL and not
+  read as primary witness-sources) appears to use.
+- **Variant B (cascading `sat_s16`):** treat the accumulator as int16
+  and call `q15_add_sat` (which widens internally to int32 and then
+  saturates) after each add. Three saturation points per side, six
+  across L+R per tick.
+
+The two variants produce markedly different sums under saturation:
+Plan 03's distinguishing-test case (`v=(0x7FFF,0x7FFF,-0x7FFF,
+-0x7FFF)` with all taps `0x7FFF`) evaluates to `-0x7FFF` under
+Variant B and `-2` under Variant A, a 32765-point gap.
+
+**Decision:**
+
+Variant B — cascading `sat_s16` after each add. SPU-94's
+`spu94_reverb_comb` implements three cascading `q15_add_sat` calls
+per side (no `int32_t sum*` local). The grep guard
+`! grep -E 'int32_t[[:space:]]+(sumL|sumR|sum_L|sum_R|comb_acc|acc32)' src/spu94/spu94_reverb.c`
+is part of the Phase 3 SUMMARY.md acceptance and must continue to
+pass across plans. The distinguishing test in
+`tests/unit/reverb/test_reverb_comb.c` pins the chosen variant against
+the rejected one at the 32765-point gap.
+
+**Rationale (taste-driven, user-locked):**
+
+The user's decision (Anthony, 2026-04-19) favored Variant B for two
+reasons:
+
+1. **Distortion character at input extremes.** Cascading saturation
+   produces a richer clipping flavor when tap combinations push the
+   accumulator past the int16 boundary. For musical material this
+   manifests as a perceptual texture in the reverb tail on loud
+   transients.
+2. **Richer overflow signal feeding the D-11 err accumulator (see
+   ADR-0011).** Each cascading saturation contributes precision-loss
+   material to `err_comb`. Variant A produces at most one clamp event
+   per side per tick; Variant B produces up to three. More clamp
+   events mean more material for the future Controllers-era drive
+   meter, soft-clip warmth lever, and overflow-modulated feedback
+   features (see the Deferred Ideas seeds in 03-CONTEXT.md).
+
+This ADR diverges from the behavioral-witness consensus deliberately.
+The primary source (nocash) is silent on the question; the
+behavioral witnesses are license-tagged as GPL and are not read as
+primary sources per PROJECT.md; the decision therefore falls to
+taste until M5 hardware capture provides primary evidence. The
+divergence is documented for audit — the witness consensus is a
+legitimate future revision trigger but not the current authority.
+
+**Consequences:**
+
+- Divergence from behavioral-witness consensus (witness: DuckStation,
+  witness: Mednafen-PSX) on intermediate comb behavior per the witness
+  survey in 03-RESEARCH.md. M4 plugin-era A/B testing will be the
+  first musical judgment data point.
+- The `err_comb` stream is richer under this variant than under
+  Variant A. Controllers consumers (M4) that use `err_comb` as a
+  musical modulation source get more material.
+- Three saturating adds per side (`q15_add_sat` widens internally to
+  int32 and calls `sat_s16`). Runtime cost: six total per tick across
+  L+R. Negligible.
+
+**Alternatives Considered:**
+
+- **Variant A (int32 accumulate + single final `sat_s16`).** Rejected
+  per the rationale above. Mathematically cleanest; matches the
+  behavioral-witness consensus; preserves more precision on loud
+  material. Kept as the revert-lever target if the revision triggers
+  below fire.
+
+**Seam (D-22):**
+
+`spu94_reverb_comb` body. Variant A is a one-TU swap: replace the
+three `q15_add_sat` calls with a widening int32 accumulator and a
+single final `sat_s16`. The function signature is stable. Test
+reference tables in `tests/python/derive_reverb_reference.py::ref_comb`
+would need to re-derive; the distinguishing test would either flip
+its expectation or be replaced by a documented witness-matching test.
+
+**Revert lever:**
+
+If M4 plugin-era user testing on realistic preset material finds the
+cascading distortion too aggressive or unmusical, flip to Variant A.
+The mechanism is a one-TU swap (see Seam above); the user lock stands
+until plugin-era evidence contradicts it.
+
+**Revision Path:**
+
+- **M4 plugin-era user testing** finds the cascading distortion
+  unmusical on realistic preset material: flip to Variant A with a
+  superseding ADR.
+- **M5 hardware capture** provides primary evidence for whichever
+  variant real PS1 silicon implements. Hardware capture is the
+  ultimate authority and overrides both this ADR and the revert
+  lever.
+
+**Sources:**
+
+- psx-spx.consoledev.net/soundprocessingunitspu/ — primary source for
+  the comb formula. Silent on intermediate precision. Paraphrased.
+- Internal: `.planning/phases/03-core-reverb-algorithm-hard-clip/03-CONTEXT.md`
+  § Post-Research Decisions (D-07 — user lock rationale).
+- Internal: `.planning/phases/03-core-reverb-algorithm-hard-clip/03-RESEARCH.md`
+  § Comb-sum precision — full evidence table.
+- Internal: `.planning/phases/03-core-reverb-algorithm-hard-clip/03-DISCUSSION-LOG.md`
+  — plain-language user decision record for the 2026-04-19 lock.
+- Sources — Witness (behavioral, license-tagged, not read as primary
+  source): witness DuckStation and witness Mednafen-PSX source code
+  appears to use Variant A per third-party reports; SPU-94 does not
+  read those GPL-licensed sources per PROJECT.md licensing posture.
+- Prior ADR: ADR-0001 (Q15 multiply semantics — `sat_s16` is the
+  saturation primitive each cascading step uses).
+- Prior ADR: ADR-0011 (per-multiply err-tap + overflow-magnitude
+  observable — this ADR's user-lock rationale cites that surface
+  directly).
+
+---
+
 ## ADR-0006: mBASE write side effect — snap-on-write
 
 **Status:** Accepted (2026-04-19, Phase 2)
