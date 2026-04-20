@@ -135,6 +135,23 @@ def run_fuzz(lib: ctypes.CDLL, seed: int, steps: int) -> int:
     # Keep raw buffers alive for the duration of the run.
     _keepalive = (state_raw, work_raw)
 
+    # WR-02: validate CANARY_OFFSET against the actual struct footprint
+    # before entering the fuzz loop. If a future plan grows spu94_state
+    # past CANARY_OFFSET, the canary would sit inside the in-use footprint
+    # and spu94_reset's byte-loop would zero it every reset, producing a
+    # persistent "canary drift" failure that looks like an OOB bug.
+    # Catch that regression here with a clear diagnostic.
+    actual_size = lib.spu94_state_size()
+    if CANARY_OFFSET < actual_size:
+        sys.exit(f"FAIL: CANARY_OFFSET ({CANARY_OFFSET:#x}) is inside "
+                 f"the struct footprint ({actual_size} bytes). "
+                 f"Struct grew; bump CANARY_OFFSET or rework canary "
+                 f"placement.")
+    if CANARY_OFFSET + 4 > SPU94_STATE_SIZE_MAX:
+        sys.exit(f"FAIL: CANARY_OFFSET ({CANARY_OFFSET:#x}) + "
+                 f"sizeof(uint32) overflows state buffer "
+                 f"(SPU94_STATE_SIZE_MAX={SPU94_STATE_SIZE_MAX}).")
+
     state = lib.spu94_init(state_ptr, SPU94_STATE_SIZE_MAX,
                            work_ptr, WORK_BUF_SIZE)
     if not state:
