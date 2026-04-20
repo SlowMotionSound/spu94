@@ -70,10 +70,10 @@ Plans:
   5. `DECISIONS.md` contains entries for (a) comb-sum intermediate accumulation precision and (b) register-write timing between L-tick and R-tick within a 44.1 kHz sample pair.
 **Plans:** 4 plans
 Plans:
-- [ ] 03-01-PLAN.md — Reverb scaffolding: internal header, state err-accumulator + overflow_magnitude fields, hard_clip/input_scale/output_scale stages, reverb_body wired into spu94_tick, derive_reverb_reference.py
-- [ ] 03-02-PLAN.md — SAME IIR + DIFF IIR stages (CORE-05/CORE-08): reverb_buf_read/write helpers, vIIR=INT16_MIN anomaly branch, TEST-06 anomaly + non-anomaly control tests
-- [ ] 03-03-PLAN.md — 4-tap comb (D-07 cascading sat) + APF1 + APF2 stages; per-stage bit-exactness tests with D-07 distinguishing case and Pitfall-7 APF edges
-- [ ] 03-04-PLAN.md — TEST-07 Q15 edge battery + composition equivalence + 10^6-step fuzz_reverb.py + ADR-0007..ADR-0011 landing in docs/DECISIONS.md (SC-5 closure)
+- [x] 03-01-PLAN.md — Reverb scaffolding: internal header, state err-accumulator + overflow_magnitude fields, hard_clip/input_scale/output_scale stages, reverb_body wired into spu94_tick, derive_reverb_reference.py
+- [x] 03-02-PLAN.md — SAME IIR + DIFF IIR stages (CORE-05/CORE-08): reverb_buf_read/write helpers, vIIR=INT16_MIN anomaly branch, TEST-06 anomaly + non-anomaly control tests
+- [x] 03-03-PLAN.md — 4-tap comb (D-07 cascading sat) + APF1 + APF2 stages; per-stage bit-exactness tests with D-07 distinguishing case and Pitfall-7 APF edges
+- [x] 03-04-PLAN.md — TEST-07 Q15 edge battery + composition equivalence + 10^6-step fuzz_reverb.py + ADR-0007..ADR-0011 landing in docs/DECISIONS.md (SC-5 closure)
 
 ### Phase 4: Sample Rate Conversion (39-tap half-band FIR)
 **Goal**: SPU-94 is bit-faithful at the I/O boundary — the 44.1 kHz host rate is converted to/from the internal 22.05 kHz reverb rate via nocash's documented 39-tap half-band FIR, closing the fidelity gap that lv2-psx-reverb explicitly leaves open.
@@ -86,10 +86,10 @@ Plans:
   4. `DECISIONS.md` contains an entry documenting the half-rate architecture and explicitly recording that lv2-psx-reverb is NOT a witness on the frequency-response axis.
 **Plans:** 4 plans
 Plans:
-- [ ] 03-01-PLAN.md — Reverb scaffolding: internal header, state err-accumulator + overflow_magnitude fields, hard_clip/input_scale/output_scale stages, reverb_body wired into spu94_tick, derive_reverb_reference.py
-- [ ] 03-02-PLAN.md — SAME IIR + DIFF IIR stages (CORE-05/CORE-08): reverb_buf_read/write helpers, vIIR=INT16_MIN anomaly branch, TEST-06 anomaly + non-anomaly control tests
-- [ ] 03-03-PLAN.md — 4-tap comb (D-07 cascading sat) + APF1 + APF2 stages; per-stage bit-exactness tests with D-07 distinguishing case and Pitfall-7 APF edges
-- [ ] 03-04-PLAN.md — TEST-07 Q15 edge battery + composition equivalence + 10^6-step fuzz_reverb.py + ADR-0007..ADR-0011 landing in docs/DECISIONS.md (SC-5 closure)
+- [x] 03-01-PLAN.md — Reverb scaffolding: internal header, state err-accumulator + overflow_magnitude fields, hard_clip/input_scale/output_scale stages, reverb_body wired into spu94_tick, derive_reverb_reference.py
+- [x] 03-02-PLAN.md — SAME IIR + DIFF IIR stages (CORE-05/CORE-08): reverb_buf_read/write helpers, vIIR=INT16_MIN anomaly branch, TEST-06 anomaly + non-anomaly control tests
+- [x] 03-03-PLAN.md — 4-tap comb (D-07 cascading sat) + APF1 + APF2 stages; per-stage bit-exactness tests with D-07 distinguishing case and Pitfall-7 APF edges
+- [x] 03-04-PLAN.md — TEST-07 Q15 edge battery + composition equivalence + 10^6-step fuzz_reverb.py + ADR-0007..ADR-0011 landing in docs/DECISIONS.md (SC-5 closure)
 
 ### Phase 5: Public API + Presets Integration
 **Goal**: An external caller can feed 44.1 kHz stereo int16 audio through `spu94_process`, load any of the 10 factory presets, and modulate registers mid-stream without glitches, crashes, or reinitialization.
@@ -102,9 +102,9 @@ Plans:
   4. A benchmark-driven audit confirms `spu94_process` performs no heap allocations, holds no locks, issues no syscalls, and exhibits no variable-latency operations across 10^5 consecutive blocks.
 **Plans:** 4 plans
 Plans:
-- [ ] 03-01-PLAN.md — Reverb scaffolding: internal header, state err-accumulator + overflow_magnitude fields, hard_clip/input_scale/output_scale stages, reverb_body wired into spu94_tick, derive_reverb_reference.py
-- [ ] 03-02-PLAN.md — SAME IIR + DIFF IIR stages (CORE-05/CORE-08): reverb_buf_read/write helpers, vIIR=INT16_MIN anomaly branch, TEST-06 anomaly + non-anomaly control tests
-- [ ] 03-03-PLAN.md — 4-tap comb (D-07 cascading sat) + APF1 + APF2 stages; per-stage bit-exactness tests with D-07 distinguishing case and Pitfall-7 APF edges
+- [x] 03-01-PLAN.md — Reverb scaffolding: internal header, state err-accumulator + overflow_magnitude fields, hard_clip/input_scale/output_scale stages, reverb_body wired into spu94_tick, derive_reverb_reference.py
+- [x] 03-02-PLAN.md — SAME IIR + DIFF IIR stages (CORE-05/CORE-08): reverb_buf_read/write helpers, vIIR=INT16_MIN anomaly branch, TEST-06 anomaly + non-anomaly control tests
+- [x] 03-03-PLAN.md — 4-tap comb (D-07 cascading sat) + APF1 + APF2 stages; per-stage bit-exactness tests with D-07 distinguishing case and Pitfall-7 APF edges
 - [ ] 03-04-PLAN.md — TEST-07 Q15 edge battery + composition equivalence + 10^6-step fuzz_reverb.py + ADR-0007..ADR-0011 landing in docs/DECISIONS.md (SC-5 closure)
 
 ### Phase 6: Python Binding + CLI
@@ -118,8 +118,8 @@ Plans:
   4. `README.md` documents the build, a minimal Python and CLI usage example, the licensing posture summary, and the project-status banner; a reader unfamiliar with the project can build and run their first WAV render from it alone.
 **Plans:** 4 plans
 Plans:
-- [ ] 03-01-PLAN.md — Reverb scaffolding: internal header, state err-accumulator + overflow_magnitude fields, hard_clip/input_scale/output_scale stages, reverb_body wired into spu94_tick, derive_reverb_reference.py
-- [ ] 03-02-PLAN.md — SAME IIR + DIFF IIR stages (CORE-05/CORE-08): reverb_buf_read/write helpers, vIIR=INT16_MIN anomaly branch, TEST-06 anomaly + non-anomaly control tests
+- [x] 03-01-PLAN.md — Reverb scaffolding: internal header, state err-accumulator + overflow_magnitude fields, hard_clip/input_scale/output_scale stages, reverb_body wired into spu94_tick, derive_reverb_reference.py
+- [x] 03-02-PLAN.md — SAME IIR + DIFF IIR stages (CORE-05/CORE-08): reverb_buf_read/write helpers, vIIR=INT16_MIN anomaly branch, TEST-06 anomaly + non-anomaly control tests
 - [ ] 03-03-PLAN.md — 4-tap comb (D-07 cascading sat) + APF1 + APF2 stages; per-stage bit-exactness tests with D-07 distinguishing case and Pitfall-7 APF edges
 - [ ] 03-04-PLAN.md — TEST-07 Q15 edge battery + composition equivalence + 10^6-step fuzz_reverb.py + ADR-0007..ADR-0011 landing in docs/DECISIONS.md (SC-5 closure)
 **UI hint**: yes
@@ -137,7 +137,7 @@ Plans:
   6. `docs/LEVERS-CATALOG.md` annotates each of the 35 registers with its musical role, modulation cost (free / sample-quantized / catastrophic), expected zipper behavior, and suggested M4 lever grouping; `docs/BIBLIOGRAPHY.md` cites every nocash section and Sony SDK reference used, with all prose paraphrased (nothing transcribed).
 **Plans:** 4 plans
 Plans:
-- [ ] 03-01-PLAN.md — Reverb scaffolding: internal header, state err-accumulator + overflow_magnitude fields, hard_clip/input_scale/output_scale stages, reverb_body wired into spu94_tick, derive_reverb_reference.py
+- [x] 03-01-PLAN.md — Reverb scaffolding: internal header, state err-accumulator + overflow_magnitude fields, hard_clip/input_scale/output_scale stages, reverb_body wired into spu94_tick, derive_reverb_reference.py
 - [ ] 03-02-PLAN.md — SAME IIR + DIFF IIR stages (CORE-05/CORE-08): reverb_buf_read/write helpers, vIIR=INT16_MIN anomaly branch, TEST-06 anomaly + non-anomaly control tests
 - [ ] 03-03-PLAN.md — 4-tap comb (D-07 cascading sat) + APF1 + APF2 stages; per-stage bit-exactness tests with D-07 distinguishing case and Pitfall-7 APF edges
 - [ ] 03-04-PLAN.md — TEST-07 Q15 edge battery + composition equivalence + 10^6-step fuzz_reverb.py + ADR-0007..ADR-0011 landing in docs/DECISIONS.md (SC-5 closure)
