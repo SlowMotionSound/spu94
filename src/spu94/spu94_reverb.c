@@ -571,7 +571,12 @@ void spu94_reverb_body(spu94_state *state)
     /* Phase 3 Plan 01: no public mix-bus feed yet. Phase 5's
      * spu94_process will populate left_in/right_in from the host's
      * int16 stereo stream. Until then the reverb body runs with
-     * silent input, which is the correct no-op behavior. */
+     * silent input, which is the correct no-op behavior.
+     * Note: because left_in/right_in are zero here, err_input_scale is
+     * permanently zero in any body-level test (including fuzz); the
+     * per-stage test (test_reverb_input_scale.c) covers err_input_scale
+     * properly. Body-level err_input_scale coverage is intentionally
+     * vacuous until Phase 5 wires non-zero inputs. */
     const int16_t left_in = 0;
     const int16_t right_in = 0;
 
