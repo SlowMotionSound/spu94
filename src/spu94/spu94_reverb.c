@@ -390,22 +390,145 @@ void spu94_reverb_comb(spu94_state *state,
     *Rout_out = accR;
 }
 
+/* =====================================================================
+ * Stage: APF1 (CORE-05) — Plan 03
+ *
+ * Nocash E1 (paraphrased, source: psx-spx.consoledev.net/soundprocessingunitspu/):
+ *   Lout = Lout - vAPF1*[mLAPF1-dAPF1]       ;step 1 (subtract delayed tap)
+ *   [mLAPF1] = Lout                           ;step 2 (store intermediate)
+ *   Lout = Lout*vAPF1 + [mLAPF1-dAPF1]       ;step 3 (feedback output)
+ *   (R side mirrors with mRAPF1)
+ *
+ * The delayed tap [mLAPF1-dAPF1] is read ONCE and reused in steps 1 and 3
+ * (it is the value at that offset BEFORE the step-2 write to [mLAPF1]).
+ * Step 2 writes to [mLAPF1], NOT to [mLAPF1-dAPF1], so there is no
+ * read-after-write hazard within a single side.
+ *
+ * Pitfall 1 guard on the subtract: widen product to int32 before negate,
+ * clamp via sat_s16, then q15_add_sat. This avoids UB for prod == INT16_MIN.
+ *
+ * Pitfall 7 (APF feedback edge): the intermediate step1 stored in memory
+ * AND fed forward through the second multiply can be near-INT16_MIN. The
+ * second multiply's saturation combined with the step-3 add is stable
+ * because every operation goes through q15_mul_truncate_with_err + q15_add_sat.
+ *
+ * D-11 scope (i): 2 multiplies per side * 2 sides = 4 truncation remainders
+ * per call, all accumulated into state->err_apf1.
+ * ===================================================================== */
 void spu94_reverb_apf1(spu94_state *state,
                        int16_t vAPF1_snap, uint16_t dAPF1_snap,
                        int16_t *Lout_inout, int16_t *Rout_inout)
 {
-    (void)state; (void)vAPF1_snap; (void)dAPF1_snap;
-    (void)Lout_inout; (void)Rout_inout;
-    /* Plan 03 body. */
+    if (state == (spu94_state *)0) return;
+    if (Lout_inout == (int16_t *)0 || Rout_inout == (int16_t *)0) return;
+
+    /* L side: feedback through mLAPF1 / dAPF1 offsets. */
+    {
+        uint16_t mLAPF1 = spu94_get_reg_u16(state, SPU94_REG_mLAPF1);
+        uint16_t tap_offset = (uint16_t)(mLAPF1 - dAPF1_snap);
+        int16_t tap_delayed = reverb_buf_read(state, tap_offset);
+        int16_t Lin = *Lout_inout;
+
+        int16_t e = 0;
+        int16_t prod1 = q15_mul_truncate_with_err(vAPF1_snap, tap_delayed, &e);
+        state->err_apf1 += (int32_t)e;
+
+        /* Step 1: Lout = Lin - prod1. Pitfall-1 guard via int32 widen +
+         * sat_s16 before the saturating add. */
+        int16_t step1 = q15_add_sat(Lin, sat_s16(-(int32_t)prod1));
+
+        /* Step 2: [mLAPF1] = step1 (intermediate stored). */
+        reverb_buf_write(state, mLAPF1, step1);
+
+        /* Step 3: Lout = step1 * vAPF1 + tap_delayed. */
+        e = 0;
+        int16_t prod2 = q15_mul_truncate_with_err(step1, vAPF1_snap, &e);
+        state->err_apf1 += (int32_t)e;
+        int16_t step3 = q15_add_sat(prod2, tap_delayed);
+
+        *Lout_inout = step3;
+    }
+
+    /* R side: mirror with mRAPF1 / dAPF1. */
+    {
+        uint16_t mRAPF1 = spu94_get_reg_u16(state, SPU94_REG_mRAPF1);
+        uint16_t tap_offset = (uint16_t)(mRAPF1 - dAPF1_snap);
+        int16_t tap_delayed = reverb_buf_read(state, tap_offset);
+        int16_t Rin = *Rout_inout;
+
+        int16_t e = 0;
+        int16_t prod1 = q15_mul_truncate_with_err(vAPF1_snap, tap_delayed, &e);
+        state->err_apf1 += (int32_t)e;
+
+        int16_t step1 = q15_add_sat(Rin, sat_s16(-(int32_t)prod1));
+        reverb_buf_write(state, mRAPF1, step1);
+
+        e = 0;
+        int16_t prod2 = q15_mul_truncate_with_err(step1, vAPF1_snap, &e);
+        state->err_apf1 += (int32_t)e;
+        int16_t step3 = q15_add_sat(prod2, tap_delayed);
+
+        *Rout_inout = step3;
+    }
 }
 
+/* =====================================================================
+ * Stage: APF2 (CORE-05) — Plan 03
+ *
+ * Structurally identical to APF1, with vAPF2 / dAPF2 / mLAPF2 / mRAPF2
+ * substituted. Every Pitfall-1 + Pitfall-7 guard from APF1 applies here
+ * verbatim. D-11 wiring feeds state->err_apf2 (4 remainders per call).
+ * ===================================================================== */
 void spu94_reverb_apf2(spu94_state *state,
                        int16_t vAPF2_snap, uint16_t dAPF2_snap,
                        int16_t *Lout_inout, int16_t *Rout_inout)
 {
-    (void)state; (void)vAPF2_snap; (void)dAPF2_snap;
-    (void)Lout_inout; (void)Rout_inout;
-    /* Plan 03 body. */
+    if (state == (spu94_state *)0) return;
+    if (Lout_inout == (int16_t *)0 || Rout_inout == (int16_t *)0) return;
+
+    /* L side. */
+    {
+        uint16_t mLAPF2 = spu94_get_reg_u16(state, SPU94_REG_mLAPF2);
+        uint16_t tap_offset = (uint16_t)(mLAPF2 - dAPF2_snap);
+        int16_t tap_delayed = reverb_buf_read(state, tap_offset);
+        int16_t Lin = *Lout_inout;
+
+        int16_t e = 0;
+        int16_t prod1 = q15_mul_truncate_with_err(vAPF2_snap, tap_delayed, &e);
+        state->err_apf2 += (int32_t)e;
+
+        int16_t step1 = q15_add_sat(Lin, sat_s16(-(int32_t)prod1));
+        reverb_buf_write(state, mLAPF2, step1);
+
+        e = 0;
+        int16_t prod2 = q15_mul_truncate_with_err(step1, vAPF2_snap, &e);
+        state->err_apf2 += (int32_t)e;
+        int16_t step3 = q15_add_sat(prod2, tap_delayed);
+
+        *Lout_inout = step3;
+    }
+
+    /* R side. */
+    {
+        uint16_t mRAPF2 = spu94_get_reg_u16(state, SPU94_REG_mRAPF2);
+        uint16_t tap_offset = (uint16_t)(mRAPF2 - dAPF2_snap);
+        int16_t tap_delayed = reverb_buf_read(state, tap_offset);
+        int16_t Rin = *Rout_inout;
+
+        int16_t e = 0;
+        int16_t prod1 = q15_mul_truncate_with_err(vAPF2_snap, tap_delayed, &e);
+        state->err_apf2 += (int32_t)e;
+
+        int16_t step1 = q15_add_sat(Rin, sat_s16(-(int32_t)prod1));
+        reverb_buf_write(state, mRAPF2, step1);
+
+        e = 0;
+        int16_t prod2 = q15_mul_truncate_with_err(step1, vAPF2_snap, &e);
+        state->err_apf2 += (int32_t)e;
+        int16_t step3 = q15_add_sat(prod2, tap_delayed);
+
+        *Rout_inout = step3;
+    }
 }
 
 /* =====================================================================
@@ -425,11 +548,18 @@ void spu94_reverb_body(spu94_state *state)
     /* Plan 02: IIR coefficients snapshotted once per pair (D-08). */
     const int16_t vIIR_snap  = spu94_get_reg_i16(state, SPU94_REG_vIIR);
     const int16_t vWALL_snap = spu94_get_reg_i16(state, SPU94_REG_vWALL);
-    /* Plan 03: comb + APF coefficient snapshots (D-08 pair-start freeze). */
-    const int16_t vCOMB1_snap = spu94_get_reg_i16(state, SPU94_REG_vCOMB1);
-    const int16_t vCOMB2_snap = spu94_get_reg_i16(state, SPU94_REG_vCOMB2);
-    const int16_t vCOMB3_snap = spu94_get_reg_i16(state, SPU94_REG_vCOMB3);
-    const int16_t vCOMB4_snap = spu94_get_reg_i16(state, SPU94_REG_vCOMB4);
+    /* Plan 03: comb + APF coefficient snapshots (D-08 pair-start freeze).
+     * dAPF1 / dAPF2 are u16 TICK_LATCHED; snapshotting at body top
+     * mirrors the v* symmetry and is resilient to future D-08 policy
+     * tweaks. */
+    const int16_t  vCOMB1_snap = spu94_get_reg_i16(state, SPU94_REG_vCOMB1);
+    const int16_t  vCOMB2_snap = spu94_get_reg_i16(state, SPU94_REG_vCOMB2);
+    const int16_t  vCOMB3_snap = spu94_get_reg_i16(state, SPU94_REG_vCOMB3);
+    const int16_t  vCOMB4_snap = spu94_get_reg_i16(state, SPU94_REG_vCOMB4);
+    const int16_t  vAPF1_snap  = spu94_get_reg_i16(state, SPU94_REG_vAPF1);
+    const int16_t  vAPF2_snap  = spu94_get_reg_i16(state, SPU94_REG_vAPF2);
+    const uint16_t dAPF1_snap  = spu94_get_reg_u16(state, SPU94_REG_dAPF1);
+    const uint16_t dAPF2_snap  = spu94_get_reg_u16(state, SPU94_REG_dAPF2);
 
     /* Phase 3 Plan 01: no public mix-bus feed yet. Phase 5's
      * spu94_process will populate left_in/right_in from the host's
@@ -455,14 +585,14 @@ void spu94_reverb_body(spu94_state *state)
     spu94_reverb_same_iir(state, Lin, Rin, vIIR_snap, vWALL_snap);
     spu94_reverb_diff_iir(state, Lin, Rin, vIIR_snap, vWALL_snap);
 
-    /* Plan 03: 4-tap comb (D-07 cascading sat_s16). */
+    /* Plan 03: 4-tap comb (D-07 cascading sat_s16) then APF1 + APF2.
+     * Lout/Rout flow: comb -> apf1 -> apf2 -> output_scale. */
     int16_t Lout = 0;
     int16_t Rout = 0;
     spu94_reverb_comb(state, vCOMB1_snap, vCOMB2_snap,
                       vCOMB3_snap, vCOMB4_snap, &Lout, &Rout);
-    /* Plan 03 APF1 + APF2 wiring lands alongside those stage bodies
-     * (Lout / Rout above then flows into the APFs, and the APF2 output
-     * becomes the input to output_scale below). */
+    spu94_reverb_apf1(state, vAPF1_snap, dAPF1_snap, &Lout, &Rout);
+    spu94_reverb_apf2(state, vAPF2_snap, dAPF2_snap, &Lout, &Rout);
 
     int32_t LeftOutput = 0, RightOutput = 0;
     spu94_reverb_output_scale(state, Lout, Rout, vLOUT_snap, vROUT_snap,

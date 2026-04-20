@@ -248,6 +248,70 @@ def ref_comb(buf: dict, regs: dict,
     return Lout, Rout, err_total
 
 
+def _ref_apf_side(buf: dict, buffer_address: int,
+                  Xin: int, vAPF: int, mX: int, dAPF: int) -> tuple[int, int]:
+    """One side of an APF stage (L or R). Returns (Xout, err_total).
+
+    Nocash APF recurrence (paraphrased):
+        step1 = Xin - vAPF*[mX-dAPF]           ;Pitfall 1 guard on subtract
+        [mX] = step1                            ;store intermediate
+        step3 = step1*vAPF + [mX-dAPF]         ;feedback output
+    The delayed tap [mX-dAPF] is read once and reused.
+    """
+    err_total = 0
+    tap_offset = (mX - dAPF) & 0xFFFF
+    tap_delayed = _buf_read(buf, buffer_address, tap_offset)
+
+    prod1, err = q15_mul_truncate_with_err(vAPF, tap_delayed)
+    err_total += err
+
+    # Step 1: Xin - prod1. Pitfall-1 guard via sat_s16 on the negation.
+    step1 = sat_s16(Xin + sat_s16(-prod1))
+
+    # Step 2: [mX] = step1.
+    _buf_write(buf, buffer_address, mX, step1)
+
+    # Step 3: step1 * vAPF + tap_delayed.
+    prod2, err = q15_mul_truncate_with_err(step1, vAPF)
+    err_total += err
+    step3 = sat_s16(prod2 + tap_delayed)
+    return step3, err_total
+
+
+def ref_apf1(buf: dict, Lin: int, Rin: int, vAPF1: int, dAPF1: int,
+             regs: dict, buffer_address: int = 0) -> tuple[int, int, dict, int]:
+    """Nocash E1 (paraphrased, source: psx-spx.consoledev.net/soundprocessingunitspu/):
+        Lout = Lout - vAPF1*[mLAPF1-dAPF1], [mLAPF1] = Lout, Lout = Lout*vAPF1 + [mLAPF1-dAPF1]
+        Rout = Rout - vAPF1*[mRAPF1-dAPF1], [mRAPF1] = Rout, Rout = Rout*vAPF1 + [mRAPF1-dAPF1]
+
+    Pitfall 1: the subtract widens to int32 and sat_s16's before the add.
+    Pitfall 7: tested by the INT16_MIN-triple edge case in test_reverb_apf1.c.
+    D-11 scope (i): 2 multiplies per side; 4 per stage call.
+
+    Returns (Lout, Rout, new_buf_dict, err_total).
+    """
+    new_buf = dict(buf)
+    Lout, eL = _ref_apf_side(new_buf, buffer_address,
+                             Lin, vAPF1, regs['mLAPF1'], dAPF1)
+    Rout, eR = _ref_apf_side(new_buf, buffer_address,
+                             Rin, vAPF1, regs['mRAPF1'], dAPF1)
+    return Lout, Rout, new_buf, eL + eR
+
+
+def ref_apf2(buf: dict, Lin: int, Rin: int, vAPF2: int, dAPF2: int,
+             regs: dict, buffer_address: int = 0) -> tuple[int, int, dict, int]:
+    """Structurally identical to ref_apf1 with vAPF2 / dAPF2 / mLAPF2 / mRAPF2.
+
+    Returns (Lout, Rout, new_buf_dict, err_total).
+    """
+    new_buf = dict(buf)
+    Lout, eL = _ref_apf_side(new_buf, buffer_address,
+                             Lin, vAPF2, regs['mLAPF2'], dAPF2)
+    Rout, eR = _ref_apf_side(new_buf, buffer_address,
+                             Rin, vAPF2, regs['mRAPF2'], dAPF2)
+    return Lout, Rout, new_buf, eL + eR
+
+
 def _fmt_signed_hex(x: int) -> str:
     return f"-{abs(x):#x}" if x < 0 else f"{x:#x}"
 
