@@ -113,7 +113,11 @@ static int16_t fir_folded_apply(const int16_t delay[39], uint8_t idx,
     {
         int32_t running = (int32_t)spu94_fir_coef[19] *
                           (int32_t)fir_read_tap(delay, idx, 19u);
-        running = (int32_t)sat_s16(running >> 15) << 15;
+        /* WR-01: perform the <<15 rescale in unsigned space to avoid
+         * C99 §6.5.7p4 UB on signed left-shift of a negative value
+         * (sat_s16 can return a negative int16). Two's-complement
+         * semantics are preserved by the round-trip through uint32_t. */
+        running = (int32_t)((uint32_t)(int32_t)sat_s16(running >> 15) << 15);
         for (int k = 0; k < 19; ++k) {
             int16_t c = spu94_fir_coef[k];
             if (c == 0) continue;
@@ -121,7 +125,10 @@ static int16_t fir_folded_apply(const int16_t delay[39], uint8_t idx,
                          + (int32_t)fir_read_tap(delay, idx,
                                                  (unsigned)(38 - k));
             running += (int32_t)c * pair;
-            running = (int32_t)sat_s16(running >> 15) << 15;
+            /* WR-01: see comment above — unsigned <<15 rescale to avoid
+             * C99 §6.5.7p4 UB on signed left-shift of negative value. */
+            running = (int32_t)((uint32_t)(int32_t)
+                                sat_s16(running >> 15) << 15);
         }
         acc = running;
     }
