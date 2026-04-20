@@ -15,3 +15,14 @@ add_test(NAME reverb_input_scale COMMAND test_reverb_input_scale)
 add_executable(test_reverb_output_scale test_reverb_output_scale.c)
 target_link_libraries(test_reverb_output_scale PRIVATE unity spu94_static)
 add_test(NAME reverb_output_scale COMMAND test_reverb_output_scale)
+
+# Plan 02 Task 3: SAME IIR + DIFF IIR bit-exactness + CORE-08 anomaly
+# + TEST-06 non-anomaly control. Each TU includes the src-only internal
+# header via relative path to reach the non-public stage entry points.
+add_executable(test_reverb_same_iir test_reverb_same_iir.c)
+target_link_libraries(test_reverb_same_iir PRIVATE unity spu94_static)
+add_test(NAME reverb_same_iir COMMAND test_reverb_same_iir)
+
+add_executable(test_reverb_diff_iir test_reverb_diff_iir.c)
+target_link_libraries(test_reverb_diff_iir PRIVATE unity spu94_static)
+add_test(NAME reverb_diff_iir COMMAND test_reverb_diff_iir)
