@@ -22,7 +22,7 @@ Rigor governs the algorithm; musicality governs everything that surrounds it. Th
 - [ ] Implement the all-pass + comb filter network topology on a work buffer
 - [ ] Implement fixed-point arithmetic with integer truncation (not rounding) matching SPU semantics
 - [ ] Implement hard clip / overflow behavior on the mix bus feeding the reverb
-- [ ] Implement the 39-tap half-band FIR at both I/O boundaries — nocash's documented coefficients verbatim — to correctly convert between the 44.1kHz host rate and the reverb's internal 22.05kHz processing rate. This is what closes the fidelity gap that lv2-psx-reverb explicitly leaves open.
+- [x] Implement the 39-tap half-band FIR at both I/O boundaries — nocash's documented coefficients verbatim — to correctly convert between the 44.1kHz host rate and the reverb's internal 22.05kHz processing rate. This is what closes the fidelity gap that lv2-psx-reverb explicitly leaves open. *(Validated in Phase 4: sample-rate-conversion-39-tap-half-band-fir)*
 - [ ] Design the C API so that mid-stream register updates are a first-class use case — register writes during audio processing must not glitch, crash, or require reinitialization
 - [ ] Resolve and document the delay-length-register-change gray area: what happens when dCOMB1-4, dAPF1/2, or similar position-dependent registers change mid-stream (work-buffer reindexing, phase discontinuity policy, whether interpolation is in scope)
 - [ ] Provide a modulation test — continuously modulate each register (sine, sweep, random walk) during a live audio stream and verify output remains stable, bounded, and free of zipper noise or crashes
@@ -113,4 +113,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-19 — Phase 2 complete (opaque `spu94_state_t` chassis with caller-allocated storage, all 35-register identity surface + typed read/write semantics, split write-timing policy, BufferAddress wrap arithmetic with mBASE snap-on-write, ADR-0004/0005/0006 filed, full Unity test battery + Python ctypes fuzz harness — 15/15 ctest green, libspu94.so heap-free).*
+*Last updated: 2026-04-20 — Phase 4 complete (39-tap half-band FIR at both I/O boundaries, folded-form integer arithmetic with D-02 accumulator-width proof, SPU94_LATENCY_SAMPLES=58u public contract, ADR-0012..ADR-0020 filed including lv2-psx-reverb out-of-axis exclusion on frequency response, 38/38 ctest green with `fuzz_fir` 10⁶-step ctypes harness). Phase 3 completed earlier: reverb-network topology (SAME/DIFF IIR + 4-tap comb + APF1/APF2) with ADR-0007..ADR-0011. Next: Phase 5 — `spu94_process` public API + 10 factory presets.*
