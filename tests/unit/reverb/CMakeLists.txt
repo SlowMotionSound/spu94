@@ -26,3 +26,18 @@ add_test(NAME reverb_same_iir COMMAND test_reverb_same_iir)
 add_executable(test_reverb_diff_iir test_reverb_diff_iir.c)
 target_link_libraries(test_reverb_diff_iir PRIVATE unity spu94_static)
 add_test(NAME reverb_diff_iir COMMAND test_reverb_diff_iir)
+
+# Plan 03 Task 3: 4-tap comb (D-07 cascading sat_s16) + APF1 + APF2
+# per-stage bit-exactness, Pitfall-7 edge coverage, D-07 distinguishing
+# test case pinning the cascading-sat behavior against int32-accumulate.
+add_executable(test_reverb_comb test_reverb_comb.c)
+target_link_libraries(test_reverb_comb PRIVATE unity spu94_static)
+add_test(NAME reverb_comb COMMAND test_reverb_comb)
+
+add_executable(test_reverb_apf1 test_reverb_apf1.c)
+target_link_libraries(test_reverb_apf1 PRIVATE unity spu94_static)
+add_test(NAME reverb_apf1 COMMAND test_reverb_apf1)
+
+add_executable(test_reverb_apf2 test_reverb_apf2.c)
+target_link_libraries(test_reverb_apf2 PRIVATE unity spu94_static)
+add_test(NAME reverb_apf2 COMMAND test_reverb_apf2)
