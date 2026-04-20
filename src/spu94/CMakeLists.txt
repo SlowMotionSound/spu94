@@ -11,6 +11,7 @@ add_library(spu94_obj OBJECT
     spu94_reverb.c
     spu94_tick.c
     spu94_buffer.c
+    spu94_fir_coef.c
 )
 
 # PUBLIC include dirs: downstream consumers of spu94_shared/static see them too.
