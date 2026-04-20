@@ -104,7 +104,7 @@ def _buf_read(buf: dict, buffer_address: int, halfword_offset: int) -> int:
 def _buf_write(buf: dict, buffer_address: int, halfword_offset: int,
                value: int) -> None:
     byte_off = (buffer_address + (halfword_offset & 0xFFFF) * 2) & 0x7FFFE
-    buf[byte_off] = sat_s16(value)
+    buf[byte_off] = value   # store as-is, matching reverb_buf_write in C
 
 
 def ref_same_iir(buf: dict, Lin: int, Rin: int, vIIR: int, vWALL: int,
