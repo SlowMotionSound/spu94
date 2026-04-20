@@ -110,8 +110,13 @@ void spu94_reverb_hard_clip(int32_t Lin_wide, int32_t Rin_wide,
         int64_t lo = (l_abs > (int64_t)INT16_MAX) ? (l_abs - (int64_t)INT16_MAX) : (int64_t)0;
         int64_t ro = (r_abs > (int64_t)INT16_MAX) ? (r_abs - (int64_t)INT16_MAX) : (int64_t)0;
         int64_t sum = lo + ro;
-        /* Sum is bounded by 2 * (INT32_MAX - INT16_MAX) < INT32_MAX;
-         * cast to int32 is safe. */
+        /* Sum is bounded by 2 * (INT32_MAX - INT16_MAX) for arbitrary int32
+         * inputs — this can exceed INT32_MAX when |Lin_wide| or |Rin_wide|
+         * is near INT32_MAX, producing a wrapped negative value on cast.
+         * In practice, hard_clip is only called from input_scale with a
+         * 16-bit x 16-bit product: max |product| = INT16_MIN^2 = 0x40000000,
+         * so sum <= 2*(0x40000000 - INT16_MAX) which fits easily in int32.
+         * The cast is lossless for all reverb-internal inputs. */
         *overflow_out = (int32_t)sum;
     }
 }
