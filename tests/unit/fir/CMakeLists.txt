@@ -11,3 +11,13 @@ add_executable(test_fir_coef_table test_fir_coef_table.c)
 target_link_libraries(test_fir_coef_table PRIVATE unity spu94_static)
 add_test(NAME fir_coef_table COMMAND test_fir_coef_table)
 set_tests_properties(fir_coef_table PROPERTIES LABELS "fir")
+
+add_executable(test_fir_bit_identity test_fir_bit_identity.c)
+target_link_libraries(test_fir_bit_identity PRIVATE unity spu94_static)
+add_test(NAME fir_bit_identity COMMAND test_fir_bit_identity)
+set_tests_properties(fir_bit_identity PROPERTIES LABELS "fir")
+
+add_executable(test_fir_overflow_proof test_fir_overflow_proof.c)
+target_link_libraries(test_fir_overflow_proof PRIVATE unity spu94_static)
+add_test(NAME fir_overflow_proof COMMAND test_fir_overflow_proof)
+set_tests_properties(fir_overflow_proof PROPERTIES LABELS "fir")
