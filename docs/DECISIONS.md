@@ -30,6 +30,491 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-0020: Coefficient provenance — three-source audit + bibliography reconciliation
+
+**Status:** Accepted (2026-04-20, Phase 4)
+
+**Resolves:** D-10, D-11, D-12 (04-CONTEXT.md); 04-RESEARCH § Coefficient provenance audit.
+
+**Relates:** BIB-005 (psx-spx reverb coefficient page), BIB-006 (forums.bannister.org SCPH-5501 hardware readout), BIB-007 (jsgroth PS1 SPU Part 3 structural corroboration), BIB-008 (lv2-psx-reverb), ADR-0012 (half-rate + lv2-psx-reverb exclusion).
+
+**Context:**
+
+The 39-tap half-band FIR coefficient table is the one piece of Phase 4 data that cannot be derived from the spec prose; it must be transcribed from a real measurement. 04-CONTEXT.md D-10 called for a "three-source byte-for-byte cross-reference" and D-11/D-12 directed the source TU to carry only the integer values (no inline citation prose) with provenance routed through `docs/BIBLIOGRAPHY.md`. A pass-2 audit during 04-RESEARCH traced the actual provenance chain and found the landscape is narrower than D-10's framing implied: every published 39-tap coefficient table — whether on `psx-spx.consoledev.net`, in jsgroth's PS1 SPU series, or anywhere else the values are quoted — ultimately descends from one hardware reading posted to `forums.bannister.org` for a SCPH-5501. jsgroth's PS1 SPU Part 3 corroborates the STRUCTURE (39 taps, half-band, both I/O boundaries, independent L/R delay lines) but does not republish the values.
+
+CONTEXT's D-10 bullet "NOCASH IS NOT A VALID SOURCE" was a separate, partially-incorrect framing: `psx-spx.consoledev.net` (the modern mirror of `nocash/psx-spx`) DOES publish the coefficient values — by way of transcribing the bannister readout — which is exactly the kind of community-mirrored primary reference the project needs.
+
+**Decision:**
+
+- The 39 coefficient values are transcribed independently into BOTH `src/spu94/spu94_fir_coef.c` (the canonical C table consumed by the production FIR) AND `tests/python/derive_fir_reference.py` (the Python oracle consumed by the Plan 01/02/03/04 bit-identity audits). These are two independent human transcriptions; the Plan 02 bit-identity test + Plan 04 fuzz_fir (loaded via ctypes) confirm byte-level agreement at build time.
+- BIB-006 (forums.bannister.org SCPH-5501 readout) is cited as the **primary** source — one hardware reading, published openly, with the poster's methodology visible.
+- BIB-005 (psx-spx) is cited as a **corroborating mirror**: it carries the values verbatim from the bannister readout. The "NOCASH IS NOT A VALID SOURCE" framing is superseded by: *"prefer community citations with explicit attribution to the bannister SCPH-5501 readout; psx-spx's render carries the values verbatim and is cited as a corroborating mirror."*
+- BIB-007 (jsgroth's PS1 SPU Part 3) is cited as a **structural corroborator** — it confirms the 39-tap / half-band / dual-boundary / independent-L-R-delay-lines architecture without republishing the numeric values, which is the strongest kind of independent check (a second author, same measurement conclusion).
+- Cross-console confirmation (SCPH-7502 / SCPH-9001 / PAL revisions) is NOT attempted in Phase 4. M5 (hardware validation milestone) captures additional readouts; if they disagree, the disagreement drives a follow-up ADR.
+
+**Consequences:**
+
+- The "three sources" of the bibliography (BIB-005 + BIB-006 + BIB-007) do NOT equal three independent hardware readings — they equal one hardware reading + two published mirrors (one byte-level, one structural). Disagreement across them is impossible by construction. The audit trail is legible on its face in `docs/BIBLIOGRAPHY.md`.
+- Defense against a single-source coefficient-tampering attack is provided by the dual-independent-transcription (C + Python) + Plan 01's `test_fir_coef_table.c` (sum + L1 + symmetry + center-tap + half-band zero invariants) + Plan 02's bit-identity test + Plan 04's fuzz_fir runtime cross-check. Four independent check surfaces; any single-source attack fails.
+- The bibliography's licensing tags (lv2-psx-reverb GPLv3, Mednafen GPLv2, DuckStation CC-BY-NC-ND) are not "three sources" either — they are witness emulators, usable as OUTPUT witnesses only (Phase 7 TEST-03), per PROJECT.md's source-not-read posture.
+
+**Alternatives Considered:**
+
+- **Count BIB-005 and BIB-006 as two independent sources.** Rejected: misleading, since BIB-005 transcribes BIB-006.
+- **Require a second independent hardware readout as a Phase 4 gate.** Rejected: out of scope for M1. Deferred to M5.
+- **Fold jsgroth's structural corroboration into BIB-005.** Rejected: jsgroth and psx-spx are distinct authors with distinct methodologies; treating them as one citation would lose the structural-vs-numeric distinction this audit makes visible.
+
+**Seam:**
+
+If an M5 hardware capture disagrees with the bannister-readout values, Plan 05 (or a new Phase 7 plan) lands a superseding ADR with the new values + a regenerated SHA-256 pin + updated test fixtures. The dual-transcription discipline (C + Python + test invariants) means the ADR alone doesn't need to decide "which source wins"; the superseding ADR simply records the new values and all four check surfaces update in lockstep.
+
+**Revision Path:**
+
+- M5 hardware validation runs a cross-console readout on ≥ 2 independent PSX units; disagreement drives a new ADR.
+- Any published coefficient table that differs from the bannister values is a trigger to re-audit.
+
+**Sources:**
+
+- BIB-005 — `psx-spx.consoledev.net` Reverb Buffer Resampling coefficient table.
+- BIB-006 — `forums.bannister.org` SCPH-5501 hardware readout (primary).
+- BIB-007 — jsgroth PS1 SPU Part 3 (structural corroboration).
+- 04-RESEARCH § Coefficient provenance audit (this plan's audit trail).
+- `docs/BIBLIOGRAPHY.md` (Plan 01 — licensing tags + URLs).
+- `src/spu94/spu94_fir_coef.c` + `tests/python/derive_fir_reference.py` (independent transcriptions).
+
+---
+
+## ADR-0019: FIR chain latency contract — `SPU94_LATENCY_SAMPLES = 58u` + public accessor
+
+**Status:** Accepted (2026-04-20, Phase 4)
+
+**Resolves:** D-09 (04-CONTEXT.md); ROADMAP Phase 4 partial SC-1.
+
+**Relates:** ADR-0018 (internal 44.1 kHz wrapper + per-channel FIR state), Phase 5 `spu94_process` block API (future consumer).
+
+**Context:**
+
+M4 JUCE / VST3 / AU hosts need a plugin-delay-compensation (PDC) value to align their mix bus when the plugin introduces latency. Phase 5's block-based `spu94_process` wraps Plan 03's 44.1 kHz `spu94_fir_chain_step`, which adds the FIR group delay. The value must be (a) a compile-time constant (so callers can size static arrays), (b) exposed via a runtime accessor (so Phase 6 Python bindings + M4 plugins that prefer accessor style both work without header-churn), and (c) derived from the FIR architecture (not a magic number).
+
+The original 04-RESEARCH derivation claimed "19 decimator + 19 interpolator = 38 samples at 44.1 kHz." Plan 03's chain-level impulse test — driving a single-sample impulse through `spu94_fir_chain_step_reverb_bypass` and reading 80 44.1 kHz output samples — exposed an error in that derivation: the empirical impulse peak lies at 44.1 kHz output index 57 (phase-0 stream) tied with 59 (phase-1 stream), not 38.
+
+**Decision:**
+
+- `include/spu94/spu94.h` defines `#define SPU94_LATENCY_SAMPLES 58u` — the nominal round-trip FIR group delay at 44.1 kHz input-to-output.
+- `uint32_t spu94_get_latency_samples(void)` is a public-API accessor returning `SPU94_LATENCY_SAMPLES`. Single-line body; LTO-eliminable at C consumer call sites.
+- The corrected derivation: the decimator's 19-sample group delay is at its 44.1 kHz INPUT clock (impulse reaches `delay[19]`). The interpolator's 19-sample group delay is at its 22.05 kHz INPUT clock, which corresponds to **38 samples at the 44.1 kHz OUTPUT clock** (the interpolator emits two 44.1 kHz samples per 22.05 kHz sample consumed, so one 22.05 kHz delay step = two 44.1 kHz output clock ticks). Total: 19 + 38 = **57 samples**. The empirical impulse peak is tied at t=57 (phase-0, even indices) and t=59 (phase-1, odd indices) because the polyphase split produces two independent symmetric subsequences whose axes straddle the true continuous-time latency of 57.5. `SPU94_LATENCY_SAMPLES = 58u` is the midpoint of the two tied peaks; the `test_fir_chain_latency` TU asserts the empirical peak is within ±1 sample of the API value.
+- The **ORIGINAL "19+19=38" rationale is wrong and must NOT be repeated.** It mixed clock domains on the interpolator contribution. This ADR is the canonical record of the corrected derivation.
+
+**Consequences:**
+
+- M4 plugin `prepareToPlay` calls `spu94_get_latency_samples()` and feeds the result to `AudioProcessor::setLatencySamples()` for DAW PDC. Zero caller-side math required.
+- Phase 6 Python bindings expose the accessor; the macro is also available to C consumers that prefer compile-time constants for static array sizing.
+- Tests: `tests/unit/fir/test_fir_chain_latency.c` pins macro = accessor = 58u; `test_fir_impulse.c` asserts the empirical peak is within ±1; Plan 04's `tests/python/fuzz_fir.py` asserts the accessor returns 58u at every step of a 10⁶-step random-input run.
+- The ±1-sample tolerance in `test_fir_chain_latency` accommodates the tied-peak polyphase split without requiring a bumpy "±0 exact" contract that doesn't mean anything for a polyphase filter.
+
+**Alternatives Considered:**
+
+- **Make `SPU94_LATENCY_SAMPLES` a `size_t` instead of `u32`.** Rejected: `uint32_t` is portable + non-ambiguous; `size_t` varies across MCU/desktop and adds zero value.
+- **Ship only the macro, no accessor.** Rejected: Phase 6 Python ctypes prefers accessors over header-parsed macros (keeps the binding surface stable across header reshuffles).
+- **Leave the value at 38u and explain the discrepancy in a comment.** Rejected: the empirical peak at 57/59 is a fact; the macro must encode the fact honestly, and a ±20-sample lie would fail the `test_fir_chain_latency` ±1 check.
+
+**Seam:**
+
+If the FIR design ever changes (tap count changes from 39 or the filter becomes asymmetric), the macro + accessor return the new value; callers that use `spu94_get_latency_samples()` transparently pick up the change. The macro is an intentional extensibility point.
+
+**Sources:**
+
+- `include/spu94/spu94.h` (macro + accessor declaration).
+- `src/spu94/spu94_io_chain.c` (accessor body).
+- `tests/unit/fir/test_fir_chain_latency.c` (macro = accessor = empirical-peak ±1).
+- `tests/unit/fir/test_fir_impulse.c` (polyphase-split impulse-response shape + tied peaks at 57/59).
+- 04-03-SUMMARY.md § Deviations Rule 1 (the 38→58 correction + corrected derivation).
+- 04-RESEARCH § 5 (half-band cascade latency — now known to be 57.5 continuous, 58u rounded for the nominal value).
+
+---
+
+## ADR-0018: Internal 44.1 kHz FIR wrapper + per-channel FIR state
+
+**Status:** Accepted (2026-04-20, Phase 4)
+
+**Resolves:** D-07 (internal-only wrapper); D-08 (per-channel FIR state).
+
+**Relates:** ADR-0019 (latency contract), Phase 5 `spu94_process` block API.
+
+**Context:**
+
+Plan 03 composes `spu94_fir_decimate` → `spu94_tick` → `spu94_fir_interpolate` into a single per-44.1-kHz-sample wrapper. The composition needs (a) a stable home that each of the three stage helpers calls exactly once (Pitfall 4 from 04-CONTEXT.md), (b) a test-only bypass variant so Phase 4 tests can exercise the FIR chain without reverb contamination (SC-1/SC-2 at chain level), and (c) a state layout that keeps L and R delay lines independent (D-08) so a future stereo-decorrelated workload doesn't introduce cross-channel artifacts.
+
+The design choice is whether the wrapper is (i) public API (Phase 5 users call it directly) or (ii) internal plumbing (Phase 5 wraps it in a block API). Option (i) front-loads per-sample call overhead on every user; option (ii) preserves the flexibility to add block-level optimizations later (Phase 6 SIMD; Phase 7 witness-diff hooks).
+
+**Decision:**
+
+- `spu94_fir_chain_step(state, l_in_44k1, r_in_44k1, *l_out, *r_out)` and its test-bypass sibling `spu94_fir_chain_step_reverb_bypass(state, ...)` live in `src/spu94/spu94_io_chain.c`, declared in **`src/spu94/spu94_fir_internal.h`** (NOT on the public include path). Phase 5 composes them into the public block-based `spu94_process`.
+- The two wrappers share a static `chain_step_impl(..., reverb_active)` helper parameterized on whether `spu94_tick` runs on the retained phase. Single source of the state-machine logic; the two public-internal wrappers differ only in the `reverb_active` flag.
+- State fields in `struct spu94_state`:
+  - Per-channel 39-sample int16 delay lines: `fir_delay_l_in[39]`, `fir_delay_r_in[39]`, `fir_delay_l_out[39]`, `fir_delay_r_out[39]`. Independent per channel per stage (D-08 — stereo-decorrelated workloads cannot cross-contaminate).
+  - Per-channel uint8 indices: `fir_idx_l_in`, `fir_idx_r_in`, `fir_idx_l_out`, `fir_idx_r_out`. Circular-buffer position; modular arithmetic with `(idx + 38u - k) % 39u` for logical-tap reads.
+  - Phase trackers: `fir_decimate_phase` (uint8 — 0/1, advances on every 44.1 kHz input), `fir_interpolate_phase` (uint8 — Pitfall 7 redundancy, kept in lockstep with `fir_decimate_phase` of opposite polarity so desync triggers a test failure rather than silent drift).
+  - Phase-1 cache: `fir_pending_l_phase1`, `fir_pending_r_phase1` (int16 — the interpolator emits both phases on retained calls; phase-0 returns immediately, phase-1 is cached here and emitted on the next non-retained 44.1 kHz call).
+- `spu94_reset` zeros the whole struct via its existing hand-rolled byte-loop; no additional FIR-specific reset code is needed (D-23 — read-only observability fields are already covered).
+
+**Consequences:**
+
+- Public API surface of Phase 4 is exactly ONE new symbol: `spu94_get_latency_samples()` (ADR-0019). Everything else is internal plumbing, consumed by Phase 5.
+- Pitfall 4 single-call-site discipline is preserved: `grep -rE "spu94_fir_decimate\(" src/spu94/ --include='*.c'` returns 1 hit (in `chain_step_impl`); `grep -rE "spu94_fir_interpolate\("` returns 1 hit (also in `chain_step_impl`).
+- Reverb-bypass wrapper is always-compiled (not `#ifdef`-gated), so the M4 plugin era can promote it to a user-facing "FIR bypass" toggle without CMake churn. Same primitive; different call site.
+- `sizeof(struct spu94_state)` grew from 200 bytes (end of Phase 3) to 544 bytes (end of Phase 4 Plan 03) — +344 bytes for the FIR fields, still 30× headroom vs `SPU94_STATE_SIZE_MAX = 16384`.
+
+**Alternatives Considered:**
+
+- **Shared L/R delay line.** Rejected: cross-channel contamination is a future-proof cost; the ~156-byte savings is not worth the risk.
+- **Public 44.1 kHz chain API.** Rejected: Phase 5's block API is the intended public surface; exposing the per-sample wrapper would commit to that signature as API.
+- **Separate `chain_step` and `chain_step_reverb_bypass` implementations (no shared helper).** Rejected: duplicates the state-machine logic; a bug in one will not automatically show up in the other.
+
+**Seam:**
+
+The `reverb_active` parameter on `chain_step_impl` is the seam: Plan 05 or a later phase can add a third wrapper (e.g., a "reverb-muted-but-FIR-active" variant for an M4 FIR-monitor) without touching the core state-machine logic. The state-field layout (all `fir_*` fields grouped at the end of `struct spu94_state`) is also a seam — future FIR additions (taps, rates) append here without cascading struct-layout changes across other phases.
+
+**Sources:**
+
+- `src/spu94/spu94_io_chain.c` (chain-wrapper bodies + shared helper).
+- `src/spu94/spu94_fir_internal.h` (internal-only declarations).
+- `src/spu94/spu94_state_internal.h` (14 FIR state fields + 2 Pitfall-7 phase-1 cache fields).
+- 04-CONTEXT.md D-07 + D-08.
+- 04-03-SUMMARY.md § Function Layout.
+
+---
+
+## ADR-0017: FIR per-multiply err-tap — aggregate-post-shift-remainder under clamp-once
+
+**Status:** Accepted (2026-04-20, Phase 4)
+
+**Resolves:** D-06 (04-CONTEXT.md); 04-RESEARCH § Pattern 1 reconciliation + Assumption A7.
+
+**Relates:** ADR-0011 (Phase 3 per-multiply err-tap + overflow-magnitude observable), ADR-0015 (FIR clamp policy — clamp-once default), ADR-0014 (accumulator width).
+
+**Context:**
+
+Phase 3 ADR-0011 established the err-tap pattern: every Q15 multiply in the reverb network runs through `q15_mul_truncate_with_err` and writes its pre-saturation remainder to a per-stage `int32` field on `struct spu94_state`. CONTEXT D-06 asked to extend the pattern to the FIR — "every ~10 folded multiplies calls q15_mul_truncate_with_err".
+
+A strict reading of that language implies per-multiply shift-and-saturate, i.e., the cascade-clamp regime (D-04). Under cascade-clamp, the FIR saturates intermediate sums and the numerical output diverges from the clamp-once default (ADR-0015). 04-RESEARCH § Pattern 1 surfaced the contradiction + proposed a reconciliation: the INTENT of D-06 is to observe the complete precision-loss surface at the FIR boundary, not to engage cascade-clamp's numerical divergence. Under clamp-once, the aggregate post-shift remainder `(acc - (shifted << 15))` in a single accumulate captures the same discarded low bits as a per-multiply sum — but without the per-multiply saturation that would change the bit-exact output.
+
+Assumption A7 from 04-RESEARCH formalizes this: *under D-03 clamp-once, the bit-faithful interpretation of D-06 is the aggregate-post-shift-remainder tap.*
+
+**Decision:**
+
+SPU-94 adopts the **aggregate-post-shift-remainder interpretation** of D-06 under D-03 clamp-once:
+
+- `state->err_fir_decimator` and `state->err_fir_interpolator` receive `(acc - (shifted << 15))` once per retained FIR output. `acc` is the full int32 sum-of-products; `shifted` is `acc >> 15` (arithmetic shift per ADR-0001); the remainder is the low 15 bits of `acc` interpreted as a signed int32 (negative if `acc` was negative).
+- Per-multiply err wiring is **not** used in the FIR (unlike the reverb network, which uses `q15_mul_truncate_with_err` per multiply). The FIR accumulates in int32, shifts once, saturates once, and records the discarded-low-bits remainder once.
+- This is bit-faithful to D-03 clamp-once: the recorded err value is the remainder of the same single shift that produced the FIR output sample.
+- The strict per-multiply err reading — as a strict reading of D-06 would imply — is available as a compile-time option paired with `SPU94_FIR_CASCADE_CLAMP` (ADR-0015 seam). Engaging either the strict err-tap reading or the cascade-clamp mode crosses the same seam; they cannot be mixed.
+
+**Consequences:**
+
+- Runtime cost: one int32 subtract + one int32 shift + one int32 add per FIR output (decimator + interpolator each contribute). No branches; hot-path clean.
+- The err-tap value for a full-scale adversarial input is bounded by `|acc|_max ≤ 0x5CD2632E` (ADR-0014), so the low-15-bits remainder is in `[-16384, 16383]`. Safely fits int32 even after many accumulations.
+- Future M4 Controllers (drive meter, soft-clip warmth, err-stream envelopes) can consume `err_fir_decimator` + `err_fir_interpolator` identically to how they consume the Phase 3 `err_*` fields. The surface is uniform across reverb + FIR.
+- Strict per-multiply err semantics are available if ever needed, via the D-04 seam in ADR-0015.
+
+**Alternatives Considered:**
+
+- **Strict per-multiply err-tap under clamp-once.** Rejected: engages cascade-clamp numerical divergence (ADR-0015 seam), which SPU-94 does not want as the FIR default.
+- **Skip the FIR err-tap entirely.** Rejected: leaves a hole in the Controllers-consumption surface — half the precision-loss in the chain would be invisible.
+- **Per-tap err (one int32 field per non-zero coefficient pair).** Rejected: 10× state-size increase for no consumer-visible benefit; aggregate suffices.
+
+**Seam:**
+
+D-04 cascade-clamp (ADR-0015) is the single seam that both changes numerical output AND enables strict per-multiply err-tap. If M5 hardware capture ever reveals cascade-clamp semantics in the PS1 silicon, engaging the `SPU94_FIR_CASCADE_CLAMP` compile-time switch also lights up strict per-multiply err — both changes cross together.
+
+**Sources:**
+
+- `src/spu94/spu94_fir.c` (aggregate err-tap implementation in `fir_folded_apply`).
+- `src/spu94/spu94_state_internal.h` (`err_fir_decimator` + `err_fir_interpolator` fields).
+- 04-RESEARCH § Pattern 1 reconciliation + Assumption A7.
+- ADR-0011 (parent pattern; Phase 3).
+- `tests/unit/fir/test_fir_err_overflow_taps.c` (zero-input/stress/reset invariants).
+
+---
+
+## ADR-0016: FIR overflow-magnitude tap on clamp boundary
+
+**Status:** Accepted (2026-04-20, Phase 4)
+
+**Resolves:** D-05 (04-CONTEXT.md) for the FIR boundary.
+
+**Relates:** ADR-0011 (Phase 3 hard-clip overflow-magnitude pattern — this ADR extends that pattern to the FIR).
+
+**Context:**
+
+Phase 3 ADR-0011 established the overflow-magnitude observable pattern: when the hard-clip stage saturates an int32 value to int16, `|input| - INT16_MAX` is added to `state->overflow_magnitude`. This gives future M4 Controllers (drive meter, warmth knob, overflow-modulated feedback) a direct observable for "how hard the reverb output hit the rails."
+
+The FIR chain has two additional saturation boundaries: the decimator `sat_s16` (after the single clamp-once shift — ADR-0015) and the interpolator `sat_s16` (same structure, different subfilter). Without an overflow tap here, high-transient input samples that saturate at the FIR boundary would be invisible to the Controllers consumption surface.
+
+**Decision:**
+
+- `state->fir_overflow_decimator` and `state->fir_overflow_interpolator` are int32 accumulators that receive `|acc_shifted| - INT16_MAX` whenever the final `sat_s16` on the FIR output clamps, zero otherwise. Always-on, no branches on the hot path (the if/else-if selects the magnitude value; the add is unconditional).
+- Read-only observability per D-23 — no public mutator API; `spu94_reset` zeros these fields via the existing byte-loop.
+- Same contract as Phase 3's `overflow_magnitude` field: the accumulator grows monotonically over the session; consumers sample differences to detect "how much clamp happened in the last N samples."
+
+**Consequences:**
+
+- Runtime cost: one int32 conditional-select + one unconditional int32 add per FIR output. No branches (hot path pre-computes the magnitude value regardless of whether it'll be zero).
+- `tests/unit/fir/test_fir_err_overflow_taps.c` pins the invariants: zero input → taps stay zero; adversarial stress → taps perturb and accumulate monotonically; `spu94_reset` zeros all four (two err + two overflow).
+- Future M4 Controllers get a uniform surface: `overflow_magnitude` (reverb-body clip) + `fir_overflow_decimator` + `fir_overflow_interpolator` together describe the full "high-bits lost to saturation" surface across the reverb + FIR chain.
+- The tap is conservative: the `sat_s16` clamp is rare in practice (the half-band FIR has DC gain ~0.5, so sustained |INT16_EXTREMA| input produces `|shifted| ≈ 16383 < INT16_MAX`, no saturation). Only adversarial-pattern inputs trigger the clamp.
+
+**Alternatives Considered:**
+
+- **Single shared overflow field across reverb + FIR.** Rejected: muddles the consumer surface; different consumers may care about "reverb clipping" vs "FIR clipping" independently.
+- **Branch on the clamp condition (skip the add when no clamp).** Rejected: unconditional-add is branch-free and thus faster on MCU pipelines; the "if/else-if selects the magnitude" avoids any hot-path branch in the actual code.
+
+**Seam:**
+
+If M5 hardware capture reveals a different saturation semantics (e.g., wrap-around rather than clamp), ADR-0015's seam flips the clamp policy and the overflow tap meaning changes accordingly. The observable surface is stable; only the semantics of what "clamp" means updates.
+
+**Sources:**
+
+- `src/spu94/spu94_fir.c` (overflow-magnitude tap implementation in `fir_folded_apply`).
+- `src/spu94/spu94_state_internal.h` (`fir_overflow_decimator` + `fir_overflow_interpolator` fields).
+- ADR-0011 (parent pattern; Phase 3 hard-clip overflow).
+- `tests/unit/fir/test_fir_err_overflow_taps.c` (invariants).
+- 04-RESEARCH § Architecture Patterns (tap discipline).
+
+---
+
+## ADR-0015: FIR clamp policy — clamp-once default + cascade-clamp `#ifdef` seam
+
+**Status:** Accepted (2026-04-20, Phase 4)
+
+**Resolves:** D-03 + D-04 (paired; 04-CONTEXT.md).
+
+**Relates:** ADR-0007 (Phase 3 comb-sum cascading-clamp decision — this ADR INTENTIONALLY DIVERGES), ADR-0013 (FIR folded production + literal audit witness), ADR-0017 (err-tap interpretation).
+
+**Context:**
+
+The FIR accumulates 39 (or fewer, after folded-form optimization) products of Q15 coefficient × int16 input sample into an int32 accumulator, shifts right by 15, and saturates to int16. Two discipline choices appear:
+
+- **Clamp-once (D-03):** one `sat_s16` at the final stage output. The intermediate accumulator holds the full-precision sum; only the output value is forced into int16 range.
+- **Cascade-clamp (D-04):** one `sat_s16` per pair-sum (folded form) or per multiply-accumulate (literal form). The intermediate accumulator saturates at each step.
+
+These two policies produce BIT-DIFFERENT outputs on adversarial inputs where an intermediate sum would exceed INT16. 04-RESEARCH § Folded-vs-Literal Bit-Identity Argument gives the worked example: for a crafted input pattern, the literal-form evaluates to −12 under clamp-once and −7 under folded-form cascade-clamp. The difference matters for bit-faithful reproduction against a hypothetical "real" PS1 reference.
+
+Phase 3 ADR-0007 chose cascade-clamp for the comb-sum on musical grounds: the comb is a CHARACTER stage (its distortion is a feature). Phase 4 faces the opposite situation: the FIR is a TRANSPARENT resampling boundary (its distortion is an artifact, not a feature), so the policies diverge.
+
+**Decision:**
+
+- **Default: clamp-once (D-03).** The FIR computes the full int32 sum, shifts once, and saturates once. `src/spu94/spu94_fir.c::fir_folded_apply` implements this regime.
+- **Seam: `SPU94_FIR_CASCADE_CLAMP` compile-time switch.** Defining this macro at build time engages per-pair `sat_s16` (cascade-clamp). The switch is undefined by default. When defined:
+  - Numerical output diverges from the clamp-once default on adversarial inputs (per the 04-RESEARCH worked example).
+  - The literal vs folded bit-identity audit (ADR-0013) is NO LONGER valid — `test_fir_bit_identity.c` has an `#error` guard that fires when `SPU94_FIR_CASCADE_CLAMP` is set, preventing a false-positive "audit passed" signal.
+  - ADR-0017's err-tap interpretation changes: strict per-multiply err semantics light up under cascade-clamp.
+- **This diverges from ADR-0007 intentionally.** The comb is a character stage; the FIR is a transparent boundary. Different audio context, same research method (taste + silicon inference).
+
+**Consequences:**
+
+- Hot-path `src/spu94/spu94_fir.c` is unbranched: one shift + one sat_s16 per FIR output. No per-step clamp overhead in the default build.
+- Plan 02's `test_fir_bit_identity.c` asserts folded == literal under the default (clamp-once) build; cascade-clamp builds do not run this test, as guarded by the `#error`.
+- M4 character-FX (plugin era) can promote `SPU94_FIR_CASCADE_CLAMP` from compile-time to runtime (function pointer) without caller-side churn — the function signatures are stable; only the body swaps. 04-RESEARCH § Decision Proposals covers the promotion path.
+- If M5 hardware capture reveals the PS1 silicon actually implements cascade-clamp at the FIR boundary, engaging `SPU94_FIR_CASCADE_CLAMP` is a one-build-flag change and no source-file edit is needed. Supersede this ADR accordingly.
+
+**Alternatives Considered:**
+
+- **Always cascade-clamp (match ADR-0007).** Rejected: the FIR is transparent-boundary, not character stage; cascade-clamp introduces audible artifacts at adversarial inputs for no reproduction benefit.
+- **Always clamp-once, no seam.** Rejected: M5 hardware capture may eventually demand cascade-clamp; bolting on a runtime switch after the fact is harder than leaving the seam now.
+- **Runtime switch from day one (not compile-time).** Rejected: runtime switch adds a per-call branch; compile-time switch costs nothing at runtime. The M4 era upgrades compile → runtime if a user-facing character switch is wanted.
+
+**Seam:**
+
+`#ifdef SPU94_FIR_CASCADE_CLAMP` in `src/spu94/spu94_fir.c::fir_folded_apply`. The code above the seam is shared; the per-pair `sat_s16` insertion lives inside the `#ifdef`. Stable across the default-vs-cascade configurations at source-diff granularity.
+
+**Revision Path:**
+
+- M4 plugin user-facing "character" switch promotes compile-time → runtime.
+- M5 hardware capture confirms or rejects cascade-clamp at FIR boundary; supersede this ADR.
+
+**Sources:**
+
+- `src/spu94/spu94_fir.c` (clamp-once default + `#ifdef` seam).
+- `tests/unit/fir/test_fir_bit_identity.c` (`#error` guard under cascade-clamp).
+- 04-RESEARCH § Folded-vs-Literal Bit-Identity Argument (worked −12 vs −7 example).
+- ADR-0007 (Phase 3 — comb-sum cascade-clamp; explicitly diverged from).
+- ADR-0013 (folded + literal audit witness; bit-identity contract under clamp-once).
+
+---
+
+## ADR-0014: FIR accumulator width — int32 with 0.46-bit decimator margin + int64 typedef seam
+
+**Status:** Accepted (2026-04-20, Phase 4)
+
+**Resolves:** D-02 (04-CONTEXT.md § Area A); ROADMAP Phase 4 SC-3.
+
+**Relates:** ADR-0001 (Q15 arithmetic-right-shift guarantee), ADR-0003 (UBSan no_sanitize policy), ADR-0015 (FIR clamp-once default).
+
+**Context:**
+
+The 39-tap decimator sums 39 products of (int16 coefficient × int16 input sample) into a local accumulator before a single arithmetic-right-shift by 15 and a final `sat_s16` to int16. The accumulator type must hold the worst-case sum without signed-integer overflow (UB under UBSan + defined-but-surprising under -O2). Choosing int32 vs int64 trades MCU cycle cost (int64 is more expensive on Cortex-M without hardware 64-bit MAC) against safety margin. CONTEXT D-02 specified int32 with a derived-from-coefficients no-overflow proof.
+
+**Decision:**
+
+The FIR accumulator is `int32_t` in production. The worst-case bound was derived analytically in 04-RESEARCH § 7 (Accumulator Width Proof) and validated empirically via `tests/unit/fir/test_fir_overflow_proof.c`.
+
+Honest margin disclosure (verbatim from 04-RESEARCH § 7):
+
+- **Decimator (full 39-tap FIR):**
+  - Sum of |h[k]| over 39 taps: `47,526 = 0xB9A6`.
+  - Analytic worst-case product `47,526 × 32,768 = 1,557,331,968 = 0x5CD30000` (requires |x|=32768 simultaneously on both signs — unreachable by int16).
+  - Achievable int16 bound `x = +32767 if coef[k] ≥ 0 else -32768`: empirically `0x5CD2632E = 1,557,291,822`.
+  - INT32_MAX = `0x7FFFFFFF = 2,147,483,647`. Headroom above achievable bound: `0x232CFFFF = 590,151,679`.
+  - **Margin to INT32_MAX: 2.791 dB = 0.464 bits.** ← tight but sufficient.
+- **Interpolator phase-0 (every-other-tap subfilter):**
+  - Adversarial worst-case magnitude: `0x3CD30000 = 1,020,461,056`.
+  - Margin: `6.463 dB = 1.074 bits`.
+- **Interpolator phase-1 (center-tap only):**
+  - Adversarial worst-case magnitude: `0x20000000 = 536,870,912`.
+  - Margin: `12.04 dB = 2.0 bits`.
+
+The 0.46-bit decimator margin is EXPLICITLY DISCLOSED here, not hidden behind a "fits in int32" claim. Any future composition — additional accumulate stages, cascading intermediate clamps (ADR-0015), Q30 coefficient promotion — that tightens this margin below zero bits triggers the promotion seam below.
+
+**Consequences:**
+
+- Hot path stays MCU-friendly (no 64-bit MAC on Cortex-M7). `src/spu94/spu94_fir.c` is int32 throughout.
+- `tests/unit/fir/test_fir_overflow_proof.c` drives the accumulator to exactly `0x5CD2632E` under adversarial input + verifies the negative analog is UB-free (sign-symmetric magnitude). SC-3 closed at test-vector level; Plan 04's `fuzz_fir.py` adds 10⁶-step regression cover.
+- UBSan CI flags any signed-integer overflow regression. ADR-0003's `no_sanitize` policy does NOT apply to the FIR — the accumulator is proved safe, so UBSan's catch-all covers it.
+- The 0.46-bit margin is narrow. Plan 04 disclosed it verbatim in this ADR + in 04-04-SUMMARY.md; no future composition can silently burn through it.
+
+**Alternatives Considered:**
+
+- **int64 accumulator by default.** Rejected: extra cost on Cortex-M with no safety benefit for Phase 4 as scoped. Retained as a hedge seam (below).
+- **Q30 coefficient promotion + int64.** Rejected: changes bit-faithful output; out of scope for Phase 4 authenticity posture.
+- **Runtime overflow-detection + graceful degradation.** Rejected: SPU-94's bit-faithful posture doesn't permit graceful degradation — the output is the spec or it's not. If overflow were possible, promote the accumulator type.
+
+**Seam (D-22):**
+
+The accumulator type is effectively `int32_t` at `acc` variable granularity inside `fir_folded_apply` + `fir_interp_phase0_apply` + `fir_interp_phase1_apply`. Widening to int64 is a mechanical change (promote the `int32_t acc` local to `int64_t acc`; `sat_s16` accepts either width via the existing Phase 1 primitive). No caller change required. A future plan that needs the promotion can land a typedef `spu94_fir_acc_t` + search-and-replace, all in one commit.
+
+**Revision Path:**
+
+If any future composition — cascading intermediate clamps from ADR-0015 engaged, Q30 coefficient promotion (M5 hardware-capture-driven), or additional accumulate stages stacked into the FIR boundary — tightens the decimator margin to ≤ 0 bits, promote the accumulator to `int64_t` per the seam. Supersede this ADR.
+
+**Sources:**
+
+- 04-RESEARCH § 7 Accumulator Width Proof (primary derivation).
+- 04-RESEARCH § Coefficient Table (coefficient values used in derivation).
+- `src/spu94/spu94_fir.c` (in-source D-02 proof comment).
+- `tests/unit/fir/test_fir_overflow_proof.c` (empirical validation at `0x5CD2632E`).
+- `tests/python/fuzz_fir.py` (10⁶-step runtime cover).
+- ADR-0001 (Q15 arithmetic-right-shift guarantee — basis of the `>> 15` reduction).
+
+---
+
+## ADR-0013: FIR math form — folded production + literal 39-multiply audit witness
+
+**Status:** Accepted (2026-04-20, Phase 4)
+
+**Resolves:** D-01 (04-CONTEXT.md).
+
+**Relates:** ADR-0015 (clamp-once default establishes the regime under which bit-identity holds), ADR-0017 (err-tap aggregate reading agrees under clamp-once).
+
+**Context:**
+
+The 39-tap half-band Type I FIR has structural redundancy: the coefficient table is symmetric about index 19 (`h[k] == h[38-k]`), and 18 off-center odd positions are zero. A literal 39-multiply implementation pays for every tap; a folded implementation exploits the symmetry to pay for ~11 multiplies. The folded form is ~3.5× faster on an MCU hot path without changing the numerical output — **under clamp-once (ADR-0015)**.
+
+The catch is "under clamp-once." Cascade-clamp (ADR-0015 seam) breaks folded-vs-literal bit-identity on adversarial inputs. CONTEXT D-01 asked for a production math form + a deliberate audit trail so that reviewers can see the symmetry exploit is numerically-justified + regression-protected.
+
+**Decision:**
+
+- **Production:** `fir_folded_apply` in `src/spu94/spu94_fir.c` — center tap + 9 non-zero pairs (skipping the 18 zeros by construction). ~11 int32 multiplies per FIR output (vs 39 in the literal form).
+- **Audit witness:** `spu94_fir_decimate_literal_reference` + `spu94_fir_folded_reference` — declared in `src/spu94/spu94_fir_internal.h` (test-visible, not public API). Literal-form performs all 39 multiplies, no folding. Permanently compiled into the test binary so a reviewer can read it alongside the production form.
+- **Bit-identity contract:** `tests/unit/fir/test_fir_bit_identity.c` asserts `spu94_fir_folded_reference(x) == spu94_fir_decimate_literal_reference(x)` over 10⁵ random int16 inputs + the 04-RESEARCH adversarial-worst-case input. Contract holds under the clamp-once default build; the test TU has an `#error` guard that refuses to compile under `SPU94_FIR_CASCADE_CLAMP` (because bit-identity does not hold there by design).
+
+**Consequences:**
+
+- 3.5× reduction in production multiply count (~11 vs 39); measurable on MCU cross-compile smoke tests.
+- The audit trail is legible: a reviewer who doesn't trust the folded implementation can read the literal reference in the same source file, run the bit-identity test, and verify the symmetry exploit is sound.
+- The `#error` guard on the bit-identity TU under cascade-clamp prevents a false-positive "audit passed" signal in a build where the contract doesn't apply.
+- Plan 04's `fuzz_fir.py` adds 10⁶-step runtime cross-check via the production wrapper (which composes the folded FIR).
+
+**Alternatives Considered:**
+
+- **Literal-only production (no folded form).** Rejected: 3.5× MCU cycle cost for no correctness benefit.
+- **Folded-only, no audit witness.** Rejected: leaves the symmetry exploit unprotected against regression; a reviewer cannot cross-check without running the generator script on every audit.
+- **Audit witness generated at test time via a Python pass.** Rejected: C-test-embedded audit witness is faster to audit (one open file vs a generator run) and checks a real C compilation path.
+
+**Seam:**
+
+ADR-0015's `SPU94_FIR_CASCADE_CLAMP` is the single seam across clamp policy. Under cascade-clamp, the bit-identity contract of this ADR is explicitly invalidated + the test is disabled (#error). No in-between state.
+
+**Sources:**
+
+- `src/spu94/spu94_fir.c` (folded production + literal + folded audit-reference functions).
+- `src/spu94/spu94_fir_internal.h` (audit-witness declarations).
+- `tests/unit/fir/test_fir_bit_identity.c` (contract assertion + `#error` guard).
+- 04-RESEARCH § Folded-vs-Literal Bit-Identity Argument (worked example of where it breaks under cascade-clamp).
+- 04-02-SUMMARY.md § Function Layout.
+
+---
+
+## ADR-0012: Half-rate architecture + lv2-psx-reverb OUT-OF-AXIS exclusion
+
+**Status:** Accepted (2026-04-20, Phase 4)
+
+**Resolves:** ROADMAP Phase 4 SC-4.
+
+**Relates:** ADR-0018 (internal 44.1 kHz wrapper + per-channel state), ADR-0019 (latency contract), ADR-0020 (coefficient provenance), Phase 7 TEST-03 future work.
+
+**Context:**
+
+The PS1 SPU reverb operates internally at 22.05 kHz — half the 44.1 kHz system output rate — and applies a 39-tap half-band FIR at both I/O boundaries of the reverb ring to convert between the two rates. PROJECT.md's key decisions call this out explicitly: *"22.05 kHz internal reverb tick with 39-tap half-band FIR at both I/O boundaries (bit-faithful at the boundary, closing the lv2-psx-reverb gap)."* The ROADMAP Phase 4 SC-4 asks for a DECISIONS.md ADR formalizing this half-rate architecture AND excluding lv2-psx-reverb from the frequency-response witness axis because lv2-psx-reverb's own README self-attests that it skips the FIR.
+
+Mednafen (GPLv2) and DuckStation (CC-BY-NC-ND as of 2024-09) are two additional witness emulators. Their classification (IN-AXIS — implements the FIR / OUT-OF-AXIS — skips the FIR) would strengthen Phase 7 TEST-03's witness-diff tolerance calibration, but they are not on the critical path for Phase 4 closure: SC-4 explicitly names lv2-psx-reverb, and that classification is attested by primary source (the project's own README).
+
+**Decision:**
+
+SPU-94 architecture (ratified):
+
+- **Internal reverb tick rate:** 22.05 kHz (half of 44.1 kHz).
+- **Boundary FIR:** 39-tap half-band, applied at BOTH the 44.1 kHz → 22.05 kHz input boundary (decimator) AND the 22.05 kHz → 44.1 kHz output boundary (interpolator).
+- **Latency contract:** `SPU94_LATENCY_SAMPLES = 58u` at the 44.1 kHz input-to-output rate (ADR-0019 — the corrected derivation).
+
+Witness classification for frequency-response axis:
+
+- **lv2-psx-reverb: OUT-OF-AXIS (HIGH confidence).** Primary-source attested by its own README, quoted verbatim in 04-RESEARCH § Witness Analysis: the project chose not to implement the half-band FIR. Its reverb-network behavior remains a valid witness; its frequency-response cannot be used to validate SPU-94's FIR implementation.
+- **Mednafen (GPLv2): classification pending.** Empirical pass deferred; protocol documented in `.planning/phases/04-sample-rate-conversion-39-tap-half-band-fir/witness-captures/README.md`.
+- **DuckStation (CC-BY-NC-ND as of 2024-09): classification pending.** Empirical pass deferred; same protocol.
+
+Deferral basis: neither Mednafen nor DuckStation is installed on the Plan 04 executor's machine, and no PSX test ROM is available. Phase 7 TEST-03 (witness-diff harness) picks up the deferred captures + classifications. This is NOT a Phase-4 gap — SC-4's mandate is lv2-psx-reverb exclusion, which is primary-source attested.
+
+PROJECT.md licensing posture (per PROJECT.md + `docs/BIBLIOGRAPHY.md`): Mednafen and DuckStation are consumed only as OUTPUT witnesses. Their SOURCE code is never read as a primary input to SPU-94 design.
+
+**Consequences:**
+
+- Phase 4 SC-4 GREEN: ADR landed + lv2-psx-reverb exclusion recorded + protocol for future empirical captures documented.
+- Phase 7 TEST-03 harness work has a clear prerequisite: install Mednafen + DuckStation, acquire a PSX test ROM, follow the `witness-captures/README.md` protocol, fill in the classification table, and either supersede this ADR with the captured data or record a follow-up ADR carrying the deltas.
+- The 58u latency contract (ADR-0019) is the downstream consumer. M4 plugin PDC + Phase 5 block API pre-roll/post-roll depend on this value.
+
+**Alternatives Considered:**
+
+- **Block Phase 4 closure on Mednafen + DuckStation empirical pass.** Rejected: SC-4 explicitly names lv2-psx-reverb; deferral is scoped by the plan document.
+- **Land the ADR with lv2-psx-reverb only; no Mednafen/DuckStation mention.** Rejected: the mention + protocol commitment is the honest record of what Phase 4 did + did not do.
+- **Skip the half-rate architecture ADR (treat it as implicit in PROJECT.md).** Rejected: PROJECT.md is a project-level framing; DECISIONS.md is the architecture-level ratification. SC-4 asked for both.
+
+**Seam:**
+
+The witness classification table in `witness-captures/README.md` is the seam: when Mednafen and DuckStation captures are collected, the table updates + either (a) this ADR is superseded by a new ADR carrying the classifications OR (b) a follow-up ADR records the delta and keeps this ADR as the architectural ratification. Either path is open.
+
+**Sources:**
+
+- `.planning/PROJECT.md` Key Decisions (half-rate architecture ratification).
+- `.planning/ROADMAP.md` Phase 4 SC-4 (lv2-psx-reverb exclusion mandate).
+- 04-RESEARCH § Witness Analysis (lv2-psx-reverb README self-attestation quoted verbatim).
+- BIB-008 (lv2-psx-reverb project + README).
+- `docs/BIBLIOGRAPHY.md` BIB-009 (Mednafen; GPLv2) + BIB-010 (DuckStation; CC-BY-NC-ND).
+- `.planning/phases/04-sample-rate-conversion-39-tap-half-band-fir/witness-captures/README.md` (empirical-pass protocol + deferred-classification tracking).
+- ADR-0018 (wrapper + per-channel state), ADR-0019 (latency contract), ADR-0020 (coefficient provenance).
+
+---
+
 ## ADR-0011: Per-multiply err-tap + overflow-magnitude observable
 
 **Status:** Accepted (2026-04-19, Phase 3)
