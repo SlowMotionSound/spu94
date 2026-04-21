@@ -441,3 +441,43 @@ const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT] = {
         }
     }
 };
+
+/* -------------------------------------------------------------------------- */
+/* spu94_load_preset -- Phase 5 Plan 03 (API-05, D-08)                        */
+/* -------------------------------------------------------------------------- */
+
+/* Atomic bulk preset loader. Iterates the 35-register table for `id` and
+ * dispatches to the Phase 2 engine-layer setters by signedness family.
+ * ADR-0005's per-register write-policy table routes each call to IMMEDIATE
+ * or TICK_LATCHED automatically -- no preset-specific bypass. The "half-
+ * applied" window (v-prefix active now, d-prefix and m-prefix pending until
+ * next tick) is the D-08 contract; inaudible at 22.05 kHz tick rate (~45 us).
+ */
+spu94_result_t spu94_load_preset(spu94_state *state, spu94_preset_id_t id) {
+    /* Null-safe per lifecycle convention (D-12 carried from Phase 2). */
+    if (state == NULL) return SPU94_OK;
+    /* Bounds-check the id. SPU94_PRESET__COUNT is the sentinel = 10; any id
+     * >= 10 is out of range. Defensive: also reject negatives (caller may
+     * pass -1 cast). No register write occurs on rejection (T-5-3 mitigation). */
+    if ((int)id < 0 || (int)id >= (int)SPU94_PRESET__COUNT) {
+        return SPU94_UNKNOWN_REG;
+    }
+    const spu94_preset_t *p = &spu94_presets[id];
+    /* Iterate every register in enum order; dispatch to the correct engine-
+     * layer setter based on the register's signedness family. */
+    for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
+        const int16_t raw = p->regs[r];
+        if (spu94_reg_type((spu94_reg_t)r) == SPU94_REG_TYPE_I16) {
+            /* Engine-layer setter. Return value ignored -- any clamp is
+             * bit-faithful per ADR-0008 and a preset cannot trigger
+             * TYPE_MISMATCH (signedness matched by construction). */
+            (void)spu94_set_reg_i16(state, (spu94_reg_t)r, raw);
+        } else {
+            /* U16 family: reinterpret the 16 bits. The preset table stores
+             * uint16 bit-patterns in an int16 slot; the cast preserves the
+             * exact bit pattern. */
+            (void)spu94_set_reg_u16(state, (spu94_reg_t)r, (uint16_t)raw);
+        }
+    }
+    return SPU94_OK;
+}

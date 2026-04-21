@@ -276,6 +276,26 @@ typedef struct {
 /* The factory preset table. Indexed by spu94_preset_id_t. Read-only. */
 extern const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT];
 
+/* Atomically load one of the 10 factory presets into `state` (API-05, D-08).
+ * Iterates all 35 registers via the Phase 2 engine-layer setters; the D-04
+ * split write policy is honored automatically:
+ *   - v-prefix gain registers and mBASE (IMMEDIATE policy) become active
+ *     immediately.
+ *   - d-prefix and m-prefix address/delay registers (TICK_LATCHED) stage
+ *     into the pending slot and commit at the next spu94_tick.
+ * Callers seeing a "half-applied" window (new v-prefix gains, old d-prefix
+ * and m-prefix delays) for one tick (~45 us at 22.05 kHz) is inaudible and
+ * accepted as the D-08 contract.
+ *
+ * Returns:
+ *   SPU94_OK            on success (state updated)
+ *   SPU94_UNKNOWN_REG   if id >= SPU94_PRESET__COUNT (state NOT mutated)
+ *   SPU94_OK            if state == NULL (lifecycle-null-safe convention)
+ *
+ * Side effect: mBASE being IMMEDIATE fires spu94_mbase_on_write (snap-on-
+ * write per ADR-0006) if the preset's mBASE differs from the current value. */
+spu94_result_t spu94_load_preset(spu94_state *state, spu94_preset_id_t id);
+
 #ifdef __cplusplus
 }
 #endif
