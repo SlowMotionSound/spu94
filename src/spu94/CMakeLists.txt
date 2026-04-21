@@ -14,6 +14,7 @@ add_library(spu94_obj OBJECT
     spu94_fir_coef.c
     spu94_fir.c
     spu94_io_chain.c
+    spu94_process.c
     spu94_presets.c
 )
 

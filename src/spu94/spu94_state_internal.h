@@ -63,6 +63,20 @@ struct spu94_state {
     int32_t        overflow_magnitude;
 
     /* -----------------------------------------------------------------
+     * Phase 5 (D-05): mix-bus mailbox. spu94_process writes these
+     * fields with the current 44.1 kHz input sample before each
+     * spu94_fir_chain_step call. spu94_reverb_body reads them at
+     * src/spu94/spu94_reverb.c where it previously hardcoded
+     * left_in = 0, right_in = 0 (Phase 3 placeholder). Default-zero
+     * on init/reset means Phase 3 body-level tests that never write
+     * these fields continue to observe silent-input behavior (zero
+     * blast radius). Grouped adjacent to the Phase 4 FIR block
+     * because both are I/O-boundary state; easier to audit.
+     * ----------------------------------------------------------------- */
+    int16_t        mix_bus_l;
+    int16_t        mix_bus_r;
+
+    /* -----------------------------------------------------------------
      * Phase 4: sample-rate-conversion FIR state + observability.
      * D-08 per-channel delay lines (4 rings x 39 int16 + 4 uint8
      *   indices). D-05 overflow-magnitude taps (2 int32). D-06

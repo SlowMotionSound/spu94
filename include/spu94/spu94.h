@@ -207,6 +207,40 @@ uint32_t      spu94_get_buffer_address(const spu94_state *state);
 uint32_t      spu94_get_latency_samples(void);
 
 /* ------------------------------------------------------------------------- */
+/* Public block-based audio entry point (Phase 5, D-01, D-02, D-03, D-04)    */
+/* ------------------------------------------------------------------------- */
+
+/* Process a block of 44.1 kHz int16 stereo samples. Planar buffers (D-01):
+ * L_in/R_in and L_out/R_out are independent int16 arrays of num_samples
+ * length each. Any block size num_samples >= 1 is legal (D-03); num_samples
+ * == 0 is a safe no-op. In-place processing is allowed (D-04): L_out == L_in
+ * and R_out == R_in are both valid (sample-at-a-time loop is alias-safe).
+ * NULL state is a no-op. NULL L_in or R_in substitutes zero for that
+ * channel's input samples (convenience for mono-sourced callers). NULL
+ * L_out or R_out suppresses the corresponding output writes.
+ *
+ * Internal rate (22.05 kHz) and FIR boundary conversion are hidden -- the
+ * caller sees only 44.1 kHz int16 stereo in, 44.1 kHz int16 stereo out,
+ * with a round-trip group delay of SPU94_LATENCY_SAMPLES samples (see
+ * Phase 4 contract). Real-time safe: no heap, no locks, no syscalls
+ * (verified by Phase 5 Plan 04's tests/rt_safety/ CI gates). */
+void spu94_process(spu94_state *state,
+                   const int16_t *L_in, const int16_t *R_in,
+                   int16_t *L_out, int16_t *R_out,
+                   uint32_t num_samples);
+
+/* Drain trailing reverb tail by feeding internal silence (D-02). Semantics
+ * are identical to spu94_process with NULL L_in/R_in -- same block-loop,
+ * same per-sample spu94_fir_chain_step. Use this after the input stream
+ * ends to capture the decaying reverb tail in the output buffer. The
+ * caller chooses how many samples of tail to drain (typical: a few
+ * seconds of audio at 44.1 kHz = 44100 * N samples). NULL state is a
+ * no-op; num_samples == 0 is a no-op. */
+void spu94_flush(spu94_state *state,
+                 int16_t *L_out, int16_t *R_out,
+                 uint32_t num_samples);
+
+/* ------------------------------------------------------------------------- */
 /* Factory preset surface (Phase 5, D-06)                                    */
 /* ------------------------------------------------------------------------- */
 

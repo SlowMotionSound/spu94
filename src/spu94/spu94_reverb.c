@@ -568,17 +568,16 @@ void spu94_reverb_body(spu94_state *state)
     const uint16_t dAPF1_snap  = spu94_get_reg_u16(state, SPU94_REG_dAPF1);
     const uint16_t dAPF2_snap  = spu94_get_reg_u16(state, SPU94_REG_dAPF2);
 
-    /* Phase 3 Plan 01: no public mix-bus feed yet. Phase 5's
-     * spu94_process will populate left_in/right_in from the host's
-     * int16 stereo stream. Until then the reverb body runs with
-     * silent input, which is the correct no-op behavior.
-     * Note: because left_in/right_in are zero here, err_input_scale is
-     * permanently zero in any body-level test (including fuzz); the
-     * per-stage test (test_reverb_input_scale.c) covers err_input_scale
-     * properly. Body-level err_input_scale coverage is intentionally
-     * vacuous until Phase 5 wires non-zero inputs. */
-    const int16_t left_in = 0;
-    const int16_t right_in = 0;
+    /* Phase 5 Plan 02 (D-05): mix-bus mailbox. spu94_process writes
+     * state->mix_bus_l/r with the current 44.1 kHz input sample
+     * before the spu94_fir_chain_step call that eventually drives
+     * this reverb body. Default-zero on init/reset preserves the
+     * pre-Phase-5 silent-input behavior observed by every Phase 3
+     * body-level test. Non-zero inputs are exercised by
+     * tests/unit/process/test_process_*.c and by the Phase 5 fuzz
+     * harness tests/python/fuzz_process.py (Plan 05). */
+    const int16_t left_in  = state->mix_bus_l;
+    const int16_t right_in = state->mix_bus_r;
 
     int32_t Lin_wide = 0, Rin_wide = 0;
     spu94_reverb_input_scale(state, left_in, right_in,
