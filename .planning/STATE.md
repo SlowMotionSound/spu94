@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-last_updated: "2026-04-21T16:21:53.370Z"
+last_updated: "2026-04-21T18:30:00.000Z"
 progress:
   total_phases: 8
   completed_phases: 5
@@ -24,17 +24,17 @@ progress:
 
 ## Current Position
 
-Phase: 05 (public-api-presets-integration) — EXECUTING
-Plan: 1 of 5
+Phase: 06 (python-binding-cli) — CONTEXT GATHERED
+Plan: Not started (planning next)
 
 - **Milestone:** 1 (v1.0)
 - **Phase:** 6
 - **Plan:** Not started
-- **Status:** Ready to plan
-- **Progress:** [██████████] 100%
+- **Status:** Context captured; ready to plan
+- **Progress:** [█████...] 5/8 phases complete
 
 ```
-[██......] 2/8 phases complete (Phase 01 done; Phase 02 done — Plans 02-01..05 all green)
+[█████...] 5/8 phases complete (Phases 01–05 done; Phase 06 context gathered)
 ```
 
 ## Performance Metrics
@@ -143,6 +143,19 @@ Plan: 1 of 5
 - mBASE-write buffer behavior — RESOLVED via Phase 2 research as snap-on-write (ADR-0006); Plan 04 landed the implementation in `src/spu94/spu94_buffer.c` through the D-11 seam.
 - FIR integer accumulation width — verify 32-bit intermediate suffices for 39-tap Q15 × int16 sum in Phase 4.
 
+### Phase 6 Context Decisions (locked, 2026-04-21)
+
+- **Python API (D-01..02):** Expose both layers — raw-panel module functions (state handle passed explicitly) as primary; thin `SPU94` class as sugar over the raw layer. `spu94.presets` importable as Python data.
+- **CLI (D-03..05):** Native C binary via CMake; dr_wav vendored at `vendor/dr_wav/` and linked to CLI binary only (never into `libspu94`); Python `[project.scripts]` entry_point shim for pip-install users. Non-zero exit + one-line stderr on errors.
+- **Register sync + drift (D-06..08):** Runtime reflection at import — `spu94_reg_name(i)` + `spu94_reg_hw_offset(i)` iteration builds the `Register` IntEnum dynamically. Drift caught via import-time asserts on `spu94_state_size()` / reg count / preset count. Struct-internal offsets (tests-only) stay hand-typed in fuzz scripts with labeled warning blocks.
+- **numpy contract (D-09..11):** Strict int16 C-contiguous arrays required on `spu94.process` / `spu94.flush`; TypeError / ValueError with actionable message otherwise. Zero-copy guaranteed when contract holds. Faithful to PS1 hardware posture — the SPU had no format-conversion layer to emulate.
+- **`--config` JSON (D-12..15):** Auto-detect by `"base"` key — override patch (`{"base": "hall", "overrides": {...}}`) or flat register map. Accepts integer and hex-string values; signed / unsigned range-checked per register type; unknown keys are errors.
+- **Fuzz migration (D-16..18):** All four fuzz scripts (`fuzz_buffer`, `fuzz_reverb`, `fuzz_fir`, `fuzz_process`) drop hand-typed register constants and import from the new binding. Struct-internal offsets stay hand-typed. CMake / ctest wiring unchanged.
+- **README (D-19..20):** Polished tone throughout; extensive scope — 11 sections (hero, status, quick install, Python walkthrough, CLI walkthrough, "For the DSP-curious" technical section, roadmap, architecture overview, licensing posture, bibliography, contributing).
+- **Packaging (D-21..25):** `manylinux_2_28` Linux wheel (glibc 2.28+); Python 3.10+ minimum; one wheel per platform (pure ctypes, no Python C API); `libspu94.so` + `spu94` binary installed inside `spu94/` package dir; `pyproject.toml` with scikit-build-core + cibuildwheel config.
+
+All decisions logged in `.planning/phases/06-python-binding-cli/06-CONTEXT.md`. Owned requirements: PYBIND-01..06, CLI-01..04, DOCS-04 (11 total). Next: `/gsd-plan-phase 6`.
+
 ### Blockers
 
 None.
@@ -156,19 +169,19 @@ None.
 
 ## Session Continuity
 
-### Last Session (2026-04-19)
+### Last Session (2026-04-21)
 
-- Executed Phase 2 Plan 05 -- the test battery + Python ctypes fuzz harness that closes Phase 2.
-- Created 6 C Unity TUs: `test_register_roundtrip.c` (3 tests; all-35 round-trip + snapshot + facade parity), `test_register_types.c` (6 tests; classifier + TYPE_MISMATCH per i16/u16 + UNKNOWN_REG + edge preservation), `test_register_policy.c` (4 tests; IMMEDIATE per-reg + TICK_LATCHED per-reg + multi-pending atomic flush + mixed window), `test_register_edges.c` (4 tests; INT16_MIN/MAX/0 every i16 + 5 u16 boundaries every u16 + vIIR=-0x8000 round-trip + zero meaningful), `test_buffer_wrap.c` (7 tests; advance-from-zero + floor-active + mBASE=0 32-tick + 0xFFFE snap + halfword/bounded/floor invariants), `test_buffer_mbase.c` (7 tests; immediate snap + multi-snap + snap-to-zero + 4 KB sentinel work-buf-unchanged sweep + set+tick + pending readback + reset).
-- Created `tests/python/fuzz_buffer.py` (10^6 random ops; independent Python state model; ~407K ops/s; 2.46 s per 10^6 run) with golden seed `0xC0FFEE`. Wired as ctest target `fuzz_buffer` via `tests/python/CMakeLists.txt` (find_package Python3 3.10; `$<TARGET_FILE:spu94_shared>` env-var generator expression for Pitfall 7 mitigation).
-- Appended 2 new tests to `tests/unit/q15/test_q15.c` (structured `q15_err_case_t` reference table for `_with_err` remainder + null-passthrough across the Phase-1 mul_cases table).
-- Auto-fixed: `(22 d*/m*)` shorthand in a doc comment (the recurring Plans 03/04 issue); over-narrow odd-`buffer_address` exception in fuzz_buffer.py (caught at step 5 of first smoke run; replaced with independent Python model that validates `(ba & 1) != 0 IMPLIES ba == mBASE`); boundary-comment regex needed both substrings on one line.
-- 4 commits land Plan 05: `b788a28` (Task 1 register battery), `e70ba9e` (Task 2 buffer battery), `0b2dd20` (Task 3 Python fuzz), `13be09e` (Task 4 q15 structured table). ctest 15/15 green; grep-guard + verify-no-heap clean. nm: 19 T-symbols (unchanged from Plan 04 -- tests-only landing).
-- Phase 2 success criteria 1-6 ALL met. Phase 2 complete.
+- Gathered Phase 6 context through a GSD discuss-phase session spanning 8 gray areas: Python API shape, CLI implementation, register sync, numpy contract, `--config` JSON, fuzz migration, README, packaging.
+- User re-stated communication style mid-discussion — recording/broadcast engineer (explicitly not a coder), wants slow conversational pace with signal-flow / console / patch-bay analogies instead of SWE jargon. Remaining 7 areas were presented one at a time in that register. Three memory files updated (`user_profile.md` expanded, `feedback_plain_language_short.md` strengthened) and two created (`feedback_confirm_before_producing.md`, `feedback_user_facing_docs_polished.md`).
+- 25 locked decisions (D-01..D-25) captured across 8 areas, plus a Claude's Discretion list for planner latitude. Deferred-ideas section routes witness-diff / golden files / modulation to Phase 7, MCU cross-compile to Phase 8, plugin / levers / morph to M4, hardware validation to M5.
+- Two meta-decisions worth surfacing: (i) user raised "does PS1 auto-convert audio?" during area 4 — answered no (SPU is int16-only end-to-end; strict numpy contract is *more* faithful to hardware, not less) and logged as D-11. (ii) user chose polished tone + extensive scope for README — means all three tonal textures (polished pitch + honest status + deep-technical DSP-curious) coexist within a polished surrounding voice.
+- `.planning/phases/06-python-binding-cli/06-CONTEXT.md` + `06-DISCUSSION-LOG.md` landed and committed (hash `2a7b3aa`).
 
 ### Next Session
 
-- `/gsd-transition` -- transition from Phase 2 to Phase 3 (reverb algorithm). Phase 3's reverb-network computation slots into `spu94_tick`'s body as the third statement (after `apply_pending_writes` and `buffer_advance`). Plan 05's fuzz harness becomes the regression-protection mechanism that catches any Phase 3 buffer-arithmetic or write-timing drift.
+- `/gsd-plan-phase 6` — planner consumes `06-CONTEXT.md`. Expected flow: spawn researcher first (scikit-build-core + cibuildwheel layout specifics, dr_wav vendoring idioms, ctypes runtime-reflection IntEnum patterns, manylinux_2_28 image specifics), then task breakdown across ~5 plans.
+- Likely plan shape: (1) ctypes `_binding.py` + runtime reflection + import-time asserts; (2) raw-panel `api.py` + `SPU94` class + presets importer; (3) native `spu94` CLI binary + dr_wav vendoring + `--config` JSON parser; (4) `pyproject.toml` + scikit-build-core + cibuildwheel wiring; (5) README (polished/extensive) + fuzz-script migration + ADR landings.
+- Phase 6 integrates heavily with Phase 7 (the verification work will consume Phase 6's binding for witness-diff / golden-file / modulation harnesses) — plans should keep the public Python surface stable and well-documented so Phase 7 can build on it without Phase-6 code churn.
 
 ---
 *State initialized: 2026-04-18 at roadmap completion*
