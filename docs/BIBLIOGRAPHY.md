@@ -91,3 +91,56 @@ empirical witness pass).
 - **Used for:** Same as BIB-009. Source code is NOT read as a
   primary research input; the CC-BY-NC-ND no-derivatives clause
   makes any source reading a licensing hazard.
+
+## Preset Sources (Phase 5)
+
+### BIB-011: nocash PSX SPU "SPU Reverb Examples"
+- **URL:** https://problemkaputt.de/psx-spx.htm (original author)
+  + https://psx-spx.consoledev.net/soundprocessingunitspu/#spureverbexamples
+  (community render)
+- **Author:** Martin "nocash" Korth + psx-spx community contributors
+- **Used for:** Register-value table for the 10 PS1 factory reverb presets
+  (Off, Room, Studio A/B/C, Hall, Half Echo, Space Echo, Echo, Delay),
+  35 int16 registers per preset. Transcribed as uncopyrightable integer
+  facts into .planning/research/05-preset-values-audit-nocash.csv on
+  2026-04-20 and cell-equality-verified against BIB-012 by
+  tests/python/verify_preset_sources.py.
+- **Retrieval date:** 2026-04-20.
+- **Provenance note:** The nocash table is the primary modern render of
+  the PS1 preset matrix; no hardware-readout annotation; inferred to mirror
+  the Sony LIBSND binary's baked-in values. See Phase 5 preset-sourcing
+  ADR (Plan 05) for the honest one-source-with-mirrors lineage assessment.
+
+### BIB-012: hitmen c02 SPU documentation
+- **URL:** http://hitmen.c02.at/files/docs/psx/spu.txt
+  (archived at web.archive.org captures circa 2004 onward)
+- **Author:** hitmen PSX demoscene group, ~1999 era
+- **Used for:** Independent mid-1990s transcription of the 10 factory
+  reverb presets' register values. Corroborating source for BIB-011;
+  structurally independent lineage (demoscene community, not directly
+  derived from the modern psx-spx doc line). Transcribed into
+  .planning/research/05-preset-values-audit-hitmen.csv on 2026-04-20.
+- **Retrieval date:** 2026-04-20.
+- **Note:** Archived document, not actively maintained. Any preset cell
+  disagreement between BIB-011 and BIB-012 is resolved via the priority
+  chain Sony SDK > nocash > hitmen (see Plan 05 ADR). Expected
+  disagreements: zero. Actual: 16 cells on the Off preset (m-prefix
+  buffer-address registers) -- BIB-011 publishes 0x0001 (defensive
+  minimum-offset), BIB-012 publishes 0x0000. Resolved per the priority
+  chain in favor of BIB-011 and documented in
+  .planning/research/05-preset-values-audit-resolutions.md.
+
+### BIB-013: Sony Psy-Q LIBSND documentation
+- **URL:** https://psx.arthus.net/sdk/Psy-Q/DOCS/LibRef/LIBSND.PDF
+  (archived mirror of the Psy-Q SDK LibRef PDF)
+- **Author:** Sony Computer Entertainment / SN Systems (Psy-Q toolchain)
+- **Used for:** Confirmation of the 10-preset count and preset-ID
+  ordering (SPU_REV_MODE_OFF=0..SPU_REV_MODE_DELAY=9) and preset-name
+  mapping. Does NOT publish per-register values -- those live in the
+  libsnd.lib binary and are off-limits under the project licensing
+  posture (GPL-posture-equivalent risk on Sony proprietary binaries).
+- **Retrieval date:** 2026-04-20.
+- **Caveat:** The PDF's prose is Sony copyrighted material; only the
+  API-shape facts (preset constant names + numeric ids) are cited here,
+  under fair-use interoperability doctrine (analogous to reading Windows
+  API documentation to implement a Windows program).
