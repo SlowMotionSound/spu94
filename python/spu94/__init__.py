@@ -153,4 +153,13 @@ __all__ += [
     "get_latency_samples",
     "self_test",
 ]
-# Plan 2 Task 2 appends the SPU94 class and the cli module to __all__.
+# ----------------------------------------------------------------------
+# Plan 2 Task 2 — SPU94 class (D-01 secondary surface) + cli shim
+# ----------------------------------------------------------------------
+from .reverb import SPU94  # noqa: E402 — after api.py is importable
+from . import cli  # noqa: E402,F401 — exposed as spu94.cli.main
+
+__all__ += [
+    "SPU94",
+    "cli",
+]
