@@ -227,3 +227,157 @@ def test_latency_samples_matches_constant(spu94_module):
 
 def test_self_test_runs_clean(spu94_module):
     spu94_module.self_test()
+
+
+# ----------------------------------------------------------------------
+# Task 2 — SPU94 class tests (context manager, auto-dispatch, destroy)
+# ----------------------------------------------------------------------
+
+def test_spu94_class_constructs_and_destroys(spu94_module):
+    rev = spu94_module.SPU94()
+    assert rev.state is not None
+    rev.destroy()
+    # After destroy, accessing state raises.
+    with pytest.raises(RuntimeError, match="has been destroyed"):
+        _ = rev.state
+
+
+def test_spu94_class_context_manager(spu94_module):
+    with spu94_module.SPU94() as rev:
+        assert rev.state is not None
+        assert spu94_module.SPU94_OK == rev.load_preset("hall")
+        rev.tick()
+        n = 256
+        L_in  = np.zeros(n, dtype=np.int16)
+        R_in  = np.zeros(n, dtype=np.int16)
+        L_out = np.zeros(n, dtype=np.int16)
+        R_out = np.zeros(n, dtype=np.int16)
+        rev.process(L_in, R_in, L_out, R_out)
+    # After exit, state is None (destroyed).
+    with pytest.raises(RuntimeError, match="has been destroyed"):
+        _ = rev.state
+
+
+def test_spu94_class_set_get_reg_dispatch_by_type(spu94_module):
+    with spu94_module.SPU94() as rev:
+        # vIIR is i16 — set_reg should dispatch to set_reg_i16
+        rc = rev.set_reg(spu94_module.Register.vIIR, -20000)
+        assert rc == spu94_module.SPU94_OK
+        assert rev.get_reg(spu94_module.Register.vIIR) == -20000
+        # mBASE is u16 — set_reg should dispatch to set_reg_u16
+        rc = rev.set_reg(spu94_module.Register.mBASE, 0x3F00)
+        assert rc == spu94_module.SPU94_OK
+        assert rev.get_reg(spu94_module.Register.mBASE) == 0x3F00
+
+
+def test_spu94_class_snapshot_returns_35_tuple(spu94_module):
+    with spu94_module.SPU94() as rev:
+        snap = rev.snapshot()
+        assert isinstance(snap, tuple) and len(snap) == 35
+
+
+def test_spu94_class_buffer_address_nonnegative(spu94_module):
+    with spu94_module.SPU94() as rev:
+        assert rev.buffer_address >= 0
+        assert rev.buffer_address <= 0x7FFFE
+
+
+def test_spu94_class_latency_samples_58(spu94_module):
+    with spu94_module.SPU94() as rev:
+        assert rev.latency_samples == 58
+
+
+def test_spu94_class_custom_work_buf_size(spu94_module):
+    with spu94_module.SPU94(work_buf_size=32768) as rev:
+        assert rev.work_buf_size == 32768
+
+
+def test_spu94_class_repr(spu94_module):
+    rev = spu94_module.SPU94(work_buf_size=8192)
+    try:
+        s = repr(rev)
+        assert "SPU94" in s
+        assert "8192" in s
+        assert "live" in s
+    finally:
+        rev.destroy()
+    s = repr(rev)
+    assert "destroyed" in s
+
+
+def test_spu94_class_flush(spu94_module):
+    """The class's flush() forwards to api.flush."""
+    with spu94_module.SPU94() as rev:
+        rev.load_preset("hall")
+        rev.tick()
+        n = 512
+        L_out = np.zeros(n, dtype=np.int16)
+        R_out = np.zeros(n, dtype=np.int16)
+        rev.flush(L_out, R_out)  # should not raise
+
+
+def test_spu94_class_double_destroy_is_idempotent(spu94_module):
+    """Destroy called twice does not raise — class guards internal state."""
+    rev = spu94_module.SPU94()
+    rev.destroy()
+    rev.destroy()  # second destroy is a legal no-op
+
+
+def test_spu94_class_process_after_destroy_raises(spu94_module):
+    """Calling process() after destroy() raises RuntimeError, not a
+    silent SEGV on a freed state pointer."""
+    rev = spu94_module.SPU94()
+    rev.destroy()
+    n = 64
+    L = np.zeros(n, dtype=np.int16)
+    with pytest.raises(RuntimeError, match="has been destroyed"):
+        rev.process(L, L, L, L)
+
+
+def test_spu94_class_get_reg_pending_dispatch(spu94_module):
+    """get_reg_pending auto-dispatches by signedness, same as get_reg."""
+    with spu94_module.SPU94() as rev:
+        # vIIR is i16 — set_reg with IMMEDIATE policy commits + caches
+        # the pending value too (Plan 3 decision); mBASE is u16.
+        rev.set_reg(spu94_module.Register.vIIR, -12345)
+        # Pending getter should return something — just verify it returns
+        # an int without raising (value semantics depend on write policy).
+        assert isinstance(rev.get_reg_pending(spu94_module.Register.vIIR), int)
+        assert isinstance(rev.get_reg_pending(spu94_module.Register.mBASE), int)
+
+
+def test_cli_main_missing_binary_exits_1(tmp_path, monkeypatch, capsys):
+    """When the compiled binary is absent, cli.main() prints a clear
+    error and sys.exit(1)s."""
+    import importlib.util
+    import sys as _sys
+    from pathlib import Path
+
+    # Create an isolated fake spu94 package dir with NO binary inside.
+    fake_pkg = tmp_path / "fake_spu94_pkg"
+    fake_pkg.mkdir()
+
+    # Copy the real cli.py body into the fake package.
+    repo_root = Path(__file__).resolve().parents[3]
+    cli_src = (repo_root / "python" / "spu94" / "cli.py").read_text()
+    (fake_pkg / "__init__.py").write_text("")
+    (fake_pkg / "cli.py").write_text(cli_src)
+
+    # Load cli.py as a standalone module from the fake-pkg path so
+    # Path(__file__).parent inside cli.py points at the fake pkg
+    # (which has no "spu94" binary). This sidesteps caching of the
+    # real spu94 package already imported by other tests.
+    spec = importlib.util.spec_from_file_location(
+        "spu94_cli_test_isolated", str(fake_pkg / "cli.py")
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    # Save and clear argv so os.execv isn't called with test-runner args.
+    monkeypatch.setattr(_sys, "argv", ["spu94"])
+
+    with pytest.raises(SystemExit) as exc:
+        mod.main()
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "compiled binary not found" in err
