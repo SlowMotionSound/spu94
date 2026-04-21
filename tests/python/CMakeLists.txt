@@ -56,3 +56,25 @@ add_test(
 set_tests_properties(verify_preset_sources PROPERTIES
     LABELS "preset"
 )
+
+# Phase 5 Plan 05 Task 1 (D-10a): 10^6-step random-walk fuzz of the public
+# spu94_process + spu94_flush + spu94_load_preset entries with interleaved
+# mid-stream register writes. Extends the Phase 2/3/4 fuzz pattern to the
+# public-API layer. Same SPU94_LIB plumbing (Pitfall-7 mitigation); dual
+# labels so `ctest -L process` and `ctest -L fuzz` both pick it up.
+add_test(
+    NAME fuzz_process
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/fuzz_process.py
+)
+
+set_tests_properties(fuzz_process PROPERTIES
+    ENVIRONMENT "SPU94_LIB=$<TARGET_FILE:spu94_shared>"
+    LABELS "fuzz;process"
+    TIMEOUT 1200
+)
+# TIMEOUT 1200 (20 min): measured 595 s wall clock on dev workstation
+# (~1680 ops/s); ctypes overhead on the 5 public-API entries dominates
+# over the Phase 2/3/4 fuzz harnesses which call only one internal
+# per-sample step function. 1200 s is 2x observed runtime, giving
+# slower CI runners headroom without masking a future regression
+# that doubles the per-step cost.
