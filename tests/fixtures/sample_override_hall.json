@@ -1,0 +1,7 @@
+{
+  "base": "hall",
+  "overrides": {
+    "vIIR": -8000,
+    "mLCOMB1": "0x1000"
+  }
+}
