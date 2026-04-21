@@ -100,12 +100,13 @@ Plans:
   2. All 10 PS1 factory reverb presets (Room, Studio A/B/C, Hall, Half Echo, Space Echo, Echo, Delay, Off) are loadable via a bulk `spu94_load_preset` call that writes all 35 registers atomically, and each preset produces non-zero reverb tails for non-silent input (except Off, which is silent).
   3. A caller can write any register at any block boundary during live processing and the output contains no crashes, no buffer corruption, no required `spu94_reset` call; the mid-stream write policy from Phase 2 is honored end-to-end.
   4. A benchmark-driven audit confirms `spu94_process` performs no heap allocations, holds no locks, issues no syscalls, and exhibits no variable-latency operations across 10^5 consecutive blocks.
-**Plans:** 4 plans
+**Plans:** 5 plans
 Plans:
-- [x] 03-01-PLAN.md — Reverb scaffolding: internal header, state err-accumulator + overflow_magnitude fields, hard_clip/input_scale/output_scale stages, reverb_body wired into spu94_tick, derive_reverb_reference.py
-- [x] 03-02-PLAN.md — SAME IIR + DIFF IIR stages (CORE-05/CORE-08): reverb_buf_read/write helpers, vIIR=INT16_MIN anomaly branch, TEST-06 anomaly + non-anomaly control tests
-- [x] 03-03-PLAN.md — 4-tap comb (D-07 cascading sat) + APF1 + APF2 stages; per-stage bit-exactness tests with D-07 distinguishing case and Pitfall-7 APF edges
-- [ ] 03-04-PLAN.md — TEST-07 Q15 edge battery + composition equivalence + 10^6-step fuzz_reverb.py + ADR-0007..ADR-0011 landing in docs/DECISIONS.md (SC-5 closure)
+- [ ] 05-01-PLAN.md — Preset-value three-source audit (BIB-011/012/013): CSVs + verify_preset_sources.py + const spu94_preset_t spu94_presets[10] in .rodata + spu94_preset_id_t enum + spu94_preset_t typedef + test_preset_table_integrity + BIBLIOGRAPHY entries (CORE-09)
+- [ ] 05-02-PLAN.md — Public API scaffolding: spu94_process + spu94_flush prototypes + src/spu94/spu94_process.c + mix_bus_l/r fields on spu94_state + 1-line edit at reverb.c:580 + unit tests (basic + flush + mix_bus) (API-03, API-06 scaffold)
+- [ ] 05-03-PLAN.md — spu94_load_preset implementation + test_preset_load_all (D-08 split-policy per preset) + test_preset_nonzero_tail (SC-2 behavioral proof for 9 non-Off presets + Off-silent) (API-05, CORE-09 closure)
+- [ ] 05-04-PLAN.md — RT-safety CI infrastructure: test_no_heap.sh + verify-no-locks.sh + test_no_syscalls strace harness + bench_latency.py + test_phase5_linksym + RT_SAFETY_TESTS CMake group (API-08)
+- [ ] 05-05-PLAN.md — fuzz_process.py 10^6-step mid-stream fuzz + test_process_block_size + test_process_in_place + ADR-Phase-5-A..F landing in docs/DECISIONS.md (API-06, API-08, CORE-09)
 
 ### Phase 6: Python Binding + CLI
 **Goal**: Tests, gray-area exploration, and golden-file generation happen in Python + numpy; a user can render a WAV through any preset with a single CLI invocation.
