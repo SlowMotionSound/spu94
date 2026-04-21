@@ -110,7 +110,47 @@ __all__ = [
     "SPU94_UNKNOWN_REG",
     "SPU94_TYPE_MISMATCH",
 ]
-# Plan 2 extends __all__ with the raw-panel API (init / destroy / reset /
-# process / flush / load_preset / tick / get_reg_* / set_reg_* /
-# snapshot_registers / get_buffer_address / get_latency_samples), the
-# SPU94 class, and self_test().
+
+# ----------------------------------------------------------------------
+# Plan 2 Task 1 — raw-panel public functions (D-01 primary surface)
+# ----------------------------------------------------------------------
+from .api import (  # noqa: E402 — after Register / Preset / presets build
+    init,
+    reset,
+    destroy,
+    tick,
+    process,
+    flush,
+    load_preset,
+    set_reg_i16,
+    set_reg_u16,
+    get_reg_i16,
+    get_reg_u16,
+    get_reg_i16_pending,
+    get_reg_u16_pending,
+    snapshot_registers,
+    get_buffer_address,
+    get_latency_samples,
+    self_test,
+)
+
+__all__ += [
+    "init",
+    "reset",
+    "destroy",
+    "tick",
+    "process",
+    "flush",
+    "load_preset",
+    "set_reg_i16",
+    "set_reg_u16",
+    "get_reg_i16",
+    "get_reg_u16",
+    "get_reg_i16_pending",
+    "get_reg_u16_pending",
+    "snapshot_registers",
+    "get_buffer_address",
+    "get_latency_samples",
+    "self_test",
+]
+# Plan 2 Task 2 appends the SPU94 class and the cli module to __all__.

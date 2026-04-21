@@ -36,6 +36,9 @@ import ctypes
 import os
 from pathlib import Path
 
+import numpy as np
+from numpy.ctypeslib import ndpointer
+
 # ----------------------------------------------------------------------
 # Library path resolution (T-06-01 mitigation: absolute path only)
 # ----------------------------------------------------------------------
@@ -95,25 +98,30 @@ _lib.spu94_get_buffer_address.argtypes = [ctypes.c_void_p]
 _lib.spu94_get_latency_samples.restype = ctypes.c_uint32
 _lib.spu94_get_latency_samples.argtypes = []
 
-# Audio processing — argtypes REPLACED by Plan 2 with numpy
-# .ctypeslib.ndpointer. The restype stays None; the argtype shape stays
-# the same (6 pointer-like args for process, 4 for flush).
+# Audio processing — Plan 2 declares argtypes using numpy.ctypeslib
+# .ndpointer so the strict int16 / C-contiguous / 1-D contract (D-09)
+# is enforced at the binding boundary. ndpointer raises TypeError on
+# dtype / flags violations BEFORE the C function is called, which means
+# no raw pointer crosses the boundary for a malformed input (T-06-07,
+# T-06-08). Zero-copy (D-10) holds when the contract is satisfied.
+_ARR_I16_1D = ndpointer(dtype=np.int16, ndim=1, flags="C_CONTIGUOUS")
+
 _lib.spu94_process.restype = None
 _lib.spu94_process.argtypes = [
-    ctypes.c_void_p,                    # state
-    ctypes.POINTER(ctypes.c_int16),     # L_in
-    ctypes.POINTER(ctypes.c_int16),     # R_in
-    ctypes.POINTER(ctypes.c_int16),     # L_out
-    ctypes.POINTER(ctypes.c_int16),     # R_out
-    ctypes.c_uint32,                    # num_samples
+    ctypes.c_void_p,    # state
+    _ARR_I16_1D,        # L_in
+    _ARR_I16_1D,        # R_in
+    _ARR_I16_1D,        # L_out
+    _ARR_I16_1D,        # R_out
+    ctypes.c_uint32,    # num_samples
 ]
 
 _lib.spu94_flush.restype = None
 _lib.spu94_flush.argtypes = [
-    ctypes.c_void_p,                    # state
-    ctypes.POINTER(ctypes.c_int16),     # L_out
-    ctypes.POINTER(ctypes.c_int16),     # R_out
-    ctypes.c_uint32,                    # num_samples
+    ctypes.c_void_p,    # state
+    _ARR_I16_1D,        # L_out
+    _ARR_I16_1D,        # R_out
+    ctypes.c_uint32,    # num_samples
 ]
 
 # Preset loader --------------------------------------------------------
