@@ -102,11 +102,11 @@ Plans:
   4. A benchmark-driven audit confirms `spu94_process` performs no heap allocations, holds no locks, issues no syscalls, and exhibits no variable-latency operations across 10^5 consecutive blocks.
 **Plans:** 5 plans
 Plans:
-- [ ] 05-01-PLAN.md — Preset-value three-source audit (BIB-011/012/013): CSVs + verify_preset_sources.py + const spu94_preset_t spu94_presets[10] in .rodata + spu94_preset_id_t enum + spu94_preset_t typedef + test_preset_table_integrity + BIBLIOGRAPHY entries (CORE-09)
-- [ ] 05-02-PLAN.md — Public API scaffolding: spu94_process + spu94_flush prototypes + src/spu94/spu94_process.c + mix_bus_l/r fields on spu94_state + 1-line edit at reverb.c:580 + unit tests (basic + flush + mix_bus) (API-03, API-06 scaffold)
-- [ ] 05-03-PLAN.md — spu94_load_preset implementation + test_preset_load_all (D-08 split-policy per preset) + test_preset_nonzero_tail (SC-2 behavioral proof for 9 non-Off presets + Off-silent) (API-05, CORE-09 closure)
-- [ ] 05-04-PLAN.md — RT-safety CI infrastructure: test_no_heap.sh + verify-no-locks.sh + test_no_syscalls strace harness + bench_latency.py + test_phase5_linksym + RT_SAFETY_TESTS CMake group (API-08)
-- [ ] 05-05-PLAN.md — fuzz_process.py 10^6-step mid-stream fuzz + test_process_block_size + test_process_in_place + ADR-Phase-5-A..F landing in docs/DECISIONS.md (API-06, API-08, CORE-09)
+- [x] 05-01-PLAN.md — Preset-value three-source audit (BIB-011/012/013): CSVs + verify_preset_sources.py + const spu94_preset_t spu94_presets[10] in .rodata + spu94_preset_id_t enum + spu94_preset_t typedef + test_preset_table_integrity + BIBLIOGRAPHY entries (CORE-09)
+- [x] 05-02-PLAN.md — Public API scaffolding: spu94_process + spu94_flush prototypes + src/spu94/spu94_process.c + mix_bus_l/r fields on spu94_state + 1-line edit at reverb.c:580 + unit tests (basic + flush + mix_bus) (API-03, API-06 scaffold)
+- [x] 05-03-PLAN.md — spu94_load_preset implementation + test_preset_load_all (D-08 split-policy per preset) + test_preset_nonzero_tail (SC-2 behavioral proof for 9 non-Off presets + Off-silent) (API-05, CORE-09 closure)
+- [x] 05-04-PLAN.md — RT-safety CI infrastructure: test_no_heap.sh + verify-no-locks.sh + test_no_syscalls strace harness + bench_latency.py + test_phase5_linksym + RT_SAFETY_TESTS CMake group (API-08)
+- [x] 05-05-PLAN.md — fuzz_process.py 10^6-step mid-stream fuzz + test_process_block_size + test_process_in_place + ADR-Phase-5-A..F landing in docs/DECISIONS.md (API-06, API-08, CORE-09)
 
 ### Phase 6: Python Binding + CLI
 **Goal**: Tests, gray-area exploration, and golden-file generation happen in Python + numpy; a user can render a WAV through any preset with a single CLI invocation.

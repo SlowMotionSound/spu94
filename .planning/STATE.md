@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-last_updated: "2026-04-20T20:34:54.130Z"
+last_updated: "2026-04-21T16:21:53.370Z"
 progress:
   total_phases: 8
-  completed_phases: 4
-  total_plans: 17
-  completed_plans: 17
+  completed_phases: 5
+  total_plans: 22
+  completed_plans: 22
   percent: 100
 ---
 
@@ -20,15 +20,15 @@ progress:
 
 **Project:** SPU-94 — bit-faithful PS1 SPU reverb DSP
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current Focus:** Phase 02 — COMPLETE; ready for Phase 03 (reverb algorithm)
+**Current Focus:** Phase 05 — public-api-presets-integration
 
 ## Current Position
 
-Phase: 02 (buffer-register-infrastructure) — COMPLETE
-Plan: 5 of 5 (all complete)
+Phase: 05 (public-api-presets-integration) — EXECUTING
+Plan: 1 of 5
 
 - **Milestone:** 1 (v1.0)
-- **Phase:** 5
+- **Phase:** 6
 - **Plan:** Not started
 - **Status:** Ready to plan
 - **Progress:** [██████████] 100%

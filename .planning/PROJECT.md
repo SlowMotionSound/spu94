@@ -23,10 +23,10 @@ Rigor governs the algorithm; musicality governs everything that surrounds it. Th
 - [ ] Implement fixed-point arithmetic with integer truncation (not rounding) matching SPU semantics
 - [ ] Implement hard clip / overflow behavior on the mix bus feeding the reverb
 - [x] Implement the 39-tap half-band FIR at both I/O boundaries — nocash's documented coefficients verbatim — to correctly convert between the 44.1kHz host rate and the reverb's internal 22.05kHz processing rate. This is what closes the fidelity gap that lv2-psx-reverb explicitly leaves open. *(Validated in Phase 4: sample-rate-conversion-39-tap-half-band-fir)*
-- [ ] Design the C API so that mid-stream register updates are a first-class use case — register writes during audio processing must not glitch, crash, or require reinitialization
+- [x] Design the C API so that mid-stream register updates are a first-class use case — register writes during audio processing must not glitch, crash, or require reinitialization *(Validated in Phase 5: public-api-presets-integration — `spu94_process` + `spu94_load_preset` with D-08 split write-timing policy; API-06 satisfied via 10⁶-step `fuzz_process` harness interleaving process calls with random register writes)*
 - [ ] Resolve and document the delay-length-register-change gray area: what happens when dCOMB1-4, dAPF1/2, or similar position-dependent registers change mid-stream (work-buffer reindexing, phase discontinuity policy, whether interpolation is in scope)
-- [ ] Provide a modulation test — continuously modulate each register (sine, sweep, random walk) during a live audio stream and verify output remains stable, bounded, and free of zipper noise or crashes
-- [ ] Expose the core as a plain C library (`libspu94`) with a small, stable public API
+- [x] Provide a modulation test — continuously modulate each register (sine, sweep, random walk) during a live audio stream and verify output remains stable, bounded, and free of zipper noise or crashes *(Validated in Phase 5: 10⁶-step `fuzz_process.py` random-walk harness against the public `spu94_process` + `spu94_flush` + `spu94_load_preset` entries with per-step bit-exact comparison against an independent Python model)*
+- [x] Expose the core as a plain C library (`libspu94`) with a small, stable public API *(Validated in Phase 5: `spu94_process`, `spu94_flush`, `spu94_load_preset`, `spu94_presets[]` all exported as T/D symbols on libspu94.so; API-03 block-size + in-place bit-identity proven; API-05 bulk atomic preset loader shipped with D-08 split-policy compliance)*
 - [ ] Ship Python bindings via ctypes so tests, analysis, and exploration happen in Python+numpy
 - [ ] Ship a small CLI (`spu94`) that processes WAV files end-to-end for witness diffs and golden-file tests
 - [ ] Build on Linux (primary dev target)
@@ -35,7 +35,7 @@ Rigor governs the algorithm; musicality governs everything that surrounds it. Th
 - [ ] Provide register-level unit tests — each register exercised in isolation
 - [ ] Provide witness-output diff harness against lv2-psx-reverb (output-only; no source reading)
 - [ ] Provide golden-file regression tests — snapshot signed-off outputs and diff future runs
-- [ ] Ship the 10 documented PS1 factory reverb presets as register-config fixtures (Room, Studio A/B/C, Hall, Half Echo, Space Echo, Echo, Delay, Off)
+- [x] Ship the 10 documented PS1 factory reverb presets as register-config fixtures (Room, Studio A/B/C, Hall, Half Echo, Space Echo, Echo, Delay, Off) *(Validated in Phase 5: CORE-09 closed via `spu94_presets[10]` in .rodata with byte-for-byte three-source audit — BIB-011 nocash + BIB-012 hitmen cell-equality verified for 334/350 cells, remaining 16 Off-preset cells resolved per documented priority chain in `.planning/research/05-preset-values-audit-resolutions.md`)*
 - [ ] Maintain `DECISIONS.md` — a first-class deliverable documenting every gray-area resolution with rationale
 - [ ] Maintain `docs/LEVERS-CATALOG.md` — annotate each register with its musical role and candidacy for real-time/CV control in future milestones
 
@@ -113,4 +113,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-20 — Phase 4 complete (39-tap half-band FIR at both I/O boundaries, folded-form integer arithmetic with D-02 accumulator-width proof, SPU94_LATENCY_SAMPLES=58u public contract, ADR-0012..ADR-0020 filed including lv2-psx-reverb out-of-axis exclusion on frequency response, 38/38 ctest green with `fuzz_fir` 10⁶-step ctypes harness). Phase 3 completed earlier: reverb-network topology (SAME/DIFF IIR + 4-tap comb + APF1/APF2) with ADR-0007..ADR-0011. Next: Phase 5 — `spu94_process` public API + 10 factory presets.*
+*Last updated: 2026-04-21 — Phase 5 complete (public audio API `spu94_process` + `spu94_flush` + `spu94_load_preset` + `spu94_presets[10]`, D-08 split write-timing policy enforced, D-04 in-place bit-identity proven, 10⁶-step `fuzz_process` mid-stream-writes harness green, four permanent RT-safety regression gates under `tests/rt_safety/` with measured p99/median latency ratio 0.741 on dev workstation pinning `RT_LATENCY_THRESHOLD` to 2.0, ADR-Phase-5-A..F filed including three-source preset provenance audit and RT-safety methodology, 52/52 ctest green). Requirements CORE-09, API-03, API-05, API-06, API-08 validated. Phase 4 completed earlier: 39-tap half-band FIR at both I/O boundaries with ADR-0012..ADR-0020. Next: Phase 6 — Python bindings + CLI.*
