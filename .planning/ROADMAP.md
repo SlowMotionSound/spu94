@@ -117,12 +117,13 @@ Plans:
   2. `spu94 --preset hall in.wav out.wav` and `spu94 --config preset.json in.wav out.wav` both succeed end-to-end using vendored dr_wav for I/O, producing correctly formatted output WAVs; errors exit non-zero with an actionable stderr message.
   3. `pip install -e .` installs a Python wheel built via scikit-build-core, and a Linux wheel is producible via cibuildwheel.
   4. `README.md` documents the build, a minimal Python and CLI usage example, the licensing posture summary, and the project-status banner; a reader unfamiliar with the project can build and run their first WAV render from it alone.
-**Plans:** 4 plans
+**Plans:** 5 plans
 Plans:
-- [x] 03-01-PLAN.md — Reverb scaffolding: internal header, state err-accumulator + overflow_magnitude fields, hard_clip/input_scale/output_scale stages, reverb_body wired into spu94_tick, derive_reverb_reference.py
-- [x] 03-02-PLAN.md — SAME IIR + DIFF IIR stages (CORE-05/CORE-08): reverb_buf_read/write helpers, vIIR=INT16_MIN anomaly branch, TEST-06 anomaly + non-anomaly control tests
-- [ ] 03-03-PLAN.md — 4-tap comb (D-07 cascading sat) + APF1 + APF2 stages; per-stage bit-exactness tests with D-07 distinguishing case and Pitfall-7 APF edges
-- [ ] 03-04-PLAN.md — TEST-07 Q15 edge battery + composition equivalence + 10^6-step fuzz_reverb.py + ADR-0007..ADR-0011 landing in docs/DECISIONS.md (SC-5 closure)
+- [ ] 06-01-PLAN.md — Binding foundation: ctypes _binding.py + runtime-reflection Register IntEnum + import-time drift asserts + presets.py via in_dll + pytest `binding` label scaffolding (PYBIND-01/03/04/05)
+- [ ] 06-02-PLAN.md — Raw-panel public API + SPU94 class + strict numpy contract (ndpointer int16 C-contig) + self_test + cli.py entry-point shim (PYBIND-01/02/04)
+- [ ] 06-03-PLAN.md — Native spu94 CLI: vendored dr_wav + jsmn + getopt_long + --preset / --config / --list-presets / --help + one-line error contract + ctest `cli` label + verify-no-drwav-in-libspu94 (CLI-01/02/03/04)
+- [ ] 06-04-PLAN.md — pyproject.toml (scikit-build-core + cibuildwheel manylinux_2_28) + CMake install rules under SKBUILD guard + `$ORIGIN` RPATH + verify-wheel-tag.sh + packaging smoke tests (PYBIND-06)
+- [ ] 06-05-PLAN.md — README.md (11-section polished per D-19/D-20) + fuzz-script migration to new binding (D-16/17/18) + ADR-Phase-6-A..F landing D-01..D-25 + manual first-wave walkthrough checkpoint (DOCS-04)
 **UI hint**: yes
 
 ### Phase 7: Verification — Golden Files, Witness Diff, Modulation
