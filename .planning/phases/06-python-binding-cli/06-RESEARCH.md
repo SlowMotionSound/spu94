@@ -992,32 +992,32 @@ Consolidated quick reference:
 
 **If this table is surprising to Anthony:** the moderate-risk items (A2, A7) are the ones the first real wheel build will exercise. All other assumptions are either empirically verified in this research session or drawn from current (2025-2026) official documentation.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Do we want `pytest` as the smoke test, or a minimal `python -c "import spu94; spu94.self_test()"`?**
    - What we know: CONTEXT specifics mention both options; planner's discretion.
    - What's unclear: Running `pytest` inside cibuildwheel's manylinux container requires copying tests via `test-sources`, adding ~30s per Python minor to CI runtime.
-   - Recommendation: Minimal smoke test for cibuildwheel (`python -c "import spu94; spu94.self_test()"`). Full `pytest` suite runs in the regular ci.yml workflow against `pip install -e .`. Best of both: smoke test validates the wheel works in an isolated manylinux env; full pytest validates behavior against the dev-built `libspu94.so`.
+   - **RESOLVED:** Minimal smoke test for cibuildwheel (`python -c "import spu94; spu94.self_test()"`). Full `pytest` suite runs in the regular ci.yml workflow against `pip install -e .`. Best of both: smoke test validates the wheel works in an isolated manylinux env; full pytest validates behavior against the dev-built `libspu94.so`. Plan 04 implements this choice.
 
 2. **Does `spu94.self_test()` belong in the public API or tucked in a private module?**
    - What we know: It's small (1-second buffer, load Hall, process, assert bounded output, destroy).
    - What's unclear: If it's a public function, users can call it for diagnostics. If private, it's only for CI.
-   - Recommendation: Public. A function that verifies "the wheel installed correctly" is a legitimate support tool. Document it in the README troubleshooting section.
+   - **RESOLVED:** Public. A function that verifies "the wheel installed correctly" is a legitimate support tool. Document it in the README troubleshooting section. Plan 02 exposes `spu94.self_test()` as a public package-level function.
 
 3. **Should the override JSON shape have a schema file (JSON Schema) shipped with the wheel?**
    - What we know: CONTEXT D-12..D-15 specifies the grammar inline.
    - What's unclear: Ship a `spu94-preset.schema.json` file? Nice-to-have for tooling integration.
-   - Recommendation: Out of scope for Phase 6. Defer unless a user asks. The CLI's error messages on unknown keys + type mismatches are the primary authority.
+   - **RESOLVED:** Out of scope for Phase 6. Defer unless a user asks. The CLI's error messages on unknown keys + type mismatches are the primary authority.
 
 4. **Is a static-linked CLI option worth offering (e.g., `spu94_cli_static` target that links `libspu94.a`)?**
    - What we know: CMake currently produces both `libspu94.so` and `libspu94.a`.
    - What's unclear: A statically-linked CLI binary would be relocatable without the wheel — useful for a user who wants to drop the binary on a server and run it without Python at all.
-   - Recommendation: Out of scope for Phase 6. The wheel-installed CLI + `[project.scripts]` entry point already gives pip-only users the CLI. A standalone static binary is a distribution-channel decision, not a binding concern.
+   - **RESOLVED:** Out of scope for Phase 6. The wheel-installed CLI + `[project.scripts]` entry point already gives pip-only users the CLI. A standalone static binary is a distribution-channel decision, not a binding concern.
 
 5. **cibuildwheel 3.x requires Python 3.11+ to RUN. The repo's dev host is 3.13 (fine), but CI docs may need a note.**
    - What we know: `[VERIFIED: pypi.org/pypi/cibuildwheel/3.4.1/json]` requires `>=3.11`.
    - What's unclear: Nothing — this is a pure build-tool dep. Users downloading the wheel only need Python 3.10+.
-   - Recommendation: Planner adds a CONTRIBUTING.md note: "cibuildwheel requires Python 3.11+; the build tool is used for CI only. End users need Python 3.10+ to use the wheel."
+   - **RESOLVED:** Planner adds a CONTRIBUTING.md note: "cibuildwheel requires Python 3.11+; the build tool is used for CI only. End users need Python 3.10+ to use the wheel." (Plan 05 README/contributing.)
 
 ## Environment Availability
 
