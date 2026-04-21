@@ -24,6 +24,7 @@ include(CTest)
 enable_testing()
 
 add_subdirectory(src/spu94)
+add_subdirectory(src/cli)
 
 if(BUILD_TESTING)
     add_subdirectory(tests)
