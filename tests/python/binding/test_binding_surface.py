@@ -1,0 +1,11 @@
+"""PYBIND-01: full C API surface reachable via ctypes.
+
+Wave 0 scaffold — real assertions arrive in Plan 1 Task 2.
+"""
+import pytest
+
+pytestmark = pytest.mark.skip(reason="Wave 0 scaffold — Plan 1 Task 2 implements")
+
+
+def test_placeholder():
+    pass

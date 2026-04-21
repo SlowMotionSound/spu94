@@ -78,3 +78,6 @@ set_tests_properties(fuzz_process PROPERTIES
 # per-sample step function. 1200 s is 2x observed runtime, giving
 # slower CI runners headroom without masking a future regression
 # that doubles the per-step cost.
+
+# Phase 6 Plan 1: binding unit tests (pytest-based; ctest label "binding").
+add_subdirectory(binding)
