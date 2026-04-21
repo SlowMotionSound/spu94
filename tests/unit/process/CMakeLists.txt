@@ -37,3 +37,25 @@ target_include_directories(test_process_mix_bus PRIVATE
     ${CMAKE_SOURCE_DIR}/src/spu94)
 add_test(NAME test_process_mix_bus COMMAND test_process_mix_bus)
 set_tests_properties(test_process_mix_bus PROPERTIES LABELS "process")
+
+# Phase 5 Plan 05 Task 2: API-03 D-03/D-04 contract closure.
+#   test_process_block_size -- block-size invariance sweep across
+#     {1, 2, 3, 4, 7, 16, 64, 128, 441, 1024, 4096}. Reference is block-1.
+#   test_process_in_place   -- in-place (L_out == L_in, R_out == R_in)
+#     bit-identical to out-of-place baseline under matched initial state.
+# Both load the Hall preset on fresh state + tick once to commit
+# TICK_LATCHED registers before driving deterministic pseudo-input.
+
+add_executable(test_process_block_size test_process_block_size.c)
+target_link_libraries(test_process_block_size PRIVATE unity spu94_static spu94_warnings)
+target_include_directories(test_process_block_size PRIVATE
+    ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME test_process_block_size COMMAND test_process_block_size)
+set_tests_properties(test_process_block_size PROPERTIES LABELS "process")
+
+add_executable(test_process_in_place test_process_in_place.c)
+target_link_libraries(test_process_in_place PRIVATE unity spu94_static spu94_warnings)
+target_include_directories(test_process_in_place PRIVATE
+    ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME test_process_in_place COMMAND test_process_in_place)
+set_tests_properties(test_process_in_place PROPERTIES LABELS "process")
