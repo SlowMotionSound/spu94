@@ -14,6 +14,7 @@ else in _binding.py is stable across both plans.
 """
 import ctypes
 
+# spu94_process and spu94_flush argtypes are tested in test_binding_numpy_contract.py (Plan 06-02) after the ndpointer upgrade
 REQUIRED_FUNCTIONS = {
     # name: (restype, argtypes) — one tuple per public symbol.
     "spu94_state_size":           (ctypes.c_size_t, []),
@@ -39,20 +40,6 @@ REQUIRED_FUNCTIONS = {
                                    [ctypes.c_void_p, ctypes.c_int, ctypes.c_uint16]),
     "spu94_get_reg_u16":          (ctypes.c_uint16, [ctypes.c_void_p, ctypes.c_int]),
     "spu94_get_reg_u16_pending":  (ctypes.c_uint16, [ctypes.c_void_p, ctypes.c_int]),
-    "spu94_process":              (None, [
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_int16),
-        ctypes.POINTER(ctypes.c_int16),
-        ctypes.POINTER(ctypes.c_int16),
-        ctypes.POINTER(ctypes.c_int16),
-        ctypes.c_uint32,
-    ]),
-    "spu94_flush":                (None, [
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_int16),
-        ctypes.POINTER(ctypes.c_int16),
-        ctypes.c_uint32,
-    ]),
 }
 
 

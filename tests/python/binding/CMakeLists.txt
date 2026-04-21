@@ -9,14 +9,16 @@
 
 find_package(Python3 3.10 COMPONENTS Interpreter REQUIRED)
 
-# The binding pytest suite. test_binding_numpy_contract is NOT listed here —
-# it is Plan 2's deliverable (numpy ndpointer argtype overrides + strict
-# int16 contract validation). Plan 1 ships the four tests below.
+# The binding pytest suite. Plan 1 shipped the first four tests; Plan 2
+# adds test_binding_numpy_contract for PYBIND-02 (numpy ndpointer
+# argtype overrides + strict int16 contract validation + SPU94 class +
+# cli shim missing-binary path).
 set(_binding_tests
     test_binding_surface
     test_binding_register_intenum
     test_binding_preset_table
     test_binding_drift_detection
+    test_binding_numpy_contract
 )
 
 foreach(test_name IN LISTS _binding_tests)
