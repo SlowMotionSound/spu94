@@ -44,3 +44,15 @@ set_tests_properties(fuzz_fir PROPERTIES
     ENVIRONMENT "SPU94_LIB=$<TARGET_FILE:spu94_shared>"
     LABELS "fuzz;fir"
 )
+
+# Phase 5 Plan 01 Task 3 (D-07): cell-equality verifier over the two preset
+# audit CSVs (BIB-011 nocash vs BIB-012 hitmen). Reads CSVs only -- no
+# SPU94_LIB dependency. Permanent regression gate on the audit artifacts.
+add_test(
+    NAME verify_preset_sources
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/verify_preset_sources.py
+)
+
+set_tests_properties(verify_preset_sources PROPERTIES
+    LABELS "preset"
+)
