@@ -1,0 +1,177 @@
+"""python/spu94/_binding.py
+
+Raw ctypes CDLL loader and prototype declarations for the full
+libspu94.so public surface: ``include/spu94/spu94.h`` and
+``include/spu94/spu94_registers.h``.
+
+Import this module to obtain the configured CDLL handle as ``_lib``.
+Every public C symbol has argtypes + restype set — downstream modules
+(``__init__.py``, ``presets.py``, and Plan 2's ``api.py`` / ``reverb.py``,
+plus Plan 5's migrated fuzz scripts) rely on those attributes being in
+place before they call anything on ``_lib``.
+
+This file is intentionally minimal: it declares prototypes and does
+nothing else at import time. The runtime-reflection IntEnum build and
+the import-time drift assertions live in ``__init__.py`` — they run
+after this module has populated ``_lib``.
+
+Plan 2 note: ``_lib.spu94_process.argtypes`` and
+``_lib.spu94_flush.argtypes`` are declared here with raw
+``ctypes.POINTER(ctypes.c_int16)``. Plan 2 overrides those four
+argtype entries with ``numpy.ctypeslib.ndpointer`` once the numpy
+dependency is admitted. Plan 1 must not import numpy — keeping the
+package dependency-free for consumers who only need reflection /
+presets / register IO.
+
+Threat mitigation (T-06-01, T-06-02):
+  * Library is resolved by ABSOLUTE path — never a bare filename —
+    so the linker's search path cannot silently substitute a stale
+    ``/usr/lib/libspu94.so``.
+  * The SPU94_STATE_SIZE_MAX / SPU94_REG__COUNT / SPU94_PRESET__COUNT
+    constants mirrored below are validated against the live library
+    inside ``__init__.py``'s drift assertions; they are not trusted
+    blindly.
+"""
+import ctypes
+import os
+from pathlib import Path
+
+# ----------------------------------------------------------------------
+# Library path resolution (T-06-01 mitigation: absolute path only)
+# ----------------------------------------------------------------------
+_HERE = Path(__file__).resolve().parent
+
+
+def _resolve_lib_path() -> str:
+    """Return an absolute path to ``libspu94.so``.
+
+    Precedence:
+      1. ``SPU94_LIB`` env var — dev convenience; matches the Phases 2–5
+         fuzz scripts (Phase 2 Plan 05 ENVIRONMENT generator-expression
+         pattern, Pitfall 7 mitigation).
+      2. ``Path(__file__).parent / 'libspu94.so'`` — installed wheel
+         layout (Plan 4's CMake install rule drops ``libspu94.so`` next
+         to ``__init__.py``).
+
+    Never returns a bare filename — doing so would trigger the linker's
+    search path and allow a silent load of a stale
+    ``/usr/lib/libspu94.so`` (Pitfall 4).
+    """
+    env = os.environ.get("SPU94_LIB")
+    if env:
+        return env
+    return str(_HERE / "libspu94.so")
+
+
+_LIB_PATH = _resolve_lib_path()
+_lib = ctypes.CDLL(_LIB_PATH)
+
+# ----------------------------------------------------------------------
+# Prototype declarations — every public symbol in the Phase 5 headers.
+# ----------------------------------------------------------------------
+
+# Lifecycle + meta -----------------------------------------------------
+_lib.spu94_state_size.restype = ctypes.c_size_t
+_lib.spu94_state_size.argtypes = []
+
+_lib.spu94_init.restype = ctypes.c_void_p
+_lib.spu94_init.argtypes = [
+    ctypes.c_void_p, ctypes.c_size_t,
+    ctypes.c_void_p, ctypes.c_size_t,
+]
+
+_lib.spu94_reset.restype = None
+_lib.spu94_reset.argtypes = [ctypes.c_void_p]
+
+_lib.spu94_destroy.restype = None
+_lib.spu94_destroy.argtypes = [ctypes.c_void_p]
+
+_lib.spu94_tick.restype = None
+_lib.spu94_tick.argtypes = [ctypes.c_void_p]
+
+_lib.spu94_get_buffer_address.restype = ctypes.c_uint32
+_lib.spu94_get_buffer_address.argtypes = [ctypes.c_void_p]
+
+_lib.spu94_get_latency_samples.restype = ctypes.c_uint32
+_lib.spu94_get_latency_samples.argtypes = []
+
+# Audio processing — argtypes REPLACED by Plan 2 with numpy
+# .ctypeslib.ndpointer. The restype stays None; the argtype shape stays
+# the same (6 pointer-like args for process, 4 for flush).
+_lib.spu94_process.restype = None
+_lib.spu94_process.argtypes = [
+    ctypes.c_void_p,                    # state
+    ctypes.POINTER(ctypes.c_int16),     # L_in
+    ctypes.POINTER(ctypes.c_int16),     # R_in
+    ctypes.POINTER(ctypes.c_int16),     # L_out
+    ctypes.POINTER(ctypes.c_int16),     # R_out
+    ctypes.c_uint32,                    # num_samples
+]
+
+_lib.spu94_flush.restype = None
+_lib.spu94_flush.argtypes = [
+    ctypes.c_void_p,                    # state
+    ctypes.POINTER(ctypes.c_int16),     # L_out
+    ctypes.POINTER(ctypes.c_int16),     # R_out
+    ctypes.c_uint32,                    # num_samples
+]
+
+# Preset loader --------------------------------------------------------
+_lib.spu94_load_preset.restype = ctypes.c_int    # spu94_result_t enum
+_lib.spu94_load_preset.argtypes = [ctypes.c_void_p, ctypes.c_int]
+
+# Register identity + reflection (used at IMPORT TIME by __init__.py) --
+_lib.spu94_reg_name.restype = ctypes.c_char_p
+_lib.spu94_reg_name.argtypes = [ctypes.c_int]
+
+_lib.spu94_reg_hw_offset.restype = ctypes.c_uint16
+_lib.spu94_reg_hw_offset.argtypes = [ctypes.c_int]
+
+_lib.spu94_reg_type.restype = ctypes.c_int       # spu94_reg_type_t (0=I16, 1=U16)
+_lib.spu94_reg_type.argtypes = [ctypes.c_int]
+
+_lib.spu94_snapshot_registers.restype = None
+_lib.spu94_snapshot_registers.argtypes = [
+    ctypes.c_void_p,
+    ctypes.POINTER(ctypes.c_int16),
+]
+
+# Engine-layer register I/O (signed) -----------------------------------
+_lib.spu94_set_reg_i16.restype = ctypes.c_int    # spu94_result_t
+_lib.spu94_set_reg_i16.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int16]
+
+_lib.spu94_get_reg_i16.restype = ctypes.c_int16
+_lib.spu94_get_reg_i16.argtypes = [ctypes.c_void_p, ctypes.c_int]
+
+_lib.spu94_get_reg_i16_pending.restype = ctypes.c_int16
+_lib.spu94_get_reg_i16_pending.argtypes = [ctypes.c_void_p, ctypes.c_int]
+
+# Engine-layer register I/O (unsigned) ---------------------------------
+_lib.spu94_set_reg_u16.restype = ctypes.c_int    # spu94_result_t
+_lib.spu94_set_reg_u16.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_uint16]
+
+_lib.spu94_get_reg_u16.restype = ctypes.c_uint16
+_lib.spu94_get_reg_u16.argtypes = [ctypes.c_void_p, ctypes.c_int]
+
+_lib.spu94_get_reg_u16_pending.restype = ctypes.c_uint16
+_lib.spu94_get_reg_u16_pending.argtypes = [ctypes.c_void_p, ctypes.c_int]
+
+# ----------------------------------------------------------------------
+# Constants mirrored from include/spu94/spu94.h
+#
+# These are CROSS-CHECKED against the live library by __init__.py's
+# drift assertions — they are not trusted blindly. See D-07 and
+# threat IDs T-06-02..T-06-04 in the plan's threat register.
+# ----------------------------------------------------------------------
+SPU94_STATE_SIZE_MAX = 16384
+SPU94_STATE_ALIGN_MAX = 16
+SPU94_LATENCY_SAMPLES = 58
+SPU94_REG__COUNT = 35
+SPU94_PRESET__COUNT = 10
+
+# Result codes — re-exported as module-level ints. Plan 2 may promote
+# to a proper IntEnum once the public API layer lands.
+SPU94_OK = 0
+SPU94_CLAMPED = 1
+SPU94_UNKNOWN_REG = 2
+SPU94_TYPE_MISMATCH = 3
