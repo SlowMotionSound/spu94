@@ -30,6 +30,359 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-Phase-5-F: Mid-stream register writes are first-class at any granularity
+
+**Status:** Accepted (2026-04-20, Phase 5)
+
+**Resolves:** D-10 (05-CONTEXT.md Area F); D-10a (fuzz_process.py 10^6-step harness); D-10b (block-size sweep + in-place + preset-roundtrip + flush correctness).
+
+**Relates:** API-06; PROJECT.md "living instrument" directive; ADR-0005 (per-register split write-timing policy + swappable table); ADR-Phase-5-A (public block-based entry point shape); ADR-Phase-5-D (preset-load atomicity honors the same split policy).
+
+**Context:**
+
+PROJECT.md's "SPU-94 is a living instrument, not a preset engine" Key Decision promises that every parameter that moves in the original PS1 reverb algorithm must be runtime-controllable, glitch-free, and ready for modulation or CV control. The Phase 2 ADR-0005 split write policy (IMMEDIATE for the 12 v-prefix + mBASE; TICK_LATCHED for the 22 d-prefix and m-prefix families) already resolves the mid-tick correctness question: a gain can change mid-multiply; an address latches at the next tick so the L/R address pair stays consistent. What Phase 5 has to prove is that the PUBLIC API level — the block-based spu94_process plus spu94_flush plus spu94_load_preset plus interleaved spu94_set_reg_* calls — does not crash, corrupt state, or emit out-of-range outputs under arbitrary orderings of these operations. A 10^6-step random-walk harness is the standard precedent (Phase 2 fuzz_buffer, Phase 3 fuzz_reverb, Phase 4 fuzz_fir).
+
+**Decision:**
+
+- `spu94_process` tolerates `spu94_set_reg_i16` / `spu94_set_reg_u16` calls interleaved at any frequency — any of the 35 registers, any block boundary, any sub-block granularity. The guarantee is enforced by the Phase 2 ADR-0005 machinery; Phase 5 adds no new write-policy surface.
+- Proof at scale: `tests/python/fuzz_process.py` drives 1000000 random steps (seed 0x05F05EED). Each step is one of {write_i16_reg, write_u16_reg, process(random_block_size), flush(random_length), load_preset(random_id)}, uniformly sampled. Six per-step invariants must hold:
+  1. No crash, no UBSan trip, no ASan trip (any ctypes SIGSEGV becomes a Python FatalError and fails the harness).
+  2. Output samples within the int16 domain (bulk min/max slice check on every process and flush output).
+  3. `spu94_get_buffer_address(state)` is even OR equals the current mBASE (halfword exception from the Phase 2 Plan 05 mBASE-snap-on-write resolution).
+  4. FIR delay-line indices `fir_idx_{l,r}_{in,out}` in [0, 39) (hand-synced struct-offset peek mirrors the fuzz_fir.py CANARY_OFFSET pattern; struct-offset guard at startup via `spu94_state_size()` matches the WR-02 discipline).
+  5. `pending_mask` top 29 bits zero (bits 0..34 cover `SPU94_REG__COUNT` = 35).
+  6. After a non-Off preset load, at least one non-zero output sample appears within 256 contiguous process calls (patience amortizes the FIR group delay for small blocks).
+- Test vectors beyond the fuzz (D-10b): `tests/unit/process/test_process_block_size.c` proves block-size invariance across `{1, 2, 3, 4, 7, 16, 64, 128, 441, 1024, 4096}` — all grouping sizes produce bit-identical output from a fresh+Hall-preset-loaded+one-ticked state. `tests/unit/process/test_process_in_place.c` proves in-place (`L_out == L_in`, `R_out == R_in`) output is bit-identical to out-of-place under matched initial state.
+- Plan 03's `test_preset_nonzero_tail` pins the flush correctness axis: non-Off preset + deterministic noise input + 1000-sample flush produces a non-silent tail; Off preset + silent input produces silent output.
+
+**Consequences:**
+
+- API-06 is fully discharged. The 10^6-step harness covers ~200K operations in each of the five categories and exits clean in 595 seconds on the dev workstation (~1680 operations per second). The CTest TIMEOUT is 1200 seconds — 2x observed — to give slower CI runners headroom without masking a future per-step-cost regression.
+- The "living instrument" directive is literal at the public-API level: every parameter modulatable at any granularity. The M4 named-lever layer + CV inputs can sit directly atop `spu94_set_reg_*` without Phase 5 rework.
+- The fuzz harness is the single regression insurance that catches any future change to the write-timing machinery, the FIR chain, the preset loader, or the block-loop structure that violates any of the six invariants — all in one test target.
+
+**Alternatives Considered:**
+
+- **Property-based testing via `hypothesis` instead of the Phase 2/3/4 random-walk style.** Rejected: consistency with prior-phase fuzz harnesses is more valuable than fancier shrinking. The random-walk harness's reproducibility via the golden seed is enough for regression diagnosis.
+- **Tighter invariant on Off preset: assert every post-load sample is exactly zero.** Rejected: the TICK_LATCHED commit window means the process call immediately after `spu94_load_preset(OFF)` may observe old d-prefix / m-prefix delays for one tick before they commit. The non-zero-output tolerance on the Off side would need at least one tick of patience. Simpler to skip the Off-silence check and let the non-Off-non-silence invariant carry the signal.
+- **Run the harness at 10^5 steps instead of 10^6.** Rejected: 10^6 is the Phase 2/3/4 precedent; the extra 9x exposure is cheap insurance given each step is cheap.
+
+**Seam:**
+
+- If future work adds a new public-API entry point (e.g., a byte-level mid-stream seek), extend the five-op set in `fuzz_process.py` and add the corresponding invariant. No machinery change; it is an append-only op list.
+- If Phase 6's ctypes.Structure auto-derives the struct offsets, the hand-synced `PENDING_MASK_OFFSET` / `FIR_IDX_*_OFFSET` constants + the startup guard block in `fuzz_process.py` delete cleanly. The invariants themselves stay.
+
+**Revision Path:**
+
+- A future ADR may tighten the output-bound invariant from "within int16" to "within a preset-specific amplitude envelope" once per-preset envelope characterization is done (M5 hardware validation).
+- A future ADR may widen the op set to include `spu94_reset` injections mid-stream once a reset-timing semantics ADR resolves what happens to in-flight TICK_LATCHED writes.
+
+**Sources:**
+
+- `tests/python/fuzz_process.py` (this plan, Task 1).
+- `tests/unit/process/test_process_block_size.c` + `tests/unit/process/test_process_in_place.c` (this plan, Task 2).
+- `tests/unit/preset/test_preset_nonzero_tail.c` (Phase 5 Plan 03 — SC-2 behavioral proof).
+- 05-RESEARCH § "Fuzz Harness Integration Notes (D-10a)" + § "Test Measure Additions".
+- 05-CONTEXT.md Area F.
+- ADR-0005 (the underlying split write-timing machinery).
+
+---
+
+## ADR-Phase-5-E: RT-safety audit methodology — per-axis CI gates + pinned latency threshold
+
+**Status:** Accepted (2026-04-20, Phase 5)
+
+**Resolves:** D-09a (no-heap linker-symbol check), D-09b (no-locks linker-symbol check), D-09c (no-syscalls strace-based steady-state test), D-09d (no-variable-latency ctypes timing benchmark), D-09e (four targets not one monolithic audit).
+
+**Relates:** API-08; Phase 1 `scripts/ci/verify-no-heap-symbols.sh` (existing precedent); ADR-Phase-5-A (public API whose RT-safety contract this methodology verifies).
+
+**Context:**
+
+API-08 requires four distinct real-time-safety guarantees on `spu94_process` and the rest of the hot-path surface: no heap allocations, no locks, no syscalls, no variable-latency operations. ROADMAP Phase 5 SC-4 requires these verified across 100000 consecutive process blocks. Phase 1 already ships a linker-symbol no-heap audit (`scripts/ci/verify-no-heap-symbols.sh`); Phases 2–4 left the other three axes for Phase 5 to land. The methodology question is: one monolithic audit or four independent targets?
+
+Four axes have four independent failure modes: a pthread-linkage regression, a syscall regression, and a cache-dependent-branch regression each want to fail at a specific ctest target so the diagnostic is unambiguous. A monolithic audit that fails with "RT-safety broke, check the log" is strictly worse.
+
+The no-variable-latency axis (D-09d) also requires a measure-then-pin calibration: the `(p99 − median) / median` ratio bound must be wide enough to tolerate real OS noise on CI runners without flaking, tight enough to catch a cache-dependent branch or an accidental syscall. The plan's first-pass target was 3.0; the host measurement informs the pinned value.
+
+**Decision:**
+
+- Four independent ctest gates landed under `tests/rt_safety/`:
+  - `rt_no_heap` (D-09a): `nm -u` plus `readelf -d` on both `libspu94.so` and `tests/rt_safety/test_phase5_linksym` (a static-linked harness that references `spu94_process`, `spu94_flush`, `spu94_load_preset` so the `nm -u` audit sees every Phase 5 code path's link closure). The forbidden-symbol list widens from Phase 1's `{malloc, calloc, realloc, free}` to also cover `aligned_alloc` and `posix_memalign`.
+  - `rt_no_locks` (D-09b): `nm -u` on the same two binaries, pattern `pthread_mutex_*` / `pthread_rwlock_*` / `pthread_cond_*` / `pthread_spin_*` / `pthread_barrier_*` / `sem_*` / `futex`.
+  - `rt_no_syscalls` (D-09c): C harness runs `spu94_init` → `spu94_load_preset(HALL)` → `raise(SIGUSR1)` marker → 100000 iterations of `spu94_process(state, L, R, Lout, Rout, 1024)` → `raise(SIGUSR1)` marker → `spu94_flush`. A shell wrapper runs the binary under `strace -f -ttt -o log`, locates the two `--- SIGUSR1 ---` lines, windows the log between them, subtracts a scaffolding-syscall filter (`rt_sigreturn`, `gettid`, `getpid`, `tgkill` — the four syscalls glibc's `raise()` expands into), and asserts zero remaining syscalls. Linux-only; skips gracefully if `strace` is unavailable.
+  - `rt_bench_latency` (D-09d): Python ctypes benchmark. 1000-call warmup then 100000-call measurement of `spu94_process(state, L, R, Lout, Rout, 1024)` with `time.perf_counter_ns`. Asserts `(p99 − median) / median ≤ RT_LATENCY_THRESHOLD`.
+- **Measured dev-host ratio**: **0.741** (median = 536389 ns per 1024-sample block, p99 = 933797 ns, max = 1350529 ns; Hall preset loaded; Ryzen-class Linux workstation; measurement window 100000 calls after 1000-call warmup).
+- **Pinned `RT_LATENCY_THRESHOLD`**: **2.0** per the measure-then-pin protocol `max(2.0, 2 × observed)` = `max(2.0, 1.482)` = `2.0`. The default is wired into `tests/rt_safety/CMakeLists.txt` as the `RT_LATENCY_THRESHOLD` CMake cache variable; callers override via `-DRT_LATENCY_THRESHOLD=<value>` at configure time for host-specific recalibration.
+
+**Consequences:**
+
+- Per-axis diagnosis preserved: a heap-linkage regression fails `rt_no_heap` red; a syscall regression fails `rt_no_syscalls` red; a cache-dependent-branch regression fails `rt_bench_latency` red. The D-09e "four targets, one per property" discipline holds.
+- The 2.0 threshold is 2.7x the observed 0.741 variance — tight enough to catch a regression that doubles per-block variance; loose enough that a noisy CI runner with moderate scheduling jitter still passes. A future ADR may tighten toward 1.5x if CI-runner noise proves smaller than feared.
+- The `test_phase5_linksym` static-linked binary is the key link-closure audit hook: dynamic linking would only surface `libspu94.so`'s exported symbols; static linking pulls every reachable-from-public-symbol helper into one binary that `nm -u` can audit end-to-end.
+- RT-safety ctest runtime is ~108 seconds (the `rt_no_syscalls` strace + 10^5 iterations dominate at ~54 s; `rt_bench_latency` adds another ~54 s). `ctest -E rt_safety` returns fast-path < 15 s for iterative dev.
+
+**Alternatives Considered:**
+
+- **Single monolithic audit target.** Rejected: per-axis diagnosis is strictly more useful; four cheap ctest entries are not a cost.
+- **Use `cyclictest` for the latency axis.** Rejected: `cyclictest` measures the kernel, not the library; meaningful numbers require an RT kernel; commodity CI runners would produce noise. The `(p99 − median) / median` ratio on `spu94_process` directly probes the library's own behavior.
+- **Pin `RT_LATENCY_THRESHOLD = 3.0`** (keep the first-pass target). Rejected: 3.0 leaves too much headroom; a regression doubling per-block cost would still fit. 2.0 is tight but still 2.7x observed.
+- **Pin `RT_LATENCY_THRESHOLD = 1.5`.** Rejected for first-pass: 1.5x is 2x observed; plausibly too tight for CI-runner scheduling jitter without empirical CI-host evidence. Future tightening is an append-only ADR.
+- **Drop the syscall axis on non-Linux hosts.** Accepted: graceful ctest skip when `strace` is unavailable. Linux is the primary dev + CI target; macOS/BSD would use `dtrace`-style tooling which is a separate port not justified in M1.
+
+**Seam:**
+
+- The `RT_LATENCY_THRESHOLD` CMake cache variable is the documented tightening path. An M5 hardware-capture pass on Cortex-M7 or Daisy silicon revises the pinned default based on embedded-target measurements; the seam supports that with zero code change.
+- The scaffolding-syscall filter list in `tests/rt_safety/test_no_syscalls.sh` is an append-only extension point: if a future glibc version changes the `raise()` expansion or a new strace version renames a scaffolding syscall, the filter widens without touching the C harness.
+
+**Revision Path:**
+
+- If CI-host evidence shows the 2.0 threshold flakes under routine load, widen to 2.5 with an explicit ADR + a commit message justification.
+- If embedded-target measurement (M5) shows Cortex-M7 per-block ratios materially different from desktop, fork the threshold into desktop and MCU variants via a new ADR.
+
+**Sources:**
+
+- `tests/rt_safety/` (full suite — 4 ctest targets per D-09a-e; created Phase 5 Plan 04).
+- `tests/rt_safety/bench_latency.py` (D-09d measurement tool; prints the ratio + threshold + pass/fail on every run).
+- 05-04-SUMMARY.md (Plan 04 ran bench_latency and recorded the measured 0.741 ratio).
+- 05-RESEARCH § "RT-Safety Audit Methodology (D-09a-e)".
+- 05-CONTEXT.md Area E.
+
+---
+
+## ADR-Phase-5-D: Preset-load atomicity honors the D-04 split write policy
+
+**Status:** Accepted (2026-04-20, Phase 5)
+
+**Resolves:** D-08 (05-CONTEXT.md Area D); API-05 (bulk preset-load function).
+
+**Relates:** ADR-0005 (per-register split mid-stream write-timing policy); ADR-0006 (mBASE snap-on-write); ADR-Phase-5-C (preset representation + three-source sourcing).
+
+**Context:**
+
+`spu94_load_preset` has to write 35 register values atomically-enough that the caller does not see partial configuration. The question is whether to bypass the Phase 2 ADR-0005 split write policy — writing every register directly into the active `reg_values` slot in one pass — or to honor it by routing every write through the engine-layer setters and letting the split policy handle IMMEDIATE (12 v-prefix plus mBASE) versus TICK_LATCHED (22 d-prefix and m-prefix) registers per the existing machinery.
+
+Bypassing the policy would produce "whole-preset commit at call return": all 35 values active immediately. Honoring it produces a single-tick "half-applied window" — new gains live immediately; new delays live after the next `spu94_tick` — approximately 45 us at 22.05 kHz. That window is inaudible and consistent with the mid-stream-write semantics the project is already committed to.
+
+**Decision:**
+
+- `spu94_load_preset(state, id)` iterates all `SPU94_REG__COUNT` = 35 register indices, dispatches to `spu94_set_reg_i16` or `spu94_set_reg_u16` via `spu94_reg_type`, and passes the preset table's `int16_t` value unchanged (with a `(uint16_t)` reinterpret for the 23 U16-family registers whose preset storage is a bit-pattern).
+- The D-04 split write policy applies automatically: the 12 v-prefix registers plus mBASE (IMMEDIATE) become active immediately; the 22 d-prefix and m-prefix registers (TICK_LATCHED) stage into `pending_values[]` with the corresponding bit set in `pending_mask`, and commit at the next `spu94_tick`.
+- The ~45-microsecond half-applied window (new v-prefix gains, old d-prefix and m-prefix delays) is accepted as inaudible and consistent with the mid-stream-write model.
+- NULL state returns `SPU94_OK` (lifecycle-null-safe convention matching Phase 2's `spu94_tick`, `spu94_reset`, `spu94_destroy` precedent). Out-of-range id returns `SPU94_UNKNOWN_REG` with no register mutation (T-5-3 threat mitigation).
+
+**Consequences:**
+
+- One unified write path — no preset-specific bypass; no D-04 divergence. Every preset load is a sequence of engine-layer setter calls; the policy table decides timing per register.
+- The D-11 swappable write-policy-table seam (Phase 2 ADR-0005) remains available. Future M4 Controllers that need atomic whole-preset commit (for example, to match a plugin framework's "recall program" semantics with zero half-applied window) can re-point the table without touching `spu94_load_preset`.
+- Tests: `tests/unit/preset/test_preset_load_all.c` (Phase 5 Plan 03) pins six sub-tests covering D-08 split semantics per preset across all 10 presets × 35 registers. Plus `test_preset_nonzero_tail.c` validates SC-2 behavioral contract (non-Off preset produces non-silent tail; Off preset produces silent output).
+
+**Alternatives Considered:**
+
+- **Atomic whole-preset commit via a new Phase 5 bypass path.** Rejected: adds a new code path, a new surface for bugs, a new policy to document, and delivers zero audible benefit. The 45-microsecond window is below perception.
+- **Preset-specific pending-to-active flush between v-prefix and d-prefix sections.** Rejected: same objection; net effect identical to single-tick-wait; added state machine complexity for nothing.
+- **Load preset into a scratch struct then memcpy.** Rejected: violates Phase 2's engine-layer discipline; would require duplicating the 35-entry type-classifier + bit-pattern-preservation logic.
+
+**Seam:**
+
+- The D-11 swappable write-policy-table remains. M4 Controllers that need atomic commit can re-point the table via a static-linkage override of `spu94_write_policy_table`, matching the D-22 extensibility-seam discipline.
+
+**Revision Path:**
+
+- If M4 plugin authors report that the 45-microsecond half-applied window produces audible artifacts during rapid preset switching (unlikely — the window is 1 / 22050 s which is well below typical human-hearing temporal resolution), a new ADR adds a `spu94_load_preset_atomic` entry that bypasses the policy table via the D-11 seam.
+
+**Sources:**
+
+- `src/spu94/spu94_presets.c` (`spu94_load_preset` body; Phase 5 Plan 03 Task 1).
+- `tests/unit/preset/test_preset_load_all.c` (Phase 5 Plan 03 Task 2 — split-policy verification).
+- `tests/unit/preset/test_preset_nonzero_tail.c` (Phase 5 Plan 03 Task 3 — SC-2 behavioral proof).
+- 05-RESEARCH § Architecture Patterns "Preset iteration via engine-layer setters".
+- 05-CONTEXT.md Area D.
+- ADR-0005 (the underlying split write-timing policy machinery).
+
+---
+
+## ADR-Phase-5-C: Preset representation + three-source value sourcing
+
+**Status:** Accepted (2026-04-20, Phase 5)
+
+**Resolves:** D-06 (preset table shape, .rodata placement, enum indexing); D-07 (three-source cross-reference for preset values); D-07a (per-preset arbitration policy if consensus cannot be reached).
+
+**Relates:** CORE-09 (10 factory presets); BIB-011 (nocash SPU Reverb Examples); BIB-012 (hitmen c02 SPU documentation); BIB-013 (Sony Psy-Q LIBSND documentation); ADR-0020 (Phase 4 coefficient-sourcing three-source pattern precedent).
+
+**Context:**
+
+Phase 5 ships the 10 PS1 factory reverb presets (Off, Room, Studio A/B/C, Hall, Half Echo, Space Echo, Echo, Delay) as a 350-integer table (35 registers × 10 presets). Two questions: what shape does the table take in the codebase, and how are the integer values sourced defensibly?
+
+On shape: flat `int16_t regs[SPU94_REG__COUNT]` indexed by the canonical register enum versus a typed-per-register struct with 35 named fields. Flat is data-centric (trivially iterable by Phase 6 Python bindings and M4 Controllers); typed-per-register is more readable at the definition site but adds 35 field-name maintenance burden for minimal gain.
+
+On sourcing: PROJECT.md's licensing posture puts Mednafen, lv2-psx-reverb, DuckStation, and MiSTer source code OFF-LIMITS as primary references. The candidate primary sources are nocash psx-spx, hitmen c02, and the Sony Psy-Q SDK. A three-source cross-reference audit — mirroring Phase 4's ADR-0020 coefficient-sourcing discipline — resolves how much independence the three sources actually provide.
+
+**Decision:**
+
+- **Table shape (D-06):** one `const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT]` table in `.rodata`. Each row carries `const char *name` plus a 35-element `int16_t regs[SPU94_REG__COUNT]` indexed by the canonical register enum. The typedef lives in `include/spu94/spu94.h`; the table definition lives in `src/spu94/spu94_presets.c`; enum indexing (`SPU94_PRESET_OFF = 0` through `SPU94_PRESET_DELAY = 9`, with `SPU94_PRESET__COUNT = 10` as the iteration sentinel) matches the Sony LIBSND ordering per BIB-013.
+- **Value sourcing (D-07):** values transcribed facts-only from BIB-011 (nocash psx-spx — primary modern publication, human-audited into `.planning/research/05-preset-values-audit-nocash.csv`) and cross-verified byte-for-byte against BIB-012 (hitmen c02 — archived 1990s demoscene transcription, `.planning/research/05-preset-values-audit-hitmen.csv`). Verification via `tests/python/verify_preset_sources.py` — a permanent ctest regression gate.
+- **BIB-013 (Sony Psy-Q LIBSND documentation)** corroborates the preset-ID ordering (`SPU_REV_MODE_OFF = 0` through `SPU_REV_MODE_DELAY = 9`) and the preset-name mapping, but DOES NOT publish the per-register values — those live inside Sony's `libsnd.lib` binary which is off-limits under the project's licensing posture. This is disclosed honestly here: "three sources" means three independent documentation lineages (nocash modern, hitmen demoscene, Sony SDK), NOT three independent hardware readouts.
+- **Disagreement resolution (D-07a)**: the audit found 16 cell disagreements — all on the Off preset, all at m-prefix buffer-address registers. BIB-011 publishes `0x0001` (defensive minimum halfword offset); BIB-012 publishes `0x0000`. Resolved in favor of BIB-011 per the priority chain BIB-013 > BIB-011 > BIB-012 (BIB-013 silent on these values, so BIB-011 wins against BIB-012). Rationale documented in `.planning/research/05-preset-values-audit-resolutions.md`. The Off preset ships with the BIB-011 values; `test_preset_table_integrity` pins the specific 16 nonzero cells as a cell-specific regression gate.
+
+**Consequences:**
+
+- The data-centric flat-table shape lets Phase 6 ctypes bindings iterate presets trivially, M4 Controllers dump preset values for A/B comparison, and Phase 7 golden-file tests drive each preset through `spu94_process` with standard inputs and snapshot outputs.
+- The honest three-source disclosure matches Phase 4's ADR-0020 precedent: "three sources" documents three distinct lineages, not three independent hardware readouts. Byte-for-byte agreement across BIB-011 and BIB-012 is a transcription-fidelity check (does the audited-into-CSV integer match between two independent 1990s-and-2020s transcriptions?), not an independent-hardware-measurement check. A future M5 hardware capture supersedes this ADR's values for any preset where silicon disagrees.
+- The 16 Off-preset disagreements are cell-specific — the audit-driven test (`test_preset_table_integrity` → `test_off_matches_audit`) pins the resolved nonzero cells rather than asserting blanket all-zero, catching any future regression that quietly changes the Off values.
+
+**Alternatives Considered:**
+
+- **Typed-per-register preset struct.** Rejected: 35-field-name maintenance burden; worse for programmatic iteration by Phase 6 Python.
+- **Claim three independent sources where one is a mirror.** Rejected: ADR-0020 precedent establishes honest-lineage disclosure as project discipline. A future audit would catch the claim anyway; better to disclose now.
+- **Resolve disagreements via "average" or "union" of sources.** Rejected: averaging integer register values is nonsensical; union would require shipping both variants behind a flag. The priority chain is cheap and defensible.
+- **Drop the Off preset from the product** if its values cannot be agreed across sources. Rejected: D-07a's "ship with documented rationale + flag for M5 arbitration" policy handles this; losing one of 10 presets is a bigger audible loss than a documented defensive-value choice.
+
+**Seam:**
+
+- M5 hardware validation on original PSX silicon may revise specific register cells if the silicon disagrees with the BIB-011 / BIB-012 audit-resolved values. The supersede-with-new-ADR protocol updates the table in `src/spu94/spu94_presets.c` and revises the corresponding audit CSV.
+- The `verify_preset_sources.py` gate is resolutions-aware: adding a new cell to `05-preset-values-audit-resolutions.md` acknowledges a new cell disagreement without failing CI. Undocumented disagreements continue to fail the gate.
+
+**Revision Path:**
+
+- M5 hardware capture on ≥ 2 independent PSX consoles (SCPH-5501, SCPH-7502, SCPH-9001, PAL revisions) validates or revises the per-preset register matrix. Any revision drives a superseding ADR with the new values.
+- If a fourth documentation source emerges (e.g., a declassified Sony internal document or a new hardware-readout post), the bibliography extends and the audit runs on the three-way comparison.
+
+**Sources:**
+
+- `include/spu94/spu94.h` (`spu94_preset_id_t` enum + `spu94_preset_t` typedef + `spu94_presets[]` extern).
+- `src/spu94/spu94_presets.c` (the `.rodata` preset table).
+- `.planning/research/05-preset-values-audit-nocash.csv` (BIB-011 transcription).
+- `.planning/research/05-preset-values-audit-hitmen.csv` (BIB-012 transcription).
+- `.planning/research/05-preset-values-audit-resolutions.md` (16-cell disagreement resolution).
+- `tests/python/verify_preset_sources.py` (resolutions-aware cell-equality gate).
+- `tests/unit/preset/test_preset_table_integrity.c` (includes `test_off_matches_audit`).
+- docs/BIBLIOGRAPHY.md BIB-011 / BIB-012 / BIB-013 entries.
+- 05-RESEARCH § "Three-Source Preset-Value Cross-Reference (PRIMARY D-07 OUTPUT)".
+- 05-CONTEXT.md Area C.
+
+---
+
+## ADR-Phase-5-B: Mix-bus mailbox — two int16 fields on spu94_state
+
+**Status:** Accepted (2026-04-20, Phase 5)
+
+**Resolves:** D-05 (05-CONTEXT.md Area B).
+
+**Relates:** ADR-0005 (single-call-site discipline); Phase 3 reverb body (unchanged internal shape); ADR-Phase-5-A (public block-based entry point that writes the mailbox); ADR-Phase-5-F (fuzz harness that exercises the mailbox end-to-end).
+
+**Context:**
+
+`spu94_process` receives 44.1 kHz stereo samples block-at-a-time; `spu94_reverb_body` runs inside `spu94_tick` at 22.05 kHz and needs the "current tick's mix-bus input" to drive the reverb network. Phase 3 left that site hardcoded to `const int16_t left_in = 0, right_in = 0` at `src/spu94/spu94_reverb.c` line 580 because the reverb-body tests drove silent input and Phase 3 had no upstream public-API caller.
+
+Phase 5 has to wire the public block loop's input samples into that site without disturbing Phase 3's body-level tests. The design options: thread `left_in` / `right_in` through every tick-call signature (large blast radius; touches `spu94_tick`, `spu94_fir_chain_step`, `spu94_reverb_body`), add a new "input scale" stage (large code surface; new err-tap), or use a mailbox-on-state mailslot (minimal change; default zero preserves every Phase 3 test that never writes the mailbox).
+
+**Decision:**
+
+- Two new fields on `struct spu94_state`: `int16_t mix_bus_l;` and `int16_t mix_bus_r;`. Grouped immediately before the Phase 4 FIR block so all I/O-boundary state is adjacent and audit-friendly. +4 bytes to `sizeof(struct spu94_state)` (now 544 bytes — well below `SPU94_STATE_SIZE_MAX` = 16384).
+- `spu94_process` writes `state->mix_bus_l = L_in[i]` and `state->mix_bus_r = R_in[i]` (or zero if the caller passed NULL for that channel) before each call to `spu94_fir_chain_step`. Single mailbox write per 44.1 kHz sample; zero allocation, zero synchronization, zero pass-through through additional call signatures.
+- `spu94_reverb_body` reads the mailbox where it previously hardcoded zero — `src/spu94/spu94_reverb.c:580`: `const int16_t left_in = state->mix_bus_l; const int16_t right_in = state->mix_bus_r;`. Default-zero on `spu94_init` / `spu94_reset` via the wholesale byte-loop zero-fill from Phase 2 Plan 01.
+- **Zero blast radius on Phase 3 body-level tests:** those tests never write the mailbox, so the default-zero state produces the same `left_in = right_in = 0` behavior Phase 3 originally assumed. No Phase 3 test needs editing.
+
+**Consequences:**
+
+- The mailbox is an internal state surface (D-23): no public accessors, no setter. Callers write it indirectly by passing L_in / R_in to `spu94_process`. M4 Controllers could in principle write the mailbox for cross-feed tricks (deferred idea in 05-CONTEXT); Phase 5 does not expose that.
+- 4 bytes of additional state cost. Still 15840 bytes headroom below `SPU94_STATE_SIZE_MAX`.
+- Unit test `tests/unit/process/test_process_mix_bus.c` proves the mailbox field behavior in isolation: init-zero, reset-clears, tick-observes-mailbox-write (using `state->overflow_magnitude` as the mailbox-read-proof observable — the `err_input_scale` field is zero by construction because `spu94_reverb_input_scale` does plain `int16 * int16 -> int32` with no Q15 truncation, so `overflow_magnitude` on the hard-clip stage is the robust proof point).
+
+**Alternatives Considered:**
+
+- **Thread `int16_t left_in, right_in` through `spu94_tick` + `spu94_fir_chain_step` + `spu94_reverb_body`.** Rejected: large blast radius; every Phase 3 test + every Phase 4 test + every future internal-helper test would need the new parameters. The mailbox is the minimum-change answer.
+- **Promote the mailbox to `int32_t`** (matching Phase 3's hard-clip stage input width). Rejected: Phase 3's `left_in` / `right_in` at reverb.c:580 are `int16_t`; widening would require rewiring the input-scale stage. The minimum-change answer is `int16_t`; input scaling stays in its existing Phase 3 stage.
+- **Add a separate "input scale" stage public accessor** so the caller can pre-scale or attenuate mix-bus input. Rejected: out of Phase 5 scope; "Mix Gain" is an M4 named-lever concern, not a Phase 5 API shape concern.
+
+**Seam:**
+
+- The mailbox fields are an extensibility point. M4 Controllers that want pre-reverb input scaling can write the mailbox directly between `spu94_process` blocks (requires either a test-visible setter or direct struct access via the internal header — Phase 5 ships neither; M4 decides).
+- If a future Phase needs 32-bit mix-bus precision (e.g., a dither or noise-shaping stage that runs pre-reverb), the field can widen with an ADR documenting the interaction with Phase 3's stage boundary.
+
+**Revision Path:**
+
+- M4's named-lever layer may expose a pre-reverb input-gain parameter that modulates the mailbox values; that would be an M4 ADR, not a Phase 5 revision.
+- If the mailbox ever becomes bidirectional (e.g., a tap that lets M4 read the current-tick input), that reverses its D-23 observability posture and requires a new ADR.
+
+**Sources:**
+
+- `src/spu94/spu94_state_internal.h` (field definitions; lines 75-77 adjacent to the FIR block).
+- `src/spu94/spu94_reverb.c:580` (the read-site; Phase 3 placeholder replaced).
+- `src/spu94/spu94_process.c` (the write-site; one mailbox write per 44.1 kHz sample in the block loop).
+- `tests/unit/process/test_process_mix_bus.c` (mailbox-field behavior in isolation).
+- 05-RESEARCH § Architecture Patterns "Block-loop with mailbox writes".
+- 05-CONTEXT.md Area B.
+
+---
+
+## ADR-Phase-5-A: Public block-based entry point shape — spu94_process + spu94_flush
+
+**Status:** Accepted (2026-04-20, Phase 5)
+
+**Resolves:** D-01 (planar stereo int16 pointers); D-02 (named `spu94_flush` drain function); D-03 (any block size N >= 1); D-04 (in-place processing allowed).
+
+**Relates:** API-03; API-06; ADR-Phase-5-B (mix-bus mailbox written from the block loop); ADR-Phase-5-F (fuzz harness at scale).
+
+**Context:**
+
+The Phase 1–4 algorithm is bit-faithful inside `spu94_tick` and `spu94_fir_chain_step`. Phase 5 has to wrap that algorithm in a 2026-caller-friendly public entry point that serves DAWs, CLIs, Python bindings, and future JUCE / MCU shells. The API shape decisions are ergonomic (what shape serves modern callers best?), not authenticity-bearing (PS1 silicon had no caller concept). Four questions: stereo layout, tail-drain treatment, block-size flexibility, in-place aliasing.
+
+Stereo options: planar (four separate pointers — `L_in`, `R_in`, `L_out`, `R_out`) versus interleaved (one pointer with `L, R, L, R, ...`). Planar matches JUCE / VST3 / AU / LV2 framework conventions at M4. Interleaved matches WAV file layout but forces M4 wrappers to deinterleave.
+
+Tail-drain options: expose a separate `spu94_flush` function versus document "call `spu94_process` with silent input to drain" in a comment. Named API surface is discoverable; comment-only is folklore.
+
+Block-size options: require even N (matches 22.05 kHz clock alternation internally), require power-of-2, or allow any N >= 1. The internal phase-tracker in Phase 4's `spu94_fir_chain_step` handles odd blocks across calls, so any N >= 1 is achievable.
+
+In-place options: allow or forbid. The sample-at-a-time loop is alias-safe by construction (input consumed before output written); forbidding in-place would just be an arbitrary restriction.
+
+**Decision:**
+
+- **D-01:** `void spu94_process(spu94_state *state, const int16_t *L_in, const int16_t *R_in, int16_t *L_out, int16_t *R_out, uint32_t num_samples);` — four planar pointers; matches JUCE / VST3 / AU / LV2 conventions for M4 wrappers.
+- **D-02:** `void spu94_flush(spu94_state *state, int16_t *L_out, int16_t *R_out, uint32_t num_samples);` — a named tail-drain entry point. Implementation delegates to `spu94_process(state, NULL, NULL, L_out, R_out, num_samples)`; NULL-L_in / R_in substitutes zeros for that channel's input. Single-body discipline (Pitfall 4 / ADR-0005): same sample-at-a-time math path as `spu94_process`.
+- **D-03:** Any `num_samples` >= 1 is legal. `num_samples == 0` is a safe no-op (output buffers untouched). `spu94_fir_chain_step`'s internal `fir_interpolate_phase` state preserves the 22.05 kHz clock alternation across calls, so a sequence of 1-sample calls produces the same output as a single N-sample call. Proven by `tests/unit/process/test_process_block_size.c` across the block-size sweep `{1, 2, 3, 4, 7, 16, 64, 128, 441, 1024, 4096}`.
+- **D-04:** In-place processing allowed. `L_out == L_in` and `R_out == R_in` are both legal aliases. The block loop's per-sample pattern `l = L_in[i]; ...; L_out[i] = lo` consumes each input sample before writing its output slot, so aliased buffers produce identical output to distinct buffers. Proven by `tests/unit/process/test_process_in_place.c`.
+- NULL state is a no-op. NULL L_in or R_in substitutes zero for that channel. NULL L_out or R_out suppresses writes for that channel. The lifecycle-null-safe convention matches the other Phase 2–4 public entries.
+
+**Consequences:**
+
+- DAW hosts with planar internal buffers consume `spu94_process` directly; WAV callers (Phase 6 CLI) deinterleave in one adapter line (`for i in 0..N: L[i] = wav[2i]; R[i] = wav[2i+1]`).
+- `spu94_flush` makes offline-render tail capture a discoverable API surface rather than comment-only folklore. CLI's `spu94 in.wav out.wav` invocation appends a tail-drain pass after the input WAV ends.
+- The block-size-invariance contract lets callers pick their preferred block size (JUCE: whatever the host provides; CLI: whatever fits in L2 cache — 1024 is typical; embedded: whatever fits in SRAM — 64 or smaller). The fuzz harness exercises random block sizes in [1, 4096]; the unit-test sweep proves exact bit-identity across the specific plan-pinned sizes.
+- In-place aliasing is essential for DAW hosts with single-buffer processing; forbidding it would have made SPU-94 a weird outlier in the plugin ecosystem.
+- Zero new math introduced in Phase 5 — the public entry points are glue over the Phase 4 `spu94_fir_chain_step` building block, preserving the Phase 1–4 bit-faithfulness claim unchanged.
+
+**Alternatives Considered:**
+
+- **Interleaved buffer instead of planar.** Rejected: JUCE / VST3 / AU / LV2 are the M4 target framework set; three of four are planar-native. One adapter line at the CLI is cheaper than per-plugin deinterleave.
+- **Require even `num_samples`.** Rejected: Phase 4 research already confirmed the internal phase tracker handles odd blocks; imposing the restriction would create a caller footgun for zero algorithmic benefit.
+- **Document "flush via `spu94_process` with silent input" instead of a named entry.** Rejected: named API surface is the clearer shape; duplicate-body risk is zero because `spu94_flush` delegates to `spu94_process` internally.
+- **Forbid in-place aliasing.** Rejected: arbitrary restriction; sample-at-a-time loop is alias-safe by construction; DAW single-buffer processing needs this.
+- **`size_t num_samples` instead of `uint32_t`.** Rejected: `uint32_t` is portable and unambiguous on MCU; matches `SPU94_LATENCY_SAMPLES` convention; 4 billion samples is ~27 hours at 44.1 kHz — well above any realistic block size.
+
+**Seam:**
+
+- If a future phase needs a different-rate public entry (e.g., 48 kHz native instead of 44.1 kHz round-trip via the FIR boundaries), a new `spu94_process_48k` entry lives adjacent to `spu94_process` in the public header. The Phase 4 FIR chain is the rate-conversion stage; bypassing it requires a separate public path, not a modification of `spu94_process`.
+- If a future phase needs variable-precision output (e.g., int32 or float32), new entries land alongside the int16 pair — ABI-stable extension pattern matching Phase 2 D-07's append-only result-code convention.
+
+**Revision Path:**
+
+- If an M4 plugin framework surfaces that requires a different block-API shape (e.g., single callback + pull-model rather than push-model block calls), a new adapter wraps `spu94_process` rather than revising it. The sample-at-a-time building block (`spu94_fir_chain_step`) is the stable primitive beneath any future adapter.
+
+**Sources:**
+
+- `include/spu94/spu94.h` (`spu94_process`, `spu94_flush`, `spu94_load_preset` prototypes).
+- `src/spu94/spu94_process.c` (block-loop implementation shared by both entry points).
+- `src/spu94/spu94_io_chain.c` (Phase 4 `spu94_fir_chain_step` — the per-sample building block).
+- `tests/unit/process/test_process_basic.c` (block-loop correctness; Phase 5 Plan 02).
+- `tests/unit/process/test_process_block_size.c` (D-03 block-size invariance sweep; Phase 5 Plan 05 Task 2).
+- `tests/unit/process/test_process_in_place.c` (D-04 in-place bit-identity; Phase 5 Plan 05 Task 2).
+- `tests/python/fuzz_process.py` (10^6-step random-walk fuzz; Phase 5 Plan 05 Task 1).
+- 05-RESEARCH § Architecture Patterns "Public block-loop wraps internal per-sample step".
+- 05-CONTEXT.md Area A.
+
+---
+
 ## ADR-0020: Coefficient provenance — three-source audit + bibliography reconciliation
 
 **Status:** Accepted (2026-04-20, Phase 4)

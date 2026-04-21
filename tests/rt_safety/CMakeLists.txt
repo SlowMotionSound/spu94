@@ -78,13 +78,14 @@ endif()
 # -------------------------------------------------------------------------
 # D-09d: rt_bench_latency. Conditional on Python3 3.10+ AND on Task 2
 # having landed bench_latency.py. Accepts optional THRESHOLD via the
-# RT_LATENCY_THRESHOLD cache variable (default 3.0 per D-09d first-pass
-# target; calibrate via measure-then-pin).
+# RT_LATENCY_THRESHOLD cache variable. Default pinned to 2.0 by
+# ADR-Phase-5-E per the measure-then-pin protocol:
+# dev-host measurement = 0.741; pinned = max(2.0, 2 * observed) = 2.0.
 # -------------------------------------------------------------------------
 find_package(Python3 3.10 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bench_latency.py")
-    set(RT_LATENCY_THRESHOLD "3.0" CACHE STRING
-        "D-09d (p99-median)/median bound; calibrate to host per measure-then-pin pattern")
+    set(RT_LATENCY_THRESHOLD "2.0" CACHE STRING
+        "D-09d (p99-median)/median bound; pinned by ADR-Phase-5-E (measure-then-pin)")
     add_test(NAME rt_bench_latency
              COMMAND Python3::Interpreter
                      ${CMAKE_CURRENT_SOURCE_DIR}/bench_latency.py
