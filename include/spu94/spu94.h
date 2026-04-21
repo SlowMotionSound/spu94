@@ -206,6 +206,42 @@ uint32_t      spu94_get_buffer_address(const spu94_state *state);
  * returns SPU94_LATENCY_SAMPLES. LTO-eliminable at C consumer call sites. */
 uint32_t      spu94_get_latency_samples(void);
 
+/* ------------------------------------------------------------------------- */
+/* Factory preset surface (Phase 5, D-06)                                    */
+/* ------------------------------------------------------------------------- */
+
+/* The ten PS1 SPU factory reverb preset identifiers. Numeric values are
+ * canonical per Sony LIBSND (BIB-013):
+ *   0 Off, 1 Room, 2 Studio A, 3 Studio B, 4 Studio C, 5 Hall,
+ *   6 Half Echo, 7 Space Echo, 8 Echo, 9 Delay.
+ * SPU94_PRESET__COUNT = 10 is the sentinel (iteration bound).
+ * Numeric stability: these values are ABI; never renumber. */
+typedef enum {
+    SPU94_PRESET_OFF        = 0,
+    SPU94_PRESET_ROOM       = 1,
+    SPU94_PRESET_STUDIO_A   = 2,
+    SPU94_PRESET_STUDIO_B   = 3,
+    SPU94_PRESET_STUDIO_C   = 4,
+    SPU94_PRESET_HALL       = 5,
+    SPU94_PRESET_HALF_ECHO  = 6,
+    SPU94_PRESET_SPACE_ECHO = 7,
+    SPU94_PRESET_ECHO       = 8,
+    SPU94_PRESET_DELAY      = 9,
+    SPU94_PRESET__COUNT     = 10
+} spu94_preset_id_t;
+
+/* A factory preset: human-readable name + 35-register value vector.
+ * regs[] is indexed by spu94_reg_t (see spu94_registers.h). Values sourced
+ * via the three-source audit (BIB-011 nocash + BIB-012 hitmen; BIB-013
+ * Sony SDK corroborates preset-ID ordering). Storage: .rodata. */
+typedef struct {
+    const char *name;
+    int16_t     regs[SPU94_REG__COUNT];
+} spu94_preset_t;
+
+/* The factory preset table. Indexed by spu94_preset_id_t. Read-only. */
+extern const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT];
+
 #ifdef __cplusplus
 }
 #endif
