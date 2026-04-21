@@ -25,3 +25,19 @@ target_include_directories(test_preset_load_all PRIVATE
     ${CMAKE_SOURCE_DIR}/src/spu94)
 add_test(NAME test_preset_load_all COMMAND test_preset_load_all)
 set_tests_properties(test_preset_load_all PROPERTIES LABELS "preset")
+
+# Phase 5 Plan 03 Task 3: SC-2 behavioral proof -- every non-Off preset
+# produces non-zero output when driven by noise through spu94_process +
+# spu94_flush; Off + silent input produces silent output.
+add_executable(test_preset_nonzero_tail test_preset_nonzero_tail.c)
+target_link_libraries(test_preset_nonzero_tail
+    PRIVATE
+        unity
+        spu94_static
+        spu94_warnings
+)
+target_include_directories(test_preset_nonzero_tail PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src/spu94)
+add_test(NAME test_preset_nonzero_tail COMMAND test_preset_nonzero_tail)
+set_tests_properties(test_preset_nonzero_tail PROPERTIES LABELS "preset")
