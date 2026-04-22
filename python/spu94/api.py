@@ -394,11 +394,16 @@ def self_test() -> None:
 
     1. Allocate state + work buffer.
     2. Load Hall preset.
-    3. Tick once to commit pending (address / delay) register writes.
-    4. Process 1 second of silent stereo audio (44100 samples).
-    5. Flush the tail (1 second).
-    6. Assert dtype is int16 (guards against future regressions where
-       the wrapper might accidentally reassign an output).
+    3. Set vLOUT/vROUT = 0x7FFF (ADR-Phase-6-G: Hall's factory table
+       leaves these 0, which gates the wet output to silence).
+    4. Tick once to commit pending (address / delay) register writes.
+    5. Audibility arm: feed a short deterministic non-silent int16
+       signal through ``process`` and assert at least one output sample
+       is non-zero. Catches the reverb-not-in-audio-path class of bug
+       before a broken wheel ships (HI-03).
+    6. Long silent-input arm: process 1 second of silence + flush 1
+       second of tail to exercise the full block-loop / ndpointer
+       contract under the wheel's cibuildwheel test-command.
     7. Destroy state.
 
     Raises
@@ -413,7 +418,39 @@ def self_test() -> None:
             raise RuntimeError(
                 f"load_preset(hall) returned {rc}, expected SPU94_OK"
             )
+        # ADR-Phase-6-G: unlock the wet output path. Hall's factory
+        # table leaves vLOUT/vROUT = 0; we MUST set them non-zero to
+        # hear any reverb output.
+        set_reg_i16(state, "vLOUT", 0x7FFF)
+        set_reg_i16(state, "vROUT", 0x7FFF)
         tick(state)
+
+        # HI-03 audibility arm: deterministic non-silent input, check
+        # that output contains at least one non-zero sample. Would have
+        # caught the reverb-not-wired bug on every wheel build.
+        #
+        # Buffer size 2048: must clear the ~58-sample FIR round-trip
+        # group delay AND allow the Hall IIR network enough iterations
+        # to accumulate a detectable wet signal. Empirically 1024 is the
+        # floor on a fresh state; 2048 gives comfortable headroom.
+        n_audio = 2048
+        # Simple deterministic ramp spanning [-8000, +8000] — same
+        # character as the CLI fixture; non-trivial (DC-free, time-
+        # varying), well inside the int16 range.
+        idx = np.arange(n_audio, dtype=np.int32)
+        L_in = (-8000 + (16000 * idx) // n_audio).astype(np.int16)
+        R_in = ( 8000 - (16000 * idx) // n_audio).astype(np.int16)
+        L_out_audio = np.zeros(n_audio, dtype=np.int16)
+        R_out_audio = np.zeros(n_audio, dtype=np.int16)
+        process(state, L_in, R_in, L_out_audio, R_out_audio)
+        if not (bool(L_out_audio.any()) or bool(R_out_audio.any())):
+            raise RuntimeError(
+                "spu94.self_test: Hall produced all-zero output for "
+                "non-silent input — reverb not in audio path (HI-03)"
+            )
+
+        # Long silent-input arm: keeps the original 1s process + 1s
+        # flush coverage of the block-loop / ndpointer contract.
         n = 44100
         L_out = np.zeros(n, dtype=np.int16)
         R_out = np.zeros(n, dtype=np.int16)
