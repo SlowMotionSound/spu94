@@ -56,18 +56,21 @@ static void test_flush_zero_length_noop(void) {
  * draining MUST produce pure zero.
  *
  * Plan adjustment note: the plan's original <behavior> asked to drain
- * AFTER a non-silent spu94_process pass, expecting zero output. That
- * doesn't work: Phase 4's FIR chain (src/spu94/spu94_io_chain.c) wires
- * the interpolator directly to the decimator output -- the reverb body's
- * LeftOutput/RightOutput values are (void)-cast at spu94_reverb.c:614-615
- * (not yet fed into the interpolator). So after a non-silent process
- * pass, the FIR decimator delay lines hold non-zero samples that continue
- * to emit through the interpolator during flush regardless of vLOUT. The
- * correct pin is: fresh state + Off registers + flush -> exactly zero
- * (empty delay lines + silent input + zero output scaling). This also
- * proves flush wires the same block-loop math as spu94_process (not a
- * different code path). The "decaying tail after non-zero state" pin
- * is covered more naturally by Plan 05's fuzz harness + preset integration.
+ * AFTER a non-silent spu94_process pass, expecting zero output. Under
+ * ADR-Phase-6-G the current wiring is: spu94_reverb_body publishes its
+ * scaled wet output to state->reverb_out_l/r; spu94_io_chain's
+ * interpolator consumes the mailbox on every 44.1 kHz step; spu94_flush
+ * drains the interpolator's FIR delay lines with silent input. So after
+ * a non-silent process pass, flush output is non-zero because of
+ * residual interpolator state -- but only if vLOUT/vROUT are non-zero,
+ * since those gate the mailbox value written by reverb_output_scale
+ * (ADR-Phase-6-G). The correct pin chosen here stays the cleaner one:
+ * fresh state + Off-equivalent registers (including vLOUT=vROUT=0) +
+ * flush -> exactly zero (empty delay lines + silent input + zero output
+ * scaling). This still proves flush reuses the same block-loop math as
+ * spu94_process (not a different code path). The "decaying tail after
+ * non-zero state" pin is covered by test_process_reverb_audible.c's
+ * flush sub-test and by Plan 05's fuzz harness + preset integration.
  */
 static void test_flush_off_preset_all_zero(void) {
     /* Zero all 35 register active slots (Off-preset equivalent without
