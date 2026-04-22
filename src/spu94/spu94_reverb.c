@@ -75,19 +75,54 @@ static inline void reverb_buf_write(spu94_state *s,
 /* =====================================================================
  * Stage: input_scale
  * Nocash: "Lin = vLIN * LeftInput; Rin = vRIN * RightInput"
- * Widens int16 x int16 to int32 (no shift here — the hard_clip stage
- * handles the saturation in the next stage, matching D-09).
+ *
+ * Q15 multiply (product >> 15) per psx-spx: "multiplication results are
+ * divided by +8000h to fit them to 16-bit range." The wiki treats every
+ * v* coefficient as a Q15 fractional multiplier where 0x7FFF approximates
+ * +1.0 and 0x8000 represents -1.0.
+ *
+ * CR-01 (.planning/debug/reverb-not-in-audio-path.md DSP investigation):
+ * pre-fix this stage performed a raw int16 * int16 widening multiply with
+ * NO >>15, which caused every non-zero input to saturate post-hard_clip
+ * Lin/Rin to INT16_MIN (Hall / every preset uses vLIN=0x8000 = Q15 -1.0,
+ * so `left_in * -32768` for any non-zero left_in exceeds INT16_MAX range).
+ * Output level pinned ~-5 dBFS regardless of input amplitude. Fixed by
+ * using the same q15_mul_truncate_with_err primitive as every other
+ * reverb-network multiply, accumulating the truncation remainder into
+ * state->err_input_scale (D-11 scope i per CONTEXT.md).
+ *
+ * Post-fix observables:
+ *   - Lin_out / Rin_out are in int16 range except for the INT16_MIN *
+ *     INT16_MIN edge which produces +0x8000. sat_s16 in hard_clip
+ *     clamps that edge to INT16_MAX.
+ *   - state->err_input_scale accumulates truncation remainders. Under
+ *     pre-fix semantics this field was structurally zero; it is now a
+ *     non-zero observable exactly like every other err_* accumulator.
+ *   - hard_clip's overflow_magnitude observable is zero on the typical
+ *     linear path (Q15 multiply already in range) and non-zero only
+ *     for the INT16_MIN^2 edge + INT16_MIN's own "1 LSB past ceiling"
+ *     measurement. The hard_clip stage remains a named-stage clip for
+ *     testability (D-09) even though the run-time clamp is rare now.
  * ===================================================================== */
 void spu94_reverb_input_scale(spu94_state *state,
                               int16_t left_in, int16_t right_in,
                               int16_t vLIN_snap, int16_t vRIN_snap,
                               int32_t *Lin_out, int32_t *Rin_out)
 {
-    (void)state;  /* err_input_scale stays zero — no truncation at
-                   * this stage (no >>15 shift yet). Field exists for
-                   * symmetry per D-11. */
-    *Lin_out = (int32_t)left_in  * (int32_t)vLIN_snap;
-    *Rin_out = (int32_t)right_in * (int32_t)vRIN_snap;
+    if (state == (spu94_state *)0) return;
+
+    int16_t err_l = 0, err_r = 0;
+    /* Q15 multiply: product = (int32)a * (int32)b; shifted = product >> 15;
+     * saturate shifted to int16. INT16_MIN * INT16_MIN -> shifted = +0x8000
+     * which sat_s16 clamps to INT16_MAX (ADR-0001). The int32 out-param
+     * width is preserved for the hard_clip stage signature (D-09) —
+     * the post-Q15 value is always in int16 range so the widening cast
+     * is lossless. */
+    int16_t L = q15_mul_truncate_with_err(left_in,  vLIN_snap, &err_l);
+    int16_t R = q15_mul_truncate_with_err(right_in, vRIN_snap, &err_r);
+    state->err_input_scale += (int32_t)err_l + (int32_t)err_r;
+    *Lin_out = (int32_t)L;
+    *Rin_out = (int32_t)R;
 }
 
 /* =====================================================================

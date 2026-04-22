@@ -5,34 +5,37 @@
  *   1. Post-init: mix_bus_l == mix_bus_r == 0 (spu94_init wholesale zero-fill)
  *   2. Post-reset after non-zero writes: mix_bus_l == mix_bus_r == 0
  *   3. Mailbox write followed by spu94_tick is observed by spu94_reverb_body
- *      -- proven via state->overflow_magnitude
+ *      -- proven via state->err_input_scale
  *
  * PROOF MECHANISM (test 3):
  * ------------------------
- * Note on plan adjustment: the plan's <behavior> sketch proposed proving
- * mailbox observation via state->err_input_scale. That doesn't work --
- * spu94_reverb_input_scale (src/spu94/spu94_reverb.c:81-91) performs
- * a plain int16 x int16 -> int32 multiply (no >>15 shift at that stage),
- * so err_input_scale is permanently zero by construction regardless of
- * inputs. The comment at line 86 of spu94_reverb.c states this
- * explicitly: "err_input_scale stays zero -- no truncation at this
- * stage (no >>15 shift yet). Field exists for symmetry per D-11."
+ * CR-01 fix (2026-04-22): spu94_reverb_input_scale is now a Q15 multiply
+ * (q15_mul_truncate_with_err, product >> 15 with sat_s16), so
+ * err_input_scale accumulates the per-multiply truncation remainder like
+ * every other err_* accumulator. We use err_input_scale here as the
+ * plan's original <behavior> sketch intended.
  *
- * Instead we use state->overflow_magnitude -- the hard_clip stage
- * observable. It records sum(|x| - INT16_MAX) for int32 inputs
- * whose magnitude exceeds INT16_MAX. Mechanism:
- *   - mix_bus_l = 0x0123 (291), vLIN = 0x4000 (16384 = Q15 0.5)
- *   - spu94_reverb_input_scale: Lin_wide = 291 * 16384 = 4,767,744 = 0x0048_C000
- *   - Since 0x48C000 > INT16_MAX (32767), spu94_reverb_hard_clip
- *     increments overflow_magnitude by (0x48C000 - 32767) = ~4,735,000
- *   - Control case (mailbox = 0): Lin_wide = 0, no overflow.
+ * Pre-CR-01-fix this test used overflow_magnitude instead because
+ * input_scale was a raw int16 x int16 widening multiply with no >>15,
+ * which meant err_input_scale was structurally zero but overflow_magnitude
+ * fired on any mailbox write large enough to drive the raw product past
+ * INT16_MAX. That code path was the CR-01 bug (output pinned to ~-5 dBFS
+ * regardless of input amplitude); fixing it inverts the two fields'
+ * utility as mailbox-read proofs.
+ *
+ * Mechanism:
+ *   - mix_bus_l = 0x1234 (4660), vLIN = 0x4000 (16384 = Q15 0.5)
+ *   - q15 multiply: 4660 * 16384 = 0x048D_0000; >>15 = 0x0918 = 2328;
+ *     remainder = 0x048D_0000 - (0x0918 << 15) = 0 (exactly divisible).
+ *     Pick a value that isn't divisible:
+ *   - mix_bus_l = 0x1235 (4661), vLIN = 0x4567 (17767)
+ *   - q15 multiply: 4661 * 17767 = 0x0534_0D2B; >>15 = 0x0A68;
+ *     remainder = 0x0534_0D2B - (0x0A68 << 15) = 0x0D2B != 0
  *
  * This is a direct, robust proof that the reverb body read the mailbox:
- * zero mailbox -> zero overflow_magnitude; non-zero mailbox (with the
- * same non-zero vLIN/vRIN) -> non-zero overflow_magnitude. If the
- * reverb body hardcoded left_in/right_in = 0 (pre-Phase-5 behavior),
- * overflow_magnitude would remain zero. The test fails iff mix_bus_l/r
- * aren't being read.
+ * zero mailbox -> zero err_input_scale; non-zero mailbox with a non-
+ * divisible product -> non-zero err_input_scale. If the reverb body
+ * hardcoded left_in/right_in = 0, err_input_scale would remain zero.
  */
 #include "unity.h"
 #include <spu94/spu94.h>
@@ -67,37 +70,37 @@ static void test_mix_bus_reset_clears(void) {
 }
 
 /* Test 3: mailbox writes are observed by the reverb body (D-05 proof).
- * See file header for mechanism. Uses overflow_magnitude (not
- * err_input_scale -- the plan's proposed field is zero by construction
- * as documented at spu94_reverb.c:86). */
+ * See file header for mechanism. Uses err_input_scale (the plan's
+ * originally intended field, now viable after CR-01 fix made
+ * input_scale a Q15 multiply). */
 static void test_mix_bus_tick_observes_write(void) {
-    /* Configure vLIN/vRIN so that a non-zero mix-bus product exceeds
-     * INT16_MAX and drives hard_clip's overflow accumulator. 0x4000
-     * is Q15 = 0.5; combined with mix_bus ~0x0123 the product is
-     * 0x48C000 (well above 0x7FFF = INT16_MAX). */
-    state->reg_values[SPU94_REG_vLIN] = (int16_t)0x4000;
-    state->reg_values[SPU94_REG_vRIN] = (int16_t)0x4000;
+    /* Configure vLIN/vRIN with values that (combined with mailbox
+     * writes below) produce a Q15 product with a non-zero truncation
+     * remainder. 0x4567 = 17767; 17767 * 4661 = 0x0534_0D2B;
+     * >>15 = 0x0A68; remainder = 0x0D2B != 0. */
+    state->reg_values[SPU94_REG_vLIN] = (int16_t)0x4567;
+    state->reg_values[SPU94_REG_vRIN] = (int16_t)0x4567;
 
-    /* Control case: mailbox = 0 -> overflow_magnitude must stay zero
-     * after the tick (no clip trigger because input-scale product = 0). */
-    state->overflow_magnitude = 0;
+    /* Control case: mailbox = 0 -> err_input_scale must stay zero
+     * after the tick (zero operand -> zero product -> zero remainder). */
+    state->err_input_scale = 0;
     state->mix_bus_l = 0;
     state->mix_bus_r = 0;
     spu94_tick(state);
-    TEST_ASSERT_EQUAL_INT32_MESSAGE(0, state->overflow_magnitude,
-        "overflow_magnitude must stay zero when mailbox is zero "
-        "(proves hard_clip wasn't tripped by residual state)");
+    TEST_ASSERT_EQUAL_INT32_MESSAGE(0, state->err_input_scale,
+        "err_input_scale must stay zero when mailbox is zero "
+        "(proves input_scale wasn't driven by residual state)");
 
-    /* Experimental case: mailbox = non-zero -> overflow_magnitude must
+    /* Experimental case: mailbox = non-zero -> err_input_scale must
      * be non-zero after the tick. Proves the reverb body read the
      * mailbox (if it still hardcoded zero, the input-scale product
-     * would be zero and hard_clip wouldn't fire). */
-    state->overflow_magnitude = 0;
-    state->mix_bus_l = (int16_t)0x0123;  /* 291, low bits set */
-    state->mix_bus_r = (int16_t)0x3210;  /* 12816 */
+     * would be zero and the truncation remainder would be zero). */
+    state->err_input_scale = 0;
+    state->mix_bus_l = (int16_t)0x1235;  /* 4661, non-divisible product */
+    state->mix_bus_r = (int16_t)0x1235;
     spu94_tick(state);
-    TEST_ASSERT_NOT_EQUAL_INT32_MESSAGE(0, state->overflow_magnitude,
-        "overflow_magnitude must be non-zero after non-zero mailbox + tick "
+    TEST_ASSERT_NOT_EQUAL_INT32_MESSAGE(0, state->err_input_scale,
+        "err_input_scale must be non-zero after non-zero mailbox + tick "
         "(D-05 proof: reverb body read state->mix_bus_l/r)");
 }
 
