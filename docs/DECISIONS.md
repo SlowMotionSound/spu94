@@ -30,6 +30,337 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-Phase-6-A: Two-surface Python binding — raw-panel functions + SPU94 class
+
+**Status:** Accepted (2026-04-21, Phase 6)
+
+**Resolves:** D-01 (06-CONTEXT.md Area A) — expose both layers; D-02 (factory presets importable as Python data).
+
+**Relates:** PYBIND-01; PYBIND-04; PROJECT.md "living instrument" directive (every parameter must be reachable from Python for Phase 7's modulation harness); ADR-0005 (Phase 2 split write-timing policy — Phase 6 is a consumer, not a modifier); ADR-Phase-5-D (preset-load atomicity honors the split policy).
+
+**Context:**
+
+Phase 6 exposes the Phase 1-5 C library to Python. Two idiomatic shapes present themselves: (1) a thin module-function surface that mirrors the C API one-to-one — explicit state handle, `spu94.process(state, ...)`; or (2) a class-based surface that owns the handle — `rev = spu94.SPU94(); rev.process(...)`. The discussion in 06-CONTEXT converged on "honest machine on the inside, polite panel on the outside": both, with the class being sugar over the raw layer, not a second implementation with its own state. The raw layer stays the single source of truth for behavior; the class is a forward-only wrapper.
+
+**Decision:**
+
+- `python/spu94/api.py` hosts the raw-panel public functions: `init`, `reset`, `destroy`, `tick`, `process`, `flush`, `load_preset`, `set_reg_i16`, `set_reg_u16`, `get_reg_i16`, `get_reg_u16`, `get_reg_i16_pending`, `get_reg_u16_pending`, `snapshot_registers`, `get_buffer_address`, `get_latency_samples`, `self_test`. Each function takes an explicit `state` handle as its first positional argument.
+- `python/spu94/reverb.py` hosts `class SPU94` — the handle-owning wrapper. Every method on `SPU94` forwards 1:1 to `api.*`. The class supports `__enter__` / `__exit__` and tracks `self._state` so double-destroy is idempotent and any post-destroy access raises `RuntimeError("SPU94 instance has been destroyed")`.
+- `python/spu94/presets.py` exposes `Preset` (IntEnum, 10 members) and `presets` (dict-like accessor keyed by lowercase-underscore name, by `Preset` enum, or by int id). The underlying data is read from the C `spu94_presets[]` `.rodata` symbol via `ctypes.in_dll`; no hand-typed parallel table.
+
+**Consequences:**
+
+- PYBIND-01 is satisfied by the full raw-panel + class surface; PYBIND-04 is satisfied by the preset accessor.
+- Phase 7's modulation-harness (TEST-05) will drive each of the 35 registers via `rev.set_reg(...)` — which auto-dispatches by signedness — without needing Phase 6 code churn. The register IntEnum from Plan 1's runtime reflection is the driver's enum.
+- "Two implementations to maintain" concern is mitigated by the discipline that the class is never the sole implementation of any behavior. A bug in `spu94.process` shows up identically in `rev.process()` and `api.process()` — there is one code path.
+- `test_binding_numpy_contract.py` pins the surface shape: 17 Task-1 tests on the raw panel + 13 Task-2 tests on the class + shim. Any drift requires touching the test.
+
+**Alternatives Considered:**
+
+- **Class only (no raw panel).** Rejected: closes the door on callers who want explicit state threading (the forthcoming Phase 7 harnesses + future test utilities that juggle multiple states).
+- **Raw panel only (no class).** Rejected: the context-manager pattern `with spu94.SPU94() as rev` is what most Python users reach for first; providing only the raw panel would feel pedantic.
+- **Class owns state; raw panel is undocumented internal.** Rejected: "both are public" is explicit in D-01; hiding the raw panel would force modulation-style callers to reach into private names.
+
+**Seam:**
+
+- The SPU94 class wraps `api` entries; the `api` module wraps `_binding._lib` entries. Future additions to the public C API land by adding to `_binding.py` → `api.py` → `reverb.py` in that order. No new seams introduced; the three-layer stack matches the one-concern-per-TU grain of the rest of the project.
+
+**Revision Path:**
+
+- If a future phase introduces state that the class needs to track separately (e.g., a Python-side latency compensator), the new state lives on the class instance and the raw panel stays unchanged. A new ADR records the split.
+
+**Sources:**
+
+- 06-CONTEXT.md Area A (D-01, D-02).
+- 06-RESEARCH.md § Pattern 5 (ctypes.Structure + in_dll for preset table import).
+- 06-01-SUMMARY.md, 06-02-SUMMARY.md (landed API, class, preset accessor).
+
+---
+
+## ADR-Phase-6-B: Runtime reflection + import-time drift detection
+
+**Status:** Accepted (2026-04-21, Phase 6)
+
+**Resolves:** D-06 (runtime reflection builds the IntEnum); D-07 (import-time drift assertions); D-08 (struct-internal offsets stay hand-typed in fuzz scripts).
+
+**Relates:** PYBIND-03; PYBIND-05; ADR-Phase-5-F § seam note ("if Phase 6's ctypes.Structure auto-derives the struct offsets, the hand-synced constants delete cleanly").
+
+**Context:**
+
+Python bindings routinely drift from their underlying C library: register enum added on the C side, Python script still uses the old list; struct grows, the Python side keeps byte-peek offsets that reach into reclaimed memory; preset count changes, array index becomes out-of-range. SPU-94's answer is to treat the live library as authoritative at import time — the Python side carries no parallel typed list of registers, no parallel integer constants, no parallel anything that could diverge silently. Any gap surfaces as a loud `RuntimeError` at `import spu94`.
+
+The open question was which offsets to reflect vs leave hand-typed. The public API functions (register name, hardware offset, type) are reflection-friendly. Struct-internal offsets (pending_mask, fir_idx_*_*) have no public C accessor and are test-private knowledge.
+
+**Decision:**
+
+- `spu94.Register` is built by walking `spu94_reg_name(0..SPU94_REG__COUNT-1)` at import and using `IntEnum(name, members, module=__name__)` so the 35 members are generated from the live library rather than hard-coded. The sentinel `spu94_reg_name(35)` must return NULL; otherwise drift is flagged.
+- Import-time drift assertions (all raise `RuntimeError("spu94 library mismatch: ...")` with enough detail to diagnose):
+  - `spu94_state_size() <= SPU94_STATE_SIZE_MAX` — catches state growth past the public bound.
+  - `len(Register) == SPU94_REG__COUNT == 35` — catches count drift in either direction.
+  - `len(Preset) == SPU94_PRESET__COUNT == 10`.
+  - Preset-name drift: `_EXPECTED_NAMES` tuple in `presets.py` is compared against the `.rodata`-resident `spu94_presets[].name` strings. Any rename or reorder forces a visible source edit + commit message linking to a DECISIONS.md update — matching the project's "no silent divergences" posture.
+- Struct-internal offsets stay hand-typed in the fuzz scripts (`fuzz_process.py`'s `PENDING_MASK_OFFSET`, `FIR_IDX_L_IN_OFFSET`, `FIR_IDX_R_IN_OFFSET`, `FIR_IDX_L_OUT_OFFSET`, `FIR_IDX_R_OUT_OFFSET`) with a clearly-labeled warning block that names D-17, explains why the public binding does not expose them, and gives the `offsetof()` C-probe recipe for recomputing when layout shifts.
+
+**Consequences:**
+
+- A rebuilt library with an added register would: produce a non-NULL response at `spu94_reg_name(35)`, fail the sentinel check in `__init__.py::_reflect_registers`, and halt import with the exact diagnostic needed to upgrade the Python side. Symptomatic drift (mysterious garbage values from a missing enum member) is impossible.
+- The import-time cost is ~22 ms on the dev workstation (dominated by the PresetInfo dataclass + 10×35 int16 tuple construction). Paid once per process; well within any sensible import-time budget.
+- Struct-offset drift is only partially covered — a growth that moves `pending_mask` higher in the struct while keeping `sizeof` the same would not trip the drift gate. The fuzz invariants themselves catch this symptom: a misaligned peek would see nonsense values and fail the mask / FIR-index bounds. The warning block documents this residual risk.
+- 4 drift tests in `test_binding_drift_detection.py` (state-size overflow, register count grown, register count shrunk, positive-case import) are the permanent regression gate.
+
+**Alternatives Considered:**
+
+- **Generate `Register` from a committed Python file instead of reflection.** Rejected: introduces a parallel source of truth exactly what D-06 forbids.
+- **Expose struct-internal offsets via a `spu94_debug_offset(field_id)` accessor.** Considered; rejected as scope creep. The import-time `spu94_state_size()` check covers the overwhelming majority of drift-surface, and the fuzz invariants catch the residual. Adding a public accessor for test-private knowledge would conflict with the "no extra public seams" principle.
+- **Use `ctypes.Structure` to auto-derive the offsets.** Considered; rejected for Plan 1 because the internal struct layout is not published and pinning it would create an ABI contract we explicitly didn't want. A future tests-only debug layer could lift the constraint if the pattern becomes painful.
+
+**Seam:**
+
+- If struct-internal drift becomes a real problem (unlikely; 5 fuzz scripts have been stable across 5 phases), the path is either (a) a tests-only `spu94_state_layout_t` accessor or (b) promoting the internal header to a tests-include. Both are append-only.
+
+**Revision Path:**
+
+- A future phase may tighten the preset-name drift check to include the preset register values too (paranoid mode: every cell validated). The `_EXPECTED_NAMES` seam accepts the addition without restructuring.
+
+**Sources:**
+
+- 06-CONTEXT.md Area C (D-06, D-07, D-08).
+- 06-RESEARCH.md § Pattern 3 (runtime-reflection IntEnum), § Pattern 4 (import-time drift asserts).
+- 06-01-SUMMARY.md (landed reflection + drift assertions + 4 drift tests).
+- `python/spu94/__init__.py::_reflect_registers` — the single-file implementation.
+
+---
+
+## ADR-Phase-6-C: Strict numpy int16 contract — zero-copy when it holds
+
+**Status:** Accepted (2026-04-21, Phase 6)
+
+**Resolves:** D-09 (strict int16 C-contiguous required on `spu94.process` / `spu94.flush`); D-10 (zero-copy when the contract holds); D-11 (strict contract is more faithful to PS1 hardware, not less).
+
+**Relates:** PYBIND-02; ADR-Phase-5-A (public block-based C entry point takes planar int16 buffers); Phase 5 D-01 (int16 planar contract at the C level).
+
+**Context:**
+
+The Phase 5 C API takes planar int16 buffers (`int16_t *L_in, *R_in, *L_out, *R_out`). Python bindings typically have a choice between strict ("reject anything that isn't int16 C-contiguous") and forgiving ("silently convert on your behalf"). The user raised this directly in Phase 6 discussion: does the PS1 auto-convert audio formats? No — the PS1 SPU is int16 end-to-end, every signal path, every buffer, every register. A Python binding that silently converted float32 to int16 would be adding a conversion layer the hardware never had. Strict is *more* faithful, not less.
+
+The secondary question is implementation: bespoke validation (`isinstance(arr, np.ndarray) and arr.dtype == np.int16 and arr.flags.c_contiguous`) or `numpy.ctypeslib.ndpointer`. Both work; the latter is the idiomatic ctypes+numpy pattern and the error messages compose better.
+
+**Decision:**
+
+- `spu94.process` and `spu94.flush` accept numpy int16 C-contiguous 1-D arrays and nothing else. Enforcement is via `numpy.ctypeslib.ndpointer(dtype=np.int16, ndim=1, flags="C_CONTIGUOUS")` at the argtypes level — the check runs in ctypes C before the C function is called, and no raw pointer crosses the binding boundary for a malformed input.
+- Upgrade wrapper `api._raise_upgraded` intercepts `ctypes.ArgumentError` from ndpointer and re-raises a `TypeError` with actionable guidance: the exact float32-to-int16 conversion recipe (`(arr * 32767).clip(-32768, 32767).astype(np.int16)`) for dtype failures; `np.ascontiguousarray(arr)` for C-contig failures; both with the original ndpointer message appended.
+- Zero-copy is verified empirically: `test_process_is_zero_copy` writes sentinel values into `L_out` / `R_out` BEFORE calling `process()`, and asserts at least one element changes afterward. If the binding had copied the input to a private buffer and forgotten to copy the output back, the sentinel would survive.
+- NULL inputs are supported via a silent-buffer substitution at the Python boundary (ndpointer rejects None). `api._silent_input(n)` caches a module-private zero-filled int16 array; smaller subsequent blocks slice off the front. From the caller's perspective the semantics match the C contract's NULL-substitutes-silence rule.
+
+**Consequences:**
+
+- Callers who pass float32 get a `TypeError` the first time and know exactly how to convert. No "why does my audio sound wrong?" mystery.
+- Zero-copy is the default when the contract holds — no per-call allocation, no intermediate `np.ascontiguousarray` calls inside the binding. Phase 7's per-preset golden-file generation runs at full C speed.
+- The strict contract is test-locked: 17 tests in `test_binding_numpy_contract.py` defend dtype / contig / length / zero-copy / None / register I/O / preset loading surfaces. A future phase that softens the contract fails that gate.
+- The exact error messages are committed to the README. If they change, the README must change with them — the DOCS-04 regression gate does not assert the exact text but the user-facing contract is well-defined.
+
+**Alternatives Considered:**
+
+- **Forgiving binding (auto-convert float32 → int16).** Rejected: adds a conversion layer the hardware never had (D-11 rationale). Auto-conversion also hides bugs (someone writes float32 thinking they're modeling PS1 audio, never realizes the hidden conversion truncates their dynamic range).
+- **Bespoke per-call Python validation instead of ndpointer.** Rejected: bespoke validation runs at Python level, adding per-call overhead on the hot path. Ndpointer runs in ctypes C.
+- **Accept any dtype + auto-scale to int16 magnitude.** Same rejection as forgiving-binding, plus introduces an arbitrary convention (float32 in [-1,1]? in [-32768,32767]? both are plausible) the hardware does not endorse.
+
+**Seam:**
+
+- If a future phase admits float32 audio at the Python boundary (say, to support a DAW host that works in float32 natively), the path is a new `spu94.process_float32` entry wrapping the int16 contract plus explicit `astype` at the boundary. A new ADR records the addition; the existing int16 contract is not modified.
+
+**Revision Path:**
+
+- If the upgrade wrapper's message text proves insufficient (user reports confusion), iterate the wording without changing the contract. The wrapper is the single centralization point for `process` and `flush`.
+
+**Sources:**
+
+- 06-CONTEXT.md Area D (D-09, D-10, D-11).
+- 06-RESEARCH.md § Pattern 2 (ndpointer).
+- 06-02-SUMMARY.md (landed 17 numpy-contract tests + zero-copy sentinel pattern).
+- 05-CONTEXT.md Area A D-01 (underlying C int16 contract).
+
+---
+
+## ADR-Phase-6-D: Native C CLI — vendored dr_wav + jsmn, polished error shape
+
+**Status:** Accepted (2026-04-21, Phase 6)
+
+**Resolves:** D-03 (native C binary via CMake; dr_wav vendored; CLI binary only); D-04 (Python entry_point shim via `os.execv`); D-05 (non-zero exit + one-line `spu94: error:` stderr on every error path).
+
+**Relates:** CLI-01; CLI-02; CLI-03; CLI-04; PROJECT.md "shipped binary has no Python runtime requirement"; ADR-Phase-6-C (strict numpy contract does not apply to the CLI's internal int16 buffers — they are ctypes arrays handed to C directly).
+
+**Context:**
+
+The CLI exists for two audiences: users who want to render WAV files without touching Python, and users who install via `pip install spu94` and want `spu94 --preset hall in.wav out.wav` to work out of the box. Option (A) is a native C binary that links `libspu94.so` + vendored WAV / JSON libraries and runs with no Python dependency. Option (B) is a Python implementation that re-reads the WAV via `dr_wav` or stdlib `wave` and feeds the binding. The two can coexist via a Python entry-point shim that `exec`s the native binary.
+
+The secondary question is library vendoring hygiene: dr_wav is a single-header WAV library under public-domain / MIT-0 choice license; jsmn is a tiny MIT JSON tokenizer. Both are linked into the CLI binary. Neither can leak into `libspu94.so` — the shared library must stay free of CLI-only dependencies so downstream consumers (Phase 7 witness-diff, Phase 8 MCU cross-compile, M4 JUCE plugin) do not transitively depend on WAV / JSON machinery.
+
+**Decision:**
+
+- `src/cli/main.c` (+ `wav_io.c`, `json_config.c`, `preset_names.c`) compiles to a standalone `spu94` executable via CMake. Argument parsing via `getopt_long`; WAV I/O via `vendor/dr_wav/dr_wav.h`; `--config` JSON parsing via `vendor/jsmn/jsmn.h`. Both vendored headers are included PRIVATE on the CLI target so they never leak into `libspu94.so`.
+- Permanent regression gate: `scripts/ci/verify-no-drwav-in-libspu94.sh` runs `nm -D libspu94.so | grep -E 'drwav_|jsmn_'` and asserts zero matches. Wired as a ctest target under the `cli` label (CLI-03).
+- Python entry-point shim: `python/spu94/cli.py::main` uses `os.execv` (not `subprocess.run`) to replace the Python interpreter with the compiled binary. `$?` on the command line is the binary's actual exit code — `subprocess.run` would spawn a child and indirect the exit code, breaking the CLI-04 one-line-error contract through the wheel-install path.
+- Every error path flows through a single `SPU94_ERROR(...)` macro that centralizes the `spu94: error:` prefix and the newline so no copy-paste drift produces a misshaped message. Per-error text is specified in Plan 3 SUMMARY and quoted verbatim in the README.
+- `--config` JSON schema is covered by a separate ADR (ADR-Phase-6-E); this ADR fixes only the CLI binary architecture.
+
+**Consequences:**
+
+- CLI-01 green: `spu94 --preset hall in.wav out.wav` works end-to-end on a compiled binary with no Python.
+- CLI-03 green: `libspu94.so` stays free of CLI-only symbols; the regression gate catches any future drift.
+- CLI-04 green: 12 tests in `test_cli_error_paths.py` pin the one-line contract byte-for-byte. The README quotes the exact messages.
+- Wheel install works transparently: scikit-build-core ships `libspu94.so` + the `spu94` binary next to `__init__.py`; `[project.scripts] spu94 = "spu94.cli:main"` registers the shim; `os.execv` transfers control to the binary with no process-spawn overhead.
+- CLI binary size: 117 KB stripped. Shippable in a Python wheel without meaningful impact on download size.
+
+**Alternatives Considered:**
+
+- **Python-side CLI re-implementation.** Rejected: duplicates WAV + JSON machinery at the Python level; makes the CLI slower (Python import overhead dominates for short files); creates a maintenance split between "CLI behavior in C" and "CLI behavior in Python."
+- **`subprocess.run` instead of `os.execv` in the shim.** Rejected: adds a Python-to-child-process indirection that breaks the exit-code contract for pipeline users (`spu94 ... && next-step`).
+- **Vendored `dr_wav` in `libspu94.so` rather than CLI-only.** Rejected: infects every downstream consumer with a WAV-I/O dependency they don't need. The Phase 5 library specifically ships planar int16 processing with no file-format concerns.
+- **Write our own WAV reader instead of vendoring dr_wav.** Rejected: dr_wav is ~9000 lines of well-tested WAV handling covering dozens of format variants. Re-implementing it correctly is weeks of work for zero benefit over a public-domain header.
+
+**Seam:**
+
+- The error macro + nm-audit gate is a reusable pattern for any future vendored dependency. The plan calls out the generalization: "for every vendored lib X, add verify-no-X-in-libspu94.sh."
+
+**Revision Path:**
+
+- If a future phase needs a second CLI (say, a preset-differ), it lives alongside `spu94` in `src/cli/` and inherits the same warning-relaxation + PRIVATE include discipline.
+
+**Sources:**
+
+- 06-CONTEXT.md Area B (D-03, D-04, D-05).
+- 06-03-SUMMARY.md (landed CLI binary + vendored libs + 35 behavioral tests + nm-audit gate).
+- `src/cli/main.c`, `src/cli/CMakeLists.txt`, `scripts/ci/verify-no-drwav-in-libspu94.sh`.
+
+---
+
+## ADR-Phase-6-E: `--config` JSON — dual shape auto-detect + strict validation
+
+**Status:** Accepted (2026-04-21, Phase 6)
+
+**Resolves:** D-12 (dual shape with auto-detect by `"base"` key); D-13 (integer + hex-string values per register); D-14 (unknown register names are hard errors); D-15 (README showcases the override shape).
+
+**Relates:** CLI-02; ADR-Phase-6-D (the CLI binary that parses the JSON); Phase 5 D-01 (35 canonical register names + signedness per register).
+
+**Context:**
+
+CLI users have two natural use cases for `--config`: everyday tweaking (a named preset with a handful of register overrides) and exact reproduction (every register specified explicitly, e.g., for a golden-file reference). A single flat-map schema forces the everyday case to list all 34 un-tweaked registers verbatim. Two separate flags (`--preset-override` vs `--config-flat`) multiplies CLI surface. The chosen compromise is one `--config` flag with auto-detection: presence of a `"base"` top-level key discriminates override-shape from flat-shape.
+
+Secondary questions cluster around strictness: hex strings yes or no? Unknown register names silent-ignore or hard-error? Out-of-range values silent-clip or hard-error? Project posture across Phases 1-5 is "fail loudly" — config errors are caller bugs, not runtime conditions.
+
+**Decision:**
+
+- Shape auto-detect: top-level `"base"` key present → override shape `{ "base": "<preset>", "overrides": { "<reg>": <value>, ... } }`; absent → flat shape `{ "<reg>": <value>, ... }` with all 35 registers required.
+- Value parsing: JSON integer literals (`-32768`, `65535`) and hex strings (`"0x3F00"`, `"-0x8000"`, `"-0x40"`) both accepted. Signed (v-prefix) registers accept negative values; unsigned (d-prefix / m-prefix + mBASE) registers reject negatives.
+- Range check per register: signed int16 is `[-32768, 32767]`; unsigned uint16 is `[0, 65535]`. Out-of-range value → non-zero exit + one-line stderr naming the register and the out-of-range value.
+- Unknown register name → non-zero exit + one-line stderr listing several valid canonical names (e.g., "vIIR, mBASE, mLCOMB1"). Case-insensitive matching against `spu94_reg_name` results.
+- Strict shape check: jsmn's non-strict tokenizer accepts `{ not valid json }` as 3 primitive children; we explicitly reject any top-level key that is not `JSMN_STRING` with an `invalid JSON in '<path>' (non-string key at top level)` message.
+- Flat shape requires all 35 registers; missing any → non-zero exit + one-line stderr naming the count found and the count required.
+
+**Consequences:**
+
+- CLI-02 green: 7 tests in `test_cli_config_and_list.py` pin the dual-shape behavior plus both schema edges.
+- README users see the override shape first (D-15) — "everyday" entry point. Flat shape documented separately as "exact register specification for golden-file reproduction."
+- Hex strings match how register documentation reads. `"0x3F00"` in a config file matches how the same value appears in nocash psx-spx, Sony SDK docs, and `docs/DECISIONS.md`.
+- Silent-skip unknowns and silent-clip overflows are both impossible. Every config-related bug is a loud error at CLI parse time, before any audio processing starts.
+
+**Alternatives Considered:**
+
+- **Single flat-map schema only.** Rejected: forces callers into verbose everyday configs and makes typos (register-name dropped accidentally) silently turn into zero-valued register writes.
+- **Separate `--preset-override` + `--config-flat` flags.** Rejected: two flags that accept the same file format on different code paths. Auto-detect is simpler.
+- **Silent-skip unknown registers with a warning.** Rejected: warnings are easy to miss in a pipeline. Hard errors force the user to fix the typo.
+- **Accept float values and auto-scale.** Rejected: same rationale as ADR-Phase-6-C's strict-int16 contract. PS1 registers are exactly 16-bit integers; config files that pretend otherwise are misleading.
+
+**Seam:**
+
+- jsmn tokenizes; our code validates. A future stricter JSON validator (e.g., JSON Schema) would slot in at the same layer without changing the schema.
+
+**Revision Path:**
+
+- A future phase may add a `"comment": "..."` allowed key (silently ignored) to let users annotate their configs. Either a new ADR or a seam addition to this one.
+
+**Sources:**
+
+- 06-CONTEXT.md Area E (D-12, D-13, D-14, D-15).
+- 06-03-SUMMARY.md (landed jsmn parser + 7 config-shape tests + error-text pins).
+- `src/cli/json_config.c`, `tests/fixtures/sample_override_hall.json`, `tests/fixtures/sample_flat_registermap.json`.
+
+---
+
+## ADR-Phase-6-F: Packaging, README scope, fuzz migration — closing Phase 6
+
+**Status:** Accepted (2026-04-21, Phase 6)
+
+**Resolves:** D-16 (fuzz scripts migrate to new binding); D-17 (struct-internal offsets stay hand-typed in fuzz scripts); D-18 (CMake test wiring unchanged); D-19 (README polished tone); D-20 (11-section README structure); D-21 (manylinux_2_28 Linux wheel); D-22 (Python 3.10+ minimum); D-23 (one wheel per platform, `py3-none-*` tag); D-24 (wheel layout — libspu94.so + spu94 binary inside spu94/ package dir); D-25 (pyproject.toml as single source of truth).
+
+**Relates:** PYBIND-06; DOCS-04; PROJECT.md § Constraints (Python 3 + numpy + scipy + matplotlib + pytest, ctypes not pybind11/cffi, scikit-build-core for wheel, dr_wav vendored for CLI only); Phase 5 precedent (ADR-Phase-5-A..F's "one ADR per locked decision group" approach).
+
+**Context:**
+
+Phase 6's final plan bundles a cluster of smaller decisions that don't each warrant their own ADR but are substantive enough to record. Fuzz migration closes a three-phase-old loop ("Phase 6 will replace the hand-typed register tables" appears in every Phase 2-5 fuzz harness docstring). Packaging sets the precedent for every future wheel SPU-94 ships. README is the DOCS-04 deliverable and the document unfamiliar readers land on.
+
+Per the Claude's Discretion line in 06-CONTEXT: "exact number and split of ADRs appended to `docs/DECISIONS.md`" is planner's call. This ADR groups the three related clusters into one record because each resolution is short and the three are intertwined (the README quotes the wheel filename from the packaging decision; the fuzz migration relies on the binding that the packaging wheel delivers).
+
+**Decision:**
+
+Fuzz migration (D-16, D-17, D-18):
+
+- `fuzz_buffer.py`, `fuzz_reverb.py`, `fuzz_fir.py`, `fuzz_process.py` all drop their hand-typed register-enum tuples, state-size constants, type-classifier tables, and per-function argtype / restype declarations. Replaced by `from spu94 import Register, SPU94_REG__COUNT, SPU94_STATE_SIZE_MAX, ...` + `from spu94._binding import _lib`. Register partitions (I16_REGS / U16_REGS) derived at import time via `spu94_reg_type` over the reflected Register enum.
+- Struct-internal offsets in `fuzz_process.py` (PENDING_MASK_OFFSET and four FIR_IDX_*_OFFSET constants) remain hand-typed per D-17. Warning block strengthened to name D-17 explicitly and to document the C-probe recipe for recomputing offsets when layout shifts.
+- `tests/python/CMakeLists.txt` is unchanged (D-18) — same ctest topology, same `SPU94_LIB=$<TARGET_FILE:spu94_shared>` env wiring.
+
+README (D-19, D-20):
+
+- Polished product-doc tone throughout. No apologetic framing; status is communicated via a dedicated status block.
+- 11 sections in the locked D-20 order: hero paragraph (before first `## `) → Current state → Quick install → Python walkthrough → CLI walkthrough → For the DSP-curious → Roadmap → Architecture overview → Licensing posture → Acknowledgments → Contributing.
+- Content contract enforced by `scripts/ci/verify-readme-sections.sh` (permanent ctest regression gate under label `docs`): every required section heading in document order, plus 11 required content tokens (`pip install spu94`, `cmake --build build`, `spu94 --preset hall`, `spu94.SPU94`, `import spu94`, `vIIR`, `39-tap`, `Q15`, `dr_wav`, `jsmn`, `LICENSE`).
+
+Packaging (D-21..D-25):
+
+- `manylinux_2_28` Linux wheel pinned via `manylinux-x86_64-image = "manylinux_2_28"` in `[tool.cibuildwheel]`.
+- `requires-python = ">=3.10"` in `[project]`; classifiers list 3.10 through 3.13.
+- `wheel.py-api = "py3"` produces a single `py3-none-*` tag per platform (valid because SPU-94 is pure ctypes with no Python C API).
+- SKBUILD-guarded `install(TARGETS ...)` rules in `src/spu94/CMakeLists.txt` + `src/cli/CMakeLists.txt` drop `libspu94.so` + `spu94` binary inside the `spu94/` package dir next to `__init__.py`. Plain `cmake -B build` is unaffected.
+- `pyproject.toml` holds every piece of build configuration (build backend, project metadata, `[project.scripts]`, `[tool.scikit-build]`, `[tool.cibuildwheel]`). No setup.py, no setup.cfg, no separate config file.
+- Wheel-tag regression gate: `scripts/ci/verify-wheel-tag.sh` enforces the `py3-none-*` tag shape in relaxed mode (dev builds) and `py3-none-manylinux_2_28_x86_64` in strict mode (`SPU94_WHEEL_STRICT=1`, CI mode).
+
+**Consequences:**
+
+- PYBIND-06 and DOCS-04 both close in this plan.
+- Fuzz migration removes ~150 lines of hand-typed parallel truth across the four scripts; any future register addition lands in one place (the C enum) and every fuzz script picks it up at next `import spu94`.
+- README is a permanent deliverable. Any future phase that drifts the CLI error text, the Python API shape, or the `vIIR` / `39-tap` / `Q15` DSP-curious content must update the README — or the docs gate fires.
+- Wheel installs work on every Linux distribution with glibc >= 2.28 (Ubuntu 20.04+, Debian 11+, RHEL 8+, Fedora 30+) across Python 3.10 through 3.13+. Single wheel per platform; cibuildwheel CI produces it.
+- manylinux2014 (CentOS 7 base) is NOT supported. A future ADR revises if a user demonstrates the need.
+- `pyproject.toml` is the single-file edit surface for every build concern. Flipping MIT ↔ Apache-2.0 at the end of M1 is a LICENSE edit; no pyproject change needed. Adding a Windows wheel is a cibuildwheel matrix extension; no structural change.
+
+**Alternatives Considered:**
+
+- **Separate ADRs per decision cluster** (one for fuzz migration, one for README, one for packaging). Rejected: each cluster is short, and the three are interrelated enough that readers benefit from seeing them together.
+- **Per-Python-minor wheels** (cp310-*, cp311-*, etc.). Rejected: pure-ctypes binding means every wheel would be byte-identical except the filename. `py3-none-*` ships exactly what's needed.
+- **Windows wheels and macOS wheels in Phase 6.** Rejected for scope reasons. scikit-build-core + cibuildwheel both support them; a future ADR adds them once demand is demonstrated.
+- **Handle-typed register offsets as tests-only debug accessors** (deferring D-17 to an ADR of its own). Rejected: the decision is compact enough to fold here; the offset-preservation discipline is already well-documented in the fuzz scripts themselves.
+
+**Seam:**
+
+- Fuzz scripts' sys.path prepend is reusable for any future tests-only Python script that needs the binding but doesn't want to require `pip install -e .`.
+- `scripts/ci/verify-*.sh` pattern (one shell script per regression gate, wired as its own ctest target) is now the project-wide template — matches Phase 1's verify-no-heap-symbols.sh, Phase 6's verify-no-drwav-in-libspu94.sh, verify-readme-sections.sh, verify-wheel-tag.sh.
+
+**Revision Path:**
+
+- Future phase may tighten the strict-mode wheel-tag check to include a `python -c "import spu94; spu94.self_test()"` smoke test inside the manylinux container. The script is structured to extend.
+- Future phase may migrate fuzz scripts to use the `SPU94` class instead of raw `_lib.*` calls once the class surface stabilizes further. The sys.path prepend accommodates this without structural change.
+
+**Sources:**
+
+- 06-CONTEXT.md Area F (D-16, D-17, D-18), Area G (D-19, D-20), Area H (D-21, D-22, D-23, D-24, D-25).
+- 06-04-SUMMARY.md (landed pyproject.toml + SKBUILD install rules + wheel-tag gate).
+- 06-05-SUMMARY.md (this plan — README + fuzz migration + the ADR you are currently reading).
+- `pyproject.toml`, `README.md`, `scripts/ci/verify-wheel-tag.sh`, `scripts/ci/verify-readme-sections.sh`.
+- Memory file `feedback_user_facing_docs_polished.md` (README tone guidance: polished confident, not apologetic).
+
+---
+
 ## ADR-Phase-5-F: Mid-stream register writes are first-class at any granularity
 
 **Status:** Accepted (2026-04-20, Phase 5)
