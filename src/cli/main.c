@@ -167,6 +167,12 @@ int main(int argc, char **argv) {
         SPU94_ERROR("spu94_init failed (internal error)");
         return 2;
     }
+    /* spu94_init intentionally does NOT zero the caller-owned work buffer
+     * (documented D-14 contract). Reset zeros both registers and work_buf,
+     * which is required before the reverb touches its delay lines —
+     * otherwise heap residue from prior malloc calls bleeds through the
+     * feedback loops as a startup "noise burst" at sample 0 of the output. */
+    spu94_reset(state);
 
     if (preset_name) {
         int pid = spu94_cli_preset_id_by_name(preset_name);
