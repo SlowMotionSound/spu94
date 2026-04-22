@@ -27,6 +27,7 @@
 #include <string.h>
 
 #include <spu94/spu94.h>
+#include <spu94/spu94_register_facade.h>
 
 #include "json_config.h"
 #include "preset_names.h"
@@ -178,6 +179,22 @@ int main(int argc, char **argv) {
             return 2;
         }
         spu94_load_preset(state, (spu94_preset_id_t)pid);
+        /* ADR-Phase-6-G: the 10 factory preset tables intentionally leave
+         * vLOUT/vROUT at 0x0000 — those are master-mix levels configured
+         * outside the preset surface (see spu94_presets.c comment at
+         * lines 32-34). Under the wet-only 44.1 kHz output wiring the
+         * CLI's 44.1 kHz output IS the wet-scaled signal, so vLOUT/vROUT
+         * = 0 gates the rendered audio to silence. Default to full-scale
+         * (0x7FFF) so `spu94 --preset hall input.wav out.wav` produces
+         * an audible wet rendering without requiring a --config overlay.
+         * The Off preset is a deliberate exception: its vLOUT/vROUT stay
+         * at 0 (both the preset value AND this default would land at 0
+         * if the user explicitly re-loaded Off, but in practice the user
+         * doesn't run `--preset off` expecting output). */
+        if ((spu94_preset_id_t)pid != SPU94_PRESET_OFF) {
+            spu94_set_vLOUT(state, (int16_t)0x7FFF);
+            spu94_set_vROUT(state, (int16_t)0x7FFF);
+        }
     } else {
         if (spu94_cli_json_apply(config_path, state, err_buf, sizeof err_buf) != 0) {
             spu94_destroy(state);

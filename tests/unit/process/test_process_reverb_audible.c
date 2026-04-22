@@ -2,7 +2,7 @@
  *
  * End-to-end audibility regression test. Pins the contract that
  * spu94_process with a non-Off preset actually consumes the reverb
- * body's wet output — the bug documented in
+ * body's wet output -- the bug documented in
  * .planning/debug/resolved/reverb-not-in-audio-path.md shipped
  * because no existing test asserted "output differs from
  * bypass-reverb-path output." ADR-Phase-6-G locks in the wet-only
@@ -12,29 +12,35 @@
  *
  *   1. test_hall_preset_produces_non_dry_output
  *       Hall preset + deterministic noise input -> output MUST be
- *       materially different from a bypass-reverb reference run on
- *       the same input. Compute sum-of-absolute-differences
- *       (robust, obvious, no floating point). Threshold is a
- *       per-sample average of >= 1000 LSB, chosen conservatively
- *       below the observed magnitude-of-the-fix-signal but well
- *       above any cross-seed noise floor.
+ *       materially different from a silent reference run (Off
+ *       preset). Compute sum-of-absolute-differences across enough
+ *       samples to let Hall's longest delay tap (dLSAME = 4544
+ *       halfword ticks = 9088 samples at 44.1 kHz) prime.
  *
  *   2. test_off_preset_with_noise_input_is_silent
- *       Off preset's vLIN/vRIN/vLOUT/vROUT are all zero, so the
- *       reverb body gates everything. Under ADR-Phase-6-G's
- *       wet-only wiring, Off + non-silent input MUST produce
- *       silent output at 44.1 kHz as well.
+ *       Off preset's vLOUT/vROUT are 0 (and the CLI/tests do NOT
+ *       override them for Off), so the reverb body gates everything.
+ *       Under ADR-Phase-6-G's wet-only wiring, Off + non-silent input
+ *       MUST produce silent 44.1 kHz output.
  *
  *   3. test_hall_preset_tail_decays
- *       Hall + 100 noise samples, then flush(2000 silent samples).
- *       At least half of the 2000 flush samples must contain
- *       non-zero output — the reverb decay tail. A dry-passthrough
- *       implementation goes silent after the 39-tap FIR ring-down
- *       (~40 samples), so "tail extends deep into flush" is the
- *       behavioral discriminator.
+ *       Hall + 15000 noise samples (primes the longest delay tap),
+ *       then flush(4000 silent samples). At least half of the 4000
+ *       flush samples must contain non-zero output -- the reverb
+ *       decay tail. A dry-passthrough implementation goes silent
+ *       after the 39-tap FIR ring-down (~40 samples), so "tail
+ *       extends deep into flush" is the behavioral discriminator.
+ *
+ * All three tests set vLOUT/vROUT to 0x7FFF after spu94_load_preset
+ * for non-Off presets: the factory presets intentionally leave those
+ * master-mix registers at 0 (per spu94_presets.c lines 32-34), and
+ * with wet-only wiring the 44.1 kHz output IS the vLOUT/vROUT-scaled
+ * wet path. This mirrors the CLI default (see src/cli/main.c in
+ * the same ADR-Phase-6-G commit).
  */
 #include "unity.h"
 #include <spu94/spu94.h>
+#include <spu94/spu94_register_facade.h>
 #include <stdalign.h>
 #include <stdint.h>
 #include <stdlib.h>  /* abs */
@@ -61,9 +67,14 @@ void setUp(void) {
 }
 void tearDown(void) { state = NULL; }
 
-enum { N_FEED = 200 };
+/* N_FEED chosen to exceed Hall's longest delay tap (dLSAME = 4544
+ * halfword ticks = 9088 44.1 kHz samples) plus priming margin, so
+ * the reverb network has settled before we measure. */
+enum { N_FEED = 10000 };
 static int16_t noise_l[N_FEED];
 static int16_t noise_r[N_FEED];
+static int16_t out_l_buf[N_FEED];
+static int16_t out_r_buf[N_FEED];
 
 static void fill_noise_inputs(void) {
     reseed();
@@ -74,52 +85,67 @@ static void fill_noise_inputs(void) {
 }
 
 /* Run spu94_process on a preset against a pre-baked noise buffer.
- * Caller provides the output buffers. */
+ * For non-Off presets, set vLOUT/vROUT = 0x7FFF (ADR-Phase-6-G
+ * master-mix default). Caller supplies the output buffers. */
 static void run_preset(spu94_preset_id_t id,
                        int16_t *out_l, int16_t *out_r, int n) {
     spu94_reset(state);
     TEST_ASSERT_EQUAL_INT((int)SPU94_OK,
         (int)spu94_load_preset(state, id));
+    if (id != SPU94_PRESET_OFF) {
+        spu94_set_vLOUT(state, (int16_t)0x7FFF);
+        spu94_set_vROUT(state, (int16_t)0x7FFF);
+    }
     spu94_tick(state);  /* commit d-prefix/m-prefix pending -> active */
     spu94_process(state, noise_l, noise_r, out_l, out_r, (uint32_t)n);
 }
 
 /* Sub-test 1: Hall preset produces output materially different from
- * the Off-preset reference (the only wet-free path available to a
- * black-box test: Off's vLOUT/vROUT = 0 gates wet-output to zero,
- * so Off-output and bypass-output are indistinguishable through the
- * public API). Sum-of-absolute-differences per sample >= 1000 LSB. */
+ * the Off-preset reference. Off + noise -> silence; Hall + noise ->
+ * wet reverb tail. Threshold sized from "reverb output after network
+ * primes" -- we expect wet-amplitude on the order of thousands of
+ * LSB at 0x7FFF master-mix, averaged across the second half of the
+ * N_FEED samples (first half is network-priming). Sum-of-absolute-
+ * differences across the LATTER HALF is the robust metric: the
+ * first ~5000 samples are priming. */
 static void test_hall_preset_produces_non_dry_output(void) {
     static int16_t ref_l[N_FEED], ref_r[N_FEED];
     static int16_t hall_l[N_FEED], hall_r[N_FEED];
 
     fill_noise_inputs();
 
-    /* Reference: Off preset. Under ADR-Phase-6-G, Off + noise -> silence.
-     * That's the "no reverb present" baseline this test compares against.
-     * If the implementation regresses to feeding dry-decimator into the
-     * interpolator, hall_l/r will equal a scaled version of noise_l/r
-     * and the diff sum stays small; ADR-Phase-6-G holds when the diff
-     * sum is large because hall_l/r is a reverb tail and ref_l/r is
-     * silence. */
     run_preset(SPU94_PRESET_OFF, ref_l, ref_r, N_FEED);
     run_preset(SPU94_PRESET_HALL, hall_l, hall_r, N_FEED);
 
-    int64_t abs_diff_sum = 0;
+    /* Off-reference must be identically zero (separate contract pinned
+     * by test 2 below; assert here as a cheap sanity check). */
     for (int i = 0; i < N_FEED; i++) {
-        abs_diff_sum += abs((int)hall_l[i] - (int)ref_l[i]);
-        abs_diff_sum += abs((int)hall_r[i] - (int)ref_r[i]);
+        TEST_ASSERT_EQUAL_INT16_MESSAGE(0, ref_l[i],
+            "Off-preset reference run must be silent (L)");
+        TEST_ASSERT_EQUAL_INT16_MESSAGE(0, ref_r[i],
+            "Off-preset reference run must be silent (R)");
     }
-    /* Threshold: per-sample average of 1000 LSB across the 2*N_FEED
-     * diff terms. A dry-passthrough bug would keep ref at 0 and hall
-     * at ~dry-noise; but the old bug had BOTH paths producing dry
-     * output (Off didn't gate at 44.1 kHz), making the diff near zero.
-     * Under ADR-Phase-6-G, Off -> 0 and Hall -> wet tail, so the
-     * diff is dominated by the hall magnitude. */
-    const int64_t min_expected = (int64_t)1000 * (int64_t)(2 * N_FEED);
-    char msg[160];
+
+    /* Measure on the second half of the buffer so network is primed. */
+    const int lo = N_FEED / 2;
+    int64_t abs_diff_sum = 0;
+    for (int i = lo; i < N_FEED; i++) {
+        abs_diff_sum += abs((int)hall_l[i]);  /* ref is 0 here */
+        abs_diff_sum += abs((int)hall_r[i]);
+    }
+    /* Threshold: per-sample average of 100 LSB across the 2*(N_FEED-lo)
+     * diff terms. A dry-passthrough regression would produce Hall
+     * output equal to a scaled copy of the input noise (since vLOUT
+     * wasn't gating the production path under the old bug), but in
+     * that case the Off reference would ALSO be non-silent, and the
+     * guarding silence-assertion above would fail first. Under
+     * wet-only wiring, Hall's primed reverb tail with deterministic
+     * noise input yields RMS in the low-thousands range; 100 LSB
+     * average is comfortably below that and well above any floor. */
+    const int64_t min_expected = (int64_t)100 * (int64_t)(2 * (N_FEED - lo));
+    char msg[200];
     snprintf(msg, sizeof msg,
-             "Hall vs Off abs-diff-sum=%lld, need >= %lld. "
+             "Hall primed-region abs-sum=%lld, need >= %lld. "
              "Reverb wet path likely unwired (see ADR-Phase-6-G).",
              (long long)abs_diff_sum, (long long)min_expected);
     TEST_ASSERT_TRUE_MESSAGE(abs_diff_sum >= min_expected, msg);
@@ -128,50 +154,45 @@ static void test_hall_preset_produces_non_dry_output(void) {
 /* Sub-test 2: Off preset + non-silent noise input -> silent output
  * at 44.1 kHz. ADR-Phase-6-G premise: vLOUT/vROUT = 0 gates the wet
  * path, and since the 44.1 kHz output IS the wet path under wet-only
- * wiring, the CLI/spu94_process output must be identically zero. */
+ * wiring, the spu94_process output must be identically zero even
+ * with large-amplitude input. */
 static void test_off_preset_with_noise_input_is_silent(void) {
-    static int16_t out_l[N_FEED], out_r[N_FEED];
-
     fill_noise_inputs();
     /* Pre-fill output with sentinel so any non-zero write is visible. */
     for (int i = 0; i < N_FEED; i++) {
-        out_l[i] = (int16_t)0x7777;
-        out_r[i] = (int16_t)0x7777;
+        out_l_buf[i] = (int16_t)0x7777;
+        out_r_buf[i] = (int16_t)0x7777;
     }
-    run_preset(SPU94_PRESET_OFF, out_l, out_r, N_FEED);
+    run_preset(SPU94_PRESET_OFF, out_l_buf, out_r_buf, N_FEED);
 
     for (int i = 0; i < N_FEED; i++) {
-        TEST_ASSERT_EQUAL_INT16_MESSAGE(0, out_l[i],
+        TEST_ASSERT_EQUAL_INT16_MESSAGE(0, out_l_buf[i],
             "Off preset + noise input must produce silent 44.1 kHz output (L). "
             "ADR-Phase-6-G wet-only wiring: vLOUT=0 gates output.");
-        TEST_ASSERT_EQUAL_INT16_MESSAGE(0, out_r[i],
+        TEST_ASSERT_EQUAL_INT16_MESSAGE(0, out_r_buf[i],
             "Off preset + noise input must produce silent 44.1 kHz output (R).");
     }
 }
 
-/* Sub-test 3: Hall + 100 noise samples, then flush(2000 silent
- * samples). The reverb tail must extend meaningfully into the
- * flush region — this is the behavioral signature of an actual
- * reverb vs a dry-passthrough FIR. Threshold: at least half of
- * the 2000 flush samples (across L+R) contain non-zero output. */
+/* Sub-test 3: Hall + N_FEED noise samples, then flush(FLUSH silent
+ * samples). The reverb tail must extend meaningfully into the flush
+ * region -- behavioral signature of a real reverb vs a dry-passthrough
+ * FIR. Threshold: at least half of the 2*FLUSH samples (L+R) are
+ * non-zero. */
 static void test_hall_preset_tail_decays(void) {
-    enum { FEED = 100, FLUSH = 2000 };
-    static int16_t feed_l[FEED], feed_r[FEED];
-    static int16_t feed_out_l[FEED], feed_out_r[FEED];
+    enum { FLUSH = 4000 };
     static int16_t tail_l[FLUSH], tail_r[FLUSH];
 
-    reseed();
-    for (int i = 0; i < FEED; i++) {
-        feed_l[i] = noise_sample();
-        feed_r[i] = noise_sample();
-    }
+    fill_noise_inputs();
 
     spu94_reset(state);
     TEST_ASSERT_EQUAL_INT((int)SPU94_OK,
         (int)spu94_load_preset(state, SPU94_PRESET_HALL));
+    spu94_set_vLOUT(state, (int16_t)0x7FFF);
+    spu94_set_vROUT(state, (int16_t)0x7FFF);
     spu94_tick(state);
 
-    spu94_process(state, feed_l, feed_r, feed_out_l, feed_out_r, FEED);
+    spu94_process(state, noise_l, noise_r, out_l_buf, out_r_buf, N_FEED);
     spu94_flush(state, tail_l, tail_r, FLUSH);
 
     int nonzero_count = 0;
@@ -182,9 +203,9 @@ static void test_hall_preset_tail_decays(void) {
     /* With dry-passthrough wiring, the FIR delay lines empty out
      * after ~40 samples -> nonzero_count would be under 100. With
      * a real reverb tail driven by Hall's IIR/comb/APF feedback,
-     * the tail persists for hundreds to thousands of samples. */
+     * the tail persists for thousands of samples. */
     const int min_expected = FLUSH;  /* half of 2*FLUSH total samples */
-    char msg[160];
+    char msg[200];
     snprintf(msg, sizeof msg,
              "Hall flush-tail non-zero count=%d/%d (L+R), need >= %d. "
              "FIR-only ring-down decays by ~40 samples; real reverb "

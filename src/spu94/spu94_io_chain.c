@@ -52,12 +52,49 @@ static void chain_step_impl(spu94_state *state,
 
     if (dec_valid) {
         /* Retained phase -- produce new 22.05 kHz sample, then interpolate
-         * into a 44.1 kHz pair (phase-0 emitted now, phase-1 cached). */
+         * into a 44.1 kHz pair (phase-0 emitted now, phase-1 cached).
+         *
+         * ADR-Phase-6-G wet-only wiring: on the production path
+         * (reverb_active=1), the 22.05 kHz sample fed to the
+         * interpolator is the reverb body's WET output (LeftOutput /
+         * RightOutput from spu94_reverb_output_scale), NOT the dry
+         * decimator output. The dry decimator output (dec_l, dec_r)
+         * feeds the reverb INPUT via state->mix_bus_l/r (populated by
+         * spu94_process before each call -- see spu94_process.c:40-41,
+         * spu94_reverb.c:579-580). vLOUT/vROUT = 0 (default post-load,
+         * Off preset) gates the wet path to silence -- the CLI
+         * explicitly sets vLOUT/vROUT to a user-mix default after
+         * preset load so rendered audio is audible.
+         *
+         * On the test-only reverb-bypass path (reverb_active=0) we
+         * skip spu94_tick entirely AND route dry dec_l/dec_r straight
+         * into the interpolator. This preserves the pre-ADR-Phase-6-G
+         * semantics of spu94_fir_chain_step_reverb_bypass as a
+         * "pure half-band round-trip" test harness: the FIR DSP
+         * tests (tests/unit/fir/test_fir_impulse.c,
+         * test_fir_chain_latency.c, test_fir_dc.c,
+         * test_fir_round_trip_transparency.c,
+         * test_fir_err_overflow_taps.c) pin the bit-faithful FIR
+         * contract by driving known inputs through the chain with
+         * the reverb network cut out -- they must see the dry input
+         * round-trip through decimator -> interpolator, not silence.
+         * This bypass path is NEVER reachable from production code
+         * (spu94_process only calls spu94_fir_chain_step, which
+         * passes reverb_active=1). */
+        int16_t src_l, src_r;
         if (reverb_active) {
+            state->reverb_out_l = 0;
+            state->reverb_out_r = 0;
             spu94_tick(state);
+            src_l = state->reverb_out_l;
+            src_r = state->reverb_out_r;
+        } else {
+            /* Test-only dry passthrough. */
+            src_l = dec_l;
+            src_r = dec_r;
         }
         int16_t p0_l = 0, p0_r = 0, p1_l = 0, p1_r = 0;
-        spu94_fir_interpolate(state, dec_l, dec_r,
+        spu94_fir_interpolate(state, src_l, src_r,
                               &p0_l, &p0_r, &p1_l, &p1_r);
         if (l_out) { *l_out = p0_l; }
         if (r_out) { *r_out = p0_r; }

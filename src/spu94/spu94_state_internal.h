@@ -107,6 +107,33 @@ struct spu94_state {
      * emits the cached value. Single source of truth for phase ordering. */
     int16_t        fir_pending_l_phase1;
     int16_t        fir_pending_r_phase1;
+
+    /* -----------------------------------------------------------------
+     * Phase 6 Plan 06 (ADR-Phase-6-G): reverb wet-output mailbox.
+     * Symmetric with mix_bus_l/r on the input side. spu94_reverb_body
+     * writes the final LeftOutput/RightOutput (int16, post-output-scale,
+     * already gated by vLOUT/vROUT) into these fields once per 22.05 kHz
+     * tick. chain_step_impl zeroes them before each tick and reads them
+     * after, feeding the result into spu94_fir_interpolate as the 22.05
+     * kHz sample that seeds the 44.1 kHz output stream.
+     *
+     * Default-zero on init/reset (byte-loop in spu94_reset covers).
+     *
+     * The test-only reverb-bypass path (spu94_fir_chain_step_reverb_bypass)
+     * skips spu94_tick entirely; these fields stay zero, so the
+     * interpolator receives silence and the bypass path produces
+     * silence. This matches ADR-Phase-6-G's wet-only output contract.
+     *
+     * Placed at the END of the struct (not adjacent to mix_bus_l/r
+     * where it belongs logically) so that hand-typed byte-offsets in
+     * tests/python/fuzz_process.py (per D-17) stay valid without a
+     * forced reprobe. The next struct-layout change that legitimately
+     * grows the pre-FIR or FIR blocks will have to update those offsets
+     * regardless; grouping this mailbox at the tail is a one-line
+     * audit concession, not a design choice.
+     * ----------------------------------------------------------------- */
+    int16_t        reverb_out_l;
+    int16_t        reverb_out_r;
 };
 
 /* Pin the shell-type bounds. A future plan that grows the struct past these

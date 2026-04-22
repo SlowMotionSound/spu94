@@ -82,51 +82,33 @@ static void test_process_silence_in_silence_out(void) {
     }
 }
 
-/* Test 4: unit impulse -> argmax |Lout[i]| lands within +/- 1 sample of
- * SPU94_LATENCY_SAMPLES (= 58). Same methodology (and same tolerance)
- * as tests/unit/fir/test_fir_chain_latency.c::
- * test_latency_empirical_matches_api, but driving through the public
- * spu94_process entry point -- this test proves spu94_process's
- * block-loop preserves the Phase 4 group-delay contract.
+/* Test 4 (RETIRED under ADR-Phase-6-G): unit impulse -> peak near latency.
  *
- * Plan adjustment note: the plan's original <behavior> proposed
- * "Lout[0..55] are all zero-or-near-zero" as a pre-peak assertion.
- * That's wrong for a 39-tap linear-phase FIR: the filter's ramp/side-
- * lobes produce small non-zero values before the peak (observed: -1,
- * +1, etc.). The correct, robust pin is argmax == LATENCY +/- 1, which
- * is what test_fir_chain_latency uses. We also assert a peak magnitude
- * floor so we know the impulse actually propagated (defensive against
- * a degenerate all-zero output that trivially argmaxes at index 0).
+ * Under ADR-Phase-6-G wet-only wiring (Phase 6 Plan 06),
+ * spu94_process's 44.1 kHz output is the reverb body's WET output
+ * scaled by vLOUT/vROUT, NOT a dry-passthrough of the impulse
+ * through the half-band FIR. With all registers zero (the Test 4
+ * setup), vLIN/vRIN are 0 so the reverb input is silenced before it
+ * reaches the body, and vLOUT/vROUT are 0 so the output would be
+ * gated anyway. Either way, the impulse cannot propagate through
+ * spu94_process to produce a dry-FIR-shaped peak at t = LATENCY.
+ *
+ * The internal-FIR group-delay contract is still pinned by
+ * tests/unit/fir/test_fir_chain_latency.c (which uses
+ * spu94_fir_chain_step_reverb_bypass -- the test-only dry
+ * passthrough preserved for DSP-level FIR testing per the updated
+ * docstring in src/spu94/spu94_fir_internal.h). The behavioral
+ * audibility contract for spu94_process is pinned by
+ * tests/unit/process/test_process_reverb_audible.c instead.
+ *
+ * This stub passes to keep the test-registration layout stable;
+ * deletion would shift Unity test IDs in this TU and mask future
+ * regressions more than it fixes. Do NOT revive the original body
+ * without also reviving the dry-passthrough semantics for
+ * spu94_process, which would contradict ADR-Phase-6-G.
  */
 static void test_process_impulse_peak_near_latency(void) {
-    int16_t Lin[128] = {0};
-    int16_t Rin[128] = {0};
-    int16_t Lout[128] = {0};
-    int16_t Rout[128] = {0};
-    Lin[0] = INT16_MAX;  /* Large positive impulse to maximize FIR peak. */
-    Rin[0] = INT16_MAX;
-
-    spu94_process(state, Lin, Rin, Lout, Rout, 128);
-
-    /* argmax |Lout[i]|. */
-    int peak_idx = 0;
-    int32_t peak_mag = 0;
-    for (int i = 0; i < 128; i++) {
-        int32_t mag = (Lout[i] < 0) ? -(int32_t)Lout[i] : (int32_t)Lout[i];
-        if (mag > peak_mag) {
-            peak_mag = mag;
-            peak_idx = i;
-        }
-    }
-    /* Sanity floor: the impulse produced actual output. Prevents a
-     * degenerate all-zero-output from trivially argmaxing at index 0. */
-    TEST_ASSERT_TRUE_MESSAGE(peak_mag > 100,
-        "peak magnitude must be > 100 (impulse should propagate)");
-    /* Latency contract: peak_idx within +/- 1 of SPU94_LATENCY_SAMPLES.
-     * Same tolerance Phase 4 Plan 03's test_fir_chain_latency uses. */
-    TEST_ASSERT_INT_WITHIN_MESSAGE(1,
-        (int)SPU94_LATENCY_SAMPLES, peak_idx,
-        "spu94_process must preserve the Phase 4 group-delay contract");
+    TEST_PASS_MESSAGE("retired under ADR-Phase-6-G; see test_process_reverb_audible");
 }
 
 /* Test 5: in-place aliasing (L_out == L_in, R_out == R_in) is safe.

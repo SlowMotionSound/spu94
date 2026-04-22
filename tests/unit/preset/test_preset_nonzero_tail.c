@@ -27,6 +27,7 @@
  */
 #include "unity.h"
 #include <spu94/spu94.h>
+#include <spu94/spu94_register_facade.h>
 #include <stdalign.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -80,7 +81,12 @@ static int32_t max_abs_output_after_drive(int feed_samples, int flush_samples) {
  * input. Per-preset max|output| asymmetry captured in failure messages for
  * cell-specific diagnosis. Under ADR-Phase-6-G wet-only wiring, a "non-zero
  * tail" now means the wet reverb output actually reached the 44.1 kHz
- * stream. */
+ * stream; per the same ADR, vLOUT/vROUT must be set to a non-zero master
+ * mix because the preset table intentionally leaves those at 0 (see
+ * spu94_presets.c lines 32-34). Feed duration (15000 samples) is sized
+ * to exceed Hall's longest delay tap (dLSAME = 4544 halfword ticks =
+ * 9088 44.1-kHz samples) so every preset primes its reverb network
+ * within the measurement window. */
 static void test_nonzero_tail_per_non_off_preset(void) {
     for (spu94_preset_id_t id = SPU94_PRESET_ROOM;
          id < SPU94_PRESET__COUNT; id++) {
@@ -88,13 +94,18 @@ static void test_nonzero_tail_per_non_off_preset(void) {
         reseed();
         TEST_ASSERT_EQUAL_INT((int)SPU94_OK,
             (int)spu94_load_preset(state, id));
+        /* ADR-Phase-6-G master-mix default: presets leave vLOUT/vROUT
+         * at 0, CLI/tests set them to 0x7FFF. */
+        spu94_set_vLOUT(state, (int16_t)0x7FFF);
+        spu94_set_vROUT(state, (int16_t)0x7FFF);
         /* Commit pending d-prefix/m-prefix values via one tick before
          * audio begins (per D-08 split-policy documentation). */
         spu94_tick(state);
-        const int32_t ma = max_abs_output_after_drive(100, 1000);
-        char msg[128];
+        const int32_t ma = max_abs_output_after_drive(15000, 1000);
+        char msg[160];
         snprintf(msg, sizeof msg,
-                 "non-Off preset %d produced zero-max output (expected > 0)",
+                 "non-Off preset %d produced zero-max output (expected > 0) "
+                 "under ADR-Phase-6-G wet-only wiring",
                  (int)id);
         TEST_ASSERT_GREATER_THAN_INT32_MESSAGE(0, ma, msg);
     }
@@ -110,6 +121,8 @@ static void test_nonzero_tail_per_non_off_preset(void) {
 static void test_off_preset_silences_input(void) {
     TEST_ASSERT_EQUAL_INT((int)SPU94_OK,
         (int)spu94_load_preset(state, SPU94_PRESET_OFF));
+    /* NOTE: do NOT override vLOUT/vROUT here -- Off's gating is the
+     * whole point of this test. */
     /* Flush the 16 staged m-prefix 0x0001 defensive pending values to
      * active. */
     spu94_tick(state);

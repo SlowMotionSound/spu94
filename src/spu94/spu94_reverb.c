@@ -608,8 +608,14 @@ void spu94_reverb_body(spu94_state *state)
     int32_t LeftOutput = 0, RightOutput = 0;
     spu94_reverb_output_scale(state, Lout, Rout, vLOUT_snap, vROUT_snap,
                               &LeftOutput, &RightOutput);
-    /* LeftOutput/RightOutput are not yet consumed — Phase 4 FIR will
-     * read them when the 39-tap interpolator lands. */
-    (void)LeftOutput;
-    (void)RightOutput;
+    /* Phase 6 Plan 06 (ADR-Phase-6-G): wet-only 44.1 kHz output wiring.
+     * spu94_reverb_output_scale produces int16 values carried in int32
+     * (see spu94_reverb.c:131-143 — q15_mul_truncate_with_err already
+     * saturates to int16 before the widening cast). Publish them to the
+     * mailbox so chain_step_impl can feed them into spu94_fir_interpolate.
+     * vLOUT/vROUT = 0 (Off preset) gates both fields to 0 here, which
+     * propagates through the interpolator as silence on the 44.1 kHz
+     * output stream. */
+    state->reverb_out_l = (int16_t)LeftOutput;
+    state->reverb_out_r = (int16_t)RightOutput;
 }

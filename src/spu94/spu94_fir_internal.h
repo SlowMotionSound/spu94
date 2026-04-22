@@ -119,11 +119,22 @@ void spu94_fir_chain_step(spu94_state *state,
 /* -------------------------------------------------------------------- */
 /* Test-only reverb-bypass chain wrapper (04-CONTEXT Specifics,         */
 /* 04-RESEARCH Decision Proposals). Same signature as                    */
-/* spu94_fir_chain_step, but the middle step passes the 22.05 kHz       */
-/* samples through unchanged instead of calling spu94_tick. Used by     */
-/* DC-round-trip, round-trip-transparency, and impulse-response tests   */
-/* that need to isolate the FIR chain from the reverb network.          */
-/* Always compiled (not conditional) — Plan 03 body.                     */
+/* spu94_fir_chain_step, but the middle step (a) skips spu94_tick so    */
+/* the reverb network is not advanced AND (b) routes the dry            */
+/* decimator output directly into the interpolator, giving a pure       */
+/* half-band decimate -> interpolate round-trip.                         */
+/*                                                                      */
+/* Used by the DSP-level FIR tests (DC round-trip, round-trip            */
+/* transparency, impulse response, chain latency, err/overflow taps)    */
+/* to pin the bit-faithful half-band FIR contract with the reverb       */
+/* network cut out. NEVER reachable from production code: spu94_process */
+/* only calls spu94_fir_chain_step (reverb_active=1), which under        */
+/* ADR-Phase-6-G feeds the reverb body's WET output into the             */
+/* interpolator. The test-only bypass here keeps the pre-ADR test       */
+/* scaffolding intact while the production wet-only output contract     */
+/* is maintained.                                                       */
+/*                                                                      */
+/* Always compiled (not conditional) -- Plan 03 body.                   */
 /* -------------------------------------------------------------------- */
 void spu94_fir_chain_step_reverb_bypass(spu94_state *state,
                                         int16_t l_in_44k1,
