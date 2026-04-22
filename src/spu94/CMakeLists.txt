@@ -37,3 +37,12 @@ set_target_properties(spu94_shared PROPERTIES OUTPUT_NAME spu94)
 add_library(spu94_static STATIC $<TARGET_OBJECTS:spu94_obj>)
 target_link_libraries(spu94_static PUBLIC spu94_obj)
 set_target_properties(spu94_static PROPERTIES OUTPUT_NAME spu94)
+
+# Phase 6 Plan 4: install libspu94.so into the Python package directory
+# at wheel-build time. SKBUILD_PROJECT_NAME is set by scikit-build-core;
+# absent during plain `cmake -B build` so developer flows are unaffected.
+if(DEFINED SKBUILD_PROJECT_NAME)
+    install(TARGETS spu94_shared
+            LIBRARY DESTINATION "${SKBUILD_PROJECT_NAME}"
+    )
+endif()

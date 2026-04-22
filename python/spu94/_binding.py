@@ -34,6 +34,7 @@ Threat mitigation (T-06-01, T-06-02):
 """
 import ctypes
 import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -54,16 +55,56 @@ def _resolve_lib_path() -> str:
          pattern, Pitfall 7 mitigation).
       2. ``Path(__file__).parent / 'libspu94.so'`` — installed wheel
          layout (Plan 4's CMake install rule drops ``libspu94.so`` next
-         to ``__init__.py``).
+         to ``__init__.py``). This is also where a regular ``pip install
+         dist/spu94-*.whl`` wheel puts the library.
+      3. scikit-build-core editable-install layout (``pip install -e .``):
+         the source ``python/spu94/__init__.py`` gets put on sys.path
+         via a .pth file, but the CMake install rules drop the compiled
+         artifacts into ``site-packages/spu94/`` instead. Walk
+         ``sys.path`` looking for ``spu94/libspu94.so``.
 
     Never returns a bare filename — doing so would trigger the linker's
     search path and allow a silent load of a stale
     ``/usr/lib/libspu94.so`` (Pitfall 4).
+
+    Raises ``OSError`` with an actionable message if no candidate path
+    exists. The message lists every location we checked so the user can
+    diagnose whether it's a missing build / broken editable install /
+    stale SPU94_LIB env.
     """
+    # (1) Explicit env var — dev / fuzz-harness convention.
     env = os.environ.get("SPU94_LIB")
     if env:
         return env
-    return str(_HERE / "libspu94.so")
+
+    # (2) Wheel-install layout: next to this __init__.py. Also the layout
+    # scikit-build-core uses for non-editable wheel installs and the
+    # layout the Plan 4 CMake install rules produce.
+    candidates = [_HERE / "libspu94.so"]
+
+    # (3) scikit-build-core editable-install layout: search every
+    # site-packages-like entry on sys.path for spu94/libspu94.so. This
+    # picks up the library that scikit-build-core's CMake --install step
+    # writes into site-packages/spu94/ when you do `pip install -e .`.
+    for entry in sys.path:
+        if not entry:
+            continue
+        cand = Path(entry) / "spu94" / "libspu94.so"
+        candidates.append(cand)
+
+    for cand in candidates:
+        if cand.exists():
+            return str(cand.resolve())
+
+    # No path exists — raise with the full search trail for the user.
+    checked = "\n  ".join(str(c) for c in candidates)
+    raise OSError(
+        "spu94: could not locate libspu94.so. Searched:\n  "
+        f"{checked}\n"
+        "Set SPU94_LIB to an absolute path, or `pip install spu94` / "
+        "`pip install -e .` the package so the library is installed next "
+        "to the Python sources."
+    )
 
 
 _LIB_PATH = _resolve_lib_path()

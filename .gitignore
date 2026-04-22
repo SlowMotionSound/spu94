@@ -12,3 +12,12 @@ compile_commands.json
 .idea/
 __pycache__/
 *.pyc
+
+# Phase 6: Python packaging artifacts
+dist/
+*.egg-info/
+.pytest_cache/
+# scikit-build-core writes a build dir distinct from `build/`; cover both
+# to prevent accidental commits.
+_skbuild/
+wheelhouse/

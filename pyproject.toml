@@ -1,0 +1,88 @@
+[build-system]
+requires = ["scikit-build-core>=0.10"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "spu94"
+version = "0.1.0"
+description = "Bit-faithful PlayStation 1 SPU reverb — Python binding + CLI"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Anthony Accurso", email = "anthonyaccurso@gmail.com" }]
+license = { file = "LICENSE" }
+keywords = [
+    "audio", "dsp", "reverb",
+    "playstation", "ps1", "spu",
+    "bit-faithful", "fixed-point", "q15",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: C",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Multimedia :: Sound/Audio :: Analysis",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "numpy>=1.23",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/anthonyaccurso/spu94"
+Source = "https://github.com/anthonyaccurso/spu94"
+Issues = "https://github.com/anthonyaccurso/spu94/issues"
+
+[project.scripts]
+# The Python shim located at python/spu94/cli.py → locates the compiled
+# `spu94` binary installed alongside __init__.py and os.execv's to it.
+# Plan 3 delivered the binary; Plan 2 delivered the shim; Plan 4 wires
+# both into the wheel.
+spu94 = "spu94.cli:main"
+
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+cmake.version = ">=3.20"
+cmake.build-type = "Release"
+# Where the Python source lives. scikit-build-core bundles everything
+# under python/spu94/ as the 'spu94' package at wheel-install time.
+wheel.packages = ["python/spu94"]
+# D-23: pure ctypes → one wheel per PLATFORM, not per Python minor.
+# wheel.py-api = "py3" overrides the Python-tag portion of the filename,
+# producing e.g. spu94-0.1.0-py3-none-manylinux_2_28_x86_64.whl.
+wheel.py-api = "py3"
+
+[tool.cibuildwheel]
+# Build ONE identifier; because wheel.py-api = "py3" is set in scikit-build,
+# the resulting wheel is labeled py3-none-* and satisfies Python 3.10..3.14+
+# without rebuild. cibuildwheel will still run the test-command in each
+# selected Python version to verify runtime compat.
+build = ["cp310-manylinux_x86_64"]
+# Defensive skip — prevents accidental matrix expansion if cibuildwheel
+# defaults change in the future.
+skip = [
+    "pp*",                # PyPy
+    "cp3??t-*",           # free-threaded CPython
+    "*-musllinux_*",      # Alpine / musl
+    "*-manylinux_i686",   # 32-bit x86
+    "*-win*",
+    "*-macosx*",
+    "*-android*", "*-ios*", "*-pyodide*",
+]
+manylinux-x86_64-image = "manylinux_2_28"  # D-21
+archs = ["x86_64"]
+# Smoke test inside the manylinux container — verifies the wheel loads
+# libspu94.so via $ORIGIN RPATH and self_test() runs clean.
+test-command = 'python -c "import spu94; spu94.self_test()"'
