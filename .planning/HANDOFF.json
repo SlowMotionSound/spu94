@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-22T18:59:17.454Z",
+  "timestamp": "2026-04-22T22:09:15.285Z",
   "phase": "06",
   "phase_name": "python-binding-cli",
   "phase_dir": ".planning/phases/06-python-binding-cli",
@@ -10,45 +10,39 @@
   "status": "paused",
   "completed_tasks": [
     {"id": "06-01", "name": "Python ctypes binding scaffolding", "status": "done", "commit": "ffb643a"},
-    {"id": "06-02", "name": "Public Python API layer (SPU94 class + raw panel + numpy contract + cli.py shim)", "status": "done", "commit": "7106169"},
+    {"id": "06-02", "name": "Public Python API layer", "status": "done", "commit": "7106169"},
     {"id": "06-03", "name": "Native spu94 CLI binary (dr_wav + jsmn)", "status": "done", "commit": "8f34457"},
     {"id": "06-04", "name": "scikit-build-core + cibuildwheel packaging", "status": "done", "commit": "a6a8588"},
     {"id": "06-05 Task 1", "name": "README + verify-readme-sections.sh + tests/docs/", "status": "done", "commit": "bb78953"},
-    {"id": "06-05 Task 2", "name": "Fuzz script migration (D-16/D-17/D-18)", "status": "done", "commit": "2f57ea2"},
+    {"id": "06-05 Task 2", "name": "Fuzz script migration", "status": "done", "commit": "2f57ea2"},
     {"id": "06-05 Task 3", "name": "Six Phase-6 ADRs", "status": "done", "commit": "b710ad0"},
-    {"id": "06-05 Task 4", "name": "Human README walkthrough (SC-4)", "status": "checkpoint_open", "progress": "Walkthrough surfaced major findings (3 broken install paths, dense structure, missing test-WAV step); user explicitly deferred README revisions as end-of-project polish"},
-    {"id": "debug reverb-not-in-audio-path", "name": "Wire reverb output to FIR interpolator + CLI default vLOUT/vROUT", "status": "partial", "commit": "101aaa7", "progress": "Wiring done (ADR-Phase-6-G landed). Chain feeds reverb wet into interpolator. BUT DSP network itself produces broken output: pinned at -5 dBFS regardless of input level, then abrupt cliff at tail — self-oscillating / saturation-pinned, not Hall decay."}
+    {"id": "06-05 Task 4", "name": "Human README walkthrough (SC-4)", "status": "checkpoint_open", "progress": "README revisions explicitly deferred as end-of-project polish; needs to close as HUMAN-UAT.md"},
+    {"id": "code-review-fix", "name": "/gsd-code-review-fix pass on .planning/REVIEW.md", "status": "done", "commit": "21153f0", "progress": "6 of 6 Critical+High in-scope findings fixed atomically (CR-02 / HI-01a / HI-01b / HI-02 / HI-03 / HI-04 / HI-05). CR-03/HI-06/MED-01 deferred per README-not-priority memory. MED-02..INFO-02 below default scope."},
+    {"id": "CR-01-Q15-input-scale", "name": "Fix reverb input_scale raw-multiply → Q15 multiply", "status": "done", "commits": "11bdebf + 53bac5c", "progress": "Linearity perfect across 24 dB. Piano tail changed from plateau+cliff to exponential decay."},
+    {"id": "CLI-workbuf-init", "name": "Fix CLI startup burst — reset state after spu94_init to zero work_buf", "status": "done", "commits": "4bb40c3 + 9650243", "progress": "24-bit and 16-bit piano paths now produce byte-identical output. First 40 output samples are zero (was 5588/8674 peak). Piano Hall attack now natural (2804→6027→8126 over 300ms)."},
+    {"id": "debug-session-close", "name": "Close reverb-not-in-audio-path debug session", "status": "done", "commit": "fe3673e", "progress": "Three root causes documented (wiring, Q15, work_buf init). Session marked resolved."}
   ],
   "remaining_tasks": [
-    {"id": "CR-01", "name": "Fix Hall DSP bug — output pinned regardless of input level", "status": "not_started", "source": ".planning/debug/reverb-not-in-audio-path.md + .planning/REVIEW.md"},
-    {"id": "code-review-fix-sweep", "name": "Apply fixes for non-README findings in .planning/REVIEW.md (3 CRITICAL, 6 HIGH, 7 MEDIUM, 4 LOW, 2 INFO)", "status": "not_started", "source": ".planning/REVIEW.md"},
-    {"id": "launcher-commit", "name": "Commit drag-drop launcher at scripts/desktop-launcher/ (currently uncommitted but functional)", "status": "not_started"},
-    {"id": "06-05-close", "name": "Close Phase 6 Plan 5 Task 4 SC-4 checkpoint (persist as HUMAN-UAT.md; README revisions explicitly deferred)", "status": "not_started"},
-    {"id": "phase-06-verify", "name": "Run phase verification on Phase 6 (only after CR-01 is fixed)", "status": "blocked_on_CR-01"}
+    {"id": "investigate-tail-lockup", "name": "Investigate Hall tail decay locking at exactly 0 after ~0.6s of --tail-seconds output", "status": "not_started", "source": "this session — Audacity-confirmed finding", "detail": "On /tmp/piano-hall-FINAL.wav: piano input ends at t=4.53s; reverb tail decays cleanly through t≈5.15s; then output is exactly zero for the remaining 4.37s of --tail-seconds. Likely bit-faithful integer-arithmetic behavior (feedback * vIIR rounds to zero below LSB, then 0*vIIR=0 locks the loop). Worth confirming whether this matches real PS1 hardware behavior or is a coefficient/saturation artifact. Test plan: render same piano with --tail-seconds 10, compare envelope shape against DuckStation/lv2-psx-reverb (witness-only per licensing posture). Not urgent — Audacity confirmed the in-music render is clean and the user's perceived dropouts were media-player flakiness, not file content."},
+    {"id": "launcher-commit", "name": "Commit drag-drop launcher at scripts/desktop-launcher/", "status": "not_started", "detail": "Previously gated on CR-01 (don't ship a launcher that produces broken audio). CR-01 is now resolved and user confirmed the render is clean. Launcher files are untracked — install-to-desktop.sh, spu94-render.sh, spu94-render.desktop.in."},
+    {"id": "06-05-close", "name": "Close Phase 6 Plan 5 Task 4 SC-4 checkpoint", "status": "not_started", "detail": "Persist as .planning/phases/06-python-binding-cli/06-HUMAN-UAT.md. README revisions remain explicitly deferred per user instruction (feedback_readme_not_priority.md)."},
+    {"id": "phase-06-verify", "name": "Run phase verification on Phase 6", "status": "not_started", "detail": "Only after 06-05 is closed and launcher is committed. CR-01 is now resolved so verification should pass."},
+    {"id": "code-review-below-scope", "name": "Optionally apply MED-02..INFO-02 findings from .planning/REVIEW.md", "status": "deferred", "detail": "Below default critical+warning scope. Listed in .planning/REVIEW-FIX.md under 'skipped'. User can invoke /gsd-code-review-fix with --all flag later."}
   ],
-  "blockers": [
-    {
-      "description": "CR-01: Hall preset + real audio produces output pinned at ~-5 dBFS independent of input level (tested 0, -12, -24 dBFS inputs — same output peak), then abrupt cliff from -5 dBFS to -48 dBFS at second 5. Signature of self-oscillating feedback / saturation-pinned loop, not proper Hall decay. Suspected causes: mix-bus aliasing (reverb reads raw 44.1 kHz samples via state->mix_bus_l/r without antialiasing), internal sat_s16 saturation in comb/APF feedback stages, possibly other DSP correctness bugs that shipped uncaught through Phases 3-5.",
-      "type": "technical",
-      "workaround": "None. Wiring fix is correct but reverb network itself is broken."
-    }
-  ],
+  "blockers": [],
   "human_actions_pending": [
-    {"action": "None outstanding. User closed out this session frustrated.", "context": "", "blocking": false}
+    {"action": "None outstanding", "context": "User confirmed render is clean (Audacity). Session ended with /gsd-pause-work cleanly — no lingering frustration, no open questions for user.", "blocking": false}
   ],
   "decisions": [
-    {"decision": "ADR-Phase-6-G: wet-only 44.1 kHz output (Option A)", "rationale": "Solo'd reverb is the standard engineer move for auditioning reverb character; bit-faithful to PS1 hardware (reverb unit outputs wet-only); simpler fix surface. User made the call explicitly.", "phase": "06"},
-    {"decision": "Drag-drop launcher built (Ubuntu Studio .desktop + wrapper + installer script)", "rationale": "User requested a lightweight executable wrapper after the CLI walkthrough proved CLI is friction for a recording engineer. Launcher is installed on user's desktop. Uncommitted pending the DSP correctness fix (CR-01) — no point committing a launcher that produces broken audio.", "phase": "06"},
-    {"decision": "README revisions explicitly DEFERRED (end-of-project polish)", "rationale": "User stated this three+ separate times. Future handlers MUST skip README findings when applying fixes. Persisted to memory (feedback_readme_not_priority.md).", "phase": "06"},
-    {"decision": "No new phases / no discuss cycles for remediation", "rationale": "User explicitly rejected the 'plan a test-quality overhaul phase' proposal. Apply fixes directly via /gsd-code-review-fix and /gsd-debug. Persisted to memory (feedback_no_ceremony_on_bugs.md).", "phase": "06"}
+    {"decision": "CLI calls spu94_reset(state) immediately after spu94_init(...)", "rationale": "spu94_init's documented contract does not zero the caller-owned work_buf (D-14); only spu94_reset does. Without the explicit reset, reverb delay lines started with heap residue that surfaced as an audible noise blast once ADR-Phase-6-G plumbed reverb output to the audio path. The reset adds one line, honors the existing library contract, and is forward-compatible with any future consumer.", "phase": "06"},
+    {"decision": "Q15 semantics pinned for spu94_reverb_input_scale (q15_mul_truncate_with_err)", "rationale": "psx-spx spec says 'multiplication results are divided by 0x8000'. Every other reverb multiply in the codebase already used Q15. The input_scale stage was the only one doing a raw int16×int16 widening multiply. With the universal preset default vLIN=vRIN=0x8000 (Q15 -1.0), raw multiply pinned Lin/Rin to ±INT16_MIN, destroying linearity. Q15 fix restored 24 dB of input range tracking.", "phase": "06"},
+    {"decision": "Hall tail-after-LSB investigation deferred to a targeted next-session item", "rationale": "Not blocking any user-visible deliverable. User confirmed the rendered piano sounds correct through the reverb's natural decay region. The post-decay lock-at-zero happens entirely in the --tail-seconds silence region where the user wouldn't expect content anyway. Needs witness-based cross-check (DuckStation / lv2-psx-reverb output-only per licensing posture) before modifying DSP — which is a Phase-7 class of work.", "phase": "06"}
   ],
   "uncommitted_files": [
-    ".planning/REVIEW.md",
-    ".planning/debug/reverb-not-in-audio-path.md",
     "scripts/desktop-launcher/spu94-render.sh",
     "scripts/desktop-launcher/spu94-render.desktop.in",
     "scripts/desktop-launcher/install-to-desktop.sh"
   ],
-  "next_action": "Run /gsd-code-review-fix to apply all non-README findings from .planning/REVIEW.md. When it hits CR-01 (Hall DSP bug — flagged for dedicated debug), auto-resume /gsd-debug at .planning/debug/reverb-not-in-audio-path.md. Do NOT propose new decimal phases, discuss cycles, or multi-command dances — user has explicitly asked for lean, in-place fixes.",
-  "context_notes": "User is Anthony — recording/broadcast engineer, not a coder. Session ended frustrated after sequence: broken README walkthrough → discovered reverb-not-wired bug → fixed wiring only to find reverb DSP network itself broken → whole-codebase code review surfaced 22 findings with unifying cause (tests verify machinery runs, not product claims). Memory files updated. Honor: (1) skip README findings entirely, (2) prefer single lean commands over multi-step dances, (3) apply fixes in place — no new phases for remediation, (4) drag-drop launcher was user's idea and is the preferred UX surface, not the CLI."
+  "next_action": "Pick up the launcher commit first (gated on CR-01, now unblocked). After that close Phase 6 Plan 5 Task 4 by writing 06-HUMAN-UAT.md, then run phase verification on Phase 6. The tail-lockup investigation is a discrete next-item whose witness tooling doesn't exist yet — fits naturally in Phase 7 (witness-diff harness) rather than Phase 6.",
+  "context_notes": "Session ended cleanly after a productive arc: fixer agent landed 7 code-review fixes, /gsd-debug found + fixed two stacked root causes (Q15 input_scale + CLI work_buf init). User's initial 'noise blast' complaint traced to work_buf uninit heap residue — the 24-bit-vs-16-bit-produces-different-output signature was the key diagnostic. User's follow-up 'silent sections' complaint turned out to be Linux media-player flakiness (Elisa/VLC buffer glitches on 44.1 kHz stereo WAV); Audacity confirmed the file itself is clean. User's tone shifted from frustrated-at-start-of-session to satisfied-at-close. Honor his 'no ceremony / single lean command' preference on resume: do the launcher commit + UAT close inline, don't propose new phases for the tail investigation, queue witness-diff to Phase 7."
 }
