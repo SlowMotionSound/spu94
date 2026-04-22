@@ -39,6 +39,13 @@ Environment:
 
 Pattern source: tests/python/fuzz_reverb.py (Phase 3 Plan 04 Task 2).
 Shares the aligned-buffer helper + generator-expression env-var wiring.
+
+Phase 6 Plan 5 D-16 migration: hand-typed SPU94_STATE_SIZE_MAX /
+SPU94_STATE_ALIGN_MAX / SPU94_LATENCY_SAMPLES constants are replaced
+by imports from the new spu94 binding package. The fuzz script's
+extra C symbol (spu94_fir_chain_step_reverb_bypass) is not on the
+binding's public prototype list (it's an internal-but-exported test
+hook per Plan 4 SUMMARY); its argtypes are declared locally.
 """
 
 import argparse
@@ -49,17 +56,26 @@ import sys
 import time
 from pathlib import Path
 
+# Phase 6 Plan 5 D-16: prepend python/ to sys.path so `import spu94`
+# resolves to the repository's binding source tree during ctest runs.
+# Matches the python/spu94/__init__.py layout landed in Plan 1. The
+# SPU94_LIB env var (set by ctest via $<TARGET_FILE:spu94_shared>)
+# continues to control which libspu94.so is loaded.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_REPO_ROOT / "python"))
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+from spu94 import (  # noqa: E402 — after sys.path prepend
+    SPU94_STATE_SIZE_MAX,
+    SPU94_STATE_ALIGN_MAX,
+    SPU94_LATENCY_SAMPLES,
+)
+from spu94._binding import _lib  # noqa: E402
+
+REPO_ROOT = _REPO_ROOT
 DEFAULT_LIB_PATH = REPO_ROOT / "build" / "src" / "spu94" / "libspu94.so"
 
-# Hand-synced from include/spu94/spu94.h. Plan 03 corrected 38 -> 58
-# after the chain-level impulse-peak test exposed the miscounted
-# interpolator clock domain.
-SPU94_STATE_SIZE_MAX = 16384
-SPU94_STATE_ALIGN_MAX = 16
 WORK_BUF_SIZE = 8192
-SPU94_LATENCY_SAMPLES_EXPECTED = 58
+SPU94_LATENCY_SAMPLES_EXPECTED = SPU94_LATENCY_SAMPLES
 
 # Canary stamped past the in-use struct footprint. struct spu94_state is
 # ~544 bytes at end of Plan 03 (<< SPU94_STATE_SIZE_MAX); offset 0x1000
@@ -76,35 +92,33 @@ RESET_INTERVAL = 10_000
 
 
 def load_lib(lib_path: Path) -> ctypes.CDLL:
+    """Return the binding's shared-library handle.
+
+    Phase 6 Plan 5 D-16 migration: thin wrapper over the already-
+    configured `_lib` from `python/spu94/_binding.py`. Public entries
+    (spu94_state_size, spu94_init, spu94_reset, spu94_get_latency_samples)
+    have their argtypes set by the binding at import time.
+
+    Internal-but-exported entry `spu94_fir_chain_step_reverb_bypass` is
+    NOT on the binding's public prototype list — Plan 4 SUMMARY flagged
+    it as a tests-only hook and kept it out of `_binding.py`. Its
+    argtypes are declared on the shared handle here; doing so is a no-op
+    for the binding because ctypes setattr stores the argtypes on the
+    C function's `_FuncPtr` attribute, not on the module.
+    """
     if not lib_path.exists():
         sys.exit(f"FAIL: {lib_path} not found. "
                  f"Build first: cmake --build build")
-    lib = ctypes.CDLL(str(lib_path))
 
-    lib.spu94_state_size.restype = ctypes.c_size_t
-    lib.spu94_state_size.argtypes = []
-
-    lib.spu94_init.restype = ctypes.c_void_p
-    lib.spu94_init.argtypes = [
-        ctypes.c_void_p, ctypes.c_size_t,
-        ctypes.c_void_p, ctypes.c_size_t,
-    ]
-
-    lib.spu94_reset.restype = None
-    lib.spu94_reset.argtypes = [ctypes.c_void_p]
-
-    # Internal-but-exported (default visibility); Phase 6 may promote to
-    # a test-public header. Plan 03 confirmed the T symbol is present.
-    lib.spu94_fir_chain_step_reverb_bypass.restype = None
-    lib.spu94_fir_chain_step_reverb_bypass.argtypes = [
+    # Extend the binding handle with the tests-only FIR-chain step
+    # entry point. Safe: the binding doesn't declare this symbol, so
+    # there's no argtypes-conflict to worry about.
+    _lib.spu94_fir_chain_step_reverb_bypass.restype = None
+    _lib.spu94_fir_chain_step_reverb_bypass.argtypes = [
         ctypes.c_void_p, ctypes.c_int16, ctypes.c_int16,
         ctypes.POINTER(ctypes.c_int16), ctypes.POINTER(ctypes.c_int16),
     ]
-
-    lib.spu94_get_latency_samples.restype = ctypes.c_uint32
-    lib.spu94_get_latency_samples.argtypes = []
-
-    return lib
+    return _lib
 
 
 def aligned_buffer(size: int, align: int):

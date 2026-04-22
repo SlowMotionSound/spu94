@@ -17,6 +17,18 @@ chain). Phase 5's fuzz adds the public-API layer above them.
 
 Golden seed: 0x05F05EED (chosen so failures are reproducible). Override
 via --seed CLI arg.
+
+Phase 6 Plan 5 D-16 / D-17 migration:
+  - D-16: hand-typed SPU94_STATE_SIZE_MAX / SPU94_STATE_ALIGN_MAX /
+    SPU94_REG__COUNT / SPU94_PRESET__COUNT / I16_REGS / SPU94_REG_mBASE
+    + the per-function ctypes argtype / restype block are replaced
+    with imports from the new spu94 binding package. The binding's
+    runtime-reflection IntEnum + _lib handle are the single source
+    of truth.
+  - D-17: struct-internal offsets (PENDING_MASK_OFFSET, FIR_IDX_*_OFFSET)
+    stay hand-typed in this script — they reach INTO the private
+    spu94_state struct via byte-offset peeks and are not exposed by
+    the binding. See the strengthened warning block below.
 """
 import argparse
 import ctypes
@@ -24,34 +36,72 @@ import os
 import random
 import sys
 import time
+from pathlib import Path
 from ctypes import (
-    c_int16,
-    c_int,
     c_uint8,
-    c_uint16,
-    c_uint32,
     c_uint64,
-    c_size_t,
     c_void_p,
-    POINTER,
 )
+
+import numpy as np  # Phase 6 Plan 5 D-16: binding uses numpy ndpointer
+                    # argtypes on spu94_process / spu94_flush, so the
+                    # harness switches from raw ctypes arrays to numpy
+                    # int16 arrays to satisfy the strict contract (D-09).
 
 GOLDEN_SEED = 0x05F05EED
 DEFAULT_STEPS = 1_000_000
 
 # ------------------------------------------------------------------------
-# Hand-synced struct offsets (mirror fuzz_fir.py CANARY_OFFSET pattern +
-# fuzz_buffer.py hand-synced register ID pattern). Offsets computed from
-# src/spu94/spu94_state_internal.h end-of-Phase-4 layout via a small C
-# probe. A runtime guard below (lib.spu94_state_size() bound check) fails
-# loudly if the struct shifts before Phase 6 auto-derives these via
-# ctypes.Structure.
+# Phase 6 Plan 5 D-16 migration: import constants + _lib from the new
+# spu94 binding. The sys.path prepend matches the other three fuzz
+# scripts (fuzz_buffer / fuzz_reverb / fuzz_fir) so all four behave
+# identically under ctest.
+# ------------------------------------------------------------------------
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_REPO_ROOT / "python"))
+
+from spu94 import (  # noqa: E402 — after sys.path prepend
+    Register,
+    SPU94_REG__COUNT,
+    SPU94_PRESET__COUNT,
+    SPU94_STATE_SIZE_MAX,
+    SPU94_STATE_ALIGN_MAX,
+    SPU94_OK,
+    SPU94_UNKNOWN_REG,
+    SPU94_TYPE_MISMATCH,
+)
+from spu94._binding import _lib  # noqa: E402
+
+# ------------------------------------------------------------------------
+# Hand-synced struct-internal offsets (per D-17 / 06-CONTEXT.md):
 #
-# If these assertions fire, re-read spu94_state_internal.h, recompute the
-# offsets via offsetof() in a small C probe, and update BOTH this file
-# AND the <interfaces> block of 05-05-PLAN.md. Never silently adjust.
+# These reach INTO the private spu94_state struct via byte-offset peeks.
+# They are NOT exposed via the public C API or the Phase 6 Python
+# binding; D-08 / D-17 explicitly keeps them in the fuzz scripts as
+# "tests-only knowledge." The binding does not know about these
+# offsets because struct-internal layout is not part of the public ABI.
 #
-# Current layout (verified 2026-04-21 via offset probe):
+# If the struct layout shifts, the import-time spu94_state_size() check
+# in the Phase 6 binding catches the shift LOUDLY
+# (RuntimeError: spu94 library mismatch: ...) — but only a struct-size
+# change fires that gate. Individual FIELD offsets can still drift
+# without tripping it. If THAT happens, the symptoms are:
+#   - fuzz_process failures with nonsense values in fir_idx_* (> 39 or > 255)
+#   - pending_mask invariants failing with bits set in positions we know
+#     should be zero
+# When triaged, re-compute these offsets via a C probe:
+#     echo '#include "spu94_state_internal.h"
+#           #include <stdio.h>
+#           int main(void){
+#             printf("pending_mask=%zu\n",
+#                    offsetof(struct spu94_state, pending_mask));
+#             printf("fir_idx_l_in=%zu\n",
+#                    offsetof(struct spu94_state, fir_idx_l_in));
+#             /* etc */
+#           }' | gcc -I src/spu94 -x c -o /tmp/probe - && /tmp/probe
+#
+# Current layout (verified 2026-04-21 via offset probe; also re-verified
+# at the start of Phase 6 Plan 5 Task 2 migration):
 #   sizeof(struct spu94_state) = 544 bytes.
 # ------------------------------------------------------------------------
 PENDING_MASK_OFFSET = 160   # uint64_t; bound: (v >> 35) == 0
@@ -71,82 +121,35 @@ ap.add_argument("--steps", type=int, default=DEFAULT_STEPS)
 ap.add_argument("--seed", type=lambda s: int(s, 0), default=GOLDEN_SEED)
 args = ap.parse_args()
 
+# Keep the existing SPU94_LIB gate — the binding has already loaded the
+# library by this point, but we still assert the env var is set so a
+# missing-env-var misconfiguration fails early with the Phase 5 error
+# text rather than a confusing downstream trace.
 LIB_PATH = os.environ.get("SPU94_LIB")
 if not LIB_PATH:
     print("FAIL: SPU94_LIB env var required", file=sys.stderr)
     sys.exit(1)
 
-lib = ctypes.CDLL(LIB_PATH)
+lib = _lib  # shorthand; the binding owns the CDLL + argtypes.
 
 # ------------------------------------------------------------------------
-# C signatures (mirror include/spu94/spu94.h + spu94_registers.h)
+# Register partitions — derived from the live library via spu94_reg_type.
+# spu94_reg_type returns 0 for I16 signed gain regs and 1 for U16
+# unsigned address/delay regs. Replaces the hand-typed set from the
+# pre-migration version (D-16).
 # ------------------------------------------------------------------------
+_SPU94_REG_TYPE_I16 = 0
+I16_REGS = {
+    int(r) for r in Register
+    if lib.spu94_reg_type(int(r)) == _SPU94_REG_TYPE_I16
+}
+assert len(I16_REGS) == 12, (
+    f"expected 12 I16 registers, got {len(I16_REGS)}"
+)
 
-SPU94_OK = 0
-SPU94_UNKNOWN_REG = 2
-SPU94_TYPE_MISMATCH = 3
-
-SPU94_STATE_SIZE_MAX = 16384
-SPU94_STATE_ALIGN_MAX = 16
-SPU94_REG__COUNT = 35
-SPU94_PRESET__COUNT = 10
-
-# Register type classifier: mirrors Phase 2's signedness table.
-# I16 family: 12 v-prefix regs (enum indices 0, 1, 5, 6, 7, 8, 9, 10, 11,
-# 12, 33, 34). U16 family: 23 d-prefix / m-prefix + mBASE (enum indices
-# 2, 3, 4, 13..32). Hand-synced from include/spu94/spu94_registers.h.
-I16_REGS = {0, 1, 5, 6, 7, 8, 9, 10, 11, 12, 33, 34}
-
-# mBASE enum index for the "buffer_address even OR equals mBASE" check.
-SPU94_REG_mBASE = 2
-
-lib.spu94_state_size.restype = c_size_t
-lib.spu94_state_size.argtypes = []
-
-lib.spu94_init.restype = c_void_p
-lib.spu94_init.argtypes = [c_void_p, c_size_t, c_void_p, c_size_t]
-
-lib.spu94_reset.restype = None
-lib.spu94_reset.argtypes = [c_void_p]
-
-lib.spu94_destroy.restype = None
-lib.spu94_destroy.argtypes = [c_void_p]
-
-lib.spu94_tick.restype = None
-lib.spu94_tick.argtypes = [c_void_p]
-
-lib.spu94_process.restype = None
-lib.spu94_process.argtypes = [
-    c_void_p,
-    POINTER(c_int16), POINTER(c_int16),
-    POINTER(c_int16), POINTER(c_int16),
-    c_uint32,
-]
-
-lib.spu94_flush.restype = None
-lib.spu94_flush.argtypes = [
-    c_void_p,
-    POINTER(c_int16), POINTER(c_int16),
-    c_uint32,
-]
-
-lib.spu94_load_preset.restype = c_int
-lib.spu94_load_preset.argtypes = [c_void_p, c_int]
-
-lib.spu94_set_reg_i16.restype = c_int
-lib.spu94_set_reg_i16.argtypes = [c_void_p, c_int, c_int16]
-
-lib.spu94_set_reg_u16.restype = c_int
-lib.spu94_set_reg_u16.argtypes = [c_void_p, c_int, c_uint16]
-
-lib.spu94_get_reg_i16.restype = c_int16
-lib.spu94_get_reg_i16.argtypes = [c_void_p, c_int]
-
-lib.spu94_get_reg_u16.restype = c_uint16
-lib.spu94_get_reg_u16.argtypes = [c_void_p, c_int]
-
-lib.spu94_get_buffer_address.restype = c_uint32
-lib.spu94_get_buffer_address.argtypes = [c_void_p]
+# Convenience alias — the halfword-alignment invariant branches on
+# mBASE by name rather than by number, so keep it symbolic.
+SPU94_REG_mBASE = int(Register.mBASE)
 
 # ------------------------------------------------------------------------
 # Allocate caller state + work buffer (aligned; mirrors fuzz_fir.py)
@@ -194,30 +197,27 @@ _fir_idx_l_out_view = c_uint8.from_address(state_addr + FIR_IDX_L_OUT_OFFSET)
 _fir_idx_r_out_view = c_uint8.from_address(state_addr + FIR_IDX_R_OUT_OFFSET)
 
 # ------------------------------------------------------------------------
-# Per-op implementations
+# Per-op implementations — Phase 6 Plan 5 D-16: numpy int16 arrays to
+# satisfy the binding's ndpointer contract (D-09). Pre-migration used
+# raw ctypes c_int16 arrays; swap is mechanical, same semantics.
 # ------------------------------------------------------------------------
 MAX_BLOCK = 4096
-Lin = (c_int16 * MAX_BLOCK)()
-Rin = (c_int16 * MAX_BLOCK)()
-Lout = (c_int16 * MAX_BLOCK)()
-Rout = (c_int16 * MAX_BLOCK)()
+Lin = np.zeros(MAX_BLOCK, dtype=np.int16)
+Rin = np.zeros(MAX_BLOCK, dtype=np.int16)
+Lout = np.zeros(MAX_BLOCK, dtype=np.int16)
+Rout = np.zeros(MAX_BLOCK, dtype=np.int16)
 
 
 def fill_random_input(rng, n):
-    # Bulk-fill via rng.randbytes() + ctypes.memmove for a single C-level
-    # copy. Roughly 10x faster than a Python-level per-sample assignment
-    # loop on 1k+ samples -- avoids both the interpreter overhead AND the
-    # per-index bounds check on the c_int16 array setitem path.
-    #
-    # randbytes returns bytes in native order; on little-endian hosts the
-    # bytes map 1:1 to int16 LE. All M1 targets (x86-64, Cortex-M7 LE,
-    # Cortex-A ARM little) are little-endian so the direct memmove is
-    # correct without byte-swap.
-    #
-    # 2 bytes per int16 sample per channel = 4*n bytes total (L then R).
+    # Bulk-fill via rng.randbytes() + numpy frombuffer copy. Roughly
+    # equivalent to the pre-migration ctypes.memmove path in wall time —
+    # numpy's write into the existing allocated slice still goes through
+    # a C-level memcpy. Using .view + np.frombuffer keeps the whole
+    # operation within a single allocation (no per-call np.zeros).
     raw = rng.randbytes(4 * n)
-    ctypes.memmove(Lin, raw, 2 * n)
-    ctypes.memmove(Rin, raw[2 * n:], 2 * n)
+    # First n*2 bytes -> L; next n*2 bytes -> R.
+    Lin[:n] = np.frombuffer(raw, dtype=np.int16, count=n, offset=0)
+    Rin[:n] = np.frombuffer(raw, dtype=np.int16, count=n, offset=2 * n)
 
 
 def op_write_i16_reg(rng):
@@ -238,17 +238,17 @@ def op_write_u16_reg(rng):
 def op_process(rng):
     n = rng.randint(1, MAX_BLOCK)
     fill_random_input(rng, n)
-    lib.spu94_process(state, Lin, Rin, Lout, Rout, n)
-    # Invariant: every output sample within int16. ctypes.c_int16 enforces
-    # the C-type bound already (wrap-on-assign); the check confirms no
-    # out-of-domain value escapes via the readback. Values read as Python
-    # ints already fall in [-32768, 32767] by definition of c_int16, but
-    # we still assert defensively to catch ctypes-driver misbinding.
-    # Use slice min/max (C-level bulk ops) instead of per-sample compare.
-    L_slice = Lout[:n]
-    R_slice = Rout[:n]
-    lo_min, lo_max = min(L_slice), max(L_slice)
-    ro_min, ro_max = min(R_slice), max(R_slice)
+    # ndpointer argtypes require sized slices that are themselves
+    # C-contiguous. Numpy's basic slicing produces contiguous views for
+    # the MAX_BLOCK-rooted arrays, so no copy.
+    lib.spu94_process(state, Lin[:n], Rin[:n], Lout[:n], Rout[:n], n)
+    # Invariant: every output sample within int16. numpy int16 already
+    # enforces the domain at storage time; bulk min/max via numpy is
+    # a C-level scan.
+    lo_min = int(Lout[:n].min())
+    lo_max = int(Lout[:n].max())
+    ro_min = int(Rout[:n].min())
+    ro_max = int(Rout[:n].max())
     if lo_min < -32768 or lo_max > 32767 or ro_min < -32768 or ro_max > 32767:
         raise AssertionError(
             f"output escape in {n}-sample block: "
@@ -259,11 +259,11 @@ def op_process(rng):
 
 def op_flush(rng):
     n = rng.randint(1, MAX_BLOCK)
-    lib.spu94_flush(state, Lout, Rout, n)
-    L_slice = Lout[:n]
-    R_slice = Rout[:n]
-    lo_min, lo_max = min(L_slice), max(L_slice)
-    ro_min, ro_max = min(R_slice), max(R_slice)
+    lib.spu94_flush(state, Lout[:n], Rout[:n], n)
+    lo_min = int(Lout[:n].min())
+    lo_max = int(Lout[:n].max())
+    ro_min = int(Rout[:n].min())
+    ro_max = int(Rout[:n].max())
     if lo_min < -32768 or lo_max > 32767 or ro_min < -32768 or ro_max > 32767:
         raise AssertionError(
             f"flush output escape in {n}-sample drain: "
@@ -354,8 +354,9 @@ def check_global_invariants(op):
     if _last_preset[0] is not None and _last_preset[0] != 0 and op[0] == "process":
         _last_preset[1] += 1
         n = op[1]
-        # any() over a slice is C-level bulk; short-circuits on first nonzero.
-        any_nonzero = any(Lout[:n]) or any(Rout[:n])
+        # numpy.ndarray.any() is a C-level bulk scan; short-circuits on
+        # the first non-zero element it encounters.
+        any_nonzero = bool(Lout[:n].any()) or bool(Rout[:n].any())
         if any_nonzero:
             _last_preset[2] = 0
         else:

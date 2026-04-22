@@ -23,10 +23,13 @@ Environment:
 Usage:
     python3 tests/python/fuzz_buffer.py [--seed N] [--steps N] [--lib PATH]
 
-Pre-Phase-6 setup: this is a single-file ctypes driver (CONTEXT.md
-Specific Ideas: 'a single fuzz_buffer.py is fine, no full wheel needed
-yet'). Phase 6 replaces this file's hand-synced enum IDs with ctypes
-IntEnum derived from the C header at import time.
+Phase 6 Plan 5 D-16 migration: hand-typed register enum tuple + hand-
+typed U16_TICK_LATCHED_REGS list + hand-typed SPU94_STATE_SIZE_MAX /
+SPU94_STATE_ALIGN_MAX / SPU94_REG__COUNT constants are replaced by
+imports from the new spu94 binding package. The binding's runtime-
+reflection IntEnum (built at `import spu94` by walking spu94_reg_name)
+is now the single source of truth; this script asks the live library
+for its register list instead of carrying a parallel Python-side copy.
 """
 
 import argparse
@@ -37,89 +40,71 @@ import sys
 import time
 from pathlib import Path
 
+# Phase 6 Plan 5 D-16: prepend python/ to sys.path so `import spu94`
+# resolves to the repository's binding source tree during ctest runs
+# (no pip-install required). Matches the python/spu94/__init__.py layout
+# landed in Plan 1. The SPU94_LIB env var (set by ctest via the
+# $<TARGET_FILE:spu94_shared> generator expression) continues to control
+# which libspu94.so is loaded.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_REPO_ROOT / "python"))
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+from spu94 import (  # noqa: E402 — after sys.path prepend
+    Register,
+    SPU94_REG__COUNT,
+    SPU94_STATE_SIZE_MAX,
+    SPU94_STATE_ALIGN_MAX,
+)
+from spu94._binding import _lib  # noqa: E402
+
+REPO_ROOT = _REPO_ROOT
 DEFAULT_LIB_PATH = REPO_ROOT / "build" / "src" / "spu94" / "libspu94.so"
 
-# Must match include/spu94/spu94.h macros (hand-synced; Phase 6's real
-# binding will assert this matches at import time via spu94_state_size()).
-SPU94_STATE_SIZE_MAX = 16384
-SPU94_STATE_ALIGN_MAX = 16
 WORK_BUF_SIZE = 8192
 ADDR_MASK = 0x7FFFE
 
-# Register IDs in enum order. Hand-synced from include/spu94/spu94_registers.h
-# (Plan 02 Task 1). Plan 05 Task 3 SUMMARY flags this for Phase 6 auto-sync.
-(
-    SPU94_REG_vLOUT, SPU94_REG_vROUT, SPU94_REG_mBASE,
-    SPU94_REG_dAPF1, SPU94_REG_dAPF2, SPU94_REG_vIIR,
-    SPU94_REG_vCOMB1, SPU94_REG_vCOMB2, SPU94_REG_vCOMB3, SPU94_REG_vCOMB4,
-    SPU94_REG_vWALL, SPU94_REG_vAPF1, SPU94_REG_vAPF2,
-    SPU94_REG_mLSAME, SPU94_REG_mRSAME,
-    SPU94_REG_mLCOMB1, SPU94_REG_mRCOMB1,
-    SPU94_REG_mLCOMB2, SPU94_REG_mRCOMB2,
-    SPU94_REG_dLSAME, SPU94_REG_dRSAME,
-    SPU94_REG_mLDIFF, SPU94_REG_mRDIFF,
-    SPU94_REG_mLCOMB3, SPU94_REG_mRCOMB3,
-    SPU94_REG_mLCOMB4, SPU94_REG_mRCOMB4,
-    SPU94_REG_dLDIFF, SPU94_REG_dRDIFF,
-    SPU94_REG_mLAPF1, SPU94_REG_mRAPF1,
-    SPU94_REG_mLAPF2, SPU94_REG_mRAPF2,
-    SPU94_REG_vLIN, SPU94_REG_vRIN,
-) = range(35)
-SPU94_REG__COUNT = 35
+# Convenience aliases for the two register indices the harness references
+# by name (mBASE for the immediate-write branch, plus U16_TICK_LATCHED_REGS
+# is the 22 d-prefix / m-prefix delay/address registers minus mBASE).
+SPU94_REG_mBASE = int(Register.mBASE)
 
-# u16 TICK_LATCHED registers (the 22 d-prefix and m-prefix delay/address
-# registers, excluding mBASE which is IMMEDIATE). The fuzz harness only
-# writes u16 registers (mBASE + tick-latched). Writing i16 registers is
-# covered exhaustively by the C unit tests in tests/unit/registers/.
+# Derive the 22 U16 TICK_LATCHED registers from the live library via
+# spu94_reg_type. The alternative — hand-typing this list — is exactly
+# what D-16 replaces. spu94_reg_type returns 0 for I16 signed gain regs
+# and 1 for U16 unsigned address/delay regs; mBASE is U16 but IMMEDIATE,
+# so it is explicitly excluded.
+_SPU94_REG_TYPE_U16 = 1
 U16_TICK_LATCHED_REGS = [
-    SPU94_REG_dAPF1, SPU94_REG_dAPF2,
-    SPU94_REG_mLSAME, SPU94_REG_mRSAME,
-    SPU94_REG_mLCOMB1, SPU94_REG_mRCOMB1,
-    SPU94_REG_mLCOMB2, SPU94_REG_mRCOMB2,
-    SPU94_REG_dLSAME, SPU94_REG_dRSAME,
-    SPU94_REG_mLDIFF, SPU94_REG_mRDIFF,
-    SPU94_REG_mLCOMB3, SPU94_REG_mRCOMB3,
-    SPU94_REG_mLCOMB4, SPU94_REG_mRCOMB4,
-    SPU94_REG_dLDIFF, SPU94_REG_dRDIFF,
-    SPU94_REG_mLAPF1, SPU94_REG_mRAPF1,
-    SPU94_REG_mLAPF2, SPU94_REG_mRAPF2,
+    int(r) for r in Register
+    if _lib.spu94_reg_type(int(r)) == _SPU94_REG_TYPE_U16
+    and r != Register.mBASE
 ]
-assert len(U16_TICK_LATCHED_REGS) == 22, "U16_TICK_LATCHED_REGS must have 22 entries"
+assert len(U16_TICK_LATCHED_REGS) == 22, (
+    f"expected 22 U16 TICK_LATCHED registers, got {len(U16_TICK_LATCHED_REGS)}"
+)
+assert SPU94_REG__COUNT == 35, (
+    f"expected SPU94_REG__COUNT == 35, got {SPU94_REG__COUNT}"
+)
 
 
 def load_lib(lib_path: Path) -> ctypes.CDLL:
+    """Return the binding's shared-library handle.
+
+    Phase 6 Plan 5 D-16 migration: this is now a thin wrapper. The
+    ctypes argtype / restype declarations for the six entries this
+    script uses (spu94_state_size, spu94_init, spu94_set_reg_u16,
+    spu94_get_reg_u16, spu94_tick, spu94_get_buffer_address) are set
+    by `python/spu94/_binding.py` at import time, so we reuse that
+    handle rather than loading a second CDLL with its own prototype
+    table. The `lib_path` argument is still honored via SPU94_LIB —
+    if callers pass --lib, we set SPU94_LIB before the import happens
+    (see main()), so the binding resolves the correct library.
+    """
     if not lib_path.exists():
         sys.exit(
             f"FAIL: {lib_path} not found. Build first: cmake --build build"
         )
-    lib = ctypes.CDLL(str(lib_path))
-
-    lib.spu94_state_size.restype = ctypes.c_size_t
-    lib.spu94_state_size.argtypes = []
-
-    lib.spu94_init.restype = ctypes.c_void_p
-    lib.spu94_init.argtypes = [
-        ctypes.c_void_p, ctypes.c_size_t,
-        ctypes.c_void_p, ctypes.c_size_t,
-    ]
-
-    lib.spu94_set_reg_u16.restype = ctypes.c_int
-    lib.spu94_set_reg_u16.argtypes = [
-        ctypes.c_void_p, ctypes.c_int, ctypes.c_uint16,
-    ]
-
-    lib.spu94_get_reg_u16.restype = ctypes.c_uint16
-    lib.spu94_get_reg_u16.argtypes = [ctypes.c_void_p, ctypes.c_int]
-
-    lib.spu94_tick.restype = None
-    lib.spu94_tick.argtypes = [ctypes.c_void_p]
-
-    lib.spu94_get_buffer_address.restype = ctypes.c_uint32
-    lib.spu94_get_buffer_address.argtypes = [ctypes.c_void_p]
-
-    return lib
+    return _lib
 
 
 def aligned_buffer(size: int, align: int):
