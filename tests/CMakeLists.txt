@@ -9,3 +9,6 @@ add_subdirectory(cli)
 
 # Phase 6 Plan 4: packaging smoke tests
 add_subdirectory(packaging)
+
+# Phase 6 Plan 5: DOCS-04 README.md structure + content gate
+add_subdirectory(docs)
