@@ -72,3 +72,15 @@ target_include_directories(test_process_reverb_audible PRIVATE
     ${CMAKE_SOURCE_DIR}/include)
 add_test(NAME test_process_reverb_audible COMMAND test_process_reverb_audible)
 set_tests_properties(test_process_reverb_audible PROPERTIES LABELS "process")
+
+# CR-01 regression: Hall output level must scale linearly with input
+# level. The input_scale bug (raw widening multiply instead of Q15)
+# pinned output at ~-5 dBFS regardless of input amplitude. This test
+# feeds Hall at full / half / quarter amplitudes and checks the peak
+# ratio falls in a linear band (2.5..5.0 for full/quarter).
+add_executable(test_process_reverb_linearity test_process_reverb_linearity.c)
+target_link_libraries(test_process_reverb_linearity PRIVATE unity spu94_static spu94_warnings)
+target_include_directories(test_process_reverb_linearity PRIVATE
+    ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME test_process_reverb_linearity COMMAND test_process_reverb_linearity)
+set_tests_properties(test_process_reverb_linearity PROPERTIES LABELS "process")
