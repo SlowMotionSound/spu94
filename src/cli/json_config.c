@@ -27,6 +27,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -363,10 +364,30 @@ int spu94_cli_json_apply(const char *path, spu94_state *state,
                      path, (int)SPU94_REG__COUNT, pairs);
             return 1;
         }
+        /* HI-05: jsmn counts duplicate keys as separate pairs, so a flat
+         * config of `{"vIIR": ..., "vIIR": ..., <33 others>}` passes the
+         * count check above. Track which register IDs have been applied
+         * and reject duplicates explicitly — otherwise the second write
+         * silently overrides the first and the missing register sits at
+         * its post-reset zero value. */
+        bool seen[SPU94_REG__COUNT] = {0};
         int cur = 1;
         for (int k = 0; k < pairs && cur + 1 < n; ++k) {
             const jsmntok_t *tkey = &tokens[cur];
             const jsmntok_t *tval = &tokens[cur + 1];
+            int reg = find_reg_by_name(json, tkey);
+            if (reg >= 0 && reg < (int)SPU94_REG__COUNT) {
+                if (seen[reg]) {
+                    free(json);
+                    snprintf(err_buf, err_buf_size,
+                             "duplicate register '%s' in flat config '%s'",
+                             spu94_reg_name((spu94_reg_t)reg), path);
+                    return 1;
+                }
+                seen[reg] = true;
+            }
+            /* Unknown-register / malformed-value errors still surface
+             * through apply_one's existing message shapes. */
             if (apply_one(json, tkey, tval, state, err_buf, err_buf_size)) {
                 free(json);
                 return 1;
