@@ -146,8 +146,17 @@ static void run_body_equivalence(uint32_t seed) {
     int32_t LeftOutput = 0, RightOutput = 0;
     spu94_reverb_output_scale(B, Lout, Rout, vLOUT_snap, vROUT_snap,
                               &LeftOutput, &RightOutput);
-    (void)LeftOutput;
-    (void)RightOutput;
+    /* ADR-Phase-6-G: spu94_reverb_body publishes its scaled wet output to
+     * state->reverb_out_l / state->reverb_out_r so the FIR interpolator can
+     * consume it. Path A called spu94_reverb_body and thus populated A's
+     * mailbox; Path B ran the stage sequence manually. Pin the contract
+     * by asserting Path A's mailbox equals the int16-cast of Path B's
+     * LeftOutput / RightOutput. Without this assertion a future refactor
+     * to reverb_body or reverb_output_scale could silently diverge. */
+    TEST_ASSERT_EQUAL_INT16_MESSAGE(A->reverb_out_l, (int16_t)LeftOutput,
+        "reverb_out_l mailbox must match stage-by-stage wet output (L)");
+    TEST_ASSERT_EQUAL_INT16_MESSAGE(A->reverb_out_r, (int16_t)RightOutput,
+        "reverb_out_r mailbox must match stage-by-stage wet output (R)");
 
     /* 7. Byte-identical work_buf across both paths. */
     TEST_ASSERT_EQUAL_MEMORY(gA_work, gB_work, sizeof(gA_work));
