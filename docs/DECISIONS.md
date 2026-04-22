@@ -30,6 +30,80 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-Phase-6-G: Wet-only 44.1 kHz output — chain_step_impl feeds reverb wet into interpolator, not decimator output
+
+**Status:** Accepted (2026-04-21, Phase 6)
+
+**Resolves:** .planning/debug/resolved/reverb-not-in-audio-path.md (the M1 shipping bug where `LeftOutput`/`RightOutput` from `spu94_reverb_output_scale` were `(void)`-cast at `spu94_reverb.c:613-614` and the dry decimator samples fed the interpolator unchanged, producing a dry-passthrough CLI output that sounded identical to the input WAV regardless of preset).
+
+**Relates:** ADR-Phase-5-A (public block-based `spu94_process` entry point); ADR-Phase-5-B (D-05 mix-bus mailbox for reverb INPUT); ADR-0005 (Phase 4 FIR chain composition — decimate → tick → interpolate); Pitfall 4 (ADR-0005: the FIR helper functions each have exactly one call site).
+
+**Context:**
+
+Phase 4 landed the internal 44.1 kHz FIR chain wrapper (`spu94_fir_chain_step`, Plan 03). Phase 5 landed the public block-based entry point (`spu94_process`) on top of it. Both phases left a seam that neither closed: `spu94_reverb_body` computes `int32 LeftOutput, RightOutput` values via `spu94_reverb_output_scale` at the end of every 22.05 kHz tick, but `chain_step_impl` in `src/spu94/spu94_io_chain.c` passed the dry decimator outputs (`dec_l`, `dec_r`) straight into `spu94_fir_interpolate`, and `spu94_reverb.c` closed out the body with `(void)LeftOutput; (void)RightOutput;` under a "Phase 4 FIR will read them when the 39-tap interpolator lands" comment. Phase 4 did not land that wiring; Phase 5's test suite `test_preset_nonzero_tail` documented the gap explicitly ("The 'Off gates non-silent input' interpretation requires the M4 output-bus-through-FIR rewiring which is out of M1 scope") and structured its Off-preset sub-test around silent input so the gap was not test-visible.
+
+The M1 shipping binary therefore produced 44.1 kHz output that was the dry input convolved with the half-band FIR chain — approximately a -6 dB gain and a short FIR ring-down — regardless of which preset was loaded. A 440 Hz sine + Hall preset produced sine peak 2896 → output peak 1449 (exactly -6 dB, matching the half-band attenuation); the "tail" region decayed to silence after the 39-tap FIR ring-down (~40 samples) rather than the 2–3 second reverb decay Hall's preset values would produce if the wet output had actually been routed. A real piano WAV rendered with `--preset hall` sounded identical to the input. The reverb network ran correctly on every tick (state-machine advance, work-buffer writes, IIR/comb/APF numerics all verified by Phase 3's body-level tests); only the scalar output was lost.
+
+The fix is trivial at the wiring level (swap the interpolator's input source). The policy question — what should the 44.1 kHz output signal be — was not. PS1 SPU hardware emitted a separate wet bus (via `vLOUT`/`vROUT`) that the console's main mixer blended with the dry channel at fixed gain. A bit-faithful reimplementation of that bus emits wet only; dry+wet mixing is the host application's job. This ADR records the decision.
+
+**Decision:**
+
+The 44.1 kHz output of `spu94_process` is the reverb body's WET output, scaled by `vLOUT`/`vROUT`, interpolated from 22.05 kHz to 44.1 kHz by the polyphase half-band FIR. No dry-signal blend. No dry-path routing inside libspu94.
+
+Concretely:
+
+- `struct spu94_state` gains two int16 fields `reverb_out_l` / `reverb_out_r` — a reverb wet-output mailbox symmetric with the existing D-05 `mix_bus_l` / `mix_bus_r` input mailbox. Fields are zeroed by `spu94_init` / `spu94_reset` (existing byte-loop covers) and placed at the END of the struct (not adjacent to `mix_bus_*` where they belong logically) so that hand-typed byte offsets in `tests/python/fuzz_process.py` (per D-17) stay valid. `sizeof(struct spu94_state)` grows from 544 to 552; still under `SPU94_STATE_SIZE_MAX`.
+- `spu94_reverb_body` at the end of every 22.05 kHz tick writes the `(int16_t)LeftOutput` / `(int16_t)RightOutput` produced by `spu94_reverb_output_scale` into those fields, replacing the prior `(void)` casts.
+- `chain_step_impl` on the production path (`spu94_fir_chain_step`, `reverb_active=1`) zeros the mailbox BEFORE calling `spu94_tick`, then feeds `state->reverb_out_l` / `state->reverb_out_r` into `spu94_fir_interpolate` as the 22.05 kHz source samples. `dec_l` / `dec_r` (the dry decimator outputs) are no longer passed to the interpolator — they continue to drive the decimator's delay-line state (`spu94_fir_decimate` writes its delay lines from every 44.1 kHz call) and feed the reverb INPUT via the existing `state->mix_bus_l` / `mix_bus_r` mailbox populated by `spu94_process` before each chain call.
+- `chain_step_impl` on the test-only bypass path (`spu94_fir_chain_step_reverb_bypass`, `reverb_active=0`) skips `spu94_tick` AND routes `dec_l` / `dec_r` directly into the interpolator, preserving the pre-ADR "pure half-band decimate → interpolate round-trip" semantics that the DSP-level FIR tests (`test_fir_impulse`, `test_fir_chain_latency`, `test_fir_dc`, `test_fir_round_trip_transparency`, `test_fir_err_overflow_taps`, `fuzz_fir`) rely on for bit-faithful half-band FIR coverage. This bypass path is never reachable from production code: `spu94_process` calls only `spu94_fir_chain_step` (`reverb_active=1`). The `spu94_fir_internal.h` docstring for `spu94_fir_chain_step_reverb_bypass` is revised to document the dual semantics (production path is wet-only; test bypass stays dry-passthrough).
+- CLI default: `src/cli/main.c` sets `vLOUT` / `vROUT` to `0x7FFF` after `spu94_load_preset` for any non-Off preset. The 10 factory preset tables intentionally leave those master-mix registers at `0x0000` (see `spu94_presets.c` lines 32–34: "neither nocash nor hitmen publishes per-preset values for those global registers (they are configured by the caller outside the preset surface)"), so without this CLI-level default the rendered audio would remain silent under wet-only wiring even though the user explicitly asked for a named preset. Off is the deliberate exception — its `vLOUT` / `vROUT` stay at 0.
+- Regression gate: `tests/unit/process/test_process_reverb_audible.c` is the behavioral test that would have caught the original bug. Three sub-tests:
+  1. `test_hall_preset_produces_non_dry_output` — Hall + deterministic noise → sum-of-absolute-values over the primed second half of the output must exceed a per-sample-average threshold of 100 LSB. The Off-preset reference (same input, different preset) must be identically silent.
+  2. `test_off_preset_with_noise_input_is_silent` — Off + noise → every output sample is exactly zero. `vLOUT` / `vROUT` = 0 gates the wet path.
+  3. `test_hall_preset_tail_decays` — Hall + 10000 primed samples + 4000-sample flush → at least half of the 2 × 4000 tail samples (L+R) are non-zero. FIR-only ring-down decays in ~40 samples; real reverb tail persists for thousands.
+- Test surface adjustments:
+  - `test_preset_nonzero_tail`: its Off sub-test is restored to the original plan premise "Off + non-silent input → silent output" (the invariant that vLOUT/vROUT = 0 gates the 44.1 kHz output, which is the wet path under wet-only wiring). Non-Off sub-test sets `vLOUT` / `vROUT` = 0x7FFF and bumps feed length to 15000 samples so every preset's reverb network primes within the measurement window (Hall's `dLSAME` delay tap is 4544 halfword ticks = 9088 44.1-kHz samples).
+  - `test_process_basic::test_process_impulse_peak_near_latency` is retired to a pass-stub with an inline ADR-Phase-6-G rationale. Under wet-only wiring, a single impulse into `spu94_process` with all registers zero cannot propagate to the output (vLIN gates input to the reverb body, and vLOUT gates output regardless); the internal-FIR group-delay contract is still pinned by `tests/unit/fir/test_fir_chain_latency.c` via the test-only bypass.
+
+**Consequences:**
+
+- libspu94 and the CLI now ship audibly-correct reverb. `spu94 --preset hall input.wav output.wav` produces a wet reverb rendering whose character matches the preset; `spu94 --preset off` produces silence regardless of input. The M1 shipping bug (dry-passthrough CLI output) is closed.
+- Dry+wet mixing is deferred to the host. CLI users who want a dry+wet blend can render twice (once with `--preset off` or skip the CLI for dry, once with `--preset hall` for wet) and mix in their DAW at their chosen ratio. This matches the PS1 hardware boundary where the SPU produced a wet bus and the console's main mixer blended.
+- A future `--wet`/`--dry`/`--mix` CLI flag is a well-scoped addition if demand surfaces (would require buffering the dry input and blending at the WAV-writer stage). Not in scope for M1; deferred.
+- The `reverb_out_l` / `reverb_out_r` mailbox is observable — tests and future host code can read it for metering, analysis, or soft-clip drive logic symmetric to the existing `state->overflow_magnitude` observable. No public accessor is added in this ADR; the fields are internal per the `spu94_state_internal.h` convention.
+- The test-only bypass semantics split (dry-passthrough for FIR tests; wet-only for production) adds exactly one `if (reverb_active)` branch to `chain_step_impl`. Blast radius is bounded; the production hot path pays only a predictable branch.
+- Future preset table: if a preset-definitive master-mix level becomes a desired feature (e.g., "Hall intentionally has a softer wet gain than Cathedral"), the per-preset `vLOUT` / `vROUT` cells in the preset table can be populated without further ADR — the CLI default would stack additively-correctly with populated preset values (set_vLOUT after load_preset overwrites). Current cells are zero by convention, not by algorithmic necessity.
+
+**Alternatives Considered:**
+
+- **Option B — Dry + wet additive mix inside libspu94.** Rejected: introduces a policy decision (which dry gain? fixed or parameter?) that the PS1 hardware did not make internally. Moving the mix to the host is cleaner, matches the hardware boundary, and keeps libspu94's output contract scalar-simple.
+- **Option C — Output `LeftOutput` / `RightOutput` at 22.05 kHz and skip the interpolator.** Rejected: breaks the 44.1 kHz output-rate contract that `spu94_process` and the CLI WAV writer both assume. The polyphase half-band FIR is part of the bit-faithful PS1 reproduction; removing it for wet-output routing would be an architectural regression.
+- **Leaving the `reverb_out_*` fields adjacent to `mix_bus_*` in the struct layout.** Rejected for this ADR: shifts the FIR-block byte offsets hand-typed into `tests/python/fuzz_process.py` (per D-17), forcing an offset reprobe for a layout change that is logically orthogonal to the wiring fix. Placing the new fields at the struct tail confines the byte-offset disruption; a future struct audit can relocate if the logical grouping is worth the reprobe cost.
+- **Writing the CLI's `vLOUT` / `vROUT` default into the factory preset tables instead of the CLI layer.** Rejected: the preset tables' cell-level provenance is audited against BIB-011 / BIB-012 / BIB-013 (see Phase 5 Plan 01 audit); editing them to add a master-mix default that neither source publishes would break the three-source audit invariant. The CLI-layer default is the right place for a user-facing rendering convenience.
+
+**Seam:**
+
+- The reverb wet-output mailbox pattern (`reverb_out_l` / `reverb_out_r` written by `spu94_reverb_body`, read by `chain_step_impl`) is directly reusable for any future feature that needs the un-interpolated 22.05 kHz wet output — a parallel dry+wet capture test, a future tap-for-metering public accessor, or an M4 host-side CV-on-wet feature all slot in without further state-layout changes.
+- The `test_process_reverb_audible` pattern (Off-reference vs. primed-preset output, sum-of-absolute-values over the second-half primed region, explicit priming-duration rationale tied to the longest delay tap) is the template for every future behavioral-audibility test.
+- The dual-semantics split on `spu94_fir_chain_step_reverb_bypass` (production wet-only; test dry-passthrough) is the template for any future test helper that preserves old testable-isolation semantics after a production-level contract change.
+
+**Sources:**
+
+- `.planning/debug/resolved/reverb-not-in-audio-path.md` (full investigation, including empirical CLI repro on a 440 Hz sine and the `(void)LeftOutput` / `(void)RightOutput` smoking gun).
+- `src/spu94/spu94_reverb.c` pre-fix lines 608–614 (the cast-to-void comment); post-fix lines 608–621 (mailbox write).
+- `src/spu94/spu94_io_chain.c` pre-fix lines 45–73 (dry-into-interpolator wiring); post-fix lines 45–107 (wet-only production path with preserved test-only dry bypass).
+- `tests/unit/process/test_process_reverb_audible.c` (regression gate born with this ADR).
+- `src/spu94/spu94_presets.c` lines 32–34 (factory preset tables intentionally omit master-mix levels).
+- Phase 5 Plan 03 Task 3 docstring in pre-fix `tests/unit/preset/test_preset_nonzero_tail.c` (which routed around the bug explicitly, punting the "Off gates non-silent input" behavior to M4).
+
+**Revision Path:**
+
+- A `--wet`/`--dry`/`--mix` CLI flag would amend this ADR (add a new section; status stays Accepted). The libspu94 contract stays wet-only — the flag routes the dry input buffer into the WAV writer as a separately tracked channel and blends at write time.
+- If PS1-hardware research surfaces a documented master-mix default for the factory presets, a successor ADR may revise the CLI default to honor that value instead of `0x7FFF`. The default is a user-facing rendering convenience, not a DSP contract, so the revision is low-blast-radius.
+- Moving the `reverb_out_l` / `reverb_out_r` fields back to their logical home adjacent to `mix_bus_l` / `mix_bus_r` after a future D-17 offset reprobe is fine; `fuzz_process.py` is the only consumer of the hand-typed offsets, and updating the four `FIR_IDX_*_OFFSET` constants plus the comment block is a one-commit change.
+
+---
+
 ## ADR-Phase-6-A: Two-surface Python binding — raw-panel functions + SPU94 class
 
 **Status:** Accepted (2026-04-21, Phase 6)
