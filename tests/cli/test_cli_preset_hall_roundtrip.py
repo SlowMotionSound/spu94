@@ -109,6 +109,55 @@ def test_every_preset_roundtrips(spu94_cli_path, sample_wav_file, tmp_wav_out, p
         )
 
 
+def test_silent_input_through_hall_is_silent(spu94_cli_path, tmp_path):
+    """Silent input through any preset must produce silent output.
+
+    Regression for the CLI's uninitialized work_buf bug: `spu94_init`
+    intentionally does NOT zero the caller-owned work buffer (per its
+    documented contract — only `spu94_reset` does). The CLI was calling
+    `spu94_init` without a follow-up `spu94_reset`, so the reverb's
+    delay-line memory started with `malloc` heap garbage. Today's wiring
+    fix (ADR-Phase-6-G) surfaced that garbage as an audible "noise blast"
+    at the start of every rendered file.
+
+    This test feeds 2 seconds of pure silence through Hall. If the CLI
+    properly zeroes its work_buf, output is silent end-to-end. If heap
+    residue is bleeding through the delay lines, output will be non-zero
+    at the start as the garbage decays through the reverb's feedback loop.
+    """
+    import struct
+    n_frames = 88200  # 2 seconds
+    silence = bytearray(b"\x00" * n_frames * 4)  # stereo int16 zeros
+    input_wav = tmp_path / "silent_in.wav"
+    with wave.open(str(input_wav), "wb") as w:
+        w.setnchannels(2)
+        w.setsampwidth(2)
+        w.setframerate(44100)
+        w.writeframes(bytes(silence))
+
+    output_wav = tmp_path / "silent_out.wav"
+    subprocess.run(
+        [spu94_cli_path, "--preset", "hall", "--tail-seconds", "0",
+         str(input_wav), str(output_wav)],
+        capture_output=True, text=True, check=True,
+    )
+
+    with wave.open(str(output_wav), "rb") as w:
+        raw = w.readframes(w.getnframes())
+
+    # Every int16 sample must be exactly zero.
+    peak = 0
+    for i in range(0, len(raw), 2):
+        v = int.from_bytes(raw[i:i + 2], "little", signed=True)
+        if abs(v) > peak:
+            peak = abs(v)
+    assert peak == 0, (
+        f"silent input produced non-silent output (peak={peak}) — "
+        f"work_buf heap residue is leaking through the reverb delay "
+        f"lines. The CLI must call spu94_reset after spu94_init."
+    )
+
+
 def test_preset_case_insensitive(spu94_cli_path, sample_wav_file, tmp_wav_out):
     """Uppercase and mixed-case preset names should resolve identically."""
     for variant in ("HALL", "Hall", "hAlL"):
