@@ -59,3 +59,16 @@ target_include_directories(test_process_in_place PRIVATE
     ${CMAKE_SOURCE_DIR}/include)
 add_test(NAME test_process_in_place COMMAND test_process_in_place)
 set_tests_properties(test_process_in_place PROPERTIES LABELS "process")
+
+# Phase 6 Plan 06 (ADR-Phase-6-G): end-to-end reverb-audibility regression
+# gate. Would have caught the Phase 4/5 wiring bug documented in
+# .planning/debug/resolved/reverb-not-in-audio-path.md: the test asserts
+# (1) Hall preset output is materially different from the Off-preset
+# reference, (2) Off + noise -> silence at 44.1 kHz (wet-only wiring),
+# (3) Hall's decay tail extends deep into spu94_flush.
+add_executable(test_process_reverb_audible test_process_reverb_audible.c)
+target_link_libraries(test_process_reverb_audible PRIVATE unity spu94_static spu94_warnings)
+target_include_directories(test_process_reverb_audible PRIVATE
+    ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME test_process_reverb_audible COMMAND test_process_reverb_audible)
+set_tests_properties(test_process_reverb_audible PROPERTIES LABELS "process")
