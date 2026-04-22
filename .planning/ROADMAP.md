@@ -122,7 +122,7 @@ Plans:
 - [x] 06-01-PLAN.md — Binding foundation: ctypes _binding.py + runtime-reflection Register IntEnum + import-time drift asserts + presets.py via in_dll + pytest `binding` label scaffolding (PYBIND-01/03/04/05)
 - [x] 06-02-PLAN.md — Raw-panel public API + SPU94 class + strict numpy contract (ndpointer int16 C-contig) + self_test + cli.py entry-point shim (PYBIND-01/02/04)
 - [x] 06-03-PLAN.md — Native spu94 CLI: vendored dr_wav + jsmn + getopt_long + --preset / --config / --list-presets / --help + one-line error contract + ctest `cli` label + verify-no-drwav-in-libspu94 (CLI-01/02/03/04)
-- [ ] 06-04-PLAN.md — pyproject.toml (scikit-build-core + cibuildwheel manylinux_2_28) + CMake install rules under SKBUILD guard + `$ORIGIN` RPATH + verify-wheel-tag.sh + packaging smoke tests (PYBIND-06)
+- [x] 06-04-PLAN.md — pyproject.toml (scikit-build-core + cibuildwheel manylinux_2_28) + CMake install rules under SKBUILD guard + `$ORIGIN` RPATH + verify-wheel-tag.sh + packaging smoke tests (PYBIND-06)
 - [ ] 06-05-PLAN.md — README.md (11-section polished per D-19/D-20) + fuzz-script migration to new binding (D-16/17/18) + ADR-Phase-6-A..F landing D-01..D-25 + manual first-wave walkthrough checkpoint (DOCS-04)
 **UI hint**: yes
 
