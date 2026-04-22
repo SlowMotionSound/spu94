@@ -74,7 +74,15 @@ def test_preset_off_succeeds(spu94_cli_path, sample_wav_file, tmp_wav_out):
     "hall", "half_echo", "space_echo", "echo", "delay",
 ])
 def test_every_preset_roundtrips(spu94_cli_path, sample_wav_file, tmp_wav_out, preset_name):
-    """All 10 factory presets should produce valid output WAVs."""
+    """All 10 factory presets should produce valid output WAVs.
+
+    HI-02 audibility smoke: beyond shape checks, this also inspects the
+    output WAV's sample content. For non-Off presets we require at least
+    one non-zero sample (the CLI sets vLOUT/vROUT=0x7FFF for non-Off
+    presets per ADR-Phase-6-G, so real audio should land in the output).
+    For Off, every sample must be zero (all gains zero, no audio path).
+    Closes the test-vacuity gap that let the reverb-not-wired bug ship.
+    """
     result = subprocess.run(
         [spu94_cli_path, "--preset", preset_name, sample_wav_file, tmp_wav_out],
         capture_output=True,
@@ -84,6 +92,21 @@ def test_every_preset_roundtrips(spu94_cli_path, sample_wav_file, tmp_wav_out, p
     with wave.open(tmp_wav_out, "rb") as w:
         assert w.getnchannels() == 2
         assert w.getframerate() == 44100
+        frames = w.readframes(w.getnframes())
+
+    # int16 little-endian interleaved LR samples. Scan for any non-zero
+    # byte pair to detect audible output without a numpy dependency.
+    any_nonzero = any(frames[i] != 0 or frames[i + 1] != 0
+                      for i in range(0, len(frames), 2))
+    if preset_name == "off":
+        assert not any_nonzero, (
+            f"Off preset must produce silence; found non-zero sample"
+        )
+    else:
+        assert any_nonzero, (
+            f"preset '{preset_name}' produced all-zero output — "
+            f"reverb likely not in audio path (HI-02 regression)"
+        )
 
 
 def test_preset_case_insensitive(spu94_cli_path, sample_wav_file, tmp_wav_out):
