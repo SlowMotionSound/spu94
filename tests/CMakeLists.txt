@@ -15,3 +15,6 @@ add_subdirectory(docs)
 
 # Phase 7 Plan 01: docs/COVERAGE.md integrity + check_coverage.py meta-tests
 add_subdirectory(conformance)
+
+# Phase 7 Plan 05: pytest-benchmark report-only timing harness (BUILD-06 D-20)
+add_subdirectory(benchmarks)
