@@ -2,39 +2,41 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-last_updated: "2026-04-21T21:02:55.024Z"
+status: planning
+last_updated: "2026-04-23T15:40:27.603Z"
 progress:
   total_phases: 8
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 27
-  completed_plans: 22
-  percent: 81
+  completed_plans: 27
+  percent: 100
 ---
 
 # STATE: SPU-94
 
-**Last updated:** 2026-04-19
+**Last updated:** 2026-04-23
 
 ## Project Reference
 
+See: .planning/PROJECT.md (updated 2026-04-23)
+
 **Project:** SPU-94 — bit-faithful PS1 SPU reverb DSP
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current Focus:** Phase 06 — python-binding-cli
+**Current Focus:** Phase 07 — verification (golden files, witness diff, modulation)
 
 ## Current Position
 
-Phase: 06 (python-binding-cli) — EXECUTING
-Plan: 1 of 5
+Phase: 07 (verification) — READY TO PLAN
+Plan: Not started
 
 - **Milestone:** 1 (v1.0)
-- **Phase:** 6
+- **Phase:** 7
 - **Plan:** Not started
-- **Status:** Executing Phase 06
-- **Progress:** [█████...] 5/8 phases complete
+- **Status:** Ready to plan
+- **Progress:** [██████░░] 6/8 phases complete
 
 ```
-[█████...] 5/8 phases complete (Phases 01–05 done; Phase 06 context gathered)
+[██████░░] 6/8 phases complete (Phases 01–06 done; Phase 07 ready to plan)
 ```
 
 ## Performance Metrics
@@ -162,26 +164,26 @@ None.
 
 ### Todos
 
-- Phase 2 complete. Next: `/gsd-transition` to transition to Phase 3.
-- Phase 3 (reverb algorithm) builds inside the already-shaped `spu94_tick` body (Plan 04 left it as `apply_pending_writes -> buffer_advance -> [Phase 3 inserts here]`).
-- Phase 3 will exercise the contract pinned by Plan 05's tests (any wrap-formula or mBASE-snap regression in Phase 3 will surface in the fuzz harness at a specific (seed, step) pair).
-- Phase 3 will use `q15_mul_truncate_with_err` for the per-multiply error observation that the future Error Accumulator concept depends on (D-18 / ADR-0004; tests landed in Plan 02 + Plan 05).
+- Phase 6 complete. Next: `/gsd-discuss-phase 7` or `/gsd-plan-phase 7`.
+- Phase 7 consumes Phase 6's Python binding directly — witness-diff / golden-file / modulation harnesses all drive `spu94.process` and `spu94.flush` through the ctypes layer landed in Plans 06-01 / 06-02.
+- Phase 7 has several gray areas flagged during Phase 6 discuss: witness-diff tolerance calibration per preset, golden-file input corpus (impulse / sine / noise / silence), pytest-benchmark thresholds for RT-safety regression, coverage-table shape mapping nocash behaviors to tests.
+- BIBLIOGRAPHY.md citation system (BIB-NNN) lands in Phase 7 — README reference links deferred from Phase 6 will be backfilled once BIB entries exist.
+- LEVERS-CATALOG.md annotates all 35 registers — modulation cost classifications (free / sample-quantized / catastrophic) come out of the Phase 7 modulation-harness empirics.
 
 ## Session Continuity
 
-### Last Session (2026-04-21)
+### Last Session (2026-04-22 → 2026-04-23)
 
-- Gathered Phase 6 context through a GSD discuss-phase session spanning 8 gray areas: Python API shape, CLI implementation, register sync, numpy contract, `--config` JSON, fuzz migration, README, packaging.
-- User re-stated communication style mid-discussion — recording/broadcast engineer (explicitly not a coder), wants slow conversational pace with signal-flow / console / patch-bay analogies instead of SWE jargon. Remaining 7 areas were presented one at a time in that register. Three memory files updated (`user_profile.md` expanded, `feedback_plain_language_short.md` strengthened) and two created (`feedback_confirm_before_producing.md`, `feedback_user_facing_docs_polished.md`).
-- 25 locked decisions (D-01..D-25) captured across 8 areas, plus a Claude's Discretion list for planner latitude. Deferred-ideas section routes witness-diff / golden files / modulation to Phase 7, MCU cross-compile to Phase 8, plugin / levers / morph to M4, hardware validation to M5.
-- Two meta-decisions worth surfacing: (i) user raised "does PS1 auto-convert audio?" during area 4 — answered no (SPU is int16-only end-to-end; strict numpy contract is *more* faithful to hardware, not less) and logged as D-11. (ii) user chose polished tone + extensive scope for README — means all three tonal textures (polished pitch + honest status + deep-technical DSP-curious) coexist within a polished surrounding voice.
-- `.planning/phases/06-python-binding-cli/06-CONTEXT.md` + `06-DISCUSSION-LOG.md` landed and committed (hash `2a7b3aa`).
+- Closed out Phase 6. All 5 plans committed (06-01 through 06-05), UAT 5/5 pass, 66/66 ctest green.
+- Correctness fixes landed during close-out window: CR-01 Q15 `input_scale` regression (commit `53bac5c`), CLI `work_buf` startup-burst heap residue reset (commit `9650243`), HI-01..05 code-review fixes (commits `2574c56`..`629222b`), ADR-Phase-6-H master-send default relocated into preset tables to close the `--config` override-shape silent-output trap (commit `9746fcd`).
+- Human UAT SC-4 (README walkthrough) closed with README content polish explicitly deferred to post-M4 per standing guidance (`feedback_readme_not_priority.md`). Structural gates — 10 section headings in order, 11 required content tokens, polished-tone invariants — are mechanized via `tests/docs/test_readme_sections.py` + `scripts/ci/verify-readme-sections.sh` (ctest id 66).
+- Transition to Phase 7 executed 2026-04-23. ROADMAP + STATE + PROJECT updated; PYBIND-01..06, CLI-01..04, DOCS-04 moved to Validated in PROJECT.md.
 
 ### Next Session
 
-- `/gsd-plan-phase 6` — planner consumes `06-CONTEXT.md`. Expected flow: spawn researcher first (scikit-build-core + cibuildwheel layout specifics, dr_wav vendoring idioms, ctypes runtime-reflection IntEnum patterns, manylinux_2_28 image specifics), then task breakdown across ~5 plans.
-- Likely plan shape: (1) ctypes `_binding.py` + runtime reflection + import-time asserts; (2) raw-panel `api.py` + `SPU94` class + presets importer; (3) native `spu94` CLI binary + dr_wav vendoring + `--config` JSON parser; (4) `pyproject.toml` + scikit-build-core + cibuildwheel wiring; (5) README (polished/extensive) + fuzz-script migration + ADR landings.
-- Phase 6 integrates heavily with Phase 7 (the verification work will consume Phase 6's binding for witness-diff / golden-file / modulation harnesses) — plans should keep the public Python surface stable and well-documented so Phase 7 can build on it without Phase-6 code churn.
+- `/gsd-discuss-phase 7` recommended before `/gsd-plan-phase 7`. Phase 7 CONTEXT.md not yet written; gray areas exist (witness-diff tolerances, golden-file corpus, benchmark thresholds, coverage-table shape) that benefit from explicit discussion before planning.
+- Alternative: `/gsd-plan-phase 7` directly — planner will spawn researcher first (lv2-psx-reverb witness setup / Docker pinning, pytest-benchmark regression-tracking patterns, golden-file SHA-256 sidecar conventions, modulation-harness design) and use Claude's discretion on gray areas.
+- Phase 7 is the "earn the bit-faithful claim" phase — expected shape: (1) spec-conformance coverage table + tests; (2) witness-diff harness against lv2-psx-reverb (freq-response axis excluded per Phase 4 decision); (3) 10-preset × 4-input golden files with SHA-256 sidecars; (4) 35-register modulation harness; (5) pytest-benchmark RT regression; (6) LEVERS-CATALOG.md + BIBLIOGRAPHY.md.
 
 ---
 *State initialized: 2026-04-18 at roadmap completion*

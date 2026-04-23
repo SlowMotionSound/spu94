@@ -16,7 +16,7 @@ Ship `libspu94` (plain C library) + ctypes Python bindings + `spu94` CLI that bi
 - [ ] **Phase 3: Core Reverb Algorithm + Hard Clip** — SAME/DIFF IIR + 4-tap comb + APF1/APF2 topology, mix-bus clip, vIIR anomaly
 - [ ] **Phase 4: Sample Rate Conversion (39-tap half-band FIR)** — 44.1↔22.05 kHz I/O boundaries with nocash coefficients
 - [ ] **Phase 5: Public API + Presets Integration** — `spu94_process` orchestration, 10 factory presets, glitch-free mid-stream writes end-to-end
-- [ ] **Phase 6: Python Binding + CLI** — ctypes wrapper, numpy interop, `spu94` WAV tool, README
+- [x] **Phase 6: Python Binding + CLI** — ctypes wrapper, numpy interop, `spu94` WAV tool, README *(completed 2026-04-23)*
 - [ ] **Phase 7: Verification — Golden Files, Witness Diff, Modulation** — spec-conformance suite, lv2-psx-reverb diff, modulation harness, LEVERS-CATALOG.md
 - [ ] **Phase 8: MCU Cross-Compile + CI Hardening** — Cortex-M7 smoke test via arm-none-eabi-gcc
 
@@ -123,7 +123,7 @@ Plans:
 - [x] 06-02-PLAN.md — Raw-panel public API + SPU94 class + strict numpy contract (ndpointer int16 C-contig) + self_test + cli.py entry-point shim (PYBIND-01/02/04)
 - [x] 06-03-PLAN.md — Native spu94 CLI: vendored dr_wav + jsmn + getopt_long + --preset / --config / --list-presets / --help + one-line error contract + ctest `cli` label + verify-no-drwav-in-libspu94 (CLI-01/02/03/04)
 - [x] 06-04-PLAN.md — pyproject.toml (scikit-build-core + cibuildwheel manylinux_2_28) + CMake install rules under SKBUILD guard + `$ORIGIN` RPATH + verify-wheel-tag.sh + packaging smoke tests (PYBIND-06)
-- [ ] 06-05-PLAN.md — README.md (11-section polished per D-19/D-20) + fuzz-script migration to new binding (D-16/17/18) + ADR-Phase-6-A..F landing D-01..D-25 + manual first-wave walkthrough checkpoint (DOCS-04)
+- [x] 06-05-PLAN.md — README.md (11-section polished per D-19/D-20) + fuzz-script migration to new binding (D-16/17/18) + ADR-Phase-6-A..F landing D-01..D-25 + manual first-wave walkthrough checkpoint (DOCS-04)
 **UI hint**: yes
 
 ### Phase 7: Verification — Golden Files, Witness Diff, Modulation
