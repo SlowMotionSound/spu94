@@ -1,0 +1,16 @@
+# Host-only clutter — must not leak into the reproducibility image.
+# The worst offender is build/: its CMakeCache.txt pins the host source
+# path, and inside the container cmake refuses to reuse a cache from a
+# different source dir. Keeping build/ out means the in-container build
+# starts from a clean slate every time.
+
+build/
+.git/
+.planning/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+dist/
