@@ -50,13 +50,9 @@ static spu94_state *fresh_state(void) {
     spu94_reset(s);
     TEST_ASSERT_EQUAL_INT((int)SPU94_OK,
         (int)spu94_load_preset(s, SPU94_PRESET_HALL));
-    /* ADR-Phase-6-G: Hall's factory table leaves vLOUT/vROUT = 0, which
-     * gates the wet output to silence. Set them to full-scale so the
-     * block-size-invariance comparison actually exercises non-zero output.
-     * Without this, every sample on both sides of the comparison is 0 and
-     * the test proves 0 == 0 across all block sizes (see CR-02). */
-    spu94_set_vLOUT(s, (int16_t)0x7FFF);
-    spu94_set_vROUT(s, (int16_t)0x7FFF);
+    /* ADR-Phase-6-H: non-Off factory preset tables carry vLOUT=vROUT=0x7FFF
+     * so spu94_load_preset alone yields audible output. No explicit
+     * post-load master-send write needed here. */
     spu94_tick(s);
     return s;
 }

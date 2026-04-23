@@ -29,9 +29,16 @@ _Static_assert(sizeof(((const spu94_preset_t *)0)->regs) / sizeof(int16_t)
  * before calling spu94_set_reg_u16. Inline hex literals preserve the exact
  * bit pattern regardless of int16_t signedness.
  *
- * reg_idx 0..2 (vLOUT, vROUT, mBASE) are 0x0000 for every preset -- neither
- * nocash nor hitmen publishes per-preset values for those global registers
- * (they are configured by the caller outside the preset surface).
+ * reg_idx 0 (vLOUT) and 1 (vROUT) are 0x7FFF for every non-Off preset and
+ * 0x0000 for Off -- the psx-spx spec and hitmen notes do not publish
+ * per-preset values for these master-mix registers (games set them
+ * separately from the reverb-algorithm parameters). Defaulting non-Off
+ * to full-scale makes "load program, feed signal, hear reverb" the
+ * expected out-of-the-box behavior; the M4 plugin's send knob will
+ * scale from this default. Off keeps 0x0000 because muted output is
+ * literally what "off" means. reg_idx 2 (mBASE) stays 0x0000 for all
+ * presets (the caller sets it based on the work-buffer layout).
+ * Locked by ADR-Phase-6-G (amended Phase 6 Plan 5 close-out).
  *
  * Ordering (see spu94_registers.h): vLOUT, vROUT, mBASE, dAPF1, dAPF2,
  * vIIR, vCOMB1..4, vWALL, vAPF1, vAPF2, mLSAME, mRSAME, mLCOMB1, mRCOMB1,
@@ -83,8 +90,8 @@ const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT] = {
     [SPU94_PRESET_ROOM] = {
         .name = "Room",
         .regs = {
-            (int16_t)0x0000,  /* [ 0] vLOUT */
-            (int16_t)0x0000,  /* [ 1] vROUT */
+            (int16_t)0x7FFF,  /* [ 0] vLOUT */
+            (int16_t)0x7FFF,  /* [ 1] vROUT */
             (int16_t)0x0000,  /* [ 2] mBASE */
             (int16_t)0x007D,  /* [ 3] dAPF1 */
             (int16_t)0x005B,  /* [ 4] dAPF2 */
@@ -123,8 +130,8 @@ const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT] = {
     [SPU94_PRESET_STUDIO_A] = {
         .name = "Studio A",
         .regs = {
-            (int16_t)0x0000,  /* [ 0] vLOUT */
-            (int16_t)0x0000,  /* [ 1] vROUT */
+            (int16_t)0x7FFF,  /* [ 0] vLOUT */
+            (int16_t)0x7FFF,  /* [ 1] vROUT */
             (int16_t)0x0000,  /* [ 2] mBASE */
             (int16_t)0x0033,  /* [ 3] dAPF1 */
             (int16_t)0x0025,  /* [ 4] dAPF2 */
@@ -163,8 +170,8 @@ const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT] = {
     [SPU94_PRESET_STUDIO_B] = {
         .name = "Studio B",
         .regs = {
-            (int16_t)0x0000,  /* [ 0] vLOUT */
-            (int16_t)0x0000,  /* [ 1] vROUT */
+            (int16_t)0x7FFF,  /* [ 0] vLOUT */
+            (int16_t)0x7FFF,  /* [ 1] vROUT */
             (int16_t)0x0000,  /* [ 2] mBASE */
             (int16_t)0x00B1,  /* [ 3] dAPF1 */
             (int16_t)0x007F,  /* [ 4] dAPF2 */
@@ -203,8 +210,8 @@ const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT] = {
     [SPU94_PRESET_STUDIO_C] = {
         .name = "Studio C",
         .regs = {
-            (int16_t)0x0000,  /* [ 0] vLOUT */
-            (int16_t)0x0000,  /* [ 1] vROUT */
+            (int16_t)0x7FFF,  /* [ 0] vLOUT */
+            (int16_t)0x7FFF,  /* [ 1] vROUT */
             (int16_t)0x0000,  /* [ 2] mBASE */
             (int16_t)0x00E3,  /* [ 3] dAPF1 */
             (int16_t)0x00A9,  /* [ 4] dAPF2 */
@@ -243,8 +250,8 @@ const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT] = {
     [SPU94_PRESET_HALL] = {
         .name = "Hall",
         .regs = {
-            (int16_t)0x0000,  /* [ 0] vLOUT */
-            (int16_t)0x0000,  /* [ 1] vROUT */
+            (int16_t)0x7FFF,  /* [ 0] vLOUT */
+            (int16_t)0x7FFF,  /* [ 1] vROUT */
             (int16_t)0x0000,  /* [ 2] mBASE */
             (int16_t)0x01A5,  /* [ 3] dAPF1 */
             (int16_t)0x0139,  /* [ 4] dAPF2 */
@@ -283,8 +290,8 @@ const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT] = {
     [SPU94_PRESET_HALF_ECHO] = {
         .name = "Half Echo",
         .regs = {
-            (int16_t)0x0000,  /* [ 0] vLOUT */
-            (int16_t)0x0000,  /* [ 1] vROUT */
+            (int16_t)0x7FFF,  /* [ 0] vLOUT */
+            (int16_t)0x7FFF,  /* [ 1] vROUT */
             (int16_t)0x0000,  /* [ 2] mBASE */
             (int16_t)0x0017,  /* [ 3] dAPF1 */
             (int16_t)0x0013,  /* [ 4] dAPF2 */
@@ -323,8 +330,8 @@ const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT] = {
     [SPU94_PRESET_SPACE_ECHO] = {
         .name = "Space Echo",
         .regs = {
-            (int16_t)0x0000,  /* [ 0] vLOUT */
-            (int16_t)0x0000,  /* [ 1] vROUT */
+            (int16_t)0x7FFF,  /* [ 0] vLOUT */
+            (int16_t)0x7FFF,  /* [ 1] vROUT */
             (int16_t)0x0000,  /* [ 2] mBASE */
             (int16_t)0x033D,  /* [ 3] dAPF1 */
             (int16_t)0x0231,  /* [ 4] dAPF2 */
@@ -363,8 +370,8 @@ const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT] = {
     [SPU94_PRESET_ECHO] = {
         .name = "Echo",
         .regs = {
-            (int16_t)0x0000,  /* [ 0] vLOUT */
-            (int16_t)0x0000,  /* [ 1] vROUT */
+            (int16_t)0x7FFF,  /* [ 0] vLOUT */
+            (int16_t)0x7FFF,  /* [ 1] vROUT */
             (int16_t)0x0000,  /* [ 2] mBASE */
             (int16_t)0x0001,  /* [ 3] dAPF1 */
             (int16_t)0x0001,  /* [ 4] dAPF2 */
@@ -403,8 +410,8 @@ const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT] = {
     [SPU94_PRESET_DELAY] = {
         .name = "Delay",
         .regs = {
-            (int16_t)0x0000,  /* [ 0] vLOUT */
-            (int16_t)0x0000,  /* [ 1] vROUT */
+            (int16_t)0x7FFF,  /* [ 0] vLOUT */
+            (int16_t)0x7FFF,  /* [ 1] vROUT */
             (int16_t)0x0000,  /* [ 2] mBASE */
             (int16_t)0x0001,  /* [ 3] dAPF1 */
             (int16_t)0x0001,  /* [ 4] dAPF2 */

@@ -30,6 +30,70 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-Phase-6-H: Non-Off factory preset tables carry `vLOUT`/`vROUT` = 0x7FFF — master-mix default moves from CLI layer to preset tables
+
+**Status:** Accepted (2026-04-22, Phase 6 close-out)
+
+**Amends:** ADR-Phase-6-G (the "CLI default" Decision bullet 5, and its rejected Alternatives-Considered entry "Writing the CLI's vLOUT/vROUT default into the factory preset tables instead of the CLI layer"). ADR-Phase-6-G's other decisions — wet-only wiring, `reverb_out_l/r` mailbox, `chain_step_impl` routing, the `test_process_reverb_audible` regression gate — remain in force unchanged.
+
+**Relates:** D-01 (two-surface Python binding — raw panel + class); M4 plugin roadmap (the send-knob UI that scales from this default); ADR-0005 (register write-policy routes vLOUT/vROUT as IMMEDIATE — unchanged).
+
+**Context:**
+
+ADR-Phase-6-G closed the M1 shipping bug (dry-passthrough output) by wiring the wet reverb signal into the final 44.1 kHz output. A second-order consequence: the factory preset tables' `vLOUT`/`vROUT` cells, previously 0x0000 "by convention, not algorithmic necessity," now gate the audible output. ADR-Phase-6-G placed the non-zero default at the CLI layer: `src/cli/main.c` wrote `vLOUT`/`vROUT` = 0x7FFF after `spu94_load_preset` for any non-Off preset. The alternative of populating the preset tables directly was considered and rejected, citing the three-source audit invariant (`tests/python/verify_preset_sources.py` cross-checks BIB-011 against BIB-012 cell-by-cell).
+
+Phase 6 close-out verification (06-UAT.md, Gap 1) surfaced the downstream: the CLI `--config` JSON override shape (`{"base": "hall", "overrides": {...}}`) loads the base preset through the library, then applies the override patch — but the CLI-layer auto-unlock only fires on the `--preset` code path, so an override-shape config whose overrides don't explicitly set `vLOUT`/`vROUT` produces silent output. The same trap applies to every future `spu94_load_preset` consumer outside the CLI: Phase 7's witness-diff harness, the M4 plugin, Python raw-panel API users. Each would either stub its toe once or carry the boilerplate forever.
+
+Re-examining the audit-invariant concern: BIB-011 and BIB-012 do not publish per-preset `vLOUT`/`vROUT` values at all. The audit CSVs list 0x0000 for those cells because the sources are silent, not because they agree on a positive value. The three-source audit guarantees that cells where the sources DO publish a value match the in-code table; cells the sources don't address are a separate category where SPU-94 convention fills the value, and that convention is ours to set.
+
+**Decision:**
+
+- The 9 non-Off entries in `src/spu94/spu94_presets.c` (`SPU94_PRESET_ROOM` through `SPU94_PRESET_DELAY`) carry `vLOUT` = `vROUT` = 0x7FFF.
+- `SPU94_PRESET_OFF` keeps `vLOUT` = `vROUT` = 0x0000 — muted output is literally what "Off" means.
+- `src/cli/main.c` no longer writes `vLOUT`/`vROUT` after `spu94_load_preset`. The post-load unlock block (ADR-Phase-6-G Decision bullet 5) is removed. Both `--preset` and `--config` (override + flat-map) code paths consume the library contract directly.
+- `tests/python/fuzz_process.py` drops its HI-04 post-load writes; the non-Off "produces non-zero output within 256 process calls" invariant is now satisfied by the preset tables themselves.
+- `tests/unit/process/test_process_block_size.c::fresh_state()` drops its explicit `vLOUT`/`vROUT` writes; preset load alone is sufficient.
+- `spu94_presets.c`'s header comment block updates to document the new convention.
+- `verify_preset_sources.py` is unchanged; the BIB-011 vs BIB-012 comparison is orthogonal to SPU-94 convention for cells the sources don't address.
+
+**Consequences:**
+
+- Every caller of `spu94_load_preset` (CLI `--preset`, CLI `--config`, Phase 7 harnesses, M4 plugin, Python raw-panel + class API) inherits audible-by-default for non-Off presets. No per-caller boilerplate.
+- The `--config` override-shape silent-output trap closes. A JSON override based on `"hall"` that tweaks `vIIR` renders audibly at Hall's master-send level.
+- `SPU94_PRESET_OFF`'s output-gating semantics are now a library-level contract, not a CLI-layer convention. Off is off for every consumer, automatically.
+- The M4 plugin's send knob scales from unity on preset load — matches every reverb-box and reverb-plugin convention since hardware reverbs shipped.
+- Zero DSP-numeric change. Register writes flow through the existing engine-layer setters; the write-policy table (ADR-0005) routes `vLOUT`/`vROUT` as IMMEDIATE; the reverb body's `vLOUT_snap`/`vROUT_snap` read is bit-identical. Every DSP-level test continues to pass on unchanged numerics.
+- The preset tables are now self-contained "play me" units. A reader examining `spu94_presets.c` sees the complete state each preset intends — including the master send.
+
+**Alternatives Considered:**
+
+- **Keep ADR-Phase-6-G's CLI-layer default.** Rejected on the close-out evidence: the `--config` override trap is concrete, and every future non-CLI consumer of `spu94_load_preset` would replicate the same boilerplate. Documentation-only fixes shift the cost to every user surface; a one-layer table change pays the cost once.
+- **Apply the default inside `spu94_load_preset` itself (preset-dispatched logic).** Rejected: the loader's contract is "copy the table into state." Adding preset-specific special-cases (Off → leave zero, non-Off → force 0x7FFF) hides the default from readers of the table and makes the loader a lookup-plus-rewrite instead of a pure copier.
+- **Gate the change behind a CLI flag (`--auto-unlock-send` / `--raw-config`).** Rejected: adds a flag for a behavior the user virtually always wants and never asks for.
+- **Per-preset master-send levels (Cathedral softer than Hall).** Deferred: if Phase 7 witness-diff or M4 plugin UX reveals preset-specific master-gain preferences, a future ADR can populate cells individually. 0x7FFF is the "no preference" default, per-row overridable without further ADR.
+
+**Seam:**
+
+- Future non-factory presets (user JSON presets, Phase 7 calibration presets, etc.) inherit the same convention — populate `vLOUT`/`vROUT` to a sensible default. `spu94_load_preset` copies whatever the caller puts in the table; no new seam.
+- The M4 send-knob UI binds to `vLOUT`/`vROUT` directly through the Python register IntEnum. All three surfaces (CLI, Python API, plugin) emit the same default after load.
+- If "raw panel mode" (load preset but leave master send at 0) becomes a real use case, the clean shape is a sibling `spu94_load_preset_no_mix` entry point that iterates 33 cells instead of 35. Not needed now; documented here for future reference.
+
+**Sources:**
+
+- ADR-Phase-6-G (the direct amendment target); specifically its "CLI default" Decision bullet and the rejected Alternatives-Considered entry about preset-table placement.
+- `.planning/phases/06-python-binding-cli/06-UAT.md` Gap 1 (the close-out evidence: `--config {"base": "hall", "overrides": {...}}` produces silent output).
+- `src/spu94/spu94_presets.c` (the preset tables amended).
+- `src/cli/main.c` (the auto-unlock block removed).
+- `tests/python/fuzz_process.py` (the HI-04 workaround removed).
+- `tests/unit/process/test_process_block_size.c` (the `fresh_state()` helper simplified).
+
+**Revision Path:**
+
+- If per-preset master-gain preferences emerge (Phase 7 or M4 findings), populate the affected cells individually — one cell edit per preset, no ADR required.
+- If a "load preset but hold master send at 0" shape becomes a real use case, land `spu94_load_preset_no_mix` as documented in the Seam section.
+
+---
+
 ## ADR-Phase-6-G: Wet-only 44.1 kHz output — chain_step_impl feeds reverb wet into interpolator, not decimator output
 
 **Status:** Accepted (2026-04-21, Phase 6)

@@ -281,26 +281,15 @@ def op_flush(rng):
 _last_preset = [None, 0, 0]  # (preset_id, post_load_process_calls, contiguous_silent_calls)
 
 
-_VLOUT_REG_ID = int(Register.vLOUT)
-_VROUT_REG_ID = int(Register.vROUT)
-
-
 def op_load_preset(rng):
     id_ = rng.randint(0, SPU94_PRESET__COUNT - 1)
     rv = lib.spu94_load_preset(state, id_)
     if rv != SPU94_OK:
         raise AssertionError(f"load_preset({id_}) returned {rv}")
-    # HI-04: ADR-Phase-6-G gates the wet output on vLOUT/vROUT, and every
-    # factory preset table leaves these at 0. Without an explicit write
-    # the "non-Off preset -> non-zero output within 256 calls" invariant
-    # below depends on a random op_write_i16_reg eventually picking
-    # vLOUT/vROUT before the patience window elapses (~1-in-12 per I16-
-    # write, ~1-in-5 op classes). Pin the contract deterministically:
-    # after any non-Off load, set vLOUT/vROUT to full-scale so the
-    # invariant tests the product claim, not a random-choice race.
-    if id_ != 0:
-        lib.spu94_set_reg_i16(state, _VLOUT_REG_ID, 0x7FFF)
-        lib.spu94_set_reg_i16(state, _VROUT_REG_ID, 0x7FFF)
+    # ADR-Phase-6-H: non-Off factory preset tables carry vLOUT=vROUT=0x7FFF
+    # so the "non-Off preset -> non-zero output within 256 calls" invariant
+    # is deterministic on preset load alone — no post-load master-send
+    # writes needed here. (Supersedes HI-04 workaround against ADR-Phase-6-G.)
     _last_preset[0] = id_
     _last_preset[1] = 0
     _last_preset[2] = 0
