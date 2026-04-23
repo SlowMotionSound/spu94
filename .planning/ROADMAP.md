@@ -137,12 +137,14 @@ Plans:
   4. The modulation test sweeps every one of the 35 registers (sine, frequency sweep, random walk) during live processing and the output is bounded, stable, free of zipper noise on gain-type registers, and free of buffer corruption on address/delay-type registers — matching the Phase 2 write policy.
   5. A pytest-benchmark harness runs `spu94_process` under regression tracking and fails CI on pathological timing regressions or any hot-path allocation signal.
   6. `docs/LEVERS-CATALOG.md` annotates each of the 35 registers with its musical role, modulation cost (free / sample-quantized / catastrophic), expected zipper behavior, and suggested M4 lever grouping; `docs/BIBLIOGRAPHY.md` cites every nocash section and Sony SDK reference used, with all prose paraphrased (nothing transcribed).
-**Plans:** 4 plans
+**Plans:** 6 plans
 Plans:
-- [x] 03-01-PLAN.md — Reverb scaffolding: internal header, state err-accumulator + overflow_magnitude fields, hard_clip/input_scale/output_scale stages, reverb_body wired into spu94_tick, derive_reverb_reference.py
-- [ ] 03-02-PLAN.md — SAME IIR + DIFF IIR stages (CORE-05/CORE-08): reverb_buf_read/write helpers, vIIR=INT16_MIN anomaly branch, TEST-06 anomaly + non-anomaly control tests
-- [ ] 03-03-PLAN.md — 4-tap comb (D-07 cascading sat) + APF1 + APF2 stages; per-stage bit-exactness tests with D-07 distinguishing case and Pitfall-7 APF edges
-- [ ] 03-04-PLAN.md — TEST-07 Q15 edge battery + composition equivalence + 10^6-step fuzz_reverb.py + ADR-0007..ADR-0011 landing in docs/DECISIONS.md (SC-5 closure)
+- [ ] 07-01-PLAN.md — Environment prep + docs/COVERAGE.md scaffold + CI-enforced check_coverage.py validator + meta-tests (TEST-01, BUILD-08)
+- [ ] 07-02-PLAN.md — scripts/regenerate_goldens.py + 50 committed .wav+.sha256 pairs + Dockerfile.repro (bookworm-slim digest-pinned) + new `reproducibility` CI job (TEST-04, TEST-08, BUILD-08)
+- [ ] 07-03-PLAN.md — Witness-diff harness: fresh-build lv2-psx-reverb at pinned SHA 424e1e8... + split-band scipy divergence + .artifacts/witness_report.json + determinism meta-test + `witness-diff` CI job (TEST-03)
+- [ ] 07-04-PLAN.md — Modulation harness (105 parametrized: 35 regs × 3 modes) with stability+determinism gates + idempotent docs/LEVERS-CATALOG.md writer preserving HAND columns (TEST-05, DOCS-02)
+- [ ] 07-05-PLAN.md — Hot-path allocation gate (strace filter on brk/mmap/mmap2/munmap/mremap) with negative meta-test + pytest-benchmark harness (report-only per D-20) + committed benchmark_baselines.json (BUILD-06)
+- [ ] 07-06-PLAN.md — BIBLIOGRAPHY.md additive (BIB-014..020) + cluster-polish + scripts/check_bibliography_refs.py validator + ADR-Phase-7-A..H landed in docs/DECISIONS.md (DOCS-03)
 
 ### Phase 8: MCU Cross-Compile + CI Hardening
 **Goal**: The MCU-portability claim is proven (not asserted) before M1 closes — `libspu94` compiles, links, and runs a reverb block on Cortex-M7 bare metal under arm-none-eabi-gcc with no heap, no HAL, no audio I/O.
