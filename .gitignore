@@ -31,3 +31,9 @@ wheelhouse/
 # here; ignoring pre-emptively per Phase 7 Pitfall 4 so ad-hoc benchmark
 # invocations from the dev tree never pollute the index).
 .benchmarks/
+
+# Phase 7 Plan 03: witness-diff build + harness scratch area.
+# scripts/ci/witness_diff_build.sh clones lv2-psx-reverb + builds it here;
+# scripts/ci/witness_diff.py writes witness_report.json here. Both are
+# regenerated per-run; nothing under .artifacts/ is version-controlled.
+.artifacts/
