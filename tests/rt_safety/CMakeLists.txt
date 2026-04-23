@@ -76,6 +76,53 @@ else()
 endif()
 
 # -------------------------------------------------------------------------
+# Phase 7 Plan 05 (BUILD-06 D-20): hotpath_alloc_gate +
+# hotpath_alloc_gate_negative. Narrow strace filter (brk/mmap/mmap2/
+# munmap/mremap) around a 10^5-iter spu94_process loop. Phase 5's
+# rt_no_syscalls is the broad zero-syscall gate; Phase 7 adds a
+# targeted heap-only gate PLUS a negative meta-test that proves the
+# filter actually detects real malloc hits (hotpath_alloc_gate_target_
+# with_malloc.c intentionally calls malloc inside the hot window; the
+# WILL_FAIL ctest property inverts the pass/fail sense).
+# -------------------------------------------------------------------------
+if(STRACE_EXE AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/hotpath_alloc_gate_target.c"
+              AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/hotpath_alloc_gate_target_with_malloc.c"
+              AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/hotpath_alloc_gate.sh")
+    # Clean target -- SPU-94 only; no malloc on the hot path.
+    add_executable(hotpath_alloc_gate_target hotpath_alloc_gate_target.c)
+    target_link_libraries(hotpath_alloc_gate_target
+        PRIVATE spu94_static spu94_warnings)
+    target_include_directories(hotpath_alloc_gate_target
+        PRIVATE ${CMAKE_SOURCE_DIR}/include)
+
+    # Negative meta-target -- intentionally calls malloc in the hot
+    # window. Gate MUST detect this; WILL_FAIL flips the ctest verdict.
+    add_executable(hotpath_alloc_gate_target_with_malloc
+                   hotpath_alloc_gate_target_with_malloc.c)
+    target_link_libraries(hotpath_alloc_gate_target_with_malloc
+        PRIVATE spu94_static spu94_warnings)
+    target_include_directories(hotpath_alloc_gate_target_with_malloc
+        PRIVATE ${CMAKE_SOURCE_DIR}/include)
+
+    add_test(NAME hotpath_alloc_gate
+             COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/hotpath_alloc_gate.sh)
+    set_tests_properties(hotpath_alloc_gate PROPERTIES
+        LABELS "rt_safety;alloc_gate"
+        ENVIRONMENT "SYSCALLS_BIN=$<TARGET_FILE:hotpath_alloc_gate_target>;STRACE_EXE=${STRACE_EXE}")
+
+    add_test(NAME hotpath_alloc_gate_negative
+             COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/hotpath_alloc_gate.sh)
+    set_tests_properties(hotpath_alloc_gate_negative PROPERTIES
+        LABELS "rt_safety;alloc_gate;negative_meta"
+        ENVIRONMENT "SYSCALLS_BIN=$<TARGET_FILE:hotpath_alloc_gate_target_with_malloc>;STRACE_EXE=${STRACE_EXE}"
+        WILL_FAIL TRUE)
+elseif(NOT STRACE_EXE)
+    message(STATUS "Phase 7: strace not found; hotpath_alloc_gate(_negative) skipped")
+else()
+    message(STATUS "Phase 7: hotpath_alloc_gate source files not yet present; tests deferred")
+endif()
+
+# -------------------------------------------------------------------------
 # D-09d: rt_bench_latency. Conditional on Python3 3.10+ AND on Task 2
 # having landed bench_latency.py. Accepts optional THRESHOLD via the
 # RT_LATENCY_THRESHOLD cache variable. Default pinned to 2.0 by
