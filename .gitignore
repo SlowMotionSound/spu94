@@ -21,3 +21,8 @@ dist/
 # to prevent accidental commits.
 _skbuild/
 wheelhouse/
+
+# Local testing conveniences — desktop drag-drop launcher scripts.
+# Used during M1 for easy WAV rendering from Finder; superseded by
+# the M4 plugin UI. Not a shipped deliverable.
+/scripts/desktop-launcher/
