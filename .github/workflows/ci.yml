@@ -146,3 +146,28 @@ jobs:
         run: cmake --build build-ubsan
       - name: Test (UBSan)
         run: ctest --test-dir build-ubsan --output-on-failure
+
+  coverage-map-check:
+    # Phase 7 Plan 01 Task 3 Step 5 — D-02 CI gate for docs/COVERAGE.md.
+    # Requires ctest to be built so scripts/ci/check_coverage.py can
+    # invoke `ctest -R "^<name>$"` for every row's named target.
+    name: coverage-map-check (TEST-01)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install Phase 7 deps
+        run: bash scripts/ci/install-phase7-deps.sh
+      - name: Install build toolchain
+        run: |
+          sudo apt-get install -y cmake ninja-build
+      - name: Configure + build (need ctest for C tests referenced in COVERAGE.md)
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build
+      - name: Run coverage-map check (D-02 validator on committed COVERAGE.md)
+        run: python3 scripts/ci/check_coverage.py
+      - name: Run coverage-check meta-tests
+        run: pytest scripts/ci/test_check_coverage.py -q
+      - name: Run COVERAGE.md integrity meta-test
+        run: pytest tests/conformance/test_coverage_map_integrity.py -q

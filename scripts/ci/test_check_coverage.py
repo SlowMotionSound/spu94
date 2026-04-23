@@ -94,7 +94,9 @@ def test_negative_missing_file(tmp_path):
         "`tests/unit/nonexistent_file.c::test_fake_never_registered` | |"
     )
     _inject_row(cov, before_section="Per-Behavior Coverage", new_row=bogus_row)
-    result = _run_checker(["--file", str(cov)])
+    # File-existence check fires before ctest dispatch; --skip-ctest short-
+    # circuits the slow full-suite run.
+    result = _run_checker(["--file", str(cov), "--skip-ctest"])
     assert result.returncode == 1, (
         f"validator must exit 1 on missing file; got {result.returncode}\n"
         f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
@@ -109,19 +111,28 @@ def test_negative_missing_file(tmp_path):
 
 
 def test_negative_missing_ctest_name(tmp_path):
-    """Inject a row with a real file but a nonexistent ctest registration
-    name; validator exits 1. Runs against the local build/ directory."""
-    cov = _tmp_coverage_copy(tmp_path)
-    # Use a path that definitely exists (the validator itself).
-    # The test name has no registration in ctest -N, so ctest -R returns
-    # zero tests matched (exit code 0 from ctest with a warning), OR the
-    # validator's own ctest-empty-result check catches it.
-    fake_row = (
-        "| bogus2 | I16 | "
-        "`scripts/ci/check_coverage.py::nonexistent_ctest_registration_xyz` "
-        "| |"
+    """A minimal COVERAGE.md containing a single row with a real file
+    but a nonexistent ctest registration name; validator exits 1.
+    Uses a stripped-down COVERAGE.md (one bad row) rather than the full
+    committed file so the ctest dispatch path is exercised without
+    re-running the project's entire 77-row ctest suite."""
+    # Minimal COVERAGE.md: required pinned-URL + three section headers +
+    # one bad row. File path `scripts/ci/check_coverage.py` exists; the
+    # ctest name `nonexistent_ctest_registration_xyz` is not registered.
+    cov = tmp_path / "COVERAGE.md"
+    cov.write_text(
+        "# Minimal test fixture\n\n"
+        "Pinned spec reference: "
+        "https://web.archive.org/web/20260114082525/"
+        "https://psx-spx.consoledev.net/soundprocessingunitspu/\n\n"
+        "## Per-Register Coverage\n\n"
+        "| Register | Type | test: | Notes |\n"
+        "|----------|------|-------|-------|\n"
+        "| bogus | I16 | `scripts/ci/check_coverage.py"
+        "::nonexistent_ctest_registration_xyz` | |\n\n"
+        "## Per-Behavior Coverage\n\n"
+        "## Per-Spec-Paragraph Coverage\n"
     )
-    _inject_row(cov, before_section="Per-Behavior Coverage", new_row=fake_row)
     result = _run_checker(["--file", str(cov)])
     assert result.returncode == 1, (
         f"validator must exit 1 on fake ctest name; got {result.returncode}\n"
@@ -148,7 +159,7 @@ def test_negative_empty_test_field_outside_known_gaps(tmp_path):
     cov = _tmp_coverage_copy(tmp_path)
     empty_row = "| bogus_empty | I16 | `` | placeholder |"
     _inject_row(cov, before_section="Per-Behavior Coverage", new_row=empty_row)
-    result = _run_checker(["--file", str(cov)])
+    result = _run_checker(["--file", str(cov), "--skip-ctest"])
     assert result.returncode == 1, (
         f"validator must exit 1 on empty test field outside Known Gaps; "
         f"got {result.returncode}\nstdout:\n{result.stdout}\n"
@@ -174,7 +185,10 @@ def test_negative_shell_metacharacter_injection_rejected(tmp_path):
         "`tests/unit/q15/test_q15.c::q15_unit; rm -rf /tmp/xyz` | |"
     )
     _inject_row(cov, before_section="Per-Behavior Coverage", new_row=evil_row)
-    result = _run_checker(["--file", str(cov)])
+    # The metacharacter allowlist fires BEFORE any ctest invocation —
+    # T-07-01-A mitigation at parse time, not at dispatch time. --skip-ctest
+    # keeps the test fast; the rejection path is identical either way.
+    result = _run_checker(["--file", str(cov), "--skip-ctest"])
     assert result.returncode == 1, (
         f"validator must reject shell-metacharacter test names; "
         f"got {result.returncode}\nstdout:\n{result.stdout}\n"

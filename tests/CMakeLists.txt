@@ -12,3 +12,6 @@ add_subdirectory(packaging)
 
 # Phase 6 Plan 5: DOCS-04 README.md structure + content gate
 add_subdirectory(docs)
+
+# Phase 7 Plan 01: docs/COVERAGE.md integrity + check_coverage.py meta-tests
+add_subdirectory(conformance)
