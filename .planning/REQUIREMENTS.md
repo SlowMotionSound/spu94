@@ -66,7 +66,7 @@ Requirements for the first shipped artifact: a plain C library with Python bindi
 - [ ] **BUILD-03**: Cross-compile smoke test to Cortex-M7 via `arm-none-eabi-gcc` (bare metal, no libDaisy, no audio I/O; confirms the core links and runs on MCU)
 - [ ] **BUILD-04**: Static analysis in CI — clang-tidy, cppcheck, compiler warnings as errors
 - [ ] **BUILD-05**: UndefinedBehaviorSanitizer in CI with surgical `__attribute__((no_sanitize("integer")))` annotations on functions where overflow is the intended SPU behavior
-- [ ] **BUILD-06**: Benchmark harness (pytest-benchmark) verifying no hot-path allocations and no pathological timing regressions
+- [x] **BUILD-06**: Benchmark harness (pytest-benchmark) verifying no hot-path allocations and no pathological timing regressions
 - [ ] **BUILD-07**: CI grep guard prohibiting `float`, `double`, `malloc`, `calloc`, `realloc`, `free`, `long` (unqualified) in core library sources
 - [ ] **BUILD-08**: Docker-pinned reproducible build environment for golden-file determinism
 
@@ -184,7 +184,7 @@ Mapping of requirements to roadmap phases — populated during roadmap creation.
 | BUILD-03 | Phase 8 | Pending |
 | BUILD-04 | Phase 1 | Pending |
 | BUILD-05 | Phase 1 | Pending |
-| BUILD-06 | Phase 7 | Pending |
+| BUILD-06 | Phase 7 | Complete |
 | BUILD-07 | Phase 1 | Pending |
 | BUILD-08 | Phase 7 | Pending |
 | DOCS-01 | Phase 1 | Pending |
