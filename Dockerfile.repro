@@ -1,0 +1,80 @@
+# Dockerfile.repro — Phase 7 reproducibility container (D-13, D-14).
+#
+# Purpose: second environment for the golden-file reproducibility gate.
+# Anthony generates the 50 goldens on his host once via
+# scripts/regenerate_goldens.py; CI proves this pinned container can
+# reproduce them byte-for-byte on every push. If the container's fresh
+# render diverges from the committed sidecars, the job fails and the
+# bit-faithfulness claim is at risk.
+#
+# Pinning policy (D-14): the base image is pinned by sha256 digest only.
+# That single digest transitively locks the C compiler, libc, cmake,
+# ninja, python3, numpy, scipy, dr_wav build dependencies, and every
+# other toolchain layer. No per-package `apt install pkg=version` pins
+# are added on top; the image digest already implies them.
+#
+# Pin-update discipline (D-15): bumping the base image digest requires
+# a new ADR in docs/DECISIONS.md explaining why, and the 50 goldens are
+# regenerated in the new container as part of that ADR landing.
+#
+# Digest provenance:
+#   Verified on 2026-04-23 against the Docker Hub Registry v2 API:
+#     curl -sfL https://hub.docker.com/v2/repositories/library/debian/tags/bookworm-slim/ \
+#       | python3 -c "import json,sys; d=json.load(sys.stdin); \
+#           imgs=[i for i in d['images'] if i.get('architecture')=='amd64']; \
+#           print(imgs[0]['digest'])"
+#   Live amd64 digest at plan-execute time:
+#     sha256:5a2a80d11944804c01b8619bc967e31801ec39bf3257ab80b91070eb23625644
+#   (The 07-RESEARCH.md researcher-verified digest from 2026-04-22 —
+#    sha256:f9c6a2fd2ddbc23e336b6257a5245e31f996953ef06cd13a59fa0a1df2d5c252
+#    — was superseded; we use whichever is live at plan-execute time per the
+#    plan's D-14 discipline.)
+
+FROM debian:bookworm-slim@sha256:5a2a80d11944804c01b8619bc967e31801ec39bf3257ab80b91070eb23625644
+
+# Determinism env (baked into the layer; overridden per-exec if needed).
+# Mirrors the host-side env in scripts/regenerate_goldens.py so the byte
+# comparison can be apples-to-apples.
+ENV LC_ALL=C
+ENV TZ=UTC
+ENV SOURCE_DATE_EPOCH=1704067200
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install toolchain. No per-package pins (D-14) — the image digest
+# transitively locks them. Package list mirrors
+# scripts/ci/install-phase7-deps.sh (Phase 7 host toolchain) + the
+# C build chain needed to compile libspu94 + the spu94 CLI inside the
+# container.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+        ninja-build \
+        pkg-config \
+        python3 \
+        python3-pip \
+        python3-numpy \
+        python3-scipy \
+        python3-pytest \
+        python3-pytest-benchmark \
+        lilv-utils \
+        lv2-dev \
+        strace \
+        coreutils \
+        git \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work
+COPY . .
+
+# Build libspu94 + the spu94 CLI inside the container so the binary that
+# renders goldens in --check is produced by THIS container's toolchain —
+# not the host's. That's what makes the host-vs-container reproducibility
+# claim meaningful.
+RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build
+
+# Default command is the reproducibility check. Non-zero exit means the
+# container's fresh-rendered bytes don't match the committed sidecars —
+# the CI job catches this and fails the build.
+CMD ["python3", "scripts/regenerate_goldens.py", "--check"]
