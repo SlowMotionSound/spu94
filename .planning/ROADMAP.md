@@ -139,7 +139,7 @@ Plans:
   6. `docs/LEVERS-CATALOG.md` annotates each of the 35 registers with its musical role, modulation cost (free / sample-quantized / catastrophic), expected zipper behavior, and suggested M4 lever grouping; `docs/BIBLIOGRAPHY.md` cites every nocash section and Sony SDK reference used, with all prose paraphrased (nothing transcribed).
 **Plans:** 6 plans
 Plans:
-- [ ] 07-01-PLAN.md — Environment prep + docs/COVERAGE.md scaffold + CI-enforced check_coverage.py validator + meta-tests (TEST-01, BUILD-08)
+- [x] 07-01-PLAN.md — Environment prep + docs/COVERAGE.md scaffold + CI-enforced check_coverage.py validator + meta-tests (TEST-01, BUILD-08)
 - [ ] 07-02-PLAN.md — scripts/regenerate_goldens.py + 50 committed .wav+.sha256 pairs + Dockerfile.repro (bookworm-slim digest-pinned) + new `reproducibility` CI job (TEST-04, TEST-08, BUILD-08)
 - [ ] 07-03-PLAN.md — Witness-diff harness: fresh-build lv2-psx-reverb at pinned SHA 424e1e8... + split-band scipy divergence + .artifacts/witness_report.json + determinism meta-test + `witness-diff` CI job (TEST-03)
 - [ ] 07-04-PLAN.md — Modulation harness (105 parametrized: 35 regs × 3 modes) with stability+determinism gates + idempotent docs/LEVERS-CATALOG.md writer preserving HAND columns (TEST-05, DOCS-02)
