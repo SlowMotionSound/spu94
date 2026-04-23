@@ -172,6 +172,59 @@ jobs:
       - name: Run COVERAGE.md integrity meta-test
         run: pytest tests/conformance/test_coverage_map_integrity.py -q
 
+  hotpath-alloc-gate:
+    # Phase 7 Plan 05 Task 3 -- BUILD-06 D-20 hard gate.
+    # Runs the hotpath_alloc_gate (strace-filtered brk/mmap/mmap2/munmap/
+    # mremap against a 10^5-iter spu94_process loop) as a MERGE-BLOCKING
+    # CI job, plus the negative meta-test (hotpath_alloc_gate_negative:
+    # ctest WILL_FAIL; pytest test_hotpath_alloc_gate_meta) that proves
+    # the gate actually detects real malloc hits rather than silently
+    # passing on every binary.
+    name: hotpath-alloc-gate (BUILD-06 D-20 hard)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install Phase 7 deps (includes strace)
+        run: bash scripts/ci/install-phase7-deps.sh
+      - name: Install build toolchain
+        run: |
+          sudo apt-get install -y cmake ninja-build
+      - name: Configure + build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+      - name: Run hot-path alloc gate (positive, clean target)
+        run: ctest --test-dir build -R "^hotpath_alloc_gate$" --output-on-failure
+      - name: Run hot-path alloc gate negative meta-test (ctest WILL_FAIL)
+        run: ctest --test-dir build -R "^hotpath_alloc_gate_negative$" --output-on-failure
+      - name: Run pytest meta-wrapper (clean pass + malloc detected)
+        run: pytest tests/python/test_hotpath_alloc_gate_meta.py -q
+
+  benchmark-report:
+    # D-20 report-only: timing track, not a CI gate (continue-on-error).
+    name: benchmark-report (BUILD-06 D-20 report-only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install deps + build
+        run: |
+          bash scripts/ci/install-phase7-deps.sh
+          sudo apt-get install -y cmake ninja-build
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+      - name: Run pytest-benchmark (report-only)
+        env:
+          SPU94_LIB: ${{ github.workspace }}/build/src/spu94/libspu94.so
+        run: |
+          pytest tests/benchmarks/test_benchmark.py \
+              --benchmark-json=bench-ci.json -q
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: benchmark-report
+          path: bench-ci.json
+
   reproducibility:
     # Phase 7 Plan 02 Task 3 — D-13, D-14 reproducibility gate.
     # Builds the pinned Docker container (debian:bookworm-slim by digest),
