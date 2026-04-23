@@ -936,27 +936,27 @@ Each Phase 7 harness is itself tested. These meta-tests prevent "the harness is 
 | A11 | The 10 kHz band-split cutoff matches "above 10 kHz" in ADR-Phase-4-I's frequency-response-exclusion phrasing | Code Examples — witness-diff skeleton | Low; ADR-Phase-4-I explicitly uses ~10 kHz as the exclusion threshold; CONTEXT D-07 repeats it. |
 | A12 | Eight ADRs (ADR-Phase-7-A..H) is a reasonable split of the 22 D-XX decisions | ADR plan in § Recommended Project Structure | Low; the split is one ADR per work area (A–G) plus one dedicated ADR for the SC-4 reinterpretation (D-18) since it's semantically distinct. Planner has discretion to adjust; CONTEXT.md says "eight is a reasonable upper bound, fewer if groupings make sense." |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does lv2-psx-reverb's LV2 bundle expose a clean `preset` integer port or does it require per-register control ports?**
    - What we know: built-once-and-compile-verified via `make`; port layout is discoverable via `lv2info <uri>` or `lv2ls -v`.
    - What's unclear: whether we can match SPU-94's Preset IntEnum 1:1 or need a mapping layer.
-   - Recommendation: First task in the witness-diff plan = build lv2-psx-reverb + run `lv2info` + pin the observed port layout into the harness docstring. If there's no preset port, fall back to setting 35 individual control ports matching SPU-94's preset register values (this requires that lv2-psx-reverb exposes them — which is the most likely case).
+   - RESOLVED: First task in the witness-diff plan = build lv2-psx-reverb + run `lv2info` + pin the observed port layout into the harness docstring. If there's no preset port, fall back to setting 35 individual control ports matching SPU-94's preset register values (this requires that lv2-psx-reverb exposes them — which is the most likely case).
 
 2. **Does `lv2apply` write int16 WAV or only float32?**
    - What we know: it uses libsndfile; libsndfile is format-flexible.
    - What's unclear: whether lv2apply passes a format spec to libsndfile on output, or defaults to a fixed format.
-   - Recommendation: Test empirically in the first witness-diff plan task; if float32-only, do the lossless float-to-int16 conversion at load time in `witness_diff.py` and document the conversion path.
+   - RESOLVED: Test empirically in the first witness-diff plan task; if float32-only, do the lossless float-to-int16 conversion at load time in `witness_diff.py` and document the conversion path.
 
 3. **What's the right "zipper onset" metric?**
    - What we know: CONTEXT.md D-16 asks for "expected zipper behavior" but doesn't specify a measurement.
    - What's unclear: sample-to-sample delta RMS threshold for "audible stepping"; specific rate where each register first crosses that threshold; whether to report one number per register (the onset) or a curve.
-   - Recommendation: Propose "lowest modulation rate where sample-to-sample RMS delta exceeds 0.01 × input amplitude" as the onset metric. Report one onset-frequency per register per mode. If Anthony disagrees, the metric is hand-editable in LEVERS-CATALOG's AUTO column (overrides the harness output; harness detects user override and leaves it untouched).
+   - RESOLVED: Propose "lowest modulation rate where sample-to-sample RMS delta exceeds 0.01 × input amplitude" as the onset metric. Report one onset-frequency per register per mode. If Anthony disagrees, the metric is hand-editable in LEVERS-CATALOG's AUTO column (overrides the harness output; harness detects user override and leaves it untouched).
 
 4. **Does the tolerance-policy follow-up ADR land inside Phase 7 or as Phase 7.1?**
    - What we know: D-06 defers the tolerance ADR until measurements are reviewed.
    - What's unclear: how long Anthony wants to sit with the numbers before deciding.
-   - Recommendation: Plan Phase 7 with the measurement-only harness as the gate; treat the tolerance ADR as a separate small remediation or in-phase follow-up that lands after the first witness-diff run produces real numbers. The planner should produce a task "witness-diff numbers reviewed; decision: lock tolerance now vs defer to 7.1" as an explicit manual gate.
+   - RESOLVED: Plan Phase 7 with the measurement-only harness as the gate; treat the tolerance ADR as a separate small remediation or in-phase follow-up that lands after the first witness-diff run produces real numbers. The planner should produce a task "witness-diff numbers reviewed; decision: lock tolerance now vs defer to 7.1" as an explicit manual gate.
 
 ## Sources
 

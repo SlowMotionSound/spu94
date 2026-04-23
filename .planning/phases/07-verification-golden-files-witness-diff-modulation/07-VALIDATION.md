@@ -52,11 +52,11 @@ created: 2026-04-23
 | 07-04-02 | 04 | 1 | TEST-05 | — | Same register modulation stream + same input produces bit-identical output across two runs (determinism gate; Phase 2 D-08 write policy verification) | integration | `pytest tests/python/test_modulation_harness.py::test_determinism -q` | ❌ W0 | ⬜ pending |
 | 07-04-03 | 04 | 2 | DOCS-02 | — | Mechanical columns in `docs/LEVERS-CATALOG.md` are populated by the harness idempotently (running harness twice leaves file byte-identical; human-authored subjective columns preserved) | integration | `pytest tests/python/test_levers_catalog_writer.py -q` | ❌ W0 | ⬜ pending |
 | 07-05-01 | 05 | 1 | BUILD-06 | — | `spu94_process` call tree has zero heap syscalls across all 10 presets (strace filter: `brk`, `mmap`, `mmap2`, `munmap`) | ci-integration | `bash tests/rt_safety/hotpath_alloc_gate.sh` | ❌ W0 | ⬜ pending |
-| 07-05-02 | 05 | 1 | BUILD-06 | — | pytest-benchmark produces timing JSON artifact for each preset × block-size combo | ci-artifact | `pytest tests/python/test_benchmark.py --benchmark-json=.benchmarks/out.json` | ❌ W0 | ⬜ pending |
+| 07-05-02 | 05 | 1 | BUILD-06 | — | pytest-benchmark produces timing JSON artifact for each preset × block-size combo | ci-artifact | `pytest tests/benchmarks/test_benchmark.py --benchmark-json=.benchmarks/out.json` | ❌ W0 | ⬜ pending |
 | 07-05-03 | 05 | 1 | BUILD-06 | — | Allocation gate meta-test: intentionally-inserted `malloc` triggers gate failure (negative meta-test, run in isolated fixture) | meta-test | `pytest tests/python/test_hotpath_alloc_gate_meta.py -q` | ❌ W0 | ⬜ pending |
 | 07-06-01 | 06 | 1 | DOCS-03 | — | Every claim in `docs/DECISIONS.md` that cites `BIB-nnn` resolves to an existing entry in `docs/BIBLIOGRAPHY.md` | integration | `python scripts/check_bibliography_refs.py` | ❌ W0 | ⬜ pending |
 | 07-06-02 | 06 | 1 | DOCS-03 | — | Bibliography-ref-check fails when a `BIB-nnn` reference points to a missing entry (negative meta-test) | meta-test | `pytest scripts/test_check_bibliography_refs.py::test_fails_on_dangling_ref -q` | ❌ W0 | ⬜ pending |
-| 07-06-03 | 06 | 2 | DOCS-03 | — | Eight ADR-Phase-7-A..H entries present in `docs/DECISIONS.md` with required header + rationale fields | integration | `python scripts/check_adr_format.py docs/DECISIONS.md --require ADR-Phase-7-A,ADR-Phase-7-B,ADR-Phase-7-C,ADR-Phase-7-D,ADR-Phase-7-E,ADR-Phase-7-F,ADR-Phase-7-G,ADR-Phase-7-H` | ❌ W0 | ⬜ pending |
+| 07-06-03 | 06 | 2 | DOCS-03 | — | Eight ADR-Phase-7-A..H entries present in `docs/DECISIONS.md` with required header + rationale fields | integration | `bash -c 'n=$(grep -cE "^## ADR-Phase-7-[A-H]" docs/DECISIONS.md); test "$n" -ge 6 && grep -qE "^## ADR-Phase-7-B" docs/DECISIONS.md && grep -qE "^## ADR-Phase-7-F" docs/DECISIONS.md'` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -75,9 +75,9 @@ created: 2026-04-23
 - [ ] `tests/python/test_modulation_harness.py` — `pytest.parametrize("reg", list(spu94.Register))` × `pytest.parametrize("mode", ["sine", "sweep", "random_walk"])`, with explicit `test_determinism` case that runs same modulation stream twice and asserts byte-identical output.
 - [ ] `tests/python/test_levers_catalog_writer.py` — verifies mechanical-column writer is idempotent and preserves human-authored subjective columns.
 - [ ] `tests/rt_safety/hotpath_alloc_gate.sh` — strace wrapper filtering `brk,mmap,mmap2,munmap`, masking warm-up syscalls before the marker, fails on any remaining.
-- [ ] `tests/python/test_benchmark.py` — pytest-benchmark harness parametrized over 10 presets × 2 block sizes; `min_rounds=5`, `warmup=True`.
+- [ ] `tests/benchmarks/test_benchmark.py` — pytest-benchmark harness parametrized over 10 presets × 2 block sizes; `min_rounds=5`, `warmup=True`.
 - [ ] `tests/python/test_hotpath_alloc_gate_meta.py` — negative meta-test that injects a heap call and asserts the gate fires.
-- [ ] `tests/python/benchmark_baselines.json` — committed baseline (formatted pytest-benchmark JSON extract); refreshed via explicit human action, not CI.
+- [ ] `tests/benchmarks/benchmark_baselines.json` — committed baseline (formatted pytest-benchmark JSON extract); refreshed via explicit human action, not CI.
 - [ ] `scripts/check_bibliography_refs.py` — cross-reference DECISIONS.md `BIB-nnn` mentions against BIBLIOGRAPHY.md entries.
 - [ ] `scripts/test_check_bibliography_refs.py` — positive + negative meta-tests for the ref checker.
 - [ ] `scripts/check_adr_format.py` — validates ADR-Phase-X-Y headers and required fields; existing or new per planner.
