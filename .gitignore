@@ -26,3 +26,8 @@ wheelhouse/
 # Used during M1 for easy WAV rendering from Finder; superseded by
 # the M4 plugin UI. Not a shipped deliverable.
 /scripts/desktop-launcher/
+
+# Phase 7: pytest-benchmark output directory (Plan 07-05 / 07-06 also writes
+# here; ignoring pre-emptively per Phase 7 Pitfall 4 so ad-hoc benchmark
+# invocations from the dev tree never pollute the index).
+.benchmarks/
