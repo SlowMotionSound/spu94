@@ -176,17 +176,37 @@ def main() -> int:
                 out_sha = preset_dir / f"{input_name}.wav.sha256"
 
                 if args.check:
-                    scratch = Path(tmpd) / f"{preset}_{input_name}.wav"
-                    render_golden(preset, input_name, scratch, tmp_in, spu94_bin)
-                    fresh_digest = sha256_of(scratch)
+                    # Read committed sidecar digest.
                     if out_sha.exists():
                         committed_line = out_sha.read_text().strip()
                         committed = committed_line.split()[0] if committed_line else ""
                     else:
                         committed = ""
+
+                    # (a) Committed .wav bytes must match the sidecar — catches
+                    # tampering with either the .wav or the sidecar alone.
+                    if out_wav.exists():
+                        wav_digest = sha256_of(out_wav)
+                    else:
+                        wav_digest = ""
+                    if wav_digest != committed:
+                        failures.append(
+                            f"{preset}/{input_name}: committed-wav mismatches sidecar — "
+                            f"sidecar={committed[:16] if committed else '<missing>'}... "
+                            f"wav={wav_digest[:16] if wav_digest else '<missing>'}..."
+                        )
+                        # Still re-render below so a later sidecar forge plus
+                        # matching .wav forge is still caught by the fresh check.
+
+                    # (b) Fresh re-render must match the sidecar — this is the
+                    # reproducibility gate (host vs container). If the wav
+                    # already mismatched in (a), this is additional signal.
+                    scratch = Path(tmpd) / f"{preset}_{input_name}.wav"
+                    render_golden(preset, input_name, scratch, tmp_in, spu94_bin)
+                    fresh_digest = sha256_of(scratch)
                     if fresh_digest != committed:
                         failures.append(
-                            f"{preset}/{input_name}: "
+                            f"{preset}/{input_name}: fresh render mismatches sidecar — "
                             f"committed={committed[:16] if committed else '<missing>'}... "
                             f"fresh={fresh_digest[:16]}..."
                         )
