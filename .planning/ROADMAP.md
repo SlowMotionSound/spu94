@@ -144,7 +144,7 @@ Plans:
 - [x] 07-03-PLAN.md — Witness-diff harness: fresh-build lv2-psx-reverb at pinned SHA 424e1e8... + split-band scipy divergence + .artifacts/witness_report.json + determinism meta-test + `witness-diff` CI job (TEST-03)
 - [x] 07-04-PLAN.md — Modulation harness (105 parametrized: 35 regs × 3 modes) with stability+determinism gates + idempotent docs/LEVERS-CATALOG.md writer preserving HAND columns (TEST-05, DOCS-02)
 - [x] 07-05-PLAN.md — Hot-path allocation gate (strace filter on brk/mmap/mmap2/munmap/mremap) with negative meta-test + pytest-benchmark harness (report-only per D-20) + committed benchmark_baselines.json (BUILD-06)
-- [ ] 07-06-PLAN.md — BIBLIOGRAPHY.md additive (BIB-014..020) + cluster-polish + scripts/check_bibliography_refs.py validator + ADR-Phase-7-A..H landed in docs/DECISIONS.md (DOCS-03)
+- [x] 07-06-PLAN.md — BIBLIOGRAPHY.md additive (BIB-014..020) + cluster-polish + scripts/check_bibliography_refs.py validator + ADR-Phase-7-A..H landed in docs/DECISIONS.md (DOCS-03)
 
 ### Phase 8: MCU Cross-Compile + CI Hardening
 **Goal**: The MCU-portability claim is proven (not asserted) before M1 closes — `libspu94` compiles, links, and runs a reverb block on Cortex-M7 bare metal under arm-none-eabi-gcc with no heap, no HAL, no audio I/O.

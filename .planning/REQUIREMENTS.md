@@ -74,7 +74,7 @@ Requirements for the first shipped artifact: a plain C library with Python bindi
 
 - [ ] **DOCS-01**: `DECISIONS.md` begun and maintained — gray-area log with one entry per resolution, each including: the ambiguity, the options considered, what was chosen, the rationale, and (where relevant) what witnesses were consulted and what their source references were
 - [x] **DOCS-02**: `docs/LEVERS-CATALOG.md` begun and maintained — each register annotated with its musical role and candidacy for M4 lever mapping (Room Size, Pre Delay, Decay, Diffusion, Damping, etc.)
-- [ ] **DOCS-03**: Bibliography tracking nocash citations, Sony SDK references, and other fact sources — paraphrased in SPU-94's own docs, never transcribed
+- [x] **DOCS-03**: Bibliography tracking nocash citations, Sony SDK references, and other fact sources — paraphrased in SPU-94's own docs, never transcribed
 - [ ] **DOCS-04**: `README.md` with build instructions, minimal usage example, licensing posture summary, and project-status banner
 - [ ] **DOCS-05**: `LICENSE` placeholder noting that the final permissive-license pick (MIT vs Apache-2.0) is deferred to end of M1
 
@@ -189,7 +189,7 @@ Mapping of requirements to roadmap phases — populated during roadmap creation.
 | BUILD-08 | Phase 7 | Pending |
 | DOCS-01 | Phase 1 | Pending |
 | DOCS-02 | Phase 7 | Complete |
-| DOCS-03 | Phase 7 | Pending |
+| DOCS-03 | Phase 7 | Complete |
 | DOCS-04 | Phase 6 | Pending |
 | DOCS-05 | Phase 1 | Pending |
 
