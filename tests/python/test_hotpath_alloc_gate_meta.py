@@ -28,14 +28,26 @@ _GATE = ["bash", str(_REPO_ROOT / "tests" / "rt_safety" / "hotpath_alloc_gate.sh
 
 
 def _find(name: str) -> str:
-    """Locate a ctest-built binary under build/. Asserts exactly one hit
-    so stale build dirs don't cause ambiguous results."""
-    hits = sorted(_REPO_ROOT.rglob(f"build*/{'/'.join(['**', name])}"))
-    # Fallback: allow any build-dir layout.
-    if not hits:
-        hits = sorted((_REPO_ROOT / "build").rglob(name))
+    """Locate a ctest-built binary under the primary build/ tree.
+
+    Prefers the canonical ``build/`` directory so stale sibling build
+    trees (``build-ubsan/``, ``build-clang-*/``, ``build-release/``) can
+    never shadow the primary tree via lexicographic sort order. Falls
+    back to a repo-wide ``build*/`` scan only when ``build/`` is absent,
+    and asserts on ambiguity so a caller sees the full hit list rather
+    than silently picking the first sorted match.
+    """
+    primary = _REPO_ROOT / "build"
+    if primary.is_dir():
+        hits = sorted(primary.rglob(name))
+    else:
+        hits = sorted(_REPO_ROOT.rglob(f"build*/{'/'.join(['**', name])}"))
     assert hits, (
         f"{name} not built under build/. Run `cmake --build build` and retry."
+    )
+    assert len(hits) == 1, (
+        f"ambiguous: {len(hits)} candidates for {name}: "
+        f"{[str(p) for p in hits]}. Remove stale build dirs and retry."
     )
     return str(hits[0])
 
