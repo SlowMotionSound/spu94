@@ -184,9 +184,11 @@ None.
 
 ### Next Session
 
-- `/gsd-discuss-phase 7` recommended before `/gsd-plan-phase 7`. Phase 7 CONTEXT.md not yet written; gray areas exist (witness-diff tolerances, golden-file corpus, benchmark thresholds, coverage-table shape) that benefit from explicit discussion before planning.
-- Alternative: `/gsd-plan-phase 7` directly — planner will spawn researcher first (lv2-psx-reverb witness setup / Docker pinning, pytest-benchmark regression-tracking patterns, golden-file SHA-256 sidecar conventions, modulation-harness design) and use Claude's discretion on gray areas.
-- Phase 7 is the "earn the bit-faithful claim" phase — expected shape: (1) spec-conformance coverage table + tests; (2) witness-diff harness against lv2-psx-reverb (freq-response axis excluded per Phase 4 decision); (3) 10-preset × 4-input golden files with SHA-256 sidecars; (4) 35-register modulation harness; (5) pytest-benchmark RT regression; (6) LEVERS-CATALOG.md + BIBLIOGRAPHY.md.
+- M1 close-out (ARCHITECTURAL-AUDIT.md Part 6) is the active workstream, NOT Phase 7 planning. See `.planning/HANDOFF.json` for the 15-step migration plan and current position.
+- Step 3 shipped 2026-04-24 as commit 72f2270 (feat(api): work-buf size contract + load_preset validation, ADR-0022). Three new error codes (INVALID_STATE/WORK_BUF_TOO_SMALL/INVALID_ARG); new SPU94_WORK_BUF_MAX_BYTES constant; spu94_preset_min_work_buf_size(id) accessor. 79/79 ctest green.
+- Step 4 shipped 2026-04-24 as commit bce2c13 (feat(observability): OOB tap counter via spu94_get_error_counters, ADR-0023). uint64 oob_tap_count on spu94_state; public spu94_error_counters_t + snapshot accessor; Python api.get_error_counters. tests/unit/state/test_error_counters.c added. 80/80 ctest green.
+- Next in close-out: Step 5 (raise Python default work_buf_size to SPU94_WORK_BUF_MAX_BYTES), Step 6 (tighten self_test + modulation harness with oob_tap_count==0 + non-silence floor assertions), Step 7 (NULL-state-on-mutation across set_reg_*), Step 8 (CLI + Python critical findings), Step 11 (first GitHub Actions CI run), Steps 12-15 (witness-diff gate, external anchor, VERIFICATION.md, /gsd-audit-milestone + /gsd-complete-milestone).
+- Phase 7 planning resumes AFTER M1 close-out completes and milestone is tagged.
 
 ---
 *State initialized: 2026-04-18 at roadmap completion*

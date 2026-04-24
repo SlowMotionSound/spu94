@@ -1,47 +1,21 @@
 {
-  "status": "in_progress_mid_step",
+  "status": "between_steps",
   "session_date": "2026-04-24",
   "milestone": "v1.0 close-out (M1 remediation)",
   "phase": "M1 close-out — Stage 1 of ARCHITECTURAL-AUDIT.md migration plan",
   "plan": "ARCHITECTURAL-AUDIT.md Part 6 ordered migration plan",
-  "current_step": "Step 3: work-buf size contract",
+  "current_step": "Step 5: raise Python default work_buf_size",
   "total_steps": 15,
   "completed_steps": [
     "Step 1: Fix grep-guard scope + CLI tail-seconds integer parse (commit 262930a)",
     "Step 2: Fix reverb input wiring CR-01 + goldens regen + ADR-Phase-6-I (commit 4fcad49)",
-    "Audit artifacts captured (commit 92cca7c)"
+    "Audit artifacts captured (commit 92cca7c)",
+    "Step 3: work-buf size contract + load_preset validation (commit 72f2270, ADR-0022)",
+    "Step 4: OOB tap counter via spu94_get_error_counters (commit bce2c13, ADR-0023)"
   ],
-  "in_progress_step": {
-    "id": 3,
-    "name": "Add work-buf size contract",
-    "status": "code_written_not_committed_callers_not_updated",
-    "what_is_done": [
-      "include/spu94/spu94.h: added SPU94_INVALID_STATE=4, SPU94_WORK_BUF_TOO_SMALL=5, SPU94_INVALID_ARG=6 result codes (append-only, preserves ABI)",
-      "include/spu94/spu94.h: added #define SPU94_WORK_BUF_MAX_BYTES 0x80000u",
-      "include/spu94/spu94.h: added spu94_preset_min_work_buf_size declaration with full contract docstring",
-      "include/spu94/spu94.h: updated spu94_load_preset contract docstring (new return codes, migration note)",
-      "src/spu94/spu94_presets.c: added #include spu94_state_internal.h (for state->work_buf_size access)",
-      "src/spu94/spu94_presets.c: implemented spu94_preset_min_work_buf_size (scans u16 registers, returns (max + 1) * 2 bytes)",
-      "src/spu94/spu94_presets.c: tightened spu94_load_preset to return INVALID_STATE / INVALID_ARG / WORK_BUF_TOO_SMALL instead of silent OK paths"
-    ],
-    "what_remains": [
-      "src/cli/main.c: check spu94_load_preset return value and emit clean error on INVALID_ARG / WORK_BUF_TOO_SMALL (currently the CLI calls `(void)spu94_load_preset(state, (spu94_preset_id_t)pid);` at around line 187)",
-      "python/spu94/_binding.py: add SPU94_INVALID_STATE=4, SPU94_WORK_BUF_TOO_SMALL=5, SPU94_INVALID_ARG=6 constants (after line 225 existing SPU94_UNKNOWN_REG=2)",
-      "python/spu94/api.py: update load_preset to raise a clear exception on WORK_BUF_TOO_SMALL (with message naming the required size via spu94_preset_min_work_buf_size); update self_test() docstring/error-handling accordingly",
-      "tests/python/binding/test_binding_numpy_contract.py line 200: change assertion from SPU94_UNKNOWN_REG to SPU94_INVALID_ARG for the `load_preset(state, 99)` case",
-      "tests/python/binding/test_binding_preset_table.py line 116: change work_buf from 8192 to SPU94_WORK_BUF_MAX_BYTES (or any value >= spu94_preset_min_work_buf_size(HALL)) — currently loads Hall with 8K which will fail WORK_BUF_TOO_SMALL after this change lands",
-      "tests/python/binding/test_binding_surface.py: consider adding asserts for the three new enum values (SPU94_INVALID_STATE==4, SPU94_WORK_BUF_TOO_SMALL==5, SPU94_INVALID_ARG==6)",
-      "docs/DECISIONS.md: prepend ADR-0022 at line 33 — 'Work-buf sizing contract + load_preset validation' — covers the enum extension, the SPU94_WORK_BUF_MAX_BYTES constant, the spu94_preset_min_work_buf_size function, the load_preset tightening, and the (non-ABI) behavior change for out-of-range preset id",
-      "Build and run ctest, expect all green after the caller updates",
-      "Atomic commit: 'feat(api): work-buf size contract + load_preset validation (ADR-0022)'"
-    ]
-  },
-  "uncommitted_files": [
-    "include/spu94/spu94.h",
-    "src/spu94/spu94_presets.c"
-  ],
+  "in_progress_step": null,
+  "uncommitted_files": [],
   "remaining_steps": [
-    {"id": 4, "name": "Add observable error counters (spu94_get_error_counters + oob_tap_count field)"},
     {"id": 5, "name": "Raise Python default work_buf_size to SPU94_WORK_BUF_MAX_BYTES"},
     {"id": 6, "name": "Tighten self_test + modulation harness (assert oob_tap_count==0, add non-silence floor)"},
     {"id": 7, "name": "Fix NULL-state-on-mutation across set_reg_* (return SPU94_INVALID_STATE)"},
@@ -56,17 +30,16 @@
   "human_actions_pending": [
     "None immediate. When step 11 runs, Anthony will want to eyeball the first GitHub Actions CI run and confirm all 5 jobs green."
   ],
-  "next_action": "Resume Step 3 by updating the callers (CLI main.c, Python _binding.py + api.py) and tests listed in in_progress_step.what_remains, write ADR-0022, then build+test+commit as one atomic change.",
+  "next_action": "Start Step 5: bump api.init() default work_buf_size from 8192 to SPU94_WORK_BUF_MAX_BYTES; also bump the SPU94 class __init__ default. Review the four binding tests that currently pass explicit SPU94_WORK_BUF_MAX_BYTES (Step 3 bandaids) and simplify back to defaults where possible.",
   "context_notes": [
     "The audit that drove this remediation is in .planning/ARCHITECTURAL-AUDIT.md — read it first for full context on the 4 root causes and target architecture.",
     "Three review reports in .planning/REVIEW-c-core.md, REVIEW-cli-python.md, REVIEW-tests-ci.md provide per-finding detail.",
     ".planning/v1.0-MILESTONE-AUDIT.md is the pre-remediation audit — its status was gaps_found; after Stage 1 it should flip to passed.",
     ".planning/v1.0-GOLDENS-REGEN.md documents the regen event that happened during Step 2.",
     "Phase 8 (MCU cross-compile) is parked per Anthony's 2026-04-24 decision — moves to between M4 and M5. Do NOT attempt to close Phase 8 as part of M1.",
-    "The post-fix reverb now runs with ANTI-ALIASED input. Any downstream measurements (witness diff, modulation report, goldens) produced before 2026-04-24 reflected aliased input and are historically incorrect. The current goldens (regenerated in commit 4fcad49) reflect the corrected behavior.",
-    "ADR naming convention: ADR-Phase-N-X for phase-bound decisions, ADR-NNNN for general. ADR-Phase-6-I was the reverb-wiring fix. ADR-0022 is the next general ADR slot (counting from ADR-0020 which was the last numeric-prefixed ADR per the DECISIONS.md grep earlier this session).",
-    "New enum values were appended (4, 5, 6) — the D-07 'append-only, stable numeric values' contract is preserved. Existing SPU94_UNKNOWN_REG=2 and SPU94_TYPE_MISMATCH=3 are unchanged.",
-    "spu94_load_preset's BEHAVIOR changed for two input cases: NULL state used to return SPU94_OK, now returns SPU94_INVALID_STATE. Out-of-range preset id used to return SPU94_UNKNOWN_REG, now returns SPU94_INVALID_ARG. Callers that branched on 'if (rc != SPU94_OK)' continue to work; callers keyed specifically on SPU94_UNKNOWN_REG (only test_binding_numpy_contract.py line 200) need updating."
+    "Step 3 shipped as commit 72f2270 (feat(api): work-buf size contract + load_preset validation). Three new SPU94_INVALID_STATE/WORK_BUF_TOO_SMALL/INVALID_ARG result codes, SPU94_WORK_BUF_MAX_BYTES constant, spu94_preset_min_work_buf_size function. CLI + Python load_preset surface the errors. 79/79 ctest green.",
+    "Step 4 shipped as commit bce2c13 (feat(observability): OOB tap counter via spu94_get_error_counters). uint64 oob_tap_count field on spu94_state; public spu94_error_counters_t + accessor; Python api.get_error_counters returns a dict. tests/unit/state/test_error_counters.c (4 sub-tests). 80/80 ctest green. Step 6 tightens self_test + modulation harness with oob_tap_count==0 assertion.",
+    "Step 5 pattern: bump api.init() default work_buf_size from 8192 to SPU94_WORK_BUF_MAX_BYTES; same for SPU94 class constructor default. The four binding tests that pass explicit SPU94_WORK_BUF_MAX_BYTES (test_binding_numpy_contract.py::_fresh_state + test_spu94_class_context_manager + test_spu94_class_flush + tests/python/modulation_harness.py run_one_case) can simplify back to defaults once the default moves. Keep explicit SPU94_WORK_BUF_MAX_BYTES in test_binding_preset_table.py (doesn't use api.init — calls lib.spu94_init directly)."
   ],
   "handoff_markdown": ".planning/HANDOFF.md"
 }
