@@ -57,3 +57,23 @@ add_test(
         -q --no-header
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
+
+# Phase 7 Plan 03 Task 3 — witness-diff D-06 determinism meta-test.
+# Runs scripts/ci/witness_diff.py twice in a row and asserts the resulting
+# witness_report.json is identical (byte-equal or numerically within 1e-9).
+# Preconditions (checked inside the test; it self-skips if absent):
+#   - scripts/ci/witness_diff_build.sh has run (.LV2_PATH sidecar present)
+#   - build/src/cli/spu94 is built
+# Labeled `witness` so `ctest -L witness` runs it selectively. The suite
+# takes ~60 s (two harness runs × ~30 s each).
+add_test(
+    NAME witness_determinism
+    COMMAND ${Python3_EXECUTABLE} -m pytest
+        ${CMAKE_SOURCE_DIR}/tests/python/test_witness_determinism.py
+        -q --no-header
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(witness_determinism PROPERTIES
+    LABELS "witness"
+    TIMEOUT 600
+)

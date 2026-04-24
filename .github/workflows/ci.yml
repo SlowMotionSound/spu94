@@ -245,3 +245,21 @@ jobs:
         run: docker build -f Dockerfile.repro -t spu94-repro .
       - name: Run reproducibility check (regenerate_goldens.py --check)
         run: docker run --rm spu94-repro
+
+  witness-diff:
+    name: witness-diff (TEST-03)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install deps + build
+        run: |
+          bash scripts/ci/install-phase7-deps.sh
+          sudo apt-get install -y cmake ninja-build
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
+          bash scripts/ci/witness_diff_build.sh
+      - run: python3 scripts/ci/witness_diff.py
+      - run: python3 -m pytest tests/python/test_witness_determinism.py -q
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: witness-report
+          path: .artifacts/witness_report.json
