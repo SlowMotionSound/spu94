@@ -231,6 +231,98 @@ def test_flat_config_duplicate_caught_via_pigeonhole(tmp_path, spu94_cli_path,
     assert displaced in result.stderr
 
 
+def _override_with_value(tmp_path, name, value):
+    """Build a {"base": "hall", "overrides": {<name>: <value>}} config and
+    return the path. <value> may be int or string (hex form)."""
+    cfg = tmp_path / "ovr.json"
+    cfg.write_text(json.dumps({"base": "hall", "overrides": {name: value}}))
+    return str(cfg)
+
+
+def test_parse_hex_rejects_bare_negative_prefix(tmp_path, spu94_cli_path,
+                                                sample_wav_file, tmp_wav_out):
+    """H-06: '-0x' (no digits) must be rejected — the s[2]=='\\0' guard."""
+    cfg = _override_with_value(tmp_path, "vIIR", "-0x")
+    result = subprocess.run(
+        [spu94_cli_path, "--config", cfg, sample_wav_file, tmp_wav_out],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 2
+    assert _stderr_line_count(result.stderr) == 1
+    assert "invalid value" in result.stderr
+
+
+def test_parse_hex_rejects_above_int_max(tmp_path, spu94_cli_path,
+                                         sample_wav_file, tmp_wav_out):
+    """H-06: '0x80000000' (2^31, just past INT_MAX) must be rejected
+    by the v > INT_MAX check on 64-bit long systems."""
+    cfg = _override_with_value(tmp_path, "vIIR", "0x80000000")
+    result = subprocess.run(
+        [spu94_cli_path, "--config", cfg, sample_wav_file, tmp_wav_out],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 2
+    assert _stderr_line_count(result.stderr) == 1
+    assert "invalid value" in result.stderr or "out of range" in result.stderr
+
+
+def test_parse_hex_rejects_below_int_min(tmp_path, spu94_cli_path,
+                                         sample_wav_file, tmp_wav_out):
+    """H-06: '-0x80000001' (one past INT_MIN) must be rejected."""
+    cfg = _override_with_value(tmp_path, "vIIR", "-0x80000001")
+    result = subprocess.run(
+        [spu94_cli_path, "--config", cfg, sample_wav_file, tmp_wav_out],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 2
+    assert _stderr_line_count(result.stderr) == 1
+    assert "invalid value" in result.stderr or "out of range" in result.stderr
+
+
+def test_parse_hex_rejects_internal_whitespace(tmp_path, spu94_cli_path,
+                                               sample_wav_file, tmp_wav_out):
+    """H-06: '0x 10' (space between prefix and digits) — strtol stops at
+    space; *endp != '\\0' rejects it."""
+    cfg = _override_with_value(tmp_path, "vIIR", "0x 10")
+    result = subprocess.run(
+        [spu94_cli_path, "--config", cfg, sample_wav_file, tmp_wav_out],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 2
+    assert _stderr_line_count(result.stderr) == 1
+    assert "invalid value" in result.stderr
+
+
+def test_parse_hex_accepts_plus_sign_prefix(tmp_path, spu94_cli_path,
+                                            sample_wav_file, tmp_wav_out):
+    """H-06: '+0x10' is a defensible accept case — leading '+' is consumed
+    by line 78 and the rest parses normally to 16."""
+    cfg = _override_with_value(tmp_path, "vIIR", "+0x10")
+    result = subprocess.run(
+        [spu94_cli_path, "--config", cfg, sample_wav_file, tmp_wav_out],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, (
+        f"expected success on +0x10, got rc={result.returncode}, "
+        f"stderr={result.stderr!r}"
+    )
+
+
+def test_parse_hex_accepts_capital_x_prefix(tmp_path, spu94_cli_path,
+                                            sample_wav_file, tmp_wav_out):
+    """H-06: '0X10' (capital X) is a defensible accept case — line 79
+    explicitly handles both 'x' and 'X'."""
+    cfg = _override_with_value(tmp_path, "vIIR", "0X10")
+    result = subprocess.run(
+        [spu94_cli_path, "--config", cfg, sample_wav_file, tmp_wav_out],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, (
+        f"expected success on 0X10, got rc={result.returncode}, "
+        f"stderr={result.stderr!r}"
+    )
+
+
 def test_overlong_json_key_distinct_error(tmp_path, spu94_cli_path,
                                           sample_wav_file, tmp_wav_out):
     """H-04: a 70-char JSON key must produce a 'key too long' message,

@@ -78,6 +78,17 @@ static int parse_int_or_hex(const char *json, const jsmntok_t *t, int32_t *out) 
         else if (*s == '+') { ++s; }
         if (s[0] != '0' || (s[1] != 'x' && s[1] != 'X')) return -1;
         if (s[2] == '\0') return -1;  /* bare "0x" */
+        /* H-06: strtol(... base 16) silently skips leading whitespace, so
+         * input like "0x 10" would parse as 16. Require the char right
+         * after the "0x" prefix to be a hex digit; reject anything else
+         * (whitespace, signs, garbage) before strtol gets to see it. */
+        {
+            char c = s[2];
+            int is_hex = (c >= '0' && c <= '9') ||
+                         (c >= 'a' && c <= 'f') ||
+                         (c >= 'A' && c <= 'F');
+            if (!is_hex) return -1;
+        }
         v = strtol(s + 2, &endp, 16);
         if (negative) v = -v;
     } else if (t->type == JSMN_PRIMITIVE) {
