@@ -34,6 +34,7 @@ outside Known Gaps'.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -178,6 +179,11 @@ def run_ctest(test_name: str, build_dir: Path) -> tuple[int, str]:
         f"^{test_name}$",
         "--output-on-failure",
     ]
+    # Pin LC_ALL/LANG=C so the "No tests were found" / "No tests to run"
+    # prose matcher below is locale-stable. A non-English parent shell would
+    # otherwise localize those strings and turn the matcher into a
+    # false-pass.
+    env = {**os.environ, "LC_ALL": "C", "LANG": "C"}
     try:
         proc = subprocess.run(
             argv,
@@ -185,6 +191,7 @@ def run_ctest(test_name: str, build_dir: Path) -> tuple[int, str]:
             text=True,
             check=False,
             shell=False,
+            env=env,
         )
     except FileNotFoundError as exc:
         return 1, f"ctest not on PATH: {exc}"
