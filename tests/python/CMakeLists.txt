@@ -81,3 +81,23 @@ set_tests_properties(fuzz_process PROPERTIES
 
 # Phase 6 Plan 1: binding unit tests (pytest-based; ctest label "binding").
 add_subdirectory(binding)
+
+# Phase 7 Plan 04 Task 1 (TEST-05 / D-17 / D-18): 35-register x 3-mode
+# modulation harness. 211 parametrized pytest cases (35*3 stability +
+# 35*3 determinism + 1 report writer). Measured ~4 s on dev workstation
+# with a 180 s timeout for CI-runner headroom. Writes
+# tests/python/modulation_report.json which scripts/write_levers_catalog.py
+# consumes to populate the AUTO columns of docs/LEVERS-CATALOG.md.
+add_test(
+    NAME modulation_harness
+    COMMAND ${Python3_EXECUTABLE} -m pytest
+        ${CMAKE_CURRENT_SOURCE_DIR}/test_modulation_harness.py
+        -q --no-header
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+set_tests_properties(modulation_harness PROPERTIES
+    ENVIRONMENT "SPU94_LIB=$<TARGET_FILE:spu94_shared>"
+    LABELS "modulation"
+    TIMEOUT 180
+)

@@ -1,0 +1,807 @@
+{
+  "dAPF1": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "e78a633fe917a7313f0b955fda06093654b2f3ac1c188dab286aae170d2217a4",
+        "sample_to_sample_rms_max": 89.60952720892435,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "e78a633fe917a7313f0b955fda06093654b2f3ac1c188dab286aae170d2217a4",
+        "sample_to_sample_rms_max": 89.60952720892435,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "b18501eff7261fb085b044a6a6dbb2752d459c1f7de4dbe9471d5daa047d2ee6",
+        "sample_to_sample_rms_max": 88.18176818885235,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "sample-quantized"
+  },
+  "dAPF2": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "53f5804ed8623e95cbbfc174d4f0c4774572a1281c720f123e9563610482ad68",
+        "sample_to_sample_rms_max": 81.01679030372757,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "f516948d7256aa6346db22c60e5783ce702b8a21bc31d225b8c8d7a8cb0634b2",
+        "sample_to_sample_rms_max": 83.80954221311568,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "2c0f29690fbb80920a411e00f6764c14068fd631a5b575e646990a63b2e868fe",
+        "sample_to_sample_rms_max": 109.2249238627993,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "sample-quantized"
+  },
+  "dLDIFF": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "7716cec80bea89bfa8d9c3b0c75b96a665f8ba29c38ac2c7fd60079a11d89ebf",
+        "sample_to_sample_rms_max": 98.49256769338754,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "7716cec80bea89bfa8d9c3b0c75b96a665f8ba29c38ac2c7fd60079a11d89ebf",
+        "sample_to_sample_rms_max": 98.49256769338754,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "7716cec80bea89bfa8d9c3b0c75b96a665f8ba29c38ac2c7fd60079a11d89ebf",
+        "sample_to_sample_rms_max": 98.49256769338754,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "sample-quantized"
+  },
+  "dLSAME": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "sample-quantized"
+  },
+  "dRDIFF": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "sample-quantized"
+  },
+  "dRSAME": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "sample-quantized"
+  },
+  "mBASE": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "b46e922e0b8adb26c39e8aff4458efea0065796ec9d6334ae37e4abd1124c65d",
+        "sample_to_sample_rms_max": 3.0145700145487018,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "8428f7e3a1b4512447e56174acfc2af7eb9800801c4822d7f36120ff6e95e52c",
+        "sample_to_sample_rms_max": 67.02794096120046,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "0ea90b5d37aa22daecba27d09892e3eab951eae5565bc14ee1a3a14a993f9160",
+        "sample_to_sample_rms_max": 103.53290274844116,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "catastrophic"
+  },
+  "mLAPF1": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "005440f4d350f41d50a41114ce49dbb933f58509b42313f48158c72d82298cf6",
+        "sample_to_sample_rms_max": 108.18737142461337,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "005440f4d350f41d50a41114ce49dbb933f58509b42313f48158c72d82298cf6",
+        "sample_to_sample_rms_max": 108.18737142461337,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "005440f4d350f41d50a41114ce49dbb933f58509b42313f48158c72d82298cf6",
+        "sample_to_sample_rms_max": 108.18737142461337,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "catastrophic"
+  },
+  "mLAPF2": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "6596cec18753ba0aaa06bd6472501e250b9770fa71b068371f30bad66a7a22e9",
+        "sample_to_sample_rms_max": 107.22886738504836,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "6596cec18753ba0aaa06bd6472501e250b9770fa71b068371f30bad66a7a22e9",
+        "sample_to_sample_rms_max": 107.22886738504836,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "6596cec18753ba0aaa06bd6472501e250b9770fa71b068371f30bad66a7a22e9",
+        "sample_to_sample_rms_max": 107.22886738504836,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "catastrophic"
+  },
+  "mLCOMB1": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "catastrophic"
+  },
+  "mLCOMB2": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "catastrophic"
+  },
+  "mLCOMB3": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "e984bae08a802242973971de466d45bdafd3542eb22a099180900b646f673307",
+        "sample_to_sample_rms_max": 105.9323087090809,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "e984bae08a802242973971de466d45bdafd3542eb22a099180900b646f673307",
+        "sample_to_sample_rms_max": 105.9323087090809,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "e984bae08a802242973971de466d45bdafd3542eb22a099180900b646f673307",
+        "sample_to_sample_rms_max": 105.9323087090809,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "catastrophic"
+  },
+  "mLCOMB4": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "ddb301c6b6e722b2033f909f1e20f1554984d8c86b3138c4dc267e74b3015cfc",
+        "sample_to_sample_rms_max": 106.63082445568004,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "ddb301c6b6e722b2033f909f1e20f1554984d8c86b3138c4dc267e74b3015cfc",
+        "sample_to_sample_rms_max": 106.63082445568004,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "ddb301c6b6e722b2033f909f1e20f1554984d8c86b3138c4dc267e74b3015cfc",
+        "sample_to_sample_rms_max": 106.63082445568004,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "catastrophic"
+  },
+  "mLDIFF": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "aca93f6b210542859544e833012016a4c9c4fcd5d1030318e268b9d088bb4f80",
+        "sample_to_sample_rms_max": 86.87203346542084,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "aca93f6b210542859544e833012016a4c9c4fcd5d1030318e268b9d088bb4f80",
+        "sample_to_sample_rms_max": 86.87203346542084,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "aca93f6b210542859544e833012016a4c9c4fcd5d1030318e268b9d088bb4f80",
+        "sample_to_sample_rms_max": 86.87203346542084,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "catastrophic"
+  },
+  "mLSAME": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "catastrophic"
+  },
+  "mRAPF1": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "1f0353c4a3bbe90346ddfd485c975e3ceb6c30340cfaeb17f71ce0bb176ae41e",
+        "sample_to_sample_rms_max": 94.12739364851244,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "1f0353c4a3bbe90346ddfd485c975e3ceb6c30340cfaeb17f71ce0bb176ae41e",
+        "sample_to_sample_rms_max": 94.12739364851244,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "1f0353c4a3bbe90346ddfd485c975e3ceb6c30340cfaeb17f71ce0bb176ae41e",
+        "sample_to_sample_rms_max": 94.12739364851244,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "catastrophic"
+  },
+  "mRAPF2": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "5682dd77a3f41c9b7c35c6fb229e42733af5a59a907925130bb6176a94a4126e",
+        "sample_to_sample_rms_max": 87.17967948243556,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "5682dd77a3f41c9b7c35c6fb229e42733af5a59a907925130bb6176a94a4126e",
+        "sample_to_sample_rms_max": 87.17967948243556,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "5682dd77a3f41c9b7c35c6fb229e42733af5a59a907925130bb6176a94a4126e",
+        "sample_to_sample_rms_max": 87.17967948243556,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "catastrophic"
+  },
+  "mRCOMB1": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "catastrophic"
+  },
+  "mRCOMB2": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "catastrophic"
+  },
+  "mRCOMB3": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "e47a0929b3f5ef81caed032b3d7ec9616d8eb01cf7229749d64a35ff338762c3",
+        "sample_to_sample_rms_max": 71.75210100884611,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "e47a0929b3f5ef81caed032b3d7ec9616d8eb01cf7229749d64a35ff338762c3",
+        "sample_to_sample_rms_max": 71.75210100884611,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "e47a0929b3f5ef81caed032b3d7ec9616d8eb01cf7229749d64a35ff338762c3",
+        "sample_to_sample_rms_max": 71.75210100884611,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "catastrophic"
+  },
+  "mRCOMB4": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "cd1fc04f709c8456d141391847d65b3abbf76de824a14d972a7c45c0f3145958",
+        "sample_to_sample_rms_max": 75.93193674081594,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "cd1fc04f709c8456d141391847d65b3abbf76de824a14d972a7c45c0f3145958",
+        "sample_to_sample_rms_max": 75.93193674081594,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "cd1fc04f709c8456d141391847d65b3abbf76de824a14d972a7c45c0f3145958",
+        "sample_to_sample_rms_max": 75.93193674081594,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "catastrophic"
+  },
+  "mRDIFF": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "0b0a5c6461e412e810c962d62f0c622d161edbe9456e9f8d7bec4fa0801f3419",
+        "sample_to_sample_rms_max": 66.65069916188936,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "0b0a5c6461e412e810c962d62f0c622d161edbe9456e9f8d7bec4fa0801f3419",
+        "sample_to_sample_rms_max": 66.65069916188936,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "0b0a5c6461e412e810c962d62f0c622d161edbe9456e9f8d7bec4fa0801f3419",
+        "sample_to_sample_rms_max": 66.65069916188936,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "catastrophic"
+  },
+  "mRSAME": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "catastrophic"
+  },
+  "vAPF1": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "f2590c50c147171f73f7d7dabce908a29dc0ea641cc5edec889097ea786705bf",
+        "sample_to_sample_rms_max": 119.16780561426081,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "40d614c9622271a0ec2a714337c451c54a6e3f7dfd7913427ae3ec6e35a6f108",
+        "sample_to_sample_rms_max": 166.46331083948493,
+        "stability_ok": true,
+        "zipper_onset_hz": 500.0
+      },
+      "sweep": {
+        "out_sha256": "8a26ffc46930b3d5f4b9b67d91fefadbffcc468215fcc143d0ad56995a9bc2d1",
+        "sample_to_sample_rms_max": 119.51056204089114,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "free"
+  },
+  "vAPF2": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "5a177f144fe3b5b74098e4a6e626d62ffd26b1199fb47b344846914e0bd5d185",
+        "sample_to_sample_rms_max": 112.6281174333135,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "60177bee458f73e98df5fda3b91e5c91f51c59aaa50d4480c3f104890e238f52",
+        "sample_to_sample_rms_max": 129.8215810040715,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "3f8fd0c1283ac7d4fdd208ea7fc12b739af8074f7bb6b33ae6f5c8bbbc16b389",
+        "sample_to_sample_rms_max": 111.65024803429621,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "free"
+  },
+  "vCOMB1": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "free"
+  },
+  "vCOMB2": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "cb8e0ef6ea7536d9b5f8bd38f4353a9462a9c16e48a5950ca3825d70ef176557",
+        "sample_to_sample_rms_max": 111.95805555752708,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "free"
+  },
+  "vCOMB3": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "b2d5a08f78fd95f02bfcd4347433cc9546195613bfd47180c216763c54a2655c",
+        "sample_to_sample_rms_max": 64.36520955737743,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "ebe5a0f281486f6e5e032d487a5375fc8af09bf871cdb7ea8e26627b346b0d2f",
+        "sample_to_sample_rms_max": 135.14926839089028,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "ea157e82c0145a2d3a6e58cbda755069b0781f1b7e4f91fc35a6e4c2cbed87ca",
+        "sample_to_sample_rms_max": 102.8585483679293,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "free"
+  },
+  "vCOMB4": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "03290414255f3f7d5b9f88482d6eff59a12a86b078047652aaadcb70ddcb43b9",
+        "sample_to_sample_rms_max": 70.09307790401473,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "bed816f5dd7b47cc2d95dfe8fb448da991eaffe99f3eb0010cc9c4cfe7862f50",
+        "sample_to_sample_rms_max": 136.65675342080976,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "1b692182cd1ddd29968db8b90b802d6ab1e031d9f7d948893f470fec71c58b31",
+        "sample_to_sample_rms_max": 100.47259875583285,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "free"
+  },
+  "vIIR": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "3b5c5efe048396a3be6a74d4eddf099c456426e780da5a25cf92c2efc99bd708",
+        "sample_to_sample_rms_max": 66.64285974085203,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "b2aa0a4984f8ee1e543d61bc6220ae188257bcf8bc82c0415e3232d8b12f73cd",
+        "sample_to_sample_rms_max": 93.42897492429682,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "43248617ccb711b5bfb62890da93930cb07b1e427575dd7cd1f3e04be192bdfe",
+        "sample_to_sample_rms_max": 112.48898618518533,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "free"
+  },
+  "vLIN": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "ee5bce35cd43394d137c525e3d4012b6b759ca2d56c0e14754cae95567edcbff",
+        "sample_to_sample_rms_max": 86.95029783587954,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "bbbf5c9f06e5b54e9a982195a3148d7d321adbf51757b259ab9b68884a8215aa",
+        "sample_to_sample_rms_max": 89.02298973026434,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "837e7bc44086e20ddc3f1866e8760efc5b984be542b010fba9a1e430ed57a861",
+        "sample_to_sample_rms_max": 89.9789163015802,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "free"
+  },
+  "vLOUT": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "cb36f72a027f21f3d156ab88843825d46a09979dba90242b72f8f82c43f47d53",
+        "sample_to_sample_rms_max": 101.91143513314984,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "cbfa92129511958cfa569da18110afbb179a48a2edece86ec1233476f0ea7291",
+        "sample_to_sample_rms_max": 109.70437228374276,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "45a25c7000e05e9a0653e1a74bf20f374d11fa6310435ebae8eb795e7da0038e",
+        "sample_to_sample_rms_max": 110.94615290601564,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "free"
+  },
+  "vRIN": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "0c01a250ab2c6afb3227997070ad518334f282cc8934b6c619651a1515e67d0a",
+        "sample_to_sample_rms_max": 52.764247856227186,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "cc20363c1e6fa186e0f9b0937b657e286cf0bb1290e6d2d8d6675c6eb9598fa3",
+        "sample_to_sample_rms_max": 68.53357153576147,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "2a60d1a41fe26934c5edbd1b72313a7953e107776fe31be7af0bcb85b85f504a",
+        "sample_to_sample_rms_max": 87.30607695756632,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "free"
+  },
+  "vROUT": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "75260886f03be10340b71c86fa6313b62c26ce8cbb9ea5d68a1a588ad462e1a9",
+        "sample_to_sample_rms_max": 46.96706205926529,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "3f98ec5a6a86915fa43bb25b491e9183d27c4bb297a1e474e56cd94df4e14370",
+        "sample_to_sample_rms_max": 89.22165098563957,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "f5d90be236576d00abcc789d6e6fdee1e0a3161321f47e97ea2fd05edd836697",
+        "sample_to_sample_rms_max": 106.4111958057166,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "free"
+  },
+  "vWALL": {
+    "modes": {
+      "random_walk": {
+        "out_sha256": "9994231c75bfee415f07a7b5fe9e20fb52ed8995360ebf1967c751495be87385",
+        "sample_to_sample_rms_max": 99.19966838670344,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sine": {
+        "out_sha256": "d72ab7c3ee800d0f46c4dd8fc27354ccbdb5e07eb958c109e7a405e22f74b437",
+        "sample_to_sample_rms_max": 96.69731995475779,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      },
+      "sweep": {
+        "out_sha256": "a67b4757dcf7e6af2daac9208a6c744a0efe2b32244280efda67f40e6975d35e",
+        "sample_to_sample_rms_max": 89.06048096178476,
+        "stability_ok": true,
+        "zipper_onset_hz": null
+      }
+    },
+    "modulation_cost": "free"
+  }
+}
