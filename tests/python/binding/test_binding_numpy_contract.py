@@ -19,10 +19,9 @@ import pytest
 
 
 def _fresh_state(spu94_module):
-    # Size for every factory preset (ADR-0022). Several tests downstream
-    # switch the loaded preset to Hall, whose work-buf requirement exceeds
-    # the prior 8192 default.
-    state = spu94_module.init(work_buf_size=spu94_module.SPU94_WORK_BUF_MAX_BYTES)
+    # api.init() default is SPU94_WORK_BUF_MAX_BYTES (M1 close-out
+    # Step 5) — covers every factory preset including Hall.
+    state = spu94_module.init()
     spu94_module.load_preset(state, "off")  # silence-friendly
     spu94_module.tick(state)
     return state
@@ -248,9 +247,8 @@ def test_spu94_class_constructs_and_destroys(spu94_module):
 
 
 def test_spu94_class_context_manager(spu94_module):
-    # ADR-0022: Hall needs > 8192 bytes of work buffer; pass the max so
-    # load_preset doesn't trip SPU94_WORK_BUF_TOO_SMALL.
-    with spu94_module.SPU94(work_buf_size=spu94_module.SPU94_WORK_BUF_MAX_BYTES) as rev:
+    # SPU94() default work_buf_size = SPU94_WORK_BUF_MAX_BYTES covers Hall.
+    with spu94_module.SPU94() as rev:
         assert rev.state is not None
         assert spu94_module.SPU94_OK == rev.load_preset("hall")
         rev.tick()
@@ -314,8 +312,8 @@ def test_spu94_class_repr(spu94_module):
 
 def test_spu94_class_flush(spu94_module):
     """The class's flush() forwards to api.flush."""
-    # ADR-0022: Hall's minimum work-buf size exceeds the prior SPU94 default.
-    with spu94_module.SPU94(work_buf_size=spu94_module.SPU94_WORK_BUF_MAX_BYTES) as rev:
+    # SPU94() default work_buf_size = SPU94_WORK_BUF_MAX_BYTES covers Hall.
+    with spu94_module.SPU94() as rev:
         rev.load_preset("hall")
         rev.tick()
         n = 512

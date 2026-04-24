@@ -28,6 +28,7 @@ from typing import Optional, Tuple
 import numpy as np
 
 from . import api
+from ._binding import SPU94_WORK_BUF_MAX_BYTES
 
 
 class SPU94:
@@ -53,7 +54,7 @@ class SPU94:
     as rev:`` destroys on exit even if the body raises.
     """
 
-    def __init__(self, work_buf_size: int = 8192):
+    def __init__(self, work_buf_size: int = SPU94_WORK_BUF_MAX_BYTES):
         self._state = api.init(work_buf_size=work_buf_size)
         self._work_buf_size = work_buf_size
 

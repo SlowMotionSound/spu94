@@ -53,16 +53,20 @@ from ._binding import (
 # Lifecycle (D-01 / API-01 / API-02 / API-09)
 # ----------------------------------------------------------------------
 
-def init(work_buf_size: int = 8192) -> ctypes.c_void_p:
+def init(work_buf_size: int = SPU94_WORK_BUF_MAX_BYTES) -> ctypes.c_void_p:
     """Allocate state + work buffer and return an opaque state handle.
 
     Parameters
     ----------
     work_buf_size : int
-        Bytes of reverb work buffer to allocate. The PS1 SPU uses 512 KB
-        of RAM for the full reverb buffer; 8192 bytes is a small-footprint
-        default that covers most short delays. Pass a larger size for
-        long-tail presets (Space Echo, Delay).
+        Bytes of reverb work buffer to allocate. Default is
+        ``SPU94_WORK_BUF_MAX_BYTES`` (512 KiB — matches the PS1 SPU's
+        full reverb-RAM footprint and covers every factory preset).
+        Embedded callers may pass a smaller value, but
+        ``spu94_load_preset`` will reject the state (ADR-0022) when the
+        preset requires more bytes than the buffer carries; query
+        ``spu94_preset_min_work_buf_size(id)`` for the exact lower
+        bound of a given preset.
 
     Returns
     -------
@@ -457,11 +461,9 @@ def self_test() -> None:
     Any Python exception propagates — ``cibuildwheel`` catches it as a
     non-zero exit and the wheel is rejected.
     """
-    # ADR-0022: size against SPU94_WORK_BUF_MAX_BYTES so the smoke test is
-    # safe against every factory preset. (Hall in particular needs ~11 KB
-    # of work buffer; the prior 8192 default would now trip
-    # SPU94_WORK_BUF_TOO_SMALL instead of silently corrupting.)
-    state = init(work_buf_size=SPU94_WORK_BUF_MAX_BYTES)
+    # Default work_buf_size = SPU94_WORK_BUF_MAX_BYTES (ADR-0022 /
+    # M1 close-out Step 5) covers every factory preset including Hall.
+    state = init()
     try:
         rc = load_preset(state, "hall")
         if rc != SPU94_OK:
