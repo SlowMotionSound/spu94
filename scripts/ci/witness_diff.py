@@ -533,9 +533,18 @@ def read_lv2_context() -> tuple[Path, str]:
 
 def invoke_spu94(spu94_bin: str, preset: str,
                  in_wav: Path, out_wav: Path) -> None:
+    # D-05 determinism: pin LC_ALL / TZ / SOURCE_DATE_EPOCH so a non-English
+    # or non-UTC parent shell cannot drift the SPU-94 CLI's output bytes.
+    # Mirrors scripts/regenerate_goldens.py:render_golden.
+    env = {
+        **os.environ,
+        "LC_ALL": "C",
+        "TZ": "UTC",
+        "SOURCE_DATE_EPOCH": "1704067200",
+    }
     r = subprocess.run(
         [spu94_bin, "--preset", preset, str(in_wav), str(out_wav)],
-        check=False, capture_output=True,
+        check=False, capture_output=True, env=env,
     )
     if r.returncode != 0:
         stderr_snip = r.stderr.decode("utf-8", errors="replace")[:300]
