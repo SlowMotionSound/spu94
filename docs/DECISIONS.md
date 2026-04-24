@@ -30,6 +30,299 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-Phase-7-A: Spec-conformance coverage via three-section markdown + CI-enforced validator
+
+**Status:** Accepted (2026-04-23, Phase 7)
+
+**Resolves:** D-01 (COVERAGE.md single-file three-section structure); D-02 (CI-enforced validator); D-03 (existing tests count as coverage); D-04 (pinned wayback snapshot for spec anchor stability).
+
+**Relates:** Milestone 1 success criterion SC-1 ("every nocash-documented reverb behavior has a passing test with a coverage map in the repo"); TEST-01 (spec-conformance coverage requirement); the 22 D-XX decisions recorded in `.planning/phases/07-verification-golden-files-witness-diff-modulation/07-CONTEXT.md`.
+
+**Context:**
+
+SC-1 requires a coverage map from documented SPU reverb behaviors to passing tests, but the shape of the map is discretionary. Three natural options presented themselves during Phase 7 context-gathering: a single markdown file with three sections, three separate files (one per view), or a behavior × register × paragraph matrix. The matrix option becomes unreadable past ~20 rows. Three separate files split concerns but multiply the maintenance surface when a test name changes. A single file with three sections keeps every view on one screen and keeps the CI validator's job shape narrow: parse every `test:` cell, verify the file exists and the ctest registration passes, fail the build on any gap.
+
+A second dimension: should the coverage map cite the live `psx-spx.consoledev.net` URL or a pinned wayback snapshot? The live URL is a moving target — community renders reorganize, anchors drift, sites occasionally go offline. A pinned wayback snapshot is stable by construction at the cost of one-time URL ugliness.
+
+**Decision:**
+
+- `docs/COVERAGE.md` is a single file with three sections: Per-Register Coverage (35 rows, one per `spu94_reg_t` entry), Per-Behavior Coverage (~20 rows covering SAME/DIFF IIR, comb/APF, hard clip, FIR, write-timing policy, fuzz harnesses, RT-safety), Per-Spec-Paragraph Coverage (one row per psx-spx anchor cited so far).
+- `scripts/ci/check_coverage.py` parses every backticked cell containing `::` as a `<path>::<ctest>` coverage reference; verifies the file exists, the ctest name matches the positive allowlist `[A-Za-z0-9_]` (T-07-01-A shell-injection mitigation), and `ctest -R <name>` passes. Build fails on any gap.
+- Empty `test:` cells are allowed only inside a `## Known Gaps` section; the validator emits `FAIL: empty test: field outside Known Gaps` on violation.
+- Existing tests count as coverage; no obligation to write a new test when an existing one already exercises the behavior. The obligation is that the row names the narrowest existing test, not the broadest.
+- Spec citations point at `https://web.archive.org/web/20260114082525/https://psx-spx.consoledev.net/soundprocessingunitspu/` (BIB-015) for citation stability. Live-URL references continue to exist in prose, but the authoritative citation in the coverage map is the snapshot.
+- A dedicated `coverage-map-check` GitHub CI job runs the validator on every push and pull request. SHA-pinned `actions/checkout` preserved.
+
+**Consequences:**
+
+- Coverage gaps surface at CI time rather than at release-audit time. Adding a new behavior to the library implies adding a row to COVERAGE.md, which implies wiring a ctest target — the forcing function runs in the right direction.
+- The matrix approach was rejected for unreadability past ~20 rows; the single-file-three-sections structure scales to the M1 35-register × ~20-behavior surface without breaking on any one view.
+- T-07-01-A (shell-metacharacter injection through a doctored `test:` cell in a PR) is mitigated at source level via the positive allowlist plus `subprocess.run([...], shell=False)` everywhere. Landed in Plan 07-01.
+
+**Sources:**
+
+- BIB-001 (nocash) — the primary spec whose paragraphs are anchored.
+- BIB-015 (pinned wayback snapshot) — the citation-stable URL form.
+- BIB-017 (strace) — cited elsewhere but not directly in COVERAGE.md.
+- Internal: `docs/COVERAGE.md`, `scripts/ci/check_coverage.py`, `tests/conformance/test_coverage_map_integrity.py`, Phase 7 Plan 01 SUMMARY.
+
+---
+
+## ADR-Phase-7-B: Witness-diff split-band measurement-only harness; lv2-psx-reverb is a binary witness at a pinned SHA
+
+**Status:** Accepted (2026-04-23, Phase 7)
+
+**Resolves:** D-05 (build witness fresh each run at a pinned commit); D-06 (measurement-only; tolerance policy deferred); D-07 (split-band divergence honors ADR-Phase-4-I); D-08 (source code never read as primary material).
+
+**Relates:** ADR-Phase-4-I (frequency-response axis exclusion); Milestone 1 SC-2 (divergence numbers against lv2-psx-reverb with per-preset tolerances); PROJECT.md licensing posture (GPL sources off-limits as primary input).
+
+**Context:**
+
+SC-2 asks for divergence numbers with per-preset tolerances against `lv2-psx-reverb`. Two problems present themselves. First, tolerance values cannot be chosen sight-unseen — they depend on what the actual divergence looks like, which only exists after the harness runs once. Second, `lv2-psx-reverb` is GPLv3, and PROJECT.md's licensing posture forbids reading its source as primary material; the harness must interact with it purely as a binary witness.
+
+A third dimension emerges from ADR-Phase-4-I: the frequency-response axis above ~10 kHz is an explicit exclusion — `lv2-psx-reverb`'s own README acknowledges it skips the half-band FIR and produces additional brightness at high frequencies. A single broadband divergence metric would lump that known shift in with legitimate structural differences and produce uninterpretable numbers.
+
+**Decision:**
+
+- `scripts/ci/witness_diff_build.sh` clones `github.com/ipatix/lv2-psx-reverb` at commit SHA `424e1e8ee7f780106b005011b036386513c61db3` (BIB-014, re-verified at Phase 7 execute time via `git ls-remote`) and builds the plugin fresh each CI run. Commit SHA drift fails the build loudly; any witness shift requires a deliberate pin bump.
+- `scripts/ci/witness_diff.py` runs SPU-94 and the `lv2-psx-reverb` binary against the same 50-pair standard input set (BIB-014 consumes the goldens corpus). A minimal in-process ctypes LV2 host provides the `urid:map` feature that `lv2apply` from `lilv-utils` does not, so no Python `lilv` bindings enter the dependency footprint. D-08 is preserved: the host is written against the public LV2 C API headers (BIB-018), not against lv2-psx-reverb's source.
+- Divergence is measured in two bands: low (≤10 kHz, gated-candidate) and high (>10 kHz, informational). scipy's `sosfiltfilt` splits the band; aligned RMS (via FFT cross-correlation) gives the divergence number per band per pair. ADR-Phase-4-I's exclusion is honored algorithmically, not by convention.
+- The harness writes `.artifacts/witness_report.json` and uploads it as a CI artifact. No pass/fail gate on divergence magnitude — Phase 7 ships numbers. The tolerance-policy ADR is a deferred follow-up that will land post-Phase-7 once the first report informs the thresholds.
+
+**Consequences:**
+
+- The first `witness_report.json` is evidence, not a gate — humans read it, propose tolerances, land a follow-up ADR. Premature gating on a speculative threshold is explicitly rejected.
+- The pinned commit SHA is a supply-chain boundary: if the `lv2-psx-reverb` repo reorganizes, gets renamed, or goes offline, the pinned SHA keeps the reference stable as long as the object database does. A commit-SHA mismatch halts the build; silent witness drift cannot happen.
+- SILENCE and OFF inputs produce degenerate numbers (reference RMS near zero → dBFS floor + saturated lag) in the first run; the tolerance-policy ADR will scope these rows out or use a different metric for bypass behavior. Documented in 07-03-SUMMARY.md.
+- Landed in Plan 07-03.
+
+**Sources:**
+
+- BIB-014 (lv2-psx-reverb at the pinned SHA) — the witness binary itself.
+- BIB-001 (nocash) — the spec the witness approximates.
+- BIB-018 (LV2 plugin specification) — the host-side interface the ctypes harness speaks.
+- ADR-Phase-4-I — the frequency-response exclusion this harness respects.
+- Internal: `scripts/ci/witness_diff_build.sh`, `scripts/ci/witness_diff.py`, Phase 7 Plan 03 SUMMARY.
+
+---
+
+## ADR-Phase-7-C: Golden-file format, input set, and regeneration discipline
+
+**Status:** Accepted (2026-04-23, Phase 7)
+
+**Resolves:** D-09 (`.wav` + `.sha256` sidecar pair); D-10 (`tests/golden/<preset>/<input>.{wav,sha256}` layout); D-11 (five-input standard set with deterministic parameters); D-12 (regeneration requires an ADR).
+
+**Relates:** Milestone 1 SC-3 (byte-identical goldens across Docker-pinned CI and host dev); TEST-07 (golden-file regression harness); ADR-Phase-7-D (which governs the reproducibility container the goldens are generated in).
+
+**Context:**
+
+SC-3 requires byte-identity between a CI-rendered golden corpus and a host-rendered one. Format, input set, layout, and regeneration discipline are all discretionary. Three natural formats: raw PCM plus metadata, `.wav` with embedded metadata, or `.wav` plus a separate sidecar. Three natural input-set shapes: exhaustive (every plausible test vector), minimal (impulse only), or a curated standard set. Regeneration cadence: automatic on every preset-table change, gated behind an ADR, or opt-in manual.
+
+**Decision:**
+
+- Each golden is a pair: `<input>.wav` plus `<input>.wav.sha256` sidecar. The sidecar carries the SHA-256 hash (BIB-019) of the WAV's exact bytes. Humans can double-click the `.wav` to audition; CI diffs the `.sha256` for byte-identity gating.
+- Layout is `tests/golden/<preset>/<input>.{wav,sha256}`. Ten presets × five inputs = 50 pairs = 100 committed files (~14 MB — comfortably within git's sweet spot).
+- Standard input set (locked in `scripts/regenerate_goldens.py` as module-level literals — T-07-02-D path-traversal mitigation): `impulse`, `white_noise` (deterministic seed `0x1094_DADA`), `sine_1khz`, `silence`, `sweep` (logarithmic 20 Hz → 20 kHz). All 2 seconds, 44100 Hz, stereo int16, amplitude 16000.
+- Regeneration requires a follow-up ADR. The script has a `--check` mode that re-renders and diffs against the committed sidecars; CI's `reproducibility` job invokes `--check` inside the pinned Docker image. Silent mutations of committed `.wav` bytes trip the check; T-07-02-E mitigated by meta-test.
+- Determinism environment (`LC_ALL=C`, `TZ=UTC`, `SOURCE_DATE_EPOCH=1704067200`) is set both in the generator and in the reproducibility Dockerfile so host and container operate in the same byte-level environment.
+
+**Consequences:**
+
+- 50 goldens × 2 files = 100 committed artifacts. Small enough to commit, large enough to meaningfully exercise the preset space.
+- Sidecars give both byte-identity gating AND human audibility — a single format serves both CI and a human reviewer's ear.
+- Regeneration friction lives in the ADR requirement, not the mechanism. Updating a single golden is a deliberate act with justification attached; accidental regeneration cannot happen because `--check` is what CI runs, not `--regenerate`.
+- Landed in Plan 07-02.
+
+**Sources:**
+
+- BIB-019 (SHA-256 RFC 6234) — the hash spec the sidecars use.
+- BIB-001, BIB-011 — the behavior and preset tables being rendered.
+- BIB-014 (lv2 witness) — shares the same input set for witness-diff cross-referencing.
+- Internal: `scripts/regenerate_goldens.py`, `tests/conformance/test_goldens_present.py`, Phase 7 Plan 02 SUMMARY.
+
+---
+
+## ADR-Phase-7-D: Reproducibility via base-image digest pin; no per-package apt pins
+
+**Status:** Accepted (2026-04-23, Phase 7)
+
+**Resolves:** D-13 (two-environment scope: host dev + GitHub CI); D-14 (base-image digest is the sole pin); D-15 (digest bump requires new ADR + golden regeneration).
+
+**Relates:** TEST-08 + BUILD-08 (reproducible build environment); ADR-Phase-7-C (the goldens whose byte-identity depends on this digest); the `reproducibility` GitHub CI job.
+
+**Context:**
+
+A reproducible build environment has many axes to pin: OS version, apt package versions, compiler version, CMake version, Python package versions. Per-package apt pins are high-maintenance — a single `apt-get install pkg=version` line can rot within a month as Debian's apt index drops old versions. Base-image digest pins are low-maintenance: pin once, the digest is stable as long as the image manifest is stable.
+
+**Decision:**
+
+- `Dockerfile.repro` pins the base image by digest only:
+  ```
+  FROM debian:bookworm-slim@sha256:5a2a80d11944804c01b8619bc967e31801ec39bf3257ab80b91070eb23625644
+  ```
+  (Plan 07-02 execute-time re-verified digest; supersedes the researcher-time digest `sha256:f9c6a2fd2ddbc23e336b6257a5245e31f996953ef06cd13a59fa0a1df2d5c252` from 2026-04-22 per D-14's "whichever is live at plan-execute time" discipline.) BIB-020 describes the digest-pin Docker surface.
+- No per-package apt pins inside the Dockerfile — the base-image digest transitively locks every apt-installed toolchain version. Reproducibility is guaranteed against the digest, not against individual package versions.
+- Two environments in scope: host dev (the first environment; where SC-3 was first observed to hold) and GitHub CI (the second environment; where SC-3 is continuously verified). Any further environment is out of scope for M1.
+- Bumping the digest requires a successor ADR plus full golden regeneration — the digest is the reproducibility anchor, and any change to it must re-establish the byte-identity claim.
+
+**Consequences:**
+
+- Image digest changes silently break reproducibility. This is acceptable because the digest is static until a deliberate D-15 bump, and the bump is an ADR-governed act, not a bot-driven update.
+- apt-installed toolchain drift is bounded by the base-image digest's immutability — the image manifest never rewrites itself. If Debian Security backports a fix to `bookworm-slim`, the digest changes; SPU-94 adopts that change via an explicit D-15 bump + regeneration, not via transparent propagation.
+- Landed in Plan 07-02; `.dockerignore` (post-hoc fix during smoke test) prevents host-clutter leak into the build context.
+
+**Sources:**
+
+- BIB-020 (Docker image-digest pinning).
+- Internal: `Dockerfile.repro`, `.dockerignore`, `.github/workflows/ci.yml` (`reproducibility` job), Phase 7 Plan 02 SUMMARY.
+
+---
+
+## ADR-Phase-7-E: Modulation harness architecture + determinism/stability gate
+
+**Status:** Accepted (2026-04-23, Phase 7)
+
+**Resolves:** D-16 (LEVERS-CATALOG.md split between mechanical AUTO columns and hand-written HAND columns, preserved across regenerations); D-17 (stability + determinism as the gate; audio-rate zipper is character, not defect); D-19 (`list(spu94.Register)` × three modes = 105 parametrized cases).
+
+**Relates:** Milestone 1 SC-4 (register modulation free of zipper noise — reinterpreted in ADR-Phase-7-F); ADR-0005 (Phase 2 split write-timing policy, continuously re-verified by this harness); PROJECT.md "living instrument" directive (Eurorack target treats audio-rate modulation as design point).
+
+**Context:**
+
+SC-4 requires evidence that every SPU register can be modulated without breaking the DSP core. The Eurorack future documented in `ps1-reverb-eurorack.md` treats audio-rate CV modulation as first-class — a parameter changing 11 kHz times per second is a design point, not an edge case. At the same time, "zipper noise" on gain-type registers is a real PS1 hardware phenomenon; the hardware has no parameter smoothing. Any gate that rejects audio-rate zipper is rejecting the PS1 signature.
+
+The question is what the correct gate actually asserts. Two candidates: "the output is smooth" (fails — the core faithfully reproduces the hardware's lack of smoothing) or "the output is deterministic and bounded" (passes — bit-exact repeatability under modulation proves the D-08 split-write-policy works).
+
+**Decision:**
+
+- `tests/python/test_modulation_harness.py` parametrizes `list(spu94.Register)` × `{sine, sweep, random_walk}` = 105 cases. Each case runs a deterministic modulation sequence against one register while the other 34 are held at a preset value, then asserts:
+  - Stability: output is bounded (no NaN, no crash, no buffer corruption), works at every rate up to audio-rate ~11 kHz.
+  - Determinism: two runs of the same sequence produce bit-exact identical output (verifies ADR-0005's split write-timing policy holds under modulation stress).
+- `tests/python/modulation_harness.py` writes `tests/python/modulation_report.json` — classifier + sample-to-sample RMS + SHA256. The report is committed (27 KB) so downstream consumers (the LEVERS-CATALOG writer, the conformance test) don't need to run the harness first.
+- `scripts/write_levers_catalog.py` is the idempotent writer for `docs/LEVERS-CATALOG.md`. It populates four mechanical AUTO columns from the report and preserves four hand-written HAND columns across regenerations via a named-group regex that captures the row shape byte-for-byte. AUTO values are a closed set (`free` / `sample-quantized` / `catastrophic` / `~NNN Hz` / `clean through 11 kHz`) so no user-controlled bytes reach the markdown table (T-07-04-D pipe-injection mitigation).
+- Zipper onset at ≥500 Hz sine modulation is reported as character, not gated. The catalog records it; SC-4 does not reject it.
+
+**Consequences:**
+
+- Any regression that causes non-deterministic output under audio-rate modulation (a D-08 split-write-policy violation, a concurrency bug, a numerical-instability nondeterminism) surfaces immediately in the determinism gate.
+- The M4 macro-lever layer (Room Size, Pre Delay, CV input) consumes LEVERS-CATALOG.md as its empirical register-to-behavior map — no manual audit required at M4 time.
+- 211 pytest cases run in ~4 s (105 stability + 105 determinism + 1 report-writer meta), vs. a ~180 s harness-time budget — 45× headroom for Phase 7 extensions.
+- Landed in Plan 07-04.
+
+**Sources:**
+
+- BIB-001 (register list + write-timing semantics).
+- ADR-0005 (the split write-timing policy the determinism gate verifies).
+- Internal: `tests/python/modulation_harness.py`, `docs/LEVERS-CATALOG.md`, `scripts/write_levers_catalog.py`, Phase 7 Plan 04 SUMMARY.
+
+---
+
+## ADR-Phase-7-F: ROADMAP SC-4 reinterpretation — no internal-tick zipper, not smoothness-at-audio-rate
+
+**Status:** Accepted (2026-04-23, Phase 7)
+
+**Resolves:** D-18 (SC-4 reinterpretation for semantic clarity).
+
+**Relates:** ADR-Phase-7-E (the determinism gate that SC-4 now targets); PROJECT.md core-value statement; Milestone 4 (smoothing + named-lever parameter abstraction); Milestone 5 (Eurorack CV).
+
+**Context:**
+
+ROADMAP SC-4's original phrasing — "free of zipper noise on gain-type registers" — was legible when SPU-94 was framed as a plugin-first product where smoothing is expected. With the living-instrument directive making every register CV-addressable at audio-rate and the PS1 hardware itself providing no parameter smoothing, SC-4 as literally written promises something the bit-faithful core cannot deliver without betraying the core value statement.
+
+A musician consuming SPU-94 through a macro-lever UI at M4 should see smoothed parameters. A musician patching SPU-94's raw registers from a Eurorack CV at audio-rate should see the PS1 signature — including zipper, stepping, polarity-flip character. Both are correct; the question is where SC-4 lives on that axis.
+
+**Decision:**
+
+- SC-4 is reinterpreted as: "no internal-tick zipper arising from write-policy violations." The gate is the determinism test in ADR-Phase-7-E, not a smoothness-at-audio-rate promise.
+- Zipper / stepping / polarity-flip at audio-rate modulation is catalogued in `docs/LEVERS-CATALOG.md` as character per register, not gated.
+- Parameter smoothing is explicitly Milestone 4 (plugin macro-lever layer) and Milestone 5 (Eurorack CV conditioning) scope. The M1 core stays bit-faithful.
+- The phrasing in ROADMAP.md is updated to match this reading; the SC-4 close-out artifact is ADR-Phase-7-E's `modulation_report.json` plus the LEVERS-CATALOG character classifications.
+
+**Consequences:**
+
+- SC-4 cannot later be misread as promising smoothness the core does not provide. The PS1-hardware-faithful interpretation is the committed one.
+- Anthony's musician audience sees audio-rate zipper as the PS1 signature — character, not defect — consistent with the Eurorack-first framing of `ps1-reverb-eurorack.md`.
+- M4 + M5 inherit the smoothing obligation with a clear hand-off: the mechanism is theirs to design, and the M1 core does not pre-solve it.
+- Landed as part of the Phase 7 close-out; no code change, only a semantic lock.
+
+**Sources:**
+
+- PROJECT.md — core-value statement and "living instrument" directive.
+- ADR-Phase-7-E — the determinism gate that SC-4 now operationally targets.
+- Internal: `.planning/ROADMAP.md` SC-4 row; `docs/LEVERS-CATALOG.md` as the character register.
+
+---
+
+## ADR-Phase-7-G: Benchmark gate split — allocation hard-fail, timing report-only
+
+**Status:** Accepted (2026-04-23, Phase 7)
+
+**Resolves:** D-20 (two-signal split: allocations binary, timing noisy); D-21 (benchmark baseline is human-endorsed; CI never auto-updates it).
+
+**Relates:** BUILD-06 (benchmark harness for pathological regressions); Phase 5's `test_no_syscalls.sh` (generalized no-syscalls gate, which this ADR narrows to heap syscalls only as a sibling signal); ADR-Phase-6-G (the self-test unlock dance the benchmark harness mirrors).
+
+**Context:**
+
+BUILD-06 asks for a benchmark harness that catches pathological regressions in `spu94_process`. Two distinct signals hide under that single ask: (1) heap allocations in the hot path — a binary yes/no question with zero tolerance for "yes," (2) timing — a noisy continuous quantity subject to CI runner jitter. A single combined gate forces a tolerance decision that satisfies neither signal: tight enough to catch allocations and it false-positives on timing noise; loose enough to tolerate timing noise and it lets allocations slip through.
+
+**Decision:**
+
+- `tests/rt_safety/hotpath_alloc_gate.sh` runs `strace` with filter `brk,mmap,mmap2,munmap,mremap` (Pitfall 5 belt-and-suspenders — `mmap2` kept even on 64-bit hosts) against a target that calls `spu94_init` + `spu94_load_preset(HALL)` + 100 000 `spu94_process` blocks inside a `[SIGUSR1 START, SIGUSR1 END]` window. Any heap syscall inside the steady-state window hard-fails the gate and the build. BIB-017 anchors the strace interface.
+- A paired negative meta-test (`tests/rt_safety/hotpath_alloc_gate_target_with_malloc.c` + WILL_FAIL ctest inversion) allocates 1 MiB inside the hot window and asserts the gate catches it — the gate isn't just a silent pass.
+- `tests/benchmarks/test_benchmark.py` uses pytest-benchmark (BIB-016) across 10 presets × 2 block sizes with warmup, GC disabled, and pinned min-rounds. `tests/benchmarks/benchmark_baselines.json` is committed (26 KB stripped); the CI job runs with `continue-on-error: true` and uploads the bench artifact without gating.
+- Baseline refresh is a deliberate human act with justification in the commit message. CI never rewrites the baseline.
+
+**Consequences:**
+
+- Real hot-path regressions (allocation sneaking into the DSP) block the merge instantly. The negative meta-test proves the gate is wired live, not silently green.
+- Timing noise never blocks the merge — runners jitter, that's the signal's nature, and a noisy signal is not a correctness signal.
+- Humans diff the bench artifact against `benchmark_baselines.json` on demand; baseline drift is a conversation, not a bot-driven update.
+- Landed in Plan 07-05.
+
+**Sources:**
+
+- BIB-016 (pytest-benchmark) — the timing harness.
+- BIB-017 (strace) — the allocation gate's syscall filter.
+- Internal: `tests/rt_safety/hotpath_alloc_gate.sh`, `tests/benchmarks/test_benchmark.py`, `tests/benchmarks/benchmark_baselines.json`, Phase 7 Plan 05 SUMMARY.
+
+---
+
+## ADR-Phase-7-H: BIBLIOGRAPHY.md additive-plus-cleanup posture with CI cross-reference gate
+
+**Status:** Accepted (2026-04-23, Phase 7)
+
+**Resolves:** D-22 (additive Phase 7 entries plus cluster-polish pass; not a full rewrite).
+
+**Relates:** DOCS-03 (BIBLIOGRAPHY.md is a first-class M1 deliverable); PROJECT.md licensing posture (paraphrase discipline upheld); every ADR filed in this batch (Sources sections cite `BIB-nnn` entries that must resolve).
+
+**Context:**
+
+Phase 7 introduced new citations (the witness binary's pinned commit, the pinned wayback spec snapshot, pytest-benchmark, strace, LV2, SHA-256, Docker) that did not exist in the Phase-6-era BIBLIOGRAPHY. Three posture options: full rewrite (high effort, risks prose regressions), additive-only (low effort, leaves the file structurally stale), or additive plus targeted cluster-polish (middle path). A fourth option — deferring BIBLIOGRAPHY polish to Milestone 2 — was rejected as it leaves DOCS-03 incomplete at the M1 close-out boundary.
+
+Separately, `BIB-003` and `BIB-004` had been cited as "future" since Phase 1 commit-time; the cross-reference checker shipping in Phase 7 would trip on them. Leaving orphan references in place is inconsistent with a first-class deliverable.
+
+**Decision:**
+
+- BIBLIOGRAPHY.md gains seven net-new Phase 7 entries: BIB-014 (lv2-psx-reverb witness binary, pinned SHA `424e1e8ee7f780106b005011b036386513c61db3`, GPLv3, witness-only posture per D-05 / D-08); BIB-015 (pinned psx-spx wayback snapshot for D-04 citation stability); BIB-016 (pytest-benchmark 5.2.3); BIB-017 (strace); BIB-018 (LV2 specification, host-side use only); BIB-019 (SHA-256 RFC 6234); BIB-020 (Docker image-digest pinning). BIB-003 and BIB-004 (Clang UBSan + GCC no_sanitize) are also promoted from Phase-1-era placeholder status to full entries.
+- Entries are clustered into four tiers that reflect consumption role: Primary Sources (the spec + its direct anchors), Secondary Sources (community paraphrase + corroboration), Witness Binaries (independent implementations whose output is diffed but whose source is not read), Tooling References (CI / test / build machinery anchors).
+- Tone is polished to match the README voice — confident, factual, no apologetic early-stage language. No factual content is deleted; cleanup is structural plus tone.
+- `scripts/check_bibliography_refs.py` enforces that every `BIB-nnn` cited in DECISIONS.md has a matching `### BIB-nnn:` entry in BIBLIOGRAPHY.md. The checker exits non-zero on any dangling reference; paired meta-tests (positive + negative) and a conformance gate (`tests/conformance/test_bibliography_crossref.py`) wire the check into ctest under the label `bibliography`.
+- Paraphrase discipline is upheld throughout — no verbatim transcription from source documentation into BIBLIOGRAPHY prose. T-07-06-B (transcribed-prose leak) is mitigated by reviewer attention, not by code; documented here so the obligation is legible.
+
+**Consequences:**
+
+- BIBLIOGRAPHY.md stays a live artifact synchronized with DECISIONS.md rather than a closing-time afterthought. Any future ADR that cites a `BIB-nnn` not yet defined trips CI at commit time.
+- The four-tier clustering scales past M1 — M2's ADPCM work will add Primary-Sources entries; M3's DAC work will add Tooling References for analysis oscilloscope software; M5's hardware validation will add Witness Binaries for console recordings.
+- This is the last Phase 7 ADR; subsequent Phase 7 close-out is verifier + state machinery, not new decisions.
+- Landed in Plan 07-06 (this ADR).
+
+**Sources:**
+
+- All new BIB entries land in this ADR by definition: BIB-003, BIB-004, BIB-014, BIB-015, BIB-016, BIB-017, BIB-018, BIB-019, BIB-020.
+- PROJECT.md — the paraphrase discipline this ADR upholds.
+- Internal: `scripts/check_bibliography_refs.py`, `tests/conformance/test_bibliography_crossref.py`, `scripts/test_check_bibliography_refs.py`.
+
+---
+
 ## ADR-Phase-6-H: Non-Off factory preset tables carry `vLOUT`/`vROUT` = 0x7FFF — master-mix default moves from CLI layer to preset tables
 
 **Status:** Accepted (2026-04-22, Phase 6 close-out)
