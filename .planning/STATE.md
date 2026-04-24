@@ -187,7 +187,8 @@ None.
 - M1 close-out (ARCHITECTURAL-AUDIT.md Part 6) is the active workstream, NOT Phase 7 planning. See `.planning/HANDOFF.json` for the 15-step migration plan and current position.
 - Step 3 shipped 2026-04-24 as commit 72f2270 (feat(api): work-buf size contract + load_preset validation, ADR-0022). Three new error codes (INVALID_STATE/WORK_BUF_TOO_SMALL/INVALID_ARG); new SPU94_WORK_BUF_MAX_BYTES constant; spu94_preset_min_work_buf_size(id) accessor. 79/79 ctest green.
 - Step 4 shipped 2026-04-24 as commit bce2c13 (feat(observability): OOB tap counter via spu94_get_error_counters, ADR-0023). uint64 oob_tap_count on spu94_state; public spu94_error_counters_t + snapshot accessor; Python api.get_error_counters. tests/unit/state/test_error_counters.c added. 80/80 ctest green.
-- Next in close-out: Step 5 (raise Python default work_buf_size to SPU94_WORK_BUF_MAX_BYTES), Step 6 (tighten self_test + modulation harness with oob_tap_count==0 + non-silence floor assertions), Step 7 (NULL-state-on-mutation across set_reg_*), Step 8 (CLI + Python critical findings), Step 11 (first GitHub Actions CI run), Steps 12-15 (witness-diff gate, external anchor, VERIFICATION.md, /gsd-audit-milestone + /gsd-complete-milestone).
+- Step 5 shipped 2026-04-24 as commit fdeeb57 (feat(python): default work_buf_size = SPU94_WORK_BUF_MAX_BYTES). Removes Step-3 bandaids; the prior 8192 default no longer traps Hall-or-larger callers. 80/80 ctest green.
+- Next in close-out: Step 6 (tighten self_test + modulation harness with oob_tap_count==0 + non-silence floor assertions), Step 7 (NULL-state-on-mutation across set_reg_*), Step 8 (CLI + Python critical findings), Step 11 (first GitHub Actions CI run), Steps 12-15 (witness-diff gate, external anchor, VERIFICATION.md, /gsd-audit-milestone + /gsd-complete-milestone).
 - Phase 7 planning resumes AFTER M1 close-out completes and milestone is tagged.
 
 ---
