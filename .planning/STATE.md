@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-last_updated: "2026-04-24T23:21:44.000Z"
+last_updated: "2026-04-24T23:51:17.000Z"
 progress:
   total_phases: 8
   completed_phases: 7
@@ -190,7 +190,8 @@ None.
 - Step 5 shipped 2026-04-24 as commit fdeeb57 (feat(python): default work_buf_size = SPU94_WORK_BUF_MAX_BYTES). Removes Step-3 bandaids; the prior 8192 default no longer traps Hall-or-larger callers. 80/80 ctest green.
 - Step 6 shipped 2026-04-24 as commit efdf9a5 (test(observability): assert oob_tap_count==0 + non-silence floor). api.self_test() and modulation harness now consume the Step-4 counter; non-silence floor strengthens the audibility assertion. 80/80 ctest green.
 - Step 7 shipped 2026-04-24 as commit e81b360 (feat(api): tighten NULL-state-on-mutation in set_reg_i16/u16 to SPU94_INVALID_STATE per ADR-0022). Two engine-layer setters; spu94_registers.h doc updated; test renamed; out-of-range branch + getter NULL-state convention left alone. 80/80 ctest green.
-- Next in close-out: Step 8 (CLI + Python critical findings — C-01 24-bit WAV gate, C-02 tail-seconds bound + size_t overflow guard, H-03 destroy-then-reset keep-alive leak), Step 11 (first GitHub Actions CI run), Steps 12-15 (witness-diff gate, external anchor, VERIFICATION.md, /gsd-audit-milestone + /gsd-complete-milestone).
+- Step 8 shipped 2026-04-24 across 6 atomic sub-commits — closed all 2 critical + 4 high CLI/Python findings from REVIEW-cli-python.md. C-01 (3a6a9f5) gates non-16-bit and non-PCM WAV input in wav_io.c. C-02 (0b48be8) locks in tail-seconds parser hardening (production code was already correct via Step 1's integer parser; tests cement the regression gates). H-03 (c329649) nulls api.destroy()'s state.value so subsequent C calls hit Step 7's INVALID_STATE guards instead of UB. H-04 (77197e3) gives over-long JSON keys a distinct error. H-05 (fff3b73) flat-config pre-pass reports missing real registers before fall-through to "unknown register" typo errors. H-06 (c9154d8) requires a hex digit immediately after `0x` — exposed AND fixed a real strtol-whitespace bug the review's analysis missed. Pre-existing modulation_report.json regen drift committed as ce8385e (Step 6 follow-up). 80/80 ctest green throughout.
+- Next in close-out: Step 11 (first GitHub Actions CI run — push origin master, monitor via gh, verify all 5 jobs green), Steps 12-15 (witness-diff gate, external anchor, VERIFICATION.md, /gsd-audit-milestone + /gsd-complete-milestone, git tag v1.0).
 - Phase 7 planning resumes AFTER M1 close-out completes and milestone is tagged.
 
 ---
