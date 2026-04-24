@@ -111,3 +111,32 @@ set_tests_properties(levers_catalog_writer PROPERTIES
     ENVIRONMENT "SPU94_LIB=$<TARGET_FILE:spu94_shared>"
     LABELS "levers"
 )
+
+# Phase 7 Plan 06 Task 1 — DOCS-03 BIBLIOGRAPHY.md cross-reference gate.
+#   - bibliography_crossref: every BIB-nnn cited in docs/DECISIONS.md
+#     resolves to a `### BIB-nnn:` entry in docs/BIBLIOGRAPHY.md; every
+#     entry carries a **URL:** field.
+#   - test_check_bibliography_refs: positive (committed docs pass) +
+#     negative (dangling BIB-999 trips the checker) meta-tests for the
+#     validator script itself.
+add_test(
+    NAME bibliography_crossref
+    COMMAND ${Python3_EXECUTABLE} -m pytest
+        ${CMAKE_CURRENT_SOURCE_DIR}/test_bibliography_crossref.py
+        -q --no-header
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(bibliography_crossref PROPERTIES
+    LABELS "bibliography"
+)
+
+add_test(
+    NAME test_check_bibliography_refs
+    COMMAND ${Python3_EXECUTABLE} -m pytest
+        ${CMAKE_SOURCE_DIR}/scripts/test_check_bibliography_refs.py
+        -q --no-header
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(test_check_bibliography_refs PROPERTIES
+    LABELS "bibliography"
+)

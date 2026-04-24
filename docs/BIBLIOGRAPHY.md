@@ -32,6 +32,29 @@ empirical witness pass).
 - **Caveat:** Does NOT reproduce the 39 coefficient values — points
   readers to psx-spx. Cited as structural corroboration only.
 
+## Tooling References (Phase 1 — UBSan policy anchors)
+
+### BIB-003: Clang UndefinedBehaviorSanitizer reference
+- **URL:** https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html
+- **Used for:** Defining the `integer` check group referenced by
+  ADR-0003 — the group that covers signed-overflow, unsigned-overflow,
+  shift, integer-divide-by-zero, implicit-truncation, and sign-change.
+  SPU-94's UBSan policy is keyed to Clang's named check groups so the
+  `no_sanitize` surgical-attribute approach stays legible against the
+  upstream taxonomy.
+- **Caveat:** Tooling reference, not a content source. The check-group
+  names are the stable surface; Clang's prose is not transcribed.
+
+### BIB-004: GCC `no_sanitize` function attribute documentation
+- **URL:** https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html
+  (search for `no_sanitize`)
+- **Used for:** Syntax anchor for ADR-0003's per-function UBSan
+  opt-outs. The attribute is read as an interoperability surface
+  shared by GCC and Clang; SPU-94 uses the common subset so either
+  compiler compiles the core unchanged.
+- **Caveat:** Tooling reference; facts-only (attribute name, accepted
+  check-group arguments). GCC's explanatory prose is not transcribed.
+
 ## Coefficient Sources (Phase 4)
 
 ### BIB-005: PSX-SPX Reverb Buffer Resampling coefficient table (published form)
