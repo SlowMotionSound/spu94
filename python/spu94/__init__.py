@@ -138,6 +138,7 @@ from .api import (  # noqa: E402 — after Register / Preset / presets build
     get_reg_u16_pending,
     snapshot_registers,
     get_buffer_address,
+    get_error_counters,
     get_latency_samples,
     self_test,
 )
@@ -158,6 +159,7 @@ __all__ += [
     "get_reg_u16_pending",
     "snapshot_registers",
     "get_buffer_address",
+    "get_error_counters",
     "get_latency_samples",
     "self_test",
 ]

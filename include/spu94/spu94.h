@@ -314,6 +314,46 @@ extern const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT];
  * O(SPU94_REG__COUNT) on every call; callers wanting O(1) may cache. */
 size_t spu94_preset_min_work_buf_size(spu94_preset_id_t id);
 
+/* ------------------------------------------------------------------------- */
+/* Observable error counters (ADR-0023, M1 close-out Step 4)                 */
+/* ------------------------------------------------------------------------- */
+
+/* A snapshot of the internal error counters. Returned by value from
+ * spu94_get_error_counters. All fields are monotonically non-decreasing
+ * across the lifetime of a single spu94_state; spu94_reset zeros them.
+ *
+ * Field semantics:
+ *
+ *   oob_tap_count -- reverb-body halfword accesses (read or write) whose
+ *     computed byte offset lay outside [0, work_buf_size). The reverb
+ *     network fails safe on such accesses (read returns 0; write is
+ *     discarded), so audio is bit-deterministic even when the counter is
+ *     non-zero. Callers treat oob_tap_count > 0 as a *configuration* red
+ *     flag: it means the caller supplied a work buffer smaller than the
+ *     loaded preset requires. Post-ADR-0022, spu94_load_preset rejects
+ *     undersized buffers up front; oob_tap_count therefore remains 0
+ *     for any state that was loaded via the public preset loader. The
+ *     counter remains useful for callers that hand-write m-prefix or
+ *     d-prefix registers directly (e.g., the M4 plugin modulation path).
+ *
+ * Append-only: new counters may be added at the END of this struct in
+ * future releases. ABI bump is allowed; numeric stability on existing
+ * fields is guaranteed. */
+typedef struct {
+    uint64_t oob_tap_count;
+} spu94_error_counters_t;
+
+/* Snapshot the error counters. NULL state returns a zeroed struct
+ * (matches the read-only-observability convention used by
+ * spu94_get_buffer_address). Deterministic: repeated calls between
+ * ticks return the same value.
+ *
+ * Thread-safety: the counter is incremented from inside spu94_tick
+ * (reverb body); reading it concurrently with a tick is a data race.
+ * Callers in the M1 core-library use case are expected to read between
+ * ticks, which has no race. */
+spu94_error_counters_t spu94_get_error_counters(const spu94_state *state);
+
 /* Atomically load one of the 10 factory presets into `state` (API-05, D-08).
  * Iterates all 35 registers via the Phase 2 engine-layer setters; the D-04
  * split write policy is honored automatically:

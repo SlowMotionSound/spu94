@@ -45,13 +45,19 @@ uint16_t spu94_get_reg_u16(const spu94_state *state, spu94_reg_t reg);
  * Little-endian halfword format matches the Phase 2 buffer TU
  * convention (host-endian-agnostic serialization of the ring).
  * ===================================================================== */
-static inline int16_t reverb_buf_read(const spu94_state *s,
+static inline int16_t reverb_buf_read(spu94_state *s,
                                       uint16_t halfword_offset)
 {
     if (s->work_buf == (unsigned char *)0) return 0;
     uint32_t byte_off = (s->buffer_address
                          + (uint32_t)halfword_offset * 2u) & 0x7FFFEu;
-    if ((size_t)byte_off + 1u >= s->work_buf_size) return 0;
+    if ((size_t)byte_off + 1u >= s->work_buf_size) {
+        /* ADR-0023: surface OOB tap as an observable counter so callers
+         * can assert "zero OOB" post-run. Returning 0 is still the
+         * fail-safe behavior — audio stays bit-deterministic. */
+        s->oob_tap_count++;
+        return 0;
+    }
     /* Little-endian halfword read. */
     return (int16_t)((uint16_t)s->work_buf[byte_off]
                    | ((uint16_t)s->work_buf[byte_off + 1u] << 8));
@@ -65,8 +71,12 @@ static inline void reverb_buf_write(spu94_state *s,
     uint32_t byte_off = (s->buffer_address
                          + (uint32_t)halfword_offset * 2u) & 0x7FFFEu;
     /* Out-of-range write: silent discard (defensive; buffer too small for
-     * this address; stage output is lost but state is not corrupted). */
-    if ((size_t)byte_off + 1u >= s->work_buf_size) return;
+     * this address; stage output is lost but state is not corrupted).
+     * ADR-0023: bump the OOB counter so callers observe the miss. */
+    if ((size_t)byte_off + 1u >= s->work_buf_size) {
+        s->oob_tap_count++;
+        return;
+    }
     uint16_t u = (uint16_t)value;
     s->work_buf[byte_off]       = (unsigned char)(u & 0xFFu);
     s->work_buf[byte_off + 1u]  = (unsigned char)((u >> 8) & 0xFFu);

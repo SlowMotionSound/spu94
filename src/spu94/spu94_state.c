@@ -120,6 +120,19 @@ void spu94_reset(spu94_state *state) {
     state->buffer_address = 0u;
 }
 
+/* ADR-0023 (M1 close-out Step 4) — observable error counters snapshot.
+ * Returns by value; NULL state gives a zeroed snapshot so the accessor
+ * matches the rest of the "read-only observability" family (D-23). */
+spu94_error_counters_t spu94_get_error_counters(const spu94_state *state) {
+    spu94_error_counters_t out;
+    out.oob_tap_count = 0u;
+    if (state == NULL) {
+        return out;
+    }
+    out.oob_tap_count = state->oob_tap_count;
+    return out;
+}
+
 void spu94_destroy(spu94_state *state) {
     if (state == NULL) {
         return;

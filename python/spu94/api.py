@@ -405,6 +405,25 @@ def get_buffer_address(state) -> int:
     return _lib.spu94_get_buffer_address(state)
 
 
+def get_error_counters(state) -> dict:
+    """Return a dict-shaped snapshot of the C-side error counters
+    (ADR-0023).
+
+    Fields:
+      oob_tap_count : int
+        Count of reverb-body halfword accesses whose computed byte
+        offset lay outside ``[0, work_buf_size)``. The reverb network
+        fails safe on such accesses (read returns 0; write is
+        discarded); a non-zero value here indicates the work buffer is
+        smaller than the loaded configuration requires. ``spu94.reset``
+        zeros the counter.
+
+    NULL state returns a dict of zeros (matches the C null-safety
+    contract)."""
+    c = _lib.spu94_get_error_counters(state)
+    return {"oob_tap_count": int(c.oob_tap_count)}
+
+
 def get_latency_samples() -> int:
     """Return the fixed FIR-chain round-trip group delay in samples
     (58 at 44.1 kHz per Phase 4 research)."""

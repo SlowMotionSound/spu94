@@ -175,6 +175,18 @@ _lib.spu94_load_preset.argtypes = [ctypes.c_void_p, ctypes.c_int]
 _lib.spu94_preset_min_work_buf_size.restype = ctypes.c_size_t
 _lib.spu94_preset_min_work_buf_size.argtypes = [ctypes.c_int]
 
+
+# Observable error counters (ADR-0023) --- snapshot of the C-side
+# spu94_error_counters_t struct. Currently a single uint64 field
+# (oob_tap_count); append-only if future counters land. Declared as a
+# Structure so ctypes packs it to match the C layout.
+class _Spu94ErrorCounters(ctypes.Structure):
+    _fields_ = [("oob_tap_count", ctypes.c_uint64)]
+
+
+_lib.spu94_get_error_counters.restype = _Spu94ErrorCounters
+_lib.spu94_get_error_counters.argtypes = [ctypes.c_void_p]
+
 # Register identity + reflection (used at IMPORT TIME by __init__.py) --
 _lib.spu94_reg_name.restype = ctypes.c_char_p
 _lib.spu94_reg_name.argtypes = [ctypes.c_int]

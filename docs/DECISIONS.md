@@ -30,6 +30,56 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-0023: Observable error counters — spu94_get_error_counters + oob_tap_count
+
+**Status:** Accepted (2026-04-24, M1 close-out)
+
+**Relates:** ADR-0022 (work-buf sizing contract — rejects undersized buffers at load_preset time; this ADR adds a runtime observable for the residual cases where callers bypass load_preset by hand-writing m-prefix/d-prefix registers directly); D-23 (read-only observability seams); ADR-Phase-6-I (input anti-aliasing — downstream measurements like the modulation harness now need a correctness invariant stronger than "output is non-silent").
+
+**Context:**
+
+The reverb body's `reverb_buf_read` and `reverb_buf_write` helpers silently return 0 / discard writes when a tap's computed byte offset falls outside `[0, work_buf_size)`. That fail-safe is correct (audio stays bit-deterministic; the 0x7FFFE mask already guarantees the access pattern is hardware-correct modulo buffer-size truncation), but it is INVISIBLE. Three classes of caller bug went unsurfaced as a result:
+
+- A caller that ran `spu94_process` on a state with a hand-configured undersized work buffer could produce audio that sounded reasonable but reflected silent read-zero substitutions at every tap past the buffer end — the reverb character degraded without any runtime signal.
+- The modulation harness (`tests/python/modulation_harness.py`) ran with an 8192-byte work buffer for months pre-M1-close-out. Every Hall modulation case was silently under-buffered; the recorded zipper-onset measurements in `docs/LEVERS-CATALOG.md` and `tests/python/modulation_report.json` were taken on corrupted reverb output. ADR-0022 (Step 3) fixed this for preset-based callers but not for callers that hand-write registers.
+- Future M4-plugin modulation paths (real-time parameter drive with arbitrary m-prefix/d-prefix values) cannot rely on preset-load validation at all; they need a live signal that says "the last tick read past my buffer".
+
+A secondary motivation: Step 6 of the M1 close-out plan wants to tighten `self_test` and the modulation harness with an "OOB count must equal zero" assertion. That assertion requires the counter to exist first.
+
+**Decision:**
+
+1. **`struct spu94_state` grows one field:** `uint64_t oob_tap_count`, appended at the tail (keeps fuzz-harness byte-offset reprobes out of Step 4 scope per the same D-17 concession used by `reverb_out_l/r`). Zeroed by `spu94_reset` via the existing byte-loop fill.
+
+2. **`reverb_buf_read` and `reverb_buf_write` increment the counter** on the existing `byte_off + 1 >= work_buf_size` bounds check before returning 0 or discarding the write. The helper signature for `reverb_buf_read` drops its `const` on `spu94_state *` (private static-inline in `spu94_reverb.c`; all callers already hold non-const). Audio behavior is unchanged — the fail-safe path is identical, only now observable.
+
+3. **Public snapshot accessor:** `spu94_error_counters_t spu94_get_error_counters(const spu94_state *state)` in `include/spu94/spu94.h`. Returns by value. NULL state → zeroed snapshot (matches the `spu94_get_buffer_address` null-safety convention). The struct is declared in the public header so callers can declare locals; ABI bump is allowed when future counters append at the tail.
+
+4. **Python binding surfaces the snapshot:** `python/spu94/_binding.py` declares the prototype with a `ctypes.Structure` matching the C layout; `python/spu94/api.py::get_error_counters` returns a Python `dict` keyed by field name (`{"oob_tap_count": int}`). The dict shape (rather than a Structure object) absorbs future C struct growth without breaking Python callers that unpack by key.
+
+5. **Unit tests under `tests/unit/state/test_error_counters.c`:** fresh-state zero; NULL-safety; OOB trigger via hand-written m-prefix register past a tight 1024-byte work buffer (bypasses ADR-0022's preset-loader check intentionally — this test proves the counter is wired; the "legitimate configurations produce zero OOB" invariant is owned by Step 6's modulation-harness run with a full-size buffer).
+
+**Consequences:**
+
+- No public API break. `spu94_reset` already cleared the new field via the wholesale byte-loop zero-fill; no lifecycle code touched. Hot path: one uint64 increment on the existing failure branch in `reverb_buf_read` / `reverb_buf_write` — zero overhead on the happy path, negligible on the fail-safe path.
+- `spu94_error_counters_t` is first-release ABI as of this ADR. Future counters append AT THE TAIL. Callers that decode the struct by offset (Python binding via ctypes.Structure; C callers via field access) are forward-compatible.
+- The "clean operation produces zero OOB" invariant is not directly asserted by the Step-4 unit test because the reverb body reads at `m* - 2` (wraps to halfword 0xFFFE when m* = 0), which produces unavoidable OOB on any work buffer smaller than ~128 KB regardless of preset state. That invariant is Step 6's responsibility — the modulation harness + self_test with `SPU94_WORK_BUF_MAX_BYTES` buffers observe `oob_tap_count == 0` across every preset × input combination as the correctness gate.
+- `.planning/v1.0-MILESTONE-AUDIT.md`: the observability-gap axis flips from "gaps_found" toward "passed" once this ADR lands; Step 6 closes the remaining tightening.
+
+**Revision triggers:**
+
+- If multiple error classes appear (e.g., the Q15-accumulator saturation events tracked by the existing `err_*` fields) that deserve counter-style surfacing, add sibling fields to `spu94_error_counters_t` at the tail. Prefer counters that monotonically count *events*, not magnitudes — the `err_*` accumulators are already exposed through a separate M1-deferred observability seam.
+- If the M4 plugin wants per-tick counter deltas (not lifetime totals), add `spu94_error_counters_t spu94_diff_error_counters(const spu94_state *, const spu94_error_counters_t *previous)` rather than mutating the existing snapshot accessor. Keep the field semantics monotonic-non-decreasing.
+- If a real-time-safety audit ever flags the `oob_tap_count++` as a hot-path regression, guard the increment with a compile-time macro (`SPU94_OBSERVABILITY_COUNTERS` default-on). Current measurement: single uint64 add on an already-unlikely branch — dwarfed by the stage multiply-accumulate costs.
+
+**Sources:**
+
+- `.planning/ARCHITECTURAL-AUDIT.md` Part 6, Step 4 ("observable error counters") — the enumeration driving this ADR.
+- `.planning/REVIEW-c-core.md` (observability gaps at reverb-body boundary).
+- D-23 (read-only observability seams — the `err_*` and `overflow_magnitude` siblings of `oob_tap_count`).
+- ADR-0022 (why the preset-loader gate does not fully subsume this observability — hand-written register callers stay uncovered there).
+
+---
+
 ## ADR-0022: Work-buf sizing contract + load_preset argument validation
 
 **Status:** Accepted (2026-04-24, M1 close-out)

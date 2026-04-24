@@ -134,6 +134,26 @@ struct spu94_state {
      * ----------------------------------------------------------------- */
     int16_t        reverb_out_l;
     int16_t        reverb_out_r;
+
+    /* -----------------------------------------------------------------
+     * ADR-0023 (Step 4 of M1 close-out): observable error counters.
+     *
+     * oob_tap_count counts every reverb-body halfword access (read or
+     * write) whose computed byte offset lies outside [0, work_buf_size).
+     * The reverb body fails-safe on such accesses (read returns 0,
+     * write is discarded); the counter surfaces the occurrence so
+     * callers and test harnesses can assert "zero OOB" as a correctness
+     * invariant. Zeroed by spu94_reset (byte-loop covers).
+     *
+     * Sized uint64 so a long pathological session cannot overflow the
+     * counter inside the life of a single process (at a generous 10^9
+     * OOB/sec, 2^64 counts take ~500 years).
+     *
+     * Append-only: new counters join this block AT THE TAIL to preserve
+     * struct-offset stability for the fuzz harnesses (same "D-17 byte-
+     * offset audit concession" as reverb_out_l/r above).
+     * ----------------------------------------------------------------- */
+    uint64_t       oob_tap_count;
 };
 
 /* Pin the shell-type bounds. A future plan that grows the struct past these
