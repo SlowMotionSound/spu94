@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-last_updated: "2026-04-24T00:10:41.290Z"
+last_updated: "2026-04-24T00:21:33.272Z"
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 33
-  completed_plans: 31
-  percent: 94
+  completed_plans: 32
+  percent: 97
 ---
 
 # STATE: SPU-94
@@ -33,7 +33,7 @@ Plan: 3 of 6 complete (07-01 foundation, 07-02 goldens+repro, 07-05 RT-safety ga
 - **Phase:** 7
 - **Plan:** 07-05 complete (Wave 2 plan 2 of 2 — RT-safety gates shipped)
 - **Status:** Phase complete — ready for verification
-- **Progress:** [█████████░] 94%
+- **Progress:** [██████████] 97%
 
 ```
 [███████░] 30/33 plans (~91%) — Phase 7 Wave 2 complete; Wave 3 (07-03 witness-diff + 07-04 modulation) next
@@ -53,6 +53,7 @@ Plan: 3 of 6 complete (07-01 foundation, 07-02 goldens+repro, 07-05 RT-safety ga
 | 02-04 | ~6m 18s | 2 (1 TDD) | 9 | buffer arithmetic + mBASE snap-on-write + ADR-0006 + spu94_get_buffer_address |
 | 02-05 | ~8m 30s | 4 (test-only) | 12 | per-register battery + buffer wrap/mBASE tests + Python 10^6 ctypes fuzz + structured q15_with_err table; ctest 15/15 |
 | Phase 07 P03 | ~18m | 3 tasks | 6 files |
+| Phase 07 P04 | ~12m | 2 (TDD) tasks | 7 created / 2 modified files |
 
 ## Accumulated Context
 

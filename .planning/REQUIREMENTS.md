@@ -54,7 +54,7 @@ Requirements for the first shipped artifact: a plain C library with Python bindi
 - [x] **TEST-02**: Register-level unit tests — each of the 35 registers exercised in isolation (value sweeps, edge cases, zero-value-meaningful cases)
 - [x] **TEST-03**: Witness-diff harness running the same input through lv2-psx-reverb (output-only; no source reading) and comparing outputs; lv2-psx-reverb is excluded from the frequency-response axis per Key Decisions
 - [ ] **TEST-04**: Golden-file regression tests — each preset and reference test case has a snapshot-and-compare golden file; byte-stable across reproducible-build environments
-- [ ] **TEST-05**: Modulation test — every register modulated during a live audio stream (sine, sweep, random walk); output verified bounded, stable, non-corrupting, and matching the decided write-policy semantics
+- [x] **TEST-05**: Modulation test — every register modulated during a live audio stream (sine, sweep, random walk); output verified bounded, stable, non-corrupting, and matching the decided write-policy semantics
 - [ ] **TEST-06**: vIIR=-0x8000 hardware anomaly specifically tested
 - [ ] **TEST-07**: Fixed-point saturation, truncation, and overflow edge cases specifically tested
 - [ ] **TEST-08**: Reproducibility — golden files identical across clean Docker-pinned CI and host dev environments
@@ -73,7 +73,7 @@ Requirements for the first shipped artifact: a plain C library with Python bindi
 ### DOCS — First-Class Documentation Artifacts
 
 - [ ] **DOCS-01**: `DECISIONS.md` begun and maintained — gray-area log with one entry per resolution, each including: the ambiguity, the options considered, what was chosen, the rationale, and (where relevant) what witnesses were consulted and what their source references were
-- [ ] **DOCS-02**: `docs/LEVERS-CATALOG.md` begun and maintained — each register annotated with its musical role and candidacy for M4 lever mapping (Room Size, Pre Delay, Decay, Diffusion, Damping, etc.)
+- [x] **DOCS-02**: `docs/LEVERS-CATALOG.md` begun and maintained — each register annotated with its musical role and candidacy for M4 lever mapping (Room Size, Pre Delay, Decay, Diffusion, Damping, etc.)
 - [ ] **DOCS-03**: Bibliography tracking nocash citations, Sony SDK references, and other fact sources — paraphrased in SPU-94's own docs, never transcribed
 - [ ] **DOCS-04**: `README.md` with build instructions, minimal usage example, licensing posture summary, and project-status banner
 - [ ] **DOCS-05**: `LICENSE` placeholder noting that the final permissive-license pick (MIT vs Apache-2.0) is deferred to end of M1
@@ -175,7 +175,7 @@ Mapping of requirements to roadmap phases — populated during roadmap creation.
 | TEST-02 | Phase 2 | Complete |
 | TEST-03 | Phase 7 | Complete |
 | TEST-04 | Phase 7 | Pending |
-| TEST-05 | Phase 7 | Pending |
+| TEST-05 | Phase 7 | Complete |
 | TEST-06 | Phase 3 | Pending |
 | TEST-07 | Phase 3 | Pending |
 | TEST-08 | Phase 7 | Pending |
@@ -188,7 +188,7 @@ Mapping of requirements to roadmap phases — populated during roadmap creation.
 | BUILD-07 | Phase 1 | Pending |
 | BUILD-08 | Phase 7 | Pending |
 | DOCS-01 | Phase 1 | Pending |
-| DOCS-02 | Phase 7 | Pending |
+| DOCS-02 | Phase 7 | Complete |
 | DOCS-03 | Phase 7 | Pending |
 | DOCS-04 | Phase 6 | Pending |
 | DOCS-05 | Phase 1 | Pending |
