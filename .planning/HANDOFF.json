@@ -4,7 +4,7 @@
   "milestone": "v1.0 close-out (M1 remediation)",
   "phase": "M1 close-out — Stage 1 of ARCHITECTURAL-AUDIT.md migration plan",
   "plan": "ARCHITECTURAL-AUDIT.md Part 6 ordered migration plan",
-  "current_step": "Step 6: tighten self_test + modulation harness (assert oob_tap_count==0, non-silence floor)",
+  "current_step": "Step 7: NULL-state-on-mutation across set_reg_*",
   "total_steps": 15,
   "completed_steps": [
     "Step 1: Fix grep-guard scope + CLI tail-seconds integer parse (commit 262930a)",
@@ -12,12 +12,12 @@
     "Audit artifacts captured (commit 92cca7c)",
     "Step 3: work-buf size contract + load_preset validation (commit 72f2270, ADR-0022)",
     "Step 4: OOB tap counter via spu94_get_error_counters (commit bce2c13, ADR-0023)",
-    "Step 5: bump Python default work_buf_size to SPU94_WORK_BUF_MAX_BYTES (commit fdeeb57)"
+    "Step 5: bump Python default work_buf_size to SPU94_WORK_BUF_MAX_BYTES (commit fdeeb57)",
+    "Step 6: assert oob_tap_count==0 + non-silence floor in self_test + modulation harness (commit efdf9a5)"
   ],
   "in_progress_step": null,
   "uncommitted_files": [],
   "remaining_steps": [
-    {"id": 6, "name": "Tighten self_test + modulation harness (assert oob_tap_count==0, add non-silence floor)"},
     {"id": 7, "name": "Fix NULL-state-on-mutation across set_reg_* (return SPU94_INVALID_STATE)"},
     {"id": 8, "name": "Fix CLI and Python critical findings (wav_io.c 24-bit WAV gate, api.destroy() nulls handle, etc.)"},
     {"id": 11, "name": "Push to GitHub and verify CI green on GitHub Actions (FIRST real CI run; see ARCHITECTURAL-AUDIT.md Root Cause #4)"},
@@ -30,7 +30,7 @@
   "human_actions_pending": [
     "None immediate. When step 11 runs, Anthony will want to eyeball the first GitHub Actions CI run and confirm all 5 jobs green."
   ],
-  "next_action": "Start Step 6: tighten api.self_test() and tests/python/modulation_harness.py to assert get_error_counters()['oob_tap_count'] == 0 after every preset run, and add a 'non-silence floor' check (non-Off preset MUST produce non-zero output across some block). The OOB-zero assertion is the Step-4 counter's main consumer; the non-silence floor catches the 'reverb-not-in-audio-path' regression class without requiring witness-diff.",
+  "next_action": "Start Step 7: spu94_set_reg_i16 / spu94_set_reg_u16 currently return SPU94_UNKNOWN_REG when state == NULL (reusing the register-id-out-of-range code). Tighten to return SPU94_INVALID_STATE per ADR-0022's pattern. Update tests/unit/registers/test_register_io.c lines 94-95 (currently assert SPU94_UNKNOWN_REG for the NULL-state case) to expect SPU94_INVALID_STATE. Touch only the two engine-layer setters; getters with NULL state already return 0 (separate convention, leave alone).",
   "context_notes": [
     "The audit that drove this remediation is in .planning/ARCHITECTURAL-AUDIT.md — read it first for full context on the 4 root causes and target architecture.",
     "Three review reports in .planning/REVIEW-c-core.md, REVIEW-cli-python.md, REVIEW-tests-ci.md provide per-finding detail.",
@@ -40,7 +40,8 @@
     "Step 3 shipped as commit 72f2270 (feat(api): work-buf size contract + load_preset validation). Three new SPU94_INVALID_STATE/WORK_BUF_TOO_SMALL/INVALID_ARG result codes, SPU94_WORK_BUF_MAX_BYTES constant, spu94_preset_min_work_buf_size function. CLI + Python load_preset surface the errors. 79/79 ctest green.",
     "Step 4 shipped as commit bce2c13 (feat(observability): OOB tap counter via spu94_get_error_counters). uint64 oob_tap_count field on spu94_state; public spu94_error_counters_t + accessor; Python api.get_error_counters returns a dict. tests/unit/state/test_error_counters.c (4 sub-tests). 80/80 ctest green.",
     "Step 5 shipped as commit fdeeb57 (feat(python): default work_buf_size = SPU94_WORK_BUF_MAX_BYTES). Removes the four Step-3 bandaids that passed explicit SPU94_WORK_BUF_MAX_BYTES (test_binding_numpy_contract.py + modulation_harness.py). 80/80 ctest green.",
-    "Step 6 pattern: in python/spu94/api.py::self_test(), after process() returns, fetch error counters via spu94.get_error_counters(state) and assert oob_tap_count == 0 (now achievable because Step 5 bumped work_buf default). Add a 'non-silence floor' check: at least N samples (say >100) of the output must be non-zero for non-Off presets. In tests/python/modulation_harness.py / test_modulation_harness.py, add a per-case oob_tap_count==0 assertion after each run_one_case. Both tightenings are about catching silent-corruption regressions (reverb-not-in-audio-path, work-buf-too-small) without needing the witness-diff harness."
+    "Step 6 shipped as commit efdf9a5 (test(observability): assert oob_tap_count==0 + non-silence floor). api.self_test() now requires >=100 non-zero output samples and oob_tap_count==0; modulation harness ModulationResult grows an oob_tap_count field; test_stability asserts ==0 across all 105 cases. 80/80 ctest green.",
+    "Step 7 pattern: src/spu94/spu94_register_io.c — spu94_set_reg_i16 + spu94_set_reg_u16 currently early-return SPU94_UNKNOWN_REG when state==NULL (line ~70 area, the existing 'NULL state' branch). Change to SPU94_INVALID_STATE per ADR-0022. Update tests/unit/registers/test_register_io.c lines 94-95 (the test_null_state_returns_unknown_reg test) to expect SPU94_INVALID_STATE. Rename the test for clarity. Single-commit pattern: lib + test together."
   ],
   "handoff_markdown": ".planning/HANDOFF.md"
 }
