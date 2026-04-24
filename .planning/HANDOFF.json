@@ -4,7 +4,7 @@
   "milestone": "v1.0 close-out (M1 remediation)",
   "phase": "M1 close-out — Stage 1 of ARCHITECTURAL-AUDIT.md migration plan",
   "plan": "ARCHITECTURAL-AUDIT.md Part 6 ordered migration plan",
-  "current_step": "Step 11: Push to GitHub and verify CI green",
+  "current_step": "Step 12: Land witness-diff tolerance gate (Step 11 blocked on human GitHub setup)",
   "total_steps": 15,
   "completed_steps": [
     "Step 1: Fix grep-guard scope + CLI tail-seconds integer parse (commit 262930a)",
@@ -26,11 +26,14 @@
     {"id": 14, "name": "Write Phase 6 VERIFICATION.md (from existing UAT + SUMMARY evidence)"},
     {"id": 15, "name": "Re-run /gsd-audit-milestone v1.0, then /gsd-complete-milestone v1.0, git tag v1.0"}
   ],
-  "blockers": [],
-  "human_actions_pending": [
-    "Anthony will eyeball the first GitHub Actions CI run after Step 11's push; expects all 5 jobs green."
+  "blockers": [
+    "Step 11 is blocked: no `origin` git remote configured (the project's pyproject.toml points at https://github.com/anthonyaccurso/spu94 as the intended URL, but the repo may not exist on GitHub yet and there are no credentials in this session). `gh` CLI is also not installed on this workstation. Step 11 requires Anthony to (1) create the GitHub repo (or confirm its existence + URL), (2) `git remote add origin <url>` locally, (3) install `gh` and `gh auth login` for run monitoring, then `git push -u origin master`. Steps 12-15 do not depend on Step 11 and have been advanced first."
   ],
-  "next_action": "Step 11: push the local master branch to the GitHub remote (origin master) so the GitHub Actions workflow at .github/workflows/ runs against the post-remediation state. Confirm the remote is configured (git remote -v); push with `git push -u origin master` if the upstream is not set, or `git push` if it already tracks. Monitor with `gh run list --limit 5` and `gh run watch <run-id>` until the run completes. All 5 jobs (build, ctest, packaging, witness, docs gates per the existing workflow) must be green; if any red, surface the exact failure reason for Anthony to triage. After green, capture the run URL in HANDOFF + STATE before advancing to Step 12.",
+  "human_actions_pending": [
+    "Step 11 setup: create GitHub repo, add origin remote, install gh CLI, authenticate. After that, push and confirm CI green.",
+    "Step 15 git tag: `git tag -s v1.0` (signed tag) requires Anthony's GPG key on this workstation; happens at the very end of close-out."
+  ],
+  "next_action": "Step 12 (Step 11 advanced past as blocker): land the witness-diff tolerance gate. Read .planning/REVIEW-tests-ci.md and .planning/ARCHITECTURAL-AUDIT.md for the full motivation; the short version is that the existing witness diff test (tests/witness/) prints a number but does not enforce a per-preset tolerance — a regression that doubles the diff would still pass CI silently. Create config/witness_diff_thresholds.json with one number per preset (start liberal, tighten in M2 once we have the lv2-psx-reverb baseline calibrated), wire the existing witness test to read the JSON and assert per-preset, and add an ADR (next number after ADR-0023, so ADR-0024) recording the threshold policy. Single commit if it stays small.",
   "context_notes": [
     "The audit that drove this remediation is in .planning/ARCHITECTURAL-AUDIT.md — read it first for full context on the 4 root causes and target architecture.",
     "Three review reports in .planning/REVIEW-c-core.md, REVIEW-cli-python.md, REVIEW-tests-ci.md provide per-finding detail.",
