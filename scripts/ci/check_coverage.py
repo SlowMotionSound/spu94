@@ -184,6 +184,11 @@ def run_ctest(test_name: str, build_dir: Path) -> tuple[int, str]:
     # otherwise localize those strings and turn the matcher into a
     # false-pass.
     env = {**os.environ, "LC_ALL": "C", "LANG": "C"}
+    # 1800 s (30 min) is comfortably longer than any individual ctest target
+    # in this repo (longest is ~14 s for hotpath_alloc_gate) but well under
+    # GitHub Actions' 360-min job cap, so a hung ctest fails fast with an
+    # actionable error rather than burning the whole job slot.
+    CTEST_TIMEOUT_SEC = 1800
     try:
         proc = subprocess.run(
             argv,
@@ -192,9 +197,18 @@ def run_ctest(test_name: str, build_dir: Path) -> tuple[int, str]:
             check=False,
             shell=False,
             env=env,
+            timeout=CTEST_TIMEOUT_SEC,
         )
     except FileNotFoundError as exc:
         return 1, f"ctest not on PATH: {exc}"
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout.decode("utf-8", errors="replace") if exc.stdout else ""
+        stderr = exc.stderr.decode("utf-8", errors="replace") if exc.stderr else ""
+        return 1, (
+            f"ctest '-R ^{test_name}$' exceeded {CTEST_TIMEOUT_SEC}s timeout "
+            f"(likely hung test):\n--- stdout ---\n{stdout[-400:]}\n"
+            f"--- stderr ---\n{stderr[-400:]}"
+        )
     combined = proc.stdout + proc.stderr
     # ctest returns 0 on any match-pass. If zero tests matched, ctest
     # still exits 0 but says 'No tests were found'. We treat that as a
