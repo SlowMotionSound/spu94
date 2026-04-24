@@ -246,6 +246,41 @@ def test_spu94_class_constructs_and_destroys(spu94_module):
         _ = rev.state
 
 
+def test_raw_destroy_nulls_handle_and_idempotent(spu94_module):
+    """H-03: api.destroy(state) must null state.value so a subsequent
+    raw-panel mutation hits the C-side SPU94_INVALID_STATE branch
+    (Step 7 / ADR-0022) instead of pushing a stale pointer into C and
+    producing UB. Also: destroy is idempotent — calling twice is legal."""
+    state = spu94_module.init()
+    assert state is not None
+    assert state.value is not None and state.value != 0
+
+    spu94_module.destroy(state)
+    # Handle must now be NULL — that's what makes the C-side guards fire.
+    assert state.value is None or state.value == 0
+
+    # Second destroy is a no-op (NULL-safe per public contract).
+    spu94_module.destroy(state)
+    assert state.value is None or state.value == 0
+
+
+def test_raw_destroy_then_set_reg_returns_invalid_state(spu94_module):
+    """H-03: after api.destroy(state), the underlying _lib.spu94_set_reg_*
+    calls receive a NULL pointer and must return SPU94_INVALID_STATE
+    (the contract Step 7 cemented), NOT silent UB."""
+    from spu94._binding import _lib
+    state = spu94_module.init()
+    spu94_module.destroy(state)
+    # set_reg_i16 on a destroyed handle goes through ctypes as NULL state
+    # → C-side returns SPU94_INVALID_STATE per the Step 7 / ADR-0022
+    # convention. The Python api.set_reg_i16 wrapper surfaces the same
+    # rc to the caller.
+    rc = _lib.spu94_set_reg_i16(state, int(spu94_module.Register.vIIR), -1)
+    assert rc == spu94_module.SPU94_INVALID_STATE
+    rc = _lib.spu94_set_reg_u16(state, int(spu94_module.Register.mBASE), 1)
+    assert rc == spu94_module.SPU94_INVALID_STATE
+
+
 def test_spu94_class_context_manager(spu94_module):
     # SPU94() default work_buf_size = SPU94_WORK_BUF_MAX_BYTES covers Hall.
     with spu94_module.SPU94() as rev:

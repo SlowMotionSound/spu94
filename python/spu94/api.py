@@ -118,9 +118,20 @@ def reset(state: ctypes.c_void_p) -> None:
 
 
 def destroy(state: ctypes.c_void_p) -> None:
-    """Zero state bytes (security hygiene). NULL-safe. Memory release
-    happens when the handle falls out of Python scope."""
+    """Zero state bytes (security hygiene) AND null the handle pointer so
+    subsequent C calls hit the SPU94_INVALID_STATE NULL guards instead
+    of dereferencing the (now zeroed) state memory. NULL-safe and
+    idempotent — calling destroy twice is legal. Memory release for the
+    underlying state and work buffers happens when the handle falls out
+    of Python scope (the keep-alive anchors drop when the c_void_p is
+    garbage-collected)."""
     _lib.spu94_destroy(state)
+    if state is not None:
+        # Convert the handle into a NULL pointer. After this, any
+        # _lib.spu94_set_reg_*(state, ...) call returns SPU94_INVALID_STATE
+        # (Step 7 / ADR-0022) instead of pushing a stale-but-zeroed pointer
+        # into C and producing UB.
+        state.value = None
 
 
 def tick(state: ctypes.c_void_p) -> None:
