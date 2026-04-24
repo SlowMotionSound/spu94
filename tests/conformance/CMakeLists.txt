@@ -77,3 +77,37 @@ set_tests_properties(witness_determinism PROPERTIES
     LABELS "witness"
     TIMEOUT 600
 )
+
+# Phase 7 Plan 04 Task 2 — LEVERS-CATALOG.md structural conformance +
+# idempotent-AUTO-writer meta-tests.
+#   - levers_catalog_complete: 35 data rows in spu94_reg_t enum order;
+#     no empty / placeholder AUTO cells once the writer has run.
+#   - levers_catalog_writer: idempotency + HAND-column preservation +
+#     HAND-columns-empty-by-default meta-tests for the writer script.
+# Both consume tests/python/modulation_report.json, so ctest order
+# should run `modulation_harness` before either of these in a clean
+# build. In practice the committed report is checked in-tree, so the
+# tests pass stand-alone.
+add_test(
+    NAME levers_catalog_complete
+    COMMAND ${Python3_EXECUTABLE} -m pytest
+        ${CMAKE_CURRENT_SOURCE_DIR}/test_levers_catalog_complete.py
+        -q --no-header
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(levers_catalog_complete PROPERTIES
+    ENVIRONMENT "SPU94_LIB=$<TARGET_FILE:spu94_shared>"
+    LABELS "levers"
+)
+
+add_test(
+    NAME levers_catalog_writer
+    COMMAND ${Python3_EXECUTABLE} -m pytest
+        ${CMAKE_SOURCE_DIR}/tests/python/test_levers_catalog_writer.py
+        -q --no-header
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(levers_catalog_writer PROPERTIES
+    ENVIRONMENT "SPU94_LIB=$<TARGET_FILE:spu94_shared>"
+    LABELS "levers"
+)
