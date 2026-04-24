@@ -373,7 +373,7 @@ int spu94_cli_json_apply(const char *path, spu94_state *state,
             }
         }
     } else {
-        /* Flat shape — all 35 registers required. */
+        /* Flat shape — all 35 registers required, exactly once each. */
         int pairs = tokens[0].size;
         if (pairs != (int)SPU94_REG__COUNT) {
             free(json);
@@ -382,30 +382,47 @@ int spu94_cli_json_apply(const char *path, spu94_state *state,
                      path, (int)SPU94_REG__COUNT, pairs);
             return 1;
         }
-        /* HI-05: jsmn counts duplicate keys as separate pairs, so a flat
-         * config of `{"vIIR": ..., "vIIR": ..., <33 others>}` passes the
-         * count check above. Track which register IDs have been applied
-         * and reject duplicates explicitly — otherwise the second write
-         * silently overrides the first and the missing register sits at
-         * its post-reset zero value. */
+        /* H-05: pre-pass. Build seen[] for the 35 keys; report a missing
+         * canonical register before apply_one fires "unknown register"
+         * on a typo. The user is better served by knowing which real
+         * register their config is missing than by chasing typo errors
+         * one at a time -- a flat config with 34 valid + 1 typo passes
+         * the count==35 gate above, and without this pre-pass the
+         * "unknown register 'TYPO'" message hides the fact that one
+         * canonical register is also missing.
+         *
+         * Pigeonhole: with pairs==35 AND seen[r] true for all r, the
+         * config has no duplicates and no unknown keys -- 35 distinct
+         * slots filled by 35 distinct keys. So this single check
+         * subsumes the prior explicit "duplicate register" guard. */
         bool seen[SPU94_REG__COUNT] = {0};
         int cur = 1;
         for (int k = 0; k < pairs && cur + 1 < n; ++k) {
             const jsmntok_t *tkey = &tokens[cur];
-            const jsmntok_t *tval = &tokens[cur + 1];
             int reg = find_reg_by_name(json, tkey);
             if (reg >= 0 && reg < (int)SPU94_REG__COUNT) {
-                if (seen[reg]) {
-                    free(json);
-                    snprintf(err_buf, err_buf_size,
-                             "duplicate register '%s' in flat config '%s'",
-                             spu94_reg_name((spu94_reg_t)reg), path);
-                    return 1;
-                }
                 seen[reg] = true;
             }
-            /* Unknown-register / malformed-value errors still surface
-             * through apply_one's existing message shapes. */
+            cur += 1;
+            cur += token_span(tokens, cur, n);
+        }
+        for (int r = 0; r < (int)SPU94_REG__COUNT; ++r) {
+            if (!seen[r]) {
+                free(json);
+                snprintf(err_buf, err_buf_size,
+                         "flat config '%s' is missing register '%s' "
+                         "(check for typos or duplicates among the 35 keys)",
+                         path, spu94_reg_name((spu94_reg_t)r));
+                return 1;
+            }
+        }
+        /* Apply pass — pre-pass guarantees all 35 keys are valid and
+         * distinct, so apply_one only ever reports per-value errors
+         * (out-of-range, malformed value) here, never "unknown register". */
+        cur = 1;
+        for (int k = 0; k < pairs && cur + 1 < n; ++k) {
+            const jsmntok_t *tkey = &tokens[cur];
+            const jsmntok_t *tval = &tokens[cur + 1];
             if (apply_one(json, tkey, tval, state, err_buf, err_buf_size)) {
                 free(json);
                 return 1;

@@ -171,6 +171,66 @@ def test_negative_tail_seconds_rejected(spu94_cli_path, sample_wav_file, tmp_wav
     assert _stderr_line_count(result.stderr) == 1
 
 
+def test_flat_config_typo_reports_missing_register(tmp_path, spu94_cli_path,
+                                                   sample_flat_json,
+                                                   sample_wav_file, tmp_wav_out):
+    """H-05: a flat config with 34 valid + 1 typo (count == 35) used to
+    fire 'unknown register \\'TYPO\\'' — hiding the fact that one canonical
+    register is also missing. The pre-pass now reports the missing real
+    register first, which is more actionable."""
+    full = json.loads(open(sample_flat_json).read())
+    keys = list(full.keys())
+    assert len(keys) == 35
+    displaced = keys[7]  # arbitrary canonical register to remove
+    bad = dict(full)
+    del bad[displaced]
+    bad["TYPO_KEY"] = 0  # restores count to 35
+    bad_path = tmp_path / "flat_typo.json"
+    bad_path.write_text(json.dumps(bad))
+    result = subprocess.run(
+        [spu94_cli_path, "--config", str(bad_path), sample_wav_file, tmp_wav_out],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 2
+    assert _stderr_line_count(result.stderr) == 1
+    assert "missing register" in result.stderr
+    assert displaced in result.stderr
+
+
+def test_flat_config_duplicate_caught_via_pigeonhole(tmp_path, spu94_cli_path,
+                                                    sample_flat_json,
+                                                    sample_wav_file, tmp_wav_out):
+    """H-05: a flat config with 34 distinct + 1 duplicate (count == 35) is
+    caught as 'missing register X' — the duplicate displaces a canonical
+    register, so the pre-pass's seen[] mask reports the displaced one."""
+    full = json.loads(open(sample_flat_json).read())
+    keys = list(full.keys())
+    displaced = keys[12]
+    survivor = keys[0]
+    bad = dict(full)
+    del bad[displaced]
+    # Python dicts can't carry duplicate keys. Hand-build the JSON string
+    # with two `survivor` entries so jsmn sees a duplicate at parse time.
+    raw = "{\n"
+    items = list(bad.items()) + [(survivor, bad[survivor])]
+    for i, (k, v) in enumerate(items):
+        comma = "," if i < len(items) - 1 else ""
+        raw += f'  "{k}": {json.dumps(v)}{comma}\n'
+    raw += "}\n"
+    bad_path = tmp_path / "flat_dup.json"
+    bad_path.write_text(raw)
+    result = subprocess.run(
+        [spu94_cli_path, "--config", str(bad_path), sample_wav_file, tmp_wav_out],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 2
+    assert _stderr_line_count(result.stderr) == 1
+    assert "missing register" in result.stderr
+    assert displaced in result.stderr
+
+
 def test_overlong_json_key_distinct_error(tmp_path, spu94_cli_path,
                                           sample_wav_file, tmp_wav_out):
     """H-04: a 70-char JSON key must produce a 'key too long' message,
