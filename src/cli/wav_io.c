@@ -62,6 +62,22 @@ int spu94_cli_wav_load(const char *path, spu94_cli_wav_t *wav,
         drwav_uninit(&dw);
         return 1;
     }
+    if (dw.bitsPerSample != 16) {
+        snprintf(err_buf, err_buf_size,
+                 "WAV file '%s' is %u-bit; 16-bit PCM required "
+                 "(use ffmpeg -sample_fmt s16 to convert)",
+                 path, (unsigned)dw.bitsPerSample);
+        drwav_uninit(&dw);
+        return 1;
+    }
+    if (dw.translatedFormatTag != DR_WAVE_FORMAT_PCM) {
+        snprintf(err_buf, err_buf_size,
+                 "WAV file '%s' is not PCM (format tag %u); "
+                 "16-bit PCM required",
+                 path, (unsigned)dw.translatedFormatTag);
+        drwav_uninit(&dw);
+        return 1;
+    }
 
     wav->sample_rate  = dw.sampleRate;
     wav->num_channels = dw.channels;

@@ -10,6 +10,7 @@ downstream README docs can quote verbatim.
 """
 import json
 import subprocess
+import wave
 
 
 def _stderr_line_count(stderr: str) -> int:
@@ -168,3 +169,49 @@ def test_negative_tail_seconds_rejected(spu94_cli_path, sample_wav_file, tmp_wav
     )
     assert result.returncode == 2
     assert _stderr_line_count(result.stderr) == 1
+
+
+def _write_wav_fixture(path, sampwidth_bytes, num_frames=441):
+    """Write a minimal stereo 44.1 kHz WAV with the given sample width.
+    sampwidth_bytes: 1 (8-bit), 2 (16-bit), or 3 (24-bit). Frame data is zeros."""
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(2)
+        w.setsampwidth(sampwidth_bytes)
+        w.setframerate(44100)
+        w.writeframes(b"\x00" * (num_frames * 2 * sampwidth_bytes))
+
+
+def test_24bit_wav_rejected(tmp_path, spu94_cli_path, tmp_wav_out):
+    """C-01: 24-bit PCM is the most likely shape Anthony will drop on the
+    CLI; drwav silently down-converts. Gate must fire with a clear message
+    pointing at ffmpeg as the conversion path."""
+    bad = tmp_path / "input_24bit.wav"
+    _write_wav_fixture(bad, sampwidth_bytes=3)
+    result = subprocess.run(
+        [spu94_cli_path, "--preset", "hall", str(bad), tmp_wav_out],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 2
+    assert _stderr_line_count(result.stderr) == 1
+    assert result.stderr.startswith("spu94: error:")
+    assert "24-bit" in result.stderr
+    assert "16-bit PCM required" in result.stderr
+    assert "ffmpeg" in result.stderr
+
+
+def test_8bit_wav_rejected(tmp_path, spu94_cli_path, tmp_wav_out):
+    """C-01 cross-check: 8-bit PCM also fails the bit-depth gate. Proves
+    the check is `!= 16` rather than a happenstance match against 24."""
+    bad = tmp_path / "input_8bit.wav"
+    _write_wav_fixture(bad, sampwidth_bytes=1)
+    result = subprocess.run(
+        [spu94_cli_path, "--preset", "hall", str(bad), tmp_wav_out],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 2
+    assert _stderr_line_count(result.stderr) == 1
+    assert result.stderr.startswith("spu94: error:")
+    assert "8-bit" in result.stderr
+    assert "16-bit PCM required" in result.stderr
