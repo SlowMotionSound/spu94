@@ -38,12 +38,35 @@ trap 'rm -f "$LOG"' EXIT
 # -f        : follow child processes (defensive; target does not fork)
 # -e trace=... : narrow filter to just the heap-mutation syscalls
 # -o LOG    : strace writes to LOG (separate from target stdout/stderr)
+#
+# Disambiguate failure modes. `set -e` is already in effect from line 30,
+# but we need the return code of the strace invocation without triggering
+# -e exit, so wrap in `|| rc=$?` and branch on log-file state:
+#   (a) rc != 0 AND log is empty/absent → strace itself failed (not on
+#       PATH, YAMA ptrace_scope=1, no CAP_SYS_PTRACE, seccomp denial,
+#       inaccessible log path). Distinct from target-exit failure.
+#   (b) rc != 0 AND log has content → strace ran but the target exited
+#       non-zero. Print log head so the target crash is legible.
+#   (c) rc == 0 → fall through to marker parsing.
+# Preserves WILL_FAIL semantics for hotpath_alloc_gate_negative: the
+# poisoned target exits 0 but the heap-hit check further down raises
+# exit 1, which ctest translates to "expected failure".
+rc=0
 "$STRACE_EXE" -f -e trace=brk,mmap,mmap2,munmap,mremap \
-    -o "$LOG" "$SYSCALLS_BIN" || {
-    echo "FAIL: target binary exited non-zero" >&2
+    -o "$LOG" "$SYSCALLS_BIN" || rc=$?
+if [ "$rc" -ne 0 ]; then
+    if [ ! -s "$LOG" ]; then
+        echo "FAIL: strace failed to produce a log (rc=$rc)" >&2
+        echo "  possible causes: strace missing, YAMA ptrace_scope blocks" \
+             "attach, no CAP_SYS_PTRACE, seccomp denial, or unwritable" \
+             "log path ($LOG). Containerized CI often requires" \
+             "--cap-add=SYS_PTRACE or --security-opt seccomp=unconfined." >&2
+        exit 1
+    fi
+    echo "FAIL: target binary exited non-zero (rc=$rc)" >&2
     head -20 "$LOG" >&2 || true
     exit 1
-}
+fi
 
 # Locate the two SIGUSR1 delivery lines the target raised.
 MARKER_LINES=$(grep -n '\-\-\- SIGUSR1' "$LOG" | cut -d: -f1 || true)
