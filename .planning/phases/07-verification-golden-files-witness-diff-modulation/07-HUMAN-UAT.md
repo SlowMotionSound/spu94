@@ -1,20 +1,22 @@
 ---
-status: partial
+status: resolved
 phase: 07-verification-golden-files-witness-diff-modulation
 source: [07-VERIFICATION.md]
 started: 2026-04-24T00:51:08Z
-updated: 2026-04-24T01:02:00Z
+updated: 2026-04-24T01:15:00Z
 ---
 
 ## Current Test
 
-[awaiting human testing]
+[all tests resolved]
 
 ## Tests
 
 ### 1. Docker reproducibility re-run (BUILD-08 / TEST-08)
 expected: Both commands exit 0; `docker run --rm spu94-repro` prints `PASS: 50/50 goldens match`
-result: [pending]
+result: pass
+verified: 2026-04-24
+evidence: Anthony ran `python3 scripts/regenerate_goldens.py --check` on host → "PASS: 50/50 goldens match". Then `sudo docker run --rm spu94-repro` in the pinned bookworm-slim container (image ID da444c99ce21) → "PASS: 50/50 goldens match". Byte-reproducibility contract holds across host + container after Wave 3/4 changes.
 command: |
   python3 scripts/regenerate_goldens.py --check
   sudo docker run --rm spu94-repro
@@ -35,9 +37,9 @@ why_human: DOCS-02 requires LEVERS-CATALOG.md to be "begun and maintained." AUTO
 ## Summary
 
 total: 2
-passed: 1
+passed: 2
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 

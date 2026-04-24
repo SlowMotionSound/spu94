@@ -1,15 +1,20 @@
 ---
 phase: 07-verification-golden-files-witness-diff-modulation
 verified: 2026-04-23T22:00:00Z
-status: human_needed
-score: 5/6 must-haves verified
+human_verified: 2026-04-24T01:15:00Z
+status: passed
+score: 6/6 must-haves verified
 overrides_applied: 0
 human_verification:
   - test: "Run `python3 scripts/regenerate_goldens.py --check` on the host, then `sudo docker run --rm spu94-repro` to confirm the golden corpus is byte-reproducible outside CI"
     expected: "Both commands exit 0 with `PASS: 50/50 goldens match`"
+    result: passed
+    evidence: "Host and container both reported 'PASS: 50/50 goldens match' (2026-04-24). Image da444c99ce21 / debian:bookworm-slim@sha256:5a2a80d..."
     why_human: "The Docker smoke-test was verified by Anthony on 2026-04-23 (per 07-02-SUMMARY) but cannot be re-run programmatically without docker access. CI has not yet run since the phase completed; confirming the `reproducibility` job passes on a real CI push closes BUILD-08 and TEST-08."
   - test: "Open `docs/LEVERS-CATALOG.md` and author at least one HAND column entry for a register (e.g., `vIIR` Musical role)"
     expected: "After running `python3 scripts/write_levers_catalog.py`, the hand-written annotation is preserved verbatim"
+    result: passed
+    evidence: "Anthony added 'Master Output' to vLOUT/vROUT Musical role columns; writer run reported 'No changes' — HAND entries preserved verbatim (commit 2f76ad0)."
     why_human: "DOCS-02 requires LEVERS-CATALOG.md to be begun and maintained with register annotations. The AUTO columns are populated; the HAND columns (musical role, M4 lever grouping) are intentionally empty awaiting Anthony. This is not a technical gap but a content readiness item — a first entry confirms the writer's HAND-preservation contract works end-to-end with real content."
 ---
 
@@ -17,9 +22,9 @@ human_verification:
 
 **Phase Goal:** SPU-94 earns its bit-faithful accuracy claim with defensible evidence — spec-conformance coverage, witness diffs against lv2-psx-reverb, golden-file regression snapshots, and a modulation harness that proves every register is live-controllable without instability.
 
-**Verified:** 2026-04-23T22:00:00Z
-**Status:** human_needed
-**Re-verification:** No — initial verification
+**Verified:** 2026-04-23T22:00:00Z (automated) + 2026-04-24T01:15:00Z (human UAT)
+**Status:** passed
+**Re-verification:** No — initial verification; human UAT closed on first pass
 
 ## Goal Achievement
 
