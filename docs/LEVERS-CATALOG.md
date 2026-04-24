@@ -42,7 +42,7 @@ catalog regenerations.
 | `mBASE`  |  | catastrophic | clean through 11 kHz | |
 | `dAPF1`  |  | sample-quantized | clean through 11 kHz | |
 | `dAPF2`  |  | sample-quantized | clean through 11 kHz | |
-| `vIIR`   |  | free | clean through 11 kHz | |
+| `vIIR`   |  | free | ~500 Hz | |
 | `vCOMB1` |  | free | clean through 11 kHz | |
 | `vCOMB2` |  | free | clean through 11 kHz | |
 | `vCOMB3` |  | free | clean through 11 kHz | |

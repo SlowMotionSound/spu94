@@ -54,35 +54,39 @@ static void chain_step_impl(spu94_state *state,
         /* Retained phase -- produce new 22.05 kHz sample, then interpolate
          * into a 44.1 kHz pair (phase-0 emitted now, phase-1 cached).
          *
-         * ADR-Phase-6-G wet-only wiring: on the production path
-         * (reverb_active=1), the 22.05 kHz sample fed to the
-         * interpolator is the reverb body's WET output (LeftOutput /
-         * RightOutput from spu94_reverb_output_scale), NOT the dry
-         * decimator output. The dry decimator output (dec_l, dec_r)
-         * feeds the reverb INPUT via state->mix_bus_l/r (populated by
-         * spu94_process before each call -- see spu94_process.c:40-41,
-         * spu94_reverb.c:579-580). vLOUT/vROUT = 0 (default post-load,
-         * Off preset) gates the wet path to silence -- the CLI
-         * explicitly sets vLOUT/vROUT to a user-mix default after
-         * preset load so rendered audio is audible.
+         * ADR-Phase-6-I (input wiring) + ADR-Phase-6-G (output wiring):
+         * on the production path (reverb_active=1), the reverb sees the
+         * 22.05 kHz band-limited decimator output as its INPUT, and the
+         * reverb's 22.05 kHz wet OUTPUT feeds the interpolator. Both
+         * writes happen here, inside this retained-phase branch:
          *
-         * On the test-only reverb-bypass path (reverb_active=0) we
-         * skip spu94_tick entirely AND route dry dec_l/dec_r straight
-         * into the interpolator. This preserves the pre-ADR-Phase-6-G
-         * semantics of spu94_fir_chain_step_reverb_bypass as a
-         * "pure half-band round-trip" test harness: the FIR DSP
-         * tests (tests/unit/fir/test_fir_impulse.c,
-         * test_fir_chain_latency.c, test_fir_dc.c,
-         * test_fir_round_trip_transparency.c,
-         * test_fir_err_overflow_taps.c) pin the bit-faithful FIR
-         * contract by driving known inputs through the chain with
-         * the reverb network cut out -- they must see the dry input
-         * round-trip through decimator -> interpolator, not silence.
-         * This bypass path is NEVER reachable from production code
-         * (spu94_process only calls spu94_fir_chain_step, which
-         * passes reverb_active=1). */
+         *   state->mix_bus_l/r = dec_l/dec_r          (ADR-Phase-6-I)
+         *   -> spu94_tick(state) -> spu94_reverb_body reads mix_bus_l/r
+         *   -> state->reverb_out_l/r = wet            (ADR-Phase-6-G)
+         *   -> spu94_fir_interpolate consumes reverb_out_l/r as src_l/r
+         *
+         * vLOUT/vROUT = 0 (Off preset, or a bare-bones override) gates
+         * reverb_out_l/r to 0 here, which propagates through the
+         * interpolator as silence on the 44.1 kHz output stream. The
+         * non-Off factory presets now carry vLOUT = vROUT = 0x7FFF per
+         * ADR-Phase-6-H so rendered audio is audible by default.
+         *
+         * On the test-only reverb-bypass path (reverb_active=0) we skip
+         * spu94_tick entirely AND route dec_l/dec_r straight into the
+         * interpolator -- mix_bus_l/r are NOT written because no tick
+         * will consume them. This preserves the "pure half-band round-
+         * trip" contract that FIR unit tests depend on
+         * (tests/unit/fir/test_fir_impulse.c, test_fir_chain_latency.c,
+         * test_fir_dc.c, test_fir_round_trip_transparency.c,
+         * test_fir_err_overflow_taps.c). The bypass path is NEVER
+         * reachable from production code -- spu94_process only calls
+         * spu94_fir_chain_step, which passes reverb_active=1. */
         int16_t src_l, src_r;
         if (reverb_active) {
+            /* ADR-Phase-6-I: feed the decimator's band-limited 22.05 kHz
+             * sample into the reverb, not the raw 44.1 kHz input. */
+            state->mix_bus_l = dec_l;
+            state->mix_bus_r = dec_r;
             state->reverb_out_l = 0;
             state->reverb_out_r = 0;
             spu94_tick(state);

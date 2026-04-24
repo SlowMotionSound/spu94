@@ -30,6 +30,62 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-Phase-6-I: Reverb input wiring correction — chain_step_impl writes mix_bus_l/r with the 22.05 kHz decimator output, not raw 44.1 kHz samples
+
+**Status:** Accepted (2026-04-24, M1 close-out)
+
+**Amends:** ADR-Phase-5-B ("mix-bus mailbox — two int16 fields on spu94_state"). The mailbox contract and field layout are unchanged; the WRITER moves from `spu94_process` (previously writing raw 44.1 kHz `L_in[i]`) to `chain_step_impl` (now writing the decimator output `dec_l`/`dec_r` on the retained phase, just before `spu94_tick` runs). ADR-Phase-5-B's "spu94_process writes the current 44.1 kHz input sample into the mailbox" bullet is superseded by this ADR.
+
+**Relates:** CORE-06 / CORE-07 (39-tap half-band FIR at the I/O boundaries); the Phase 4 goal of "closing the fidelity gap that lv2-psx-reverb explicitly leaves open"; ADR-0012 (half-rate architecture + lv2-psx-reverb OUT-OF-AXIS exclusion); ADR-Phase-6-G (symmetric sibling: wet-only 44.1 kHz OUTPUT wiring — unchanged; this ADR addresses the INPUT side).
+
+**Context:**
+
+Phase 4 landed the 39-tap linear-phase half-band FIR decimator (44.1 → 22.05 kHz) and interpolator (22.05 → 44.1 kHz) as a bit-faithful sample-rate boundary. The Phase 4 ROADMAP goal is explicit: "SPU-94 is bit-faithful at the I/O boundary — the 44.1 kHz host rate is converted to/from the internal 22.05 kHz reverb rate via nocash's documented 39-tap half-band FIR, closing the fidelity gap that lv2-psx-reverb explicitly leaves open." The decimator's purpose is to band-limit the input before the reverb network sees it at 22.05 kHz, so that HF content above 11.025 kHz does not alias into the reverb.
+
+Phase 5 Plan 02 (ADR-Phase-5-B) added the `mix_bus_l`/`mix_bus_r` fields on `spu94_state` as the seam through which the block-based `spu94_process` entry point feeds per-sample input into the reverb body. At the time, the Phase-5 writer wrote `state->mix_bus_l = L_in[i]` on every 44.1 kHz call — raw int16 sample, no filtering. The intent was "get any input flowing to the reverb end-to-end"; the fidelity story at the boundary was deferred to Phase-5-integration work that never reconciled the seam against Phase 4's decimator.
+
+M1 close-out verification (2026-04-24) surfaced the consequence: the raw `L_in[i]` written by `spu94_process` was the value `spu94_reverb_body` read on every 22.05 kHz tick. The 39-tap FIR ran every call (`chain_step_impl` invoked `spu94_fir_decimate`), but its `dec_l`/`dec_r` output was never threaded into the mailbox — so the reverb effectively saw every-other-44.1-kHz-sample nearest-neighbor downsampling of the raw input. Any HF content above 11 kHz aliased directly into the reverb network.
+
+Two comments in the codebase disagreed about which behavior was intended:
+
+- `src/spu94/spu94_io_chain.c:62-63` (pre-fix): "the dry decimator output (dec_l, dec_r) feeds the reverb INPUT via state->mix_bus_l/r." — the intended design.
+- `src/spu94/spu94_reverb.c:606-608` (pre-fix): "spu94_process writes state->mix_bus_l/r with the current 44.1 kHz input sample." — the actual behavior.
+
+Both comments were self-consistent; the code matched the second; the project's bit-faithful claim required the first.
+
+**Decision:**
+
+- `spu94_process` (and therefore `spu94_flush`, which delegates) no longer writes `state->mix_bus_l`/`mix_bus_r`. Those writes are removed.
+- `chain_step_impl` (`src/spu94/spu94_io_chain.c`) now writes `state->mix_bus_l = dec_l; state->mix_bus_r = dec_r;` inside the retained-phase branch (`if (dec_valid)`), on the production code path (`reverb_active=1`), immediately before `spu94_tick(state)` fires. The value written is the FIR decimator's 22.05 kHz band-limited output, not the raw 44.1 kHz input.
+- The test-only `reverb_active=0` bypass path in `chain_step_impl` is unchanged: it skips `spu94_tick` entirely and routes `dec_l`/`dec_r` straight into the interpolator. It does NOT write the mailbox (no tick will consume it). This preserves the "pure half-band round-trip" contract that the FIR unit tests (`tests/unit/fir/test_fir_impulse.c`, `test_fir_chain_latency.c`, `test_fir_dc.c`, `test_fir_round_trip_transparency.c`, `test_fir_err_overflow_taps.c`) depend on.
+- The two contradicting comments in `spu94_reverb.c:606-608` and `spu94_io_chain.c:57-83` are reconciled. Both now describe the same (correct) behavior.
+
+**Consequences:**
+
+- The reverb-input path is now anti-aliased per Phase 4's stated intent. HF content above 11.025 kHz is attenuated by the half-band FIR before reaching the reverb network. Cymbal, sibilance, and noise content stop aliasing into the reverb.
+- All 50 golden WAVs will change bits on regeneration — the previous goldens captured the pre-fix aliased behavior. Goldens are regenerated via the CLI (which uses a 512 KB work buffer, unaffected by this wiring fix) in the same commit window; SHA-256 sidecars updated. `.planning/v1.0-GOLDENS-REGEN.md` records the event.
+- Witness-diff numbers against lv2-psx-reverb shift (expected: improvement on HF content, since both libraries' reverb-input paths are now comparably band-limited; the out-of-axis exclusion of lv2-psx-reverb on the frequency-response axis per ADR-0012 remains intact).
+- Modulation harness output changes; stability invariants hold (the decimator output stays within int16 bounds), but the per-preset acoustic character reflected in the harness now corresponds to real Hall / Space Echo / etc. behavior, not the aliased approximation.
+- `test_process_reverb_audible` continues to pass — the audibility assertion is on non-silent Hall output, which is unchanged qualitatively.
+- No public-API surface change: `spu94_process` signature, block-size contract, in-place-processing contract, and RT-safety properties are all preserved. `mix_bus_l`/`mix_bus_r` remain internal state fields.
+
+**Revision triggers (future ADRs may amend):**
+
+- If Phase-5 RT-safety measurements tighten to the point where `chain_step_impl`'s per-sample mailbox write shows up as a measurable hot-path cost, consider inlining `dec_l`/`dec_r` directly into the reverb-body input parameter list and retiring `mix_bus_l`/`mix_bus_r` as fields. Current measurement: trivial (two int16 stores per 44.1 kHz sample, dwarfed by the FIR multiply-accumulate).
+- If a future MCU port's SPU RAM is addressable as a distinct memory region from the reverb state struct (e.g., backed by the on-die SPU RAM on the PS1), the mailbox indirection may need to move to a register-based ABI. Out of M1 scope.
+
+**Sources:**
+
+- `.planning/ROADMAP.md` Phase 4 goal ("closing the fidelity gap that lv2-psx-reverb explicitly leaves open").
+- ADR-Phase-5-B (this one amends its writer-side behavior).
+- ADR-Phase-6-G (symmetric sibling — output-path wiring correction).
+- ADR-0012 (half-rate architecture posture).
+- BIB-011 (nocash psx-spx) — the algorithm is defined at 22.05 kHz; the 44.1 kHz host I/O rate is SPU-94's architectural choice, and the decimator/interpolator are what make that choice bit-faithful.
+- `.planning/ARCHITECTURAL-AUDIT.md` Part 3 (detailed resolution of the input-path ambiguity produced during M1 close-out review, 2026-04-24).
+- `.planning/REVIEW-c-core.md` CR-01 (the review finding that prompted this fix).
+
+---
+
 ## ADR-Phase-7-A: Spec-conformance coverage via three-section markdown + CI-enforced validator
 
 **Status:** Accepted (2026-04-23, Phase 7)

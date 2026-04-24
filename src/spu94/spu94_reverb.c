@@ -603,14 +603,16 @@ void spu94_reverb_body(spu94_state *state)
     const uint16_t dAPF1_snap  = spu94_get_reg_u16(state, SPU94_REG_dAPF1);
     const uint16_t dAPF2_snap  = spu94_get_reg_u16(state, SPU94_REG_dAPF2);
 
-    /* Phase 5 Plan 02 (D-05): mix-bus mailbox. spu94_process writes
-     * state->mix_bus_l/r with the current 44.1 kHz input sample
-     * before the spu94_fir_chain_step call that eventually drives
-     * this reverb body. Default-zero on init/reset preserves the
-     * pre-Phase-5 silent-input behavior observed by every Phase 3
-     * body-level test. Non-zero inputs are exercised by
+    /* Mix-bus mailbox (ADR-Phase-5-B + ADR-Phase-6-I): chain_step_impl
+     * writes state->mix_bus_l/r with the current 22.05 kHz reverb-rate
+     * input sample -- the decimator output on the retained phase --
+     * immediately before spu94_tick fires. The raw 44.1 kHz input is
+     * NEVER the reverb's input on the production path; the 39-tap
+     * half-band FIR always runs first. Default-zero on init/reset
+     * preserves the pre-Phase-5 silent-input behavior observed by every
+     * Phase 3 body-level test. Non-zero inputs are exercised by
      * tests/unit/process/test_process_*.c and by the Phase 5 fuzz
-     * harness tests/python/fuzz_process.py (Plan 05). */
+     * harness tests/python/fuzz_process.py. */
     const int16_t left_in  = state->mix_bus_l;
     const int16_t right_in = state->mix_bus_r;
 

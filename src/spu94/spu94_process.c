@@ -1,4 +1,4 @@
-/* src/spu94/spu94_process.c -- Phase 5 Plan 02.
+/* src/spu94/spu94_process.c -- Phase 5 Plan 02, amended by ADR-Phase-6-I.
  *
  * spu94_process: 44.1 kHz int16 stereo block-based audio entry point
  *   (D-01). Planar L/R pointers (D-01); any block size N >= 1 (D-03);
@@ -7,10 +7,12 @@
  * spu94_flush: drain trailing reverb tail by feeding internal silence
  *   (D-02). Shares the single-sample body with spu94_process.
  *
- * Mix-bus wiring (D-05): both functions write state->mix_bus_l and
- * state->mix_bus_r before each spu94_fir_chain_step call. The reverb
- * body at spu94_reverb.c reads those fields where it previously
- * hardcoded zero.
+ * Mix-bus wiring (ADR-Phase-5-B + ADR-Phase-6-I): this function does NOT
+ * write state->mix_bus_l/r. The decimator output (22.05 kHz reverb-rate
+ * sample) is the reverb's input, and chain_step_impl owns that write --
+ * it fires state->mix_bus_l = dec_l; state->mix_bus_r = dec_r; on the
+ * retained phase (dec_valid=1) just before spu94_tick runs. Raw 44.1 kHz
+ * samples are NEVER the reverb's input on the production path.
  *
  * Pitfall 4 (ADR-0005): spu94_fir_chain_step has exactly TWO call
  * sites in the public audio path -- spu94_process (non-zero inputs)
@@ -32,13 +34,10 @@ void spu94_process(spu94_state *state,
     for (uint32_t i = 0; i < num_samples; i++) {
         const int16_t l = (L_in != NULL) ? L_in[i] : (int16_t)0;
         const int16_t r = (R_in != NULL) ? R_in[i] : (int16_t)0;
-        /* D-05: populate the mailbox before the chain step. The reverb
-         * body at spu94_reverb.c reads these fields at the moment
-         * the reverb stage runs (once per 22.05 kHz tick = every other
-         * 44.1 kHz call). For non-retained phase the write is harmless
-         * (the tick doesn't fire). */
-        state->mix_bus_l = l;
-        state->mix_bus_r = r;
+        /* chain_step_impl owns the mix-bus write (ADR-Phase-6-I).
+         * Raw 44.1 kHz samples feed the decimator here; the decimator's
+         * retained-phase output populates state->mix_bus_l/r inside
+         * chain_step_impl before spu94_tick runs. */
         int16_t lo = 0, ro = 0;
         spu94_fir_chain_step(state, l, r, &lo, &ro);
         if (L_out != NULL) L_out[i] = lo;
