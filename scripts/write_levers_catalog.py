@@ -97,7 +97,11 @@ def rewrite_row(line: str, report: dict) -> str:
     )
 
 
-def main(argv: list[str] | None = None) -> int:
+def main() -> int:
+    # No CLI arguments accepted: the writer reads fixed REPORT + CATALOG
+    # paths and rewrites the catalog AUTO columns in place. Any CLI args
+    # would be silently ignored, so we drop the parameter entirely rather
+    # than invite typos (`--dry-run`, `--help`, ...) that look meaningful.
     if not REPORT.exists():
         print(
             f"FAIL: {REPORT} missing — run "
@@ -122,4 +126,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(main())
