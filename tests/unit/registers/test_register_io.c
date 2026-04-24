@@ -9,7 +9,7 @@
  *   - Wrong-typed access (e.g., set_u16 on vIIR) returns SPU94_TYPE_MISMATCH
  *     and leaves both active and pending state unchanged (D-07/D-08).
  *   - Out-of-range reg ids return SPU94_UNKNOWN_REG on set, 0 on get.
- *   - NULL state on getters returns 0; on setters returns SPU94_UNKNOWN_REG.
+ *   - NULL state on getters returns 0; on setters returns SPU94_INVALID_STATE.
  *   - spu94_reg_type returns the correct family for every register.
  *   - spu94_snapshot_registers reads the active reg_values[] (no longer
  *     a zero-fill stub once Plan 03 wires it).
@@ -90,9 +90,9 @@ void test_set_out_of_range_returns_unknown_reg(void) {
     TEST_ASSERT_EQUAL_HEX16(0u, spu94_get_reg_u16_pending(s, bogus));
 }
 
-void test_null_state_set_returns_unknown_reg_get_returns_zero(void) {
-    TEST_ASSERT_EQUAL_INT(SPU94_UNKNOWN_REG, spu94_set_reg_i16(NULL, SPU94_REG_vIIR, 1));
-    TEST_ASSERT_EQUAL_INT(SPU94_UNKNOWN_REG, spu94_set_reg_u16(NULL, SPU94_REG_mBASE, 1u));
+void test_null_state_set_returns_invalid_state_get_returns_zero(void) {
+    TEST_ASSERT_EQUAL_INT(SPU94_INVALID_STATE, spu94_set_reg_i16(NULL, SPU94_REG_vIIR, 1));
+    TEST_ASSERT_EQUAL_INT(SPU94_INVALID_STATE, spu94_set_reg_u16(NULL, SPU94_REG_mBASE, 1u));
     TEST_ASSERT_EQUAL_INT16(0, spu94_get_reg_i16(NULL, SPU94_REG_vIIR));
     TEST_ASSERT_EQUAL_HEX16(0u, spu94_get_reg_u16(NULL, SPU94_REG_mBASE));
     TEST_ASSERT_EQUAL_INT16(0, spu94_get_reg_i16_pending(NULL, SPU94_REG_vIIR));
@@ -216,7 +216,7 @@ int main(void) {
     RUN_TEST(test_type_mismatch_i16_on_unsigned_reg_leaves_state_unchanged);
     RUN_TEST(test_type_mismatch_u16_on_signed_reg_leaves_state_unchanged);
     RUN_TEST(test_set_out_of_range_returns_unknown_reg);
-    RUN_TEST(test_null_state_set_returns_unknown_reg_get_returns_zero);
+    RUN_TEST(test_null_state_set_returns_invalid_state_get_returns_zero);
     RUN_TEST(test_reg_type_classification);
     RUN_TEST(test_immediate_policy_v_register_pending_equals_active);
     RUN_TEST(test_mBASE_immediate_write_visible_without_tick);

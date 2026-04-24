@@ -137,7 +137,7 @@ typedef enum {
  * unchanged (D-08).
  *
  * Out-of-range reg ids return SPU94_UNKNOWN_REG on set, 0 on get. NULL state
- * is treated identically to out-of-range.
+ * on set returns SPU94_INVALID_STATE (ADR-0022); on get returns 0.
  *
  * Writes honor the per-register write-timing policy (ADR-0005):
  *   IMMEDIATE      -> reg_values[reg] updates instantly; pending stays in

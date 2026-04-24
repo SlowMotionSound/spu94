@@ -91,7 +91,7 @@ void spu94_mbase_on_write(struct spu94_state *state, uint16_t new_mbase);
 
 spu94_result_t spu94_set_reg_i16(spu94_state *state, spu94_reg_t reg, int16_t value) {
     if (state == (spu94_state *)0) {
-        return SPU94_UNKNOWN_REG;
+        return SPU94_INVALID_STATE;
     }
     if ((int)reg < 0 || (int)reg >= (int)SPU94_REG__COUNT) {
         return SPU94_UNKNOWN_REG;
@@ -111,7 +111,7 @@ spu94_result_t spu94_set_reg_i16(spu94_state *state, spu94_reg_t reg, int16_t va
 
 spu94_result_t spu94_set_reg_u16(spu94_state *state, spu94_reg_t reg, uint16_t value) {
     if (state == (spu94_state *)0) {
-        return SPU94_UNKNOWN_REG;
+        return SPU94_INVALID_STATE;
     }
     if ((int)reg < 0 || (int)reg >= (int)SPU94_REG__COUNT) {
         return SPU94_UNKNOWN_REG;
