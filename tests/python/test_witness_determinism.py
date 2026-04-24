@@ -22,6 +22,11 @@ from pathlib import Path
 
 import pytest
 
+# Import the canonical pin so the test and the witness_diff.py harness
+# bump together (WR-07: single source of truth for LV2_COMMIT_PIN).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _constants import LV2_COMMIT_PIN  # noqa: E402
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REPORT = REPO_ROOT / ".artifacts" / "witness_report.json"
 LV2_SIDECAR = REPO_ROOT / ".artifacts" / "lv2-psx-reverb" / ".LV2_PATH"
@@ -110,8 +115,9 @@ def test_witness_report_records_lv2_commit_pin(fresh_witness_run):
     """Every row carries the lv2 commit pin for traceability (D-05)."""
     first, _ = fresh_witness_run
     r = json.loads(first)
-    # Pin must appear in every row, and must be the expected SHA-1 hex.
-    EXPECTED = "424e1e8ee7f780106b005011b036386513c61db3"
+    # Pin must appear in every row. Source of truth: tests/python/_constants.py
+    # (WR-07 fix). The witness_diff.py harness also imports from that same
+    # module, so this test will fail loudly if the pin drifts between sites.
     for entry in r:
-        assert entry.get("lv2_commit") == EXPECTED, \
+        assert entry.get("lv2_commit") == LV2_COMMIT_PIN, \
             f"{entry['preset']}/{entry['input']}: lv2_commit={entry.get('lv2_commit')!r}"

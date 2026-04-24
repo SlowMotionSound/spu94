@@ -101,8 +101,27 @@ SWEEP_METHOD = "logarithmic"
 SPLIT_HZ = 10000
 BUTTER_ORDER = 8
 
-# D-05 pin recorded per-row
-LV2_COMMIT_PIN = "424e1e8ee7f780106b005011b036386513c61db3"
+# D-05 pin recorded per-row. Canonical definition lives in
+# tests/python/_constants.py; we load it dynamically (no sys.path side
+# effects for callers that run this harness outside pytest) so the pin
+# bumps in exactly one Python location.
+def _load_lv2_commit_pin() -> str:
+    import importlib.util
+    _constants_path = (
+        Path(__file__).resolve().parents[2]
+        / "tests" / "python" / "_constants.py"
+    )
+    _spec = importlib.util.spec_from_file_location(
+        "_witness_constants", str(_constants_path)
+    )
+    if _spec is None or _spec.loader is None:
+        raise RuntimeError(f"could not load constants from {_constants_path}")
+    _mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    return _mod.LV2_COMMIT_PIN
+
+
+LV2_COMMIT_PIN = _load_lv2_commit_pin()
 
 # Block size for lv2 run() loop
 LV2_BLOCK = 1024
