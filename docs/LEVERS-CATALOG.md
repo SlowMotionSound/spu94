@@ -37,8 +37,8 @@ catalog regenerations.
 
 | Register | Musical role (HAND) | Modulation cost (AUTO) | Zipper onset (AUTO) | M4 lever (HAND) |
 |----------|---------------------|------------------------|---------------------|-----------------|
-| `vLOUT`  |  | free | clean through 11 kHz | |
-| `vROUT`  |  | free | clean through 11 kHz | |
+| `vLOUT`  | Master Output | free | clean through 11 kHz | |
+| `vROUT`  | Master Output | free | clean through 11 kHz | |
 | `mBASE`  |  | catastrophic | clean through 11 kHz | |
 | `dAPF1`  |  | sample-quantized | clean through 11 kHz | |
 | `dAPF2`  |  | sample-quantized | clean through 11 kHz | |

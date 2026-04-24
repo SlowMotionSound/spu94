@@ -3,7 +3,7 @@ status: partial
 phase: 07-verification-golden-files-witness-diff-modulation
 source: [07-VERIFICATION.md]
 started: 2026-04-24T00:51:08Z
-updated: 2026-04-24T00:51:08Z
+updated: 2026-04-24T01:02:00Z
 ---
 
 ## Current Test
@@ -22,7 +22,9 @@ why_human: Host smoke-test was verified on 2026-04-23 (per 07-02-SUMMARY), but t
 
 ### 2. First LEVERS-CATALOG HAND entry (DOCS-02)
 expected: After editing, run `python3 scripts/write_levers_catalog.py` and confirm your hand-written annotation survives the rewrite unchanged.
-result: [pending]
+result: pass
+verified: 2026-04-24
+evidence: Anthony added "Master Output" to the Musical role (HAND) column for `vLOUT` and `vROUT` in docs/LEVERS-CATALOG.md. Ran `python3 scripts/write_levers_catalog.py` — writer reported "No changes to docs/LEVERS-CATALOG.md", confirming the idempotent preservation contract. HAND entries survived verbatim.
 command: |
   # Edit docs/LEVERS-CATALOG.md — fill ONE register's HAND columns
   # (e.g., vIIR: musical role = "reverb feedback amount / decay tail")
@@ -33,9 +35,9 @@ why_human: DOCS-02 requires LEVERS-CATALOG.md to be "begun and maintained." AUTO
 ## Summary
 
 total: 2
-passed: 0
+passed: 1
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
