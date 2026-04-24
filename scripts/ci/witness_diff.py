@@ -163,9 +163,25 @@ _SOS_LP = butter(BUTTER_ORDER, SPLIT_HZ / (FS / 2), btype="low",  output="sos")
 _SOS_HP = butter(BUTTER_ORDER, SPLIT_HZ / (FS / 2), btype="high", output="sos")
 
 # Paths emitted by witness_diff_build.sh
-LV2_PATH_FILE = Path(".artifacts/lv2-psx-reverb/.LV2_PATH")
-LV2_URI_FILE  = Path(".artifacts/lv2-psx-reverb/.LV2_URI")
-REPORT_PATH   = Path(".artifacts/witness_report.json")
+LV2_PATH_FILE  = Path(".artifacts/lv2-psx-reverb/.LV2_PATH")
+LV2_URI_FILE   = Path(".artifacts/lv2-psx-reverb/.LV2_URI")
+LV2_INFO_FILE  = Path(".artifacts/lv2-psx-reverb/lv2info.txt")
+REPORT_PATH    = Path(".artifacts/witness_report.json")
+
+# Expected port layout (symbols + kinds + directions) for the pinned SHA.
+# Used by _validate_lv2_port_layout(); keep index-aligned with the
+# LV2_PORT_* constants above.
+_EXPECTED_PORTS: tuple[tuple[str, str, str], ...] = (
+    # (symbol,      kind,    direction)
+    ("wet",         "control", "input"),
+    ("dry",         "control", "input"),
+    ("preset",      "control", "input"),
+    ("master",      "control", "input"),
+    ("main_in_0",   "audio",   "input"),
+    ("main_in_1",   "audio",   "input"),
+    ("main_out_0",  "audio",   "output"),
+    ("main_out_1",  "audio",   "output"),
+)
 
 # LV2 feature URIs
 LV2_URID__map  = b"http://lv2plug.in/ns/ext/urid#map"
@@ -550,6 +566,124 @@ def read_lv2_context() -> tuple[Path, str]:
     return bundles[0], LV2_URI_FILE.read_text().strip()
 
 
+def _parse_lv2info_ports(lv2info_text: str) -> list[dict]:
+    """Parse `lv2info` output into a list of port-dicts (one per Port N
+    block). Each dict has keys: index (int), symbol (str), kind
+    ('control'|'audio'), direction ('input'|'output').
+
+    Ports missing any of those fields are still returned with None
+    placeholders so the validator can report the missing field.
+    """
+    import re
+    ports: list[dict] = []
+    cur: dict | None = None
+    in_type = False
+    port_re   = re.compile(r"^\s*Port\s+(\d+):")
+    symbol_re = re.compile(r"^\s*Symbol:\s*(\S+)")
+    type_re   = re.compile(r"^\s*Type:\s*(\S+)")
+    type_cont_re = re.compile(r"^\s*(http://lv2plug\.in/ns/lv2core#\S+)")
+    for line in lv2info_text.splitlines():
+        m = port_re.match(line)
+        if m:
+            if cur is not None:
+                ports.append(cur)
+            cur = {
+                "index": int(m.group(1)),
+                "symbol": None,
+                "kind": None,
+                "direction": None,
+            }
+            in_type = False
+            continue
+        if cur is None:
+            continue
+        m = symbol_re.match(line)
+        if m:
+            cur["symbol"] = m.group(1)
+            in_type = False
+            continue
+        m = type_re.match(line)
+        if m:
+            in_type = True
+            _absorb_type_uri(cur, m.group(1))
+            continue
+        if in_type:
+            m = type_cont_re.match(line)
+            if m:
+                _absorb_type_uri(cur, m.group(1))
+                continue
+            # Non-URI line after Type: block closed.
+            in_type = False
+    if cur is not None:
+        ports.append(cur)
+    return ports
+
+
+def _absorb_type_uri(port: dict, uri: str) -> None:
+    """Classify an lv2core# type URI into kind + direction on `port`."""
+    tail = uri.rsplit("#", 1)[-1]
+    if tail == "ControlPort":
+        port["kind"] = "control"
+    elif tail == "AudioPort":
+        port["kind"] = "audio"
+    elif tail == "InputPort":
+        port["direction"] = "input"
+    elif tail == "OutputPort":
+        port["direction"] = "output"
+    # Other LV2 type URIs (e.g. lv2:Port) are informational; ignore.
+
+
+def validate_lv2_port_layout(lv2info_path: Path | None = None) -> None:
+    """Assert the live LV2 port layout matches the hardcoded LV2_PORT_*
+    constants. If lv2info.txt is absent (fresh checkout where
+    witness_diff_build.sh has not run yet), log a warning and return
+    without failing — this keeps the harness usable on first invocation.
+    When lv2info.txt IS present, a mismatch is a hard error: an upstream
+    SHA bump that reordered ports would silently cross-wire audio and
+    control ports without this gate.
+    """
+    path = lv2info_path if lv2info_path is not None else LV2_INFO_FILE
+    if not path.exists():
+        print(
+            f"WARN: {path} not found — skipping port-layout live "
+            "validation (run scripts/ci/witness_diff_build.sh to "
+            "enable). Hardcoded LV2_PORT_* constants will be used as-is.",
+            file=sys.stderr,
+        )
+        return
+    ports = _parse_lv2info_ports(path.read_text())
+    if len(ports) != LV2_NUM_PORTS:
+        raise RuntimeError(
+            f"lv2info.txt reports {len(ports)} ports; harness expects "
+            f"{LV2_NUM_PORTS}. Likely an upstream SHA bump without a "
+            "matching update to LV2_PORT_* constants. See {path}."
+        )
+    mismatches: list[str] = []
+    for idx, (sym, kind, direction) in enumerate(_EXPECTED_PORTS):
+        p = next((pp for pp in ports if pp["index"] == idx), None)
+        if p is None:
+            mismatches.append(f"port {idx}: missing from lv2info.txt")
+            continue
+        if p["symbol"] != sym:
+            mismatches.append(
+                f"port {idx}: symbol {p['symbol']!r} != expected {sym!r}"
+            )
+        if p["kind"] != kind:
+            mismatches.append(
+                f"port {idx}: kind {p['kind']!r} != expected {kind!r}"
+            )
+        if p["direction"] != direction:
+            mismatches.append(
+                f"port {idx}: direction {p['direction']!r} != expected {direction!r}"
+            )
+    if mismatches:
+        raise RuntimeError(
+            "FAIL: LV2 port layout drift detected (possible upstream SHA "
+            "bump without matching LV2_PORT_* constant update in "
+            "witness_diff.py):\n  " + "\n  ".join(mismatches)
+        )
+
+
 def invoke_spu94(spu94_bin: str, preset: str,
                  in_wav: Path, out_wav: Path) -> None:
     # D-05 determinism: pin LC_ALL / TZ / SOURCE_DATE_EPOCH so a non-English
@@ -610,6 +744,15 @@ def main() -> int:
 
     spu94_bin = locate_spu94_cli()
     bundle_path, _lv2_uri = read_lv2_context()
+    # D-08 live verification: assert the pinned port constants still match
+    # what lv2info reports for the built bundle. Soft-skips when
+    # lv2info.txt is absent (fresh checkout) so the harness is still
+    # usable on first invocation; hard-fails on drift.
+    try:
+        validate_lv2_port_layout()
+    except RuntimeError as e:
+        print(str(e), file=sys.stderr)
+        return 1
 
     results: list[dict] = []
     out_path = Path(args.report)
