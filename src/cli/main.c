@@ -40,6 +40,60 @@
         fputc('\n', stderr);                             \
     } while (0)
 
+/* --tail-seconds hard cap. Ten minutes (600 s = 600000 ms) is already 3x the
+ * longest reasonable reverb tail; the cap exists to bound output buffer size
+ * and to rule out overflow in the tail_ms * sample_rate multiply below. */
+#define SPU94_CLI_TAIL_MS_MAX 600000u
+
+/* Parse a non-negative decimal string into milliseconds.
+ *
+ * Accepts integer ("30") and decimal ("2.5", "0.123") forms. Up to 3 decimal
+ * places are preserved at ms resolution; additional digits are truncated (not
+ * rounded -- "0.0009" becomes 0 ms). Rejects trailing garbage, negative
+ * values, and totals above SPU94_CLI_TAIL_MS_MAX.
+ *
+ * Returns 0 on success (writing *out_ms), non-zero on any parse/range error.
+ * Integer-only math -- no floating point, no UB on extreme values. */
+static int spu94_cli_parse_tail_ms(const char *s, uint64_t *out_ms) {
+    if (s == NULL || *s == '\0' || out_ms == NULL) return -1;
+    uint64_t int_part = 0;
+    const char *p = s;
+    int saw_digit = 0;
+    while (*p >= '0' && *p <= '9') {
+        /* Overflow guard on the accumulator. Numbers this big would fail the
+         * cap check anyway, but failing here keeps the math tidy. */
+        if (int_part > (UINT64_MAX / 10u) - 9u) return -1;
+        int_part = int_part * 10u + (uint64_t)(*p - '0');
+        saw_digit = 1;
+        p++;
+    }
+    uint64_t frac_ms = 0;
+    if (*p == '.') {
+        p++;
+        uint32_t frac_digits = 0;
+        uint64_t frac_val = 0;
+        while (*p >= '0' && *p <= '9' && frac_digits < 3u) {
+            frac_val = frac_val * 10u + (uint64_t)(*p - '0');
+            frac_digits++;
+            saw_digit = 1;
+            p++;
+        }
+        while (frac_digits < 3u) {
+            frac_val *= 10u;
+            frac_digits++;
+        }
+        /* Truncate any further fractional digits. */
+        while (*p >= '0' && *p <= '9') p++;
+        frac_ms = frac_val;
+    }
+    if (*p != '\0' || !saw_digit) return -1;
+    if (int_part > UINT64_MAX / 1000u) return -1;
+    uint64_t total_ms = int_part * 1000u + frac_ms;
+    if (total_ms > (uint64_t)SPU94_CLI_TAIL_MS_MAX) return -1;
+    *out_ms = total_ms;
+    return 0;
+}
+
 static void print_help(void) {
     /* Tone: recording-engineer-oriented, polished. Anthony is not a coder. */
     fputs(
@@ -79,7 +133,7 @@ int main(int argc, char **argv) {
 
     const char *preset_name = NULL;
     const char *config_path = NULL;
-    double tail_seconds = 0.0;
+    uint64_t tail_ms = 0u;
     int opt;
 
     /* Silence getopt's own stderr writes; we own the error shape (D-05). */
@@ -93,15 +147,14 @@ int main(int argc, char **argv) {
             case 'c':
                 config_path = optarg;
                 break;
-            case 't': {
-                char *endp = NULL;
-                tail_seconds = strtod(optarg, &endp);
-                if (!endp || *endp != '\0' || tail_seconds < 0.0) {
-                    SPU94_ERROR("invalid value for --tail-seconds: '%s'", optarg);
+            case 't':
+                if (spu94_cli_parse_tail_ms(optarg, &tail_ms) != 0) {
+                    SPU94_ERROR("invalid value for --tail-seconds: '%s' "
+                                "(accepts 0 to %u seconds, up to ms resolution)",
+                                optarg, (unsigned)(SPU94_CLI_TAIL_MS_MAX / 1000u));
                     return 2;
                 }
                 break;
-            }
             case 'l':
                 spu94_cli_list_presets(stdout);
                 return 0;
@@ -199,11 +252,36 @@ int main(int argc, char **argv) {
      * of samples would use stale pending values. */
     spu94_tick(state);
 
-    /* Output sample counts. Tail is optional; total = input + tail. */
-    uint64_t tail_frames = (tail_seconds > 0.0)
-        ? (uint64_t)(tail_seconds * (double)input.sample_rate + 0.5)
-        : 0u;
+    /* Output sample counts. Tail is optional; total = input + tail.
+     * Integer-only: tail_frames = (tail_ms * sample_rate + 500) / 1000.
+     * Overflow-safe: SPU94_CLI_TAIL_MS_MAX=600000, any plausible sample_rate
+     * (<= 768000 Hz), product well within uint64_t. +500 rounds half-up to the
+     * nearest frame. */
+    uint64_t tail_frames = 0u;
+    if (tail_ms > 0u) {
+        uint64_t numer = tail_ms * (uint64_t)input.sample_rate + 500u;
+        tail_frames = numer / 1000u;
+    }
+    /* Addition overflow guard: tail_frames + input.num_frames must fit in
+     * uint64_t. Given the 600 s cap above, this is unreachable in practice --
+     * but a guarded add is cheaper than an untrapped overflow. */
+    if (tail_frames > UINT64_MAX - input.num_frames) {
+        spu94_destroy(state);
+        free(input.L); free(input.R); free(work_buf);
+        SPU94_ERROR("output length overflow (input frames + tail frames too large)");
+        return 2;
+    }
     uint64_t total_out = input.num_frames + tail_frames;
+    /* Output malloc size overflow guard: total_out * sizeof(int16_t) must fit
+     * in size_t on the host platform. On 32-bit hosts (unlikely but possible),
+     * this catches outputs above ~1 Gi frames per channel; on 64-bit hosts the
+     * check is effectively free. */
+    if (total_out > (uint64_t)(SIZE_MAX / sizeof(int16_t))) {
+        spu94_destroy(state);
+        free(input.L); free(input.R); free(work_buf);
+        SPU94_ERROR("output length overflow (total_out exceeds host size_t range)");
+        return 2;
+    }
 
     int16_t *L_out = (int16_t *)malloc((size_t)total_out * sizeof(int16_t));
     int16_t *R_out = (int16_t *)malloc((size_t)total_out * sizeof(int16_t));

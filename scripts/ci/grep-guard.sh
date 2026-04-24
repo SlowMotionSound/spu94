@@ -1,78 +1,77 @@
 #!/usr/bin/env bash
-# scripts/ci/grep-guard.sh
-# BUILD-07: forbid float, double, malloc, calloc, realloc, free, and unqualified long
-# in core library sources. Allow 'long long'.
-# Scope: src/**/*.c, src/**/*.h, include/**/*.c, include/**/*.h
+# scripts/ci/grep-guard.sh -- BUILD-07 two-tier scope.
+#
+# Tier 1 (core library -- src/spu94, include/spu94):
+#   Forbid float, double, malloc, calloc, realloc, free, unqualified long.
+#   Rationale: bit-faithful integer arithmetic; freestanding-C / MCU portability.
+#
+# Tier 2 (CLI -- src/cli):
+#   Forbid float, double only.
+#   Permit malloc/free (CLI owns its work-buf allocation + wraps dr_wav I/O).
+#   Permit unqualified long (stdlib boundary: strtol, ftell, printf %ld).
+#
 # Tests live under tests/ and are OUT of scope (may use any C as needed).
-# Requires GNU grep (word-boundary syntax). macOS/BSD not supported in CI per CONTEXT.md.
+# Requires GNU grep (word-boundary syntax). macOS/BSD not supported in CI.
 #
 # Exit codes: 0 = clean, 1 = forbidden token found, 2 = environment problem.
 #
-# See docs/DECISIONS.md ADR-0003 area (future) for the rationale behind this guard.
+# See docs/DECISIONS.md ADR-0022 (two-tier scope, amends ADR-0003).
 #
 # -----------------------------------------------------------------------------
-# KNOWN LIMITATIONS
+# KNOWN LIMITATION (unqualified 'long' detection, Tier 1 only)
 # -----------------------------------------------------------------------------
-# The 'unqualified long' detection (Pass 2 below) is line-granular, not
-# token-granular. It runs `grep -nE '\blong\b' ... | grep -v 'long long'`,
-# which means a single source line that contains BOTH `long long X;` AND
-# unqualified `long Y;` will be filtered out by the `grep -v 'long long'`
-# pass and therefore will NOT be caught by this guard.
-#
-# This is an accepted limitation, not a bug:
-#
-#   - SPU-94's core C body never mixes `long long` and unqualified `long` on
-#     a single line; the whole point of BUILD-07 is that we don't use either
-#     unqualified form (we use int32_t / int64_t / int16_t exclusively).
-#   - Writing a per-token matcher requires either GNU grep -P (not portable
-#     per RESEARCH.md Pitfall 5) or an awk tokenizer (~30 lines of script we
-#     would then have to audit). The cost/benefit doesn't justify it today.
-#   - The accepted-as-is posture is PINNED by a fixture case in
-#     scripts/ci/test-grep-guard.sh with the label
-#     "known limitation: mixed long long + long on one line"
-#     that asserts the CURRENT documented behavior (exit 0 on the mixed line).
-#     If a future contributor tightens this guard to per-token matching,
-#     that fixture case will FAIL and force an intentional, reviewed update
-#     to both the script and the fixture -- the change cannot happen silently.
-#   - A future ADR in docs/DECISIONS.md may revisit this choice if SPU-94
-#     ever legitimately needs `long long` in core sources (currently: it does not).
+# The detection is line-granular, not token-granular. A single source line that
+# contains BOTH `long long X;` AND unqualified `long Y;` will be filtered out
+# by the `grep -v 'long long'` pass and will NOT be caught. SPU-94 core C body
+# never mixes them. Pinned by fixture CASE 7 in test-grep-guard.sh -- a future
+# tightening will fail that fixture and force an intentional review.
 # -----------------------------------------------------------------------------
 
 set -euo pipefail
 
 FORBIDDEN_CORE='\b(float|double|malloc|calloc|realloc|free)\b'
+FORBIDDEN_CLI='\b(float|double)\b'
 LONG_PATTERN='\blong\b'
 
-# Collect core files. No file -> trivially clean.
-mapfile -t FILES < <(find src include -type f \( -name '*.c' -o -name '*.h' \) 2>/dev/null | sort)
+# Tier 1: core library files.
+mapfile -t CORE_FILES < <(find src/spu94 include/spu94 -type f \( -name '*.c' -o -name '*.h' \) 2>/dev/null | sort)
 
-if [ "${#FILES[@]}" -eq 0 ]; then
-    echo "grep-guard: no core files found under src/ or include/; nothing to scan."
+# Tier 2: CLI files (optional subtree; absent in some configurations).
+mapfile -t CLI_FILES < <(find src/cli -type f \( -name '*.c' -o -name '*.h' \) 2>/dev/null | sort)
+
+total=$(( ${#CORE_FILES[@]} + ${#CLI_FILES[@]} ))
+if [ "$total" -eq 0 ]; then
+    echo "grep-guard: no source files found under src/spu94, include/spu94, or src/cli; nothing to scan."
     exit 0
 fi
 
 fail=0
 
-# Pass 1: simple forbidden tokens.
-if grep -nE "$FORBIDDEN_CORE" "${FILES[@]}"; then
-    echo "ERROR [grep-guard]: forbidden token (float|double|malloc|calloc|realloc|free) found in core sources above."
-    fail=1
+# --- Tier 1: core library strict ---
+if [ "${#CORE_FILES[@]}" -gt 0 ]; then
+    if grep -nE "$FORBIDDEN_CORE" "${CORE_FILES[@]}"; then
+        echo "ERROR [grep-guard/core]: forbidden token (float|double|malloc|calloc|realloc|free) in core sources above."
+        fail=1
+    fi
+    if grep -nE "$LONG_PATTERN" "${CORE_FILES[@]}" | grep -v 'long long'; then
+        echo "ERROR [grep-guard/core]: unqualified 'long' in core sources above. Use int32_t / int64_t."
+        fail=1
+    fi
 fi
 
-# Pass 2: unqualified 'long' -- subtract 'long long'.
-# Use `grep -v 'long long'` to filter out lines where the match is part of 'long long'.
-# This is coarse (a line with BOTH 'long long' AND unqualified 'long' would be allowed),
-# but SPU-94's core C body never mixes them. Good enough per RESEARCH.md Pitfall 5 (no -P).
-if grep -nE "$LONG_PATTERN" "${FILES[@]}" | grep -v 'long long'; then
-    echo "ERROR [grep-guard]: unqualified 'long' found in core sources above. Use int32_t / int64_t."
-    fail=1
+# --- Tier 2: CLI narrower ---
+if [ "${#CLI_FILES[@]}" -gt 0 ]; then
+    if grep -nE "$FORBIDDEN_CLI" "${CLI_FILES[@]}"; then
+        echo "ERROR [grep-guard/cli]: forbidden token (float|double) in CLI sources above."
+        fail=1
+    fi
 fi
 
 if [ "$fail" -ne 0 ]; then
     echo
-    echo "grep-guard FAILED. See RESEARCH.md section Grep Guard and ADR (future) for the forbidden-token list rationale."
+    echo "grep-guard FAILED. See docs/DECISIONS.md ADR-0022 for tier rationale."
     exit 1
 fi
 
-echo "grep-guard: OK (scanned ${#FILES[@]} files)."
+echo "grep-guard: OK (scanned ${#CORE_FILES[@]} core + ${#CLI_FILES[@]} CLI files = $total total)."
 exit 0

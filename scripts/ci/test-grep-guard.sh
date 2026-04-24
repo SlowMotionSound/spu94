@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # scripts/ci/test-grep-guard.sh
-# Tests scripts/ci/grep-guard.sh on positive + negative fixtures.
-# Run AFTER grep-guard.sh passes on the real tree (so we know the current tree is clean).
-# This script creates a tempdir, seeds fixture files, invokes grep-guard.sh against it,
-# and asserts the expected outcomes.
+# Tests scripts/ci/grep-guard.sh on positive + negative fixtures across both tiers.
+# Run AFTER grep-guard.sh passes on the real tree.
 #
 # Exit codes: 0 = all fixture cases pass, 1 = a fixture case's result differs from expected.
 
@@ -42,17 +40,18 @@ run_case() {
     fi
 }
 
-# CASE 1: clean tree (only a trivial placeholder) -> exit 0.
-run_case "clean tree" 0 "src/a.c"        '/* clean */'$'\n''#include <stdint.h>'$'\n''int32_t x;'
-# CASE 2: 'float' in a src file -> exit 1.
-run_case "float in src"  1 "src/bad.c"   'float x;'
-# CASE 3: 'malloc' in include -> exit 1.
-run_case "malloc in include" 1 "include/bad.h" 'void *p = malloc(1);'
-# CASE 4: 'long long' -- allowed -> exit 0.
-run_case "long long allowed" 0 "src/ok.c" 'long long ll;'
-# CASE 5: unqualified 'long' -> exit 1.
-run_case "unqualified long forbidden" 1 "src/bad2.c" 'long n;'
-# CASE 6: no src/ or include/ dirs -> exit 0 (nothing to scan).
+# --- Core-tier cases (src/spu94, include/spu94) ---
+# CASE 1: clean core tree -> exit 0.
+run_case "core: clean tree" 0 "src/spu94/a.c"        '/* clean */'$'\n''#include <stdint.h>'$'\n''int32_t x;'
+# CASE 2: 'float' in core src -> exit 1.
+run_case "core: float in src"  1 "src/spu94/bad.c"   'float x;'
+# CASE 3: 'malloc' in core include -> exit 1.
+run_case "core: malloc in include" 1 "include/spu94/bad.h" 'void *p = malloc(1);'
+# CASE 4: 'long long' in core -- allowed -> exit 0.
+run_case "core: long long allowed" 0 "src/spu94/ok.c" 'long long ll;'
+# CASE 5: unqualified 'long' in core -> exit 1.
+run_case "core: unqualified long forbidden" 1 "src/spu94/bad2.c" 'long n;'
+# CASE 6: empty tree -> exit 0 (nothing to scan).
 (
     tmp=$(mktemp -d)
     cd "$tmp"
@@ -66,14 +65,20 @@ run_case "unqualified long forbidden" 1 "src/bad2.c" 'long n;'
     rm -rf "$tmp"
     exit $rc
 ) || fail=1
+# CASE 7: KNOWN LIMITATION pin -- mixed long long + unqualified long on one line (core) -> exit 0.
+# If a future contributor tightens grep-guard to per-token matching, this fails and
+# forces an intentional review. See KNOWN LIMITATION block in grep-guard.sh.
+run_case "core: known limitation (mixed long long + long on one line)" 0 "src/spu94/edge.c" 'long long ll; long n;'
 
-# CASE 7: KNOWN LIMITATION pin -- a single line containing BOTH `long long X;` AND
-# unqualified `long Y;` currently passes the guard because Pass 2's `grep -v 'long long'`
-# filters the entire line. This case asserts the CURRENT documented behavior (exit 0).
-# If a future contributor tightens grep-guard.sh to per-token matching, this fixture
-# will fail -- forcing the update to be intentional and reviewed. See the
-# KNOWN LIMITATIONS block at the top of scripts/ci/grep-guard.sh.
-run_case "known limitation: mixed long long + long on one line" 0 "src/edge.c" 'long long ll; long n;'
+# --- CLI-tier cases (src/cli) ---
+# CASE 8: 'malloc' in CLI -> allowed -> exit 0.
+run_case "cli: malloc allowed (userland work_buf + dr_wav)" 0 "src/cli/ok.c" 'void *p = malloc(1); free(p);'
+# CASE 9: 'float' in CLI -> exit 1 (bit-faithful determinism).
+run_case "cli: float forbidden" 1 "src/cli/bad.c" 'float x;'
+# CASE 10: unqualified 'long' in CLI -> allowed (stdlib boundary: strtol, ftell).
+run_case "cli: unqualified long allowed (stdlib boundary)" 0 "src/cli/ok2.c" 'long fs = 0;'
+# CASE 11: 'double' in CLI -> exit 1.
+run_case "cli: double forbidden" 1 "src/cli/bad2.c" 'double d;'
 
 if [ "$fail" -ne 0 ]; then
     echo
@@ -81,5 +86,5 @@ if [ "$fail" -ne 0 ]; then
     exit 1
 fi
 
-echo "test-grep-guard: OK (all 7 fixture cases passed, incl. case 7 known-limitation pin)."
+echo "test-grep-guard: OK (all 11 fixture cases passed across both tiers)."
 exit 0
