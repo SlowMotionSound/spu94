@@ -495,10 +495,36 @@ def self_test() -> None:
         L_out_audio = np.zeros(n_audio, dtype=np.int16)
         R_out_audio = np.zeros(n_audio, dtype=np.int16)
         process(state, L_in, R_in, L_out_audio, R_out_audio)
-        if not (bool(L_out_audio.any()) or bool(R_out_audio.any())):
+        # Non-silence floor (M1 close-out Step 6): not just "any" non-zero
+        # sample — that bar was tripable by a single feedback echo from a
+        # broken reverb. A correctly wired Hall produces hundreds of
+        # non-zero output samples per 2048-sample block once the network
+        # has primed. 100 is a conservative floor (~5% of the block) that
+        # the broken paths the audibility test guards against (HI-03,
+        # ADR-Phase-6-G, ADR-Phase-6-I) all under-shoot.
+        nonzero_l = int(np.count_nonzero(L_out_audio))
+        nonzero_r = int(np.count_nonzero(R_out_audio))
+        if (nonzero_l + nonzero_r) < 100:
             raise RuntimeError(
-                "spu94.self_test: Hall produced all-zero output for "
-                "non-silent input — reverb not in audio path (HI-03)"
+                f"spu94.self_test: Hall produced near-silent output "
+                f"({nonzero_l} non-zero L, {nonzero_r} non-zero R out of "
+                f"{n_audio}) for non-silent input — reverb path is "
+                f"broken or near-silent (HI-03 / ADR-Phase-6-I)"
+            )
+
+        # OOB observable (ADR-0023, M1 close-out Step 6): the Hall preset
+        # fits inside the SPU94_WORK_BUF_MAX_BYTES default work buffer
+        # by construction (ADR-0022 enforces it at load_preset time);
+        # any non-zero oob_tap_count here means the reverb body wandered
+        # past the buffer despite that gate, which is a regression we
+        # want to catch in CI before the wheel ships.
+        counters = get_error_counters(state)
+        if counters["oob_tap_count"] != 0:
+            raise RuntimeError(
+                f"spu94.self_test: Hall produced "
+                f"{counters['oob_tap_count']} OOB tap accesses — "
+                f"reverb body reached past work_buf_size despite "
+                f"ADR-0022 sizing gate. This is a regression."
             )
 
         # Long silent-input arm: keeps the original 1s process + 1s

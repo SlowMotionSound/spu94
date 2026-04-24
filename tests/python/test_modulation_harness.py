@@ -60,6 +60,15 @@ def test_stability(reg, mode, results):
         f"{reg.name}/{mode}: stability gate failed; "
         f"s2s_rms_max={res.sample_to_sample_rms_max:.3f}"
     )
+    # ADR-0023 (M1 close-out Step 6): Hall fits inside the
+    # SPU94_WORK_BUF_MAX_BYTES default by construction (ADR-0022). A
+    # non-zero OOB counter here means the modulation drove an address
+    # register past the buffer end — exactly the silent-corruption
+    # class the counter was added to surface.
+    assert res.oob_tap_count == 0, (
+        f"{reg.name}/{mode}: oob_tap_count={res.oob_tap_count} "
+        f"(must be 0 — modulation drove a tap past the work buffer)"
+    )
     results.setdefault(reg.name, {})[mode] = res
 
 
@@ -100,6 +109,7 @@ def test_report_written(results):
                     "sample_to_sample_rms_max": res.sample_to_sample_rms_max,
                     "zipper_onset_hz": res.zipper_onset_hz,
                     "out_sha256": res.out_sha256,
+                    "oob_tap_count": res.oob_tap_count,
                 }
                 for m, res in modes.items()
             },

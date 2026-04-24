@@ -156,6 +156,14 @@ class ModulationResult:
     zipper_onset_hz: Optional[float]
     sample_to_sample_rms_max: float
     stability_ok: bool
+    # ADR-0023 (M1 close-out Step 6): the snapshot of the OOB tap
+    # counter at the END of the run. Hall's working set fits inside
+    # the SPU94_WORK_BUF_MAX_BYTES default; a non-zero count here
+    # signals that the modulation drove an m-prefix or d-prefix
+    # register past the buffer end, which is the class of caller-bug
+    # the counter exists to surface. test_modulation_harness asserts
+    # this stays at 0 across all 105 cases.
+    oob_tap_count: int
 
 
 # ---------------------------------------------------------------------------
@@ -209,6 +217,8 @@ def run_one_case(
             be = min(bs + BLOCK, N)
             set_reg_typed(state_handle, reg, int(reg_vals[bs]))
             s.process(Lin[bs:be], Rin[bs:be], Lout[bs:be], Rout[bs:be])
+        # Snapshot the OOB counter BEFORE destroy zeros the state.
+        oob_tap_count = int(spu94.get_error_counters(state_handle)["oob_tap_count"])
     finally:
         # Destroy even on exception so parametrized runs don't leak state.
         s.destroy()
@@ -246,6 +256,7 @@ def run_one_case(
         zipper_onset_hz=zipper_onset,
         sample_to_sample_rms_max=s2s_rms_max,
         stability_ok=stability_ok,
+        oob_tap_count=oob_tap_count,
     )
 
 
