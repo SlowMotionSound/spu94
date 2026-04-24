@@ -24,6 +24,10 @@
 
 set -euo pipefail
 
+# LV2_COMMIT canonical value also lives in tests/python/_constants.py
+# (WR-07: Python harness + determinism test import from there). Shell
+# can't import Python, so this default must be bumped in lockstep with
+# _constants.py when the pin rolls.
 LV2_COMMIT="${LV2_COMMIT:-424e1e8ee7f780106b005011b036386513c61db3}"
 LV2_REPO="${LV2_REPO:-https://github.com/ipatix/lv2-psx-reverb}"
 WORK="${WITNESS_WORK:-$(pwd)/.artifacts/lv2-psx-reverb}"
@@ -77,18 +81,29 @@ mkdir -p "$WORK/prefix"
 popd >/dev/null
 
 # Locate the installed .lv2 bundle. waf install places it under
-# $prefix/lib/lv2/ on most layouts.
+# $prefix/lib/lv2/ on most layouts. Fine today (upstream ships one
+# bundle), but guard for the future: `find` order is filesystem-
+# defined, so we LC_ALL=C sort deterministically and assert exactly
+# one match. If upstream ever adds a `-debug` variant, this fails
+# loudly rather than silently picking a random one.
 mkdir -p "$WORK/lv2"
-BUNDLE=$(find "$WORK/prefix" -maxdepth 5 -name "*.lv2" -type d | head -1)
-if [ -z "$BUNDLE" ]; then
+BUNDLES=$(find "$WORK/prefix" -maxdepth 5 -name "*.lv2" -type d | LC_ALL=C sort)
+if [ -z "$BUNDLES" ]; then
     # Fall back to the build-dir bundle (waf puts an unfinalized copy in
     # $WORK/src/build/lv2/psx-reverb.lv2 during `build` stage).
-    BUNDLE=$(find "$WORK/src/build" -maxdepth 4 -name "*.lv2" -type d | head -1)
+    BUNDLES=$(find "$WORK/src/build" -maxdepth 4 -name "*.lv2" -type d | LC_ALL=C sort)
 fi
-if [ -z "$BUNDLE" ]; then
+if [ -z "$BUNDLES" ]; then
     echo "FAIL: no .lv2 bundle dir found after waf install" >&2
     exit 1
 fi
+BUNDLE_COUNT=$(printf '%s\n' "$BUNDLES" | wc -l)
+if [ "$BUNDLE_COUNT" -ne 1 ]; then
+    echo "FAIL: expected exactly 1 .lv2 bundle, got $BUNDLE_COUNT:" >&2
+    printf '  %s\n' $BUNDLES >&2
+    exit 1
+fi
+BUNDLE=$(printf '%s' "$BUNDLES")
 cp -r "$BUNDLE" "$WORK/lv2/"
 INSTALLED_BUNDLE="$WORK/lv2/$(basename "$BUNDLE")"
 
