@@ -29,10 +29,14 @@ from ._binding import (
     SPU94_LATENCY_SAMPLES,
     SPU94_REG__COUNT,
     SPU94_PRESET__COUNT,
+    SPU94_WORK_BUF_MAX_BYTES,
     SPU94_OK,
     SPU94_CLAMPED,
     SPU94_UNKNOWN_REG,
     SPU94_TYPE_MISMATCH,
+    SPU94_INVALID_STATE,
+    SPU94_WORK_BUF_TOO_SMALL,
+    SPU94_INVALID_ARG,
 )
 
 # ----------------------------------------------------------------------
@@ -105,10 +109,14 @@ __all__ = [
     "SPU94_LATENCY_SAMPLES",
     "SPU94_REG__COUNT",
     "SPU94_PRESET__COUNT",
+    "SPU94_WORK_BUF_MAX_BYTES",
     "SPU94_OK",
     "SPU94_CLAMPED",
     "SPU94_UNKNOWN_REG",
     "SPU94_TYPE_MISMATCH",
+    "SPU94_INVALID_STATE",
+    "SPU94_WORK_BUF_TOO_SMALL",
+    "SPU94_INVALID_ARG",
 ]
 
 # ----------------------------------------------------------------------

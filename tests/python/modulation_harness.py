@@ -43,7 +43,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT / "python"))
 
 import spu94  # noqa: E402 — after sys.path prepend
-from spu94 import SPU94, Preset, Register  # noqa: E402
+from spu94 import SPU94, Preset, Register, SPU94_WORK_BUF_MAX_BYTES  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Tunables
@@ -169,7 +169,9 @@ def run_one_case(
 ) -> Tuple[np.ndarray, ModulationResult]:
     """Drive SPU-94 with a 440 Hz sine input and the modulation stream for
     ``reg``; return (stereo_output_int16, ModulationResult)."""
-    s = SPU94()
+    # ADR-0022: SPU94's prior 8192-byte default work-buf is smaller than
+    # Hall requires; size explicitly against the max so every preset loads.
+    s = SPU94(work_buf_size=SPU94_WORK_BUF_MAX_BYTES)
     s.load_preset(Preset.HALL)
     # ADR-Phase-6-H: non-Off factory preset tables ship vLOUT=vROUT=0x7FFF,
     # so no post-load master-send unlock is required for HALL. The master

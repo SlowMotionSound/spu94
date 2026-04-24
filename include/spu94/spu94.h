@@ -51,10 +51,15 @@ extern "C" {
  *     clamping/wrapping happens per PS1 hardware; the code describes it.
  */
 typedef enum {
-    SPU94_OK            = 0,
-    SPU94_CLAMPED       = 1, /* value was saturated to fit the register */
-    SPU94_UNKNOWN_REG   = 2, /* register id out of range — no-op write   */
-    SPU94_TYPE_MISMATCH = 3  /* signed/unsigned accessor mismatch        */
+    SPU94_OK                 = 0,
+    SPU94_CLAMPED            = 1, /* value was saturated to fit the register */
+    SPU94_UNKNOWN_REG        = 2, /* register id out of range — no-op write   */
+    SPU94_TYPE_MISMATCH      = 3, /* signed/unsigned accessor mismatch        */
+    /* Appended 2026-04-24 (ADR-0022): mutation-time argument validation.
+     * Existing codes 0..3 remain stable in both name and numeric value. */
+    SPU94_INVALID_STATE      = 4, /* state == NULL on a mutation call          */
+    SPU94_WORK_BUF_TOO_SMALL = 5, /* caller's work_buf is too small for preset */
+    SPU94_INVALID_ARG        = 6  /* argument out of range (e.g., preset id)   */
 } spu94_result_t;
 
 #include <spu94/spu94_registers.h>
@@ -276,6 +281,39 @@ typedef struct {
 /* The factory preset table. Indexed by spu94_preset_id_t. Read-only. */
 extern const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT];
 
+/* ------------------------------------------------------------------------- */
+/* Work-buffer sizing contract (ADR-0022)                                    */
+/* ------------------------------------------------------------------------- */
+
+/* SPU94_WORK_BUF_MAX_BYTES — guaranteed to fit every factory preset.
+ *
+ * This is the PS1's full SPU RAM size (512 KiB). Every factory preset's
+ * delay-line access pattern fits within it. Callers that don't know in
+ * advance which preset(s) they'll load can size once against this constant
+ * and forget about it:
+ *
+ *     unsigned char work[SPU94_WORK_BUF_MAX_BYTES];
+ *     spu94_state *s = spu94_init(state_buf, SPU94_STATE_SIZE_MAX,
+ *                                 work, SPU94_WORK_BUF_MAX_BYTES);
+ *     spu94_load_preset(s, SPU94_PRESET_HALL);   // always safe
+ *
+ * For embedded callers with tighter memory budgets, use
+ * spu94_preset_min_work_buf_size(id) to get the exact byte count required
+ * for a specific preset. */
+#define SPU94_WORK_BUF_MAX_BYTES 0x80000u
+
+/* Return the minimum work_buf_size (bytes) required to safely run
+ * `spu94_load_preset(state, id)` followed by `spu94_process`. The value is
+ * a conservative upper bound on the highest byte offset the reverb network
+ * will touch while this preset is loaded: it scans the preset's address-
+ * type (u16) register values and returns (max_halfword_value + 1) * 2.
+ *
+ * For id >= SPU94_PRESET__COUNT returns 0.
+ *
+ * Deterministic: repeated calls with the same id return the same value.
+ * O(SPU94_REG__COUNT) on every call; callers wanting O(1) may cache. */
+size_t spu94_preset_min_work_buf_size(spu94_preset_id_t id);
+
 /* Atomically load one of the 10 factory presets into `state` (API-05, D-08).
  * Iterates all 35 registers via the Phase 2 engine-layer setters; the D-04
  * split write policy is honored automatically:
@@ -287,13 +325,24 @@ extern const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT];
  * and m-prefix delays) for one tick (~45 us at 22.05 kHz) is inaudible and
  * accepted as the D-08 contract.
  *
- * Returns:
- *   SPU94_OK            on success (state updated)
- *   SPU94_UNKNOWN_REG   if id >= SPU94_PRESET__COUNT (state NOT mutated)
- *   SPU94_OK            if state == NULL (lifecycle-null-safe convention)
+ * Returns (contract tightened 2026-04-24 per ADR-0022 — caller code gets
+ * actionable error signals instead of silent partial loads):
+ *   SPU94_OK                  on success (state updated atomically)
+ *   SPU94_INVALID_STATE       if state == NULL (state NOT mutated)
+ *   SPU94_INVALID_ARG         if id >= SPU94_PRESET__COUNT (state NOT mutated)
+ *   SPU94_WORK_BUF_TOO_SMALL  if state->work_buf_size is below
+ *                             spu94_preset_min_work_buf_size(id)
+ *                             (state NOT mutated — caller may retry with
+ *                              a larger work_buf after spu94_init again)
  *
  * Side effect: mBASE being IMMEDIATE fires spu94_mbase_on_write (snap-on-
- * write per ADR-0006) if the preset's mBASE differs from the current value. */
+ * write per ADR-0006) if the preset's mBASE differs from the current value.
+ *
+ * Migration note: prior to ADR-0022, this function returned SPU94_OK on NULL
+ * state (lifecycle-null-safe convention) and SPU94_UNKNOWN_REG on out-of-range
+ * id. Callers that branched on `if (rc != SPU94_OK)` continue to work. Callers
+ * that keyed specifically on SPU94_UNKNOWN_REG must switch to SPU94_INVALID_ARG
+ * for the out-of-range id case. */
 spu94_result_t spu94_load_preset(spu94_state *state, spu94_preset_id_t id);
 
 #ifdef __cplusplus

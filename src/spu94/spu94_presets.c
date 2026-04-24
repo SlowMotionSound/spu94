@@ -16,6 +16,7 @@
  * Provenance ADR lands in Plan 05. No prose transcribed; values only.
  */
 #include <spu94/spu94.h>
+#include "spu94_state_internal.h"
 #include <stdint.h>
 
 /* _Static_assert: the struct layout matches the 35-register contract. */
@@ -450,7 +451,45 @@ const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT] = {
 };
 
 /* -------------------------------------------------------------------------- */
-/* spu94_load_preset -- Phase 5 Plan 03 (API-05, D-08)                        */
+/* spu94_preset_min_work_buf_size -- ADR-0022                                 */
+/* -------------------------------------------------------------------------- */
+
+/* Compute the minimum work_buf_size (bytes) required for `id`.
+ *
+ * The reverb body's tap formulas access the work buffer at halfword offsets
+ * of the form `m*`, `m* - d*`, or `buffer_address + delta`. Every one of
+ * those offsets is bounded above by the maximum u16-type register value in
+ * the preset (see ADR-0022 analysis): m-prefix registers carry absolute
+ * halfword addresses, d-prefix registers carry small delay offsets that are
+ * always SUBTRACTED from an m-register, and buffer_address itself starts at
+ * mBASE and advances monotonically within the 0x7FFFE wrap window. So the
+ * highest byte offset any tick can access is (max_u16_reg_value + 1) * 2.
+ * The +1 accounts for the halfword occupying 2 bytes starting at that
+ * address.
+ *
+ * Conservative vs exact: this is an UPPER BOUND. For presets where the
+ * highest m-register is also the highest u16 value (typical), it's tight.
+ * For presets where a d-register happens to be larger than every m-register
+ * (unusual but legal), it's still an upper bound because d-values are only
+ * ever subtracted from m-values in tap formulas; the algorithm never reads
+ * at `d*` alone. Returning the max-u16-based bound covers both cases.
+ */
+size_t spu94_preset_min_work_buf_size(spu94_preset_id_t id) {
+    if ((int)id < 0 || (int)id >= (int)SPU94_PRESET__COUNT) return 0;
+    const spu94_preset_t *p = &spu94_presets[id];
+    uint32_t max_hw = 0u;
+    for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
+        if (spu94_reg_type((spu94_reg_t)r) != SPU94_REG_TYPE_U16) continue;
+        uint16_t v = (uint16_t)p->regs[r];
+        if ((uint32_t)v > max_hw) max_hw = (uint32_t)v;
+    }
+    /* (max_hw + 1) halfwords = (max_hw + 1) * 2 bytes. The +1 covers the
+     * halfword storage slot at the peak address. */
+    return (size_t)(max_hw + 1u) * 2u;
+}
+
+/* -------------------------------------------------------------------------- */
+/* spu94_load_preset -- Phase 5 Plan 03 (API-05, D-08), tightened by ADR-0022 */
 /* -------------------------------------------------------------------------- */
 
 /* Atomic bulk preset loader. Iterates the 35-register table for `id` and
@@ -459,15 +498,21 @@ const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT] = {
  * or TICK_LATCHED automatically -- no preset-specific bypass. The "half-
  * applied" window (v-prefix active now, d-prefix and m-prefix pending until
  * next tick) is the D-08 contract; inaudible at 22.05 kHz tick rate (~45 us).
+ *
+ * ADR-0022 validation: before mutating any register, check (a) state != NULL,
+ * (b) id in range, (c) work_buf_size large enough for the preset. Any failure
+ * returns a typed error code and leaves state untouched; the caller can
+ * recover (re-init with a larger work_buf, retry with a valid id, etc.)
+ * without cleaning up a half-applied preset.
  */
 spu94_result_t spu94_load_preset(spu94_state *state, spu94_preset_id_t id) {
-    /* Null-safe per lifecycle convention (D-12 carried from Phase 2). */
-    if (state == NULL) return SPU94_OK;
-    /* Bounds-check the id. SPU94_PRESET__COUNT is the sentinel = 10; any id
-     * >= 10 is out of range. Defensive: also reject negatives (caller may
-     * pass -1 cast). No register write occurs on rejection (T-5-3 mitigation). */
+    if (state == NULL) return SPU94_INVALID_STATE;
     if ((int)id < 0 || (int)id >= (int)SPU94_PRESET__COUNT) {
-        return SPU94_UNKNOWN_REG;
+        return SPU94_INVALID_ARG;
+    }
+    const size_t required = spu94_preset_min_work_buf_size(id);
+    if (state->work_buf_size < required) {
+        return SPU94_WORK_BUF_TOO_SMALL;
     }
     const spu94_preset_t *p = &spu94_presets[id];
     /* Iterate every register in enum order; dispatch to the correct engine-
@@ -475,14 +520,8 @@ spu94_result_t spu94_load_preset(spu94_state *state, spu94_preset_id_t id) {
     for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
         const int16_t raw = p->regs[r];
         if (spu94_reg_type((spu94_reg_t)r) == SPU94_REG_TYPE_I16) {
-            /* Engine-layer setter. Return value ignored -- any clamp is
-             * bit-faithful per ADR-0008 and a preset cannot trigger
-             * TYPE_MISMATCH (signedness matched by construction). */
             (void)spu94_set_reg_i16(state, (spu94_reg_t)r, raw);
         } else {
-            /* U16 family: reinterpret the 16 bits. The preset table stores
-             * uint16 bit-patterns in an int16 slot; the cast preserves the
-             * exact bit pattern. */
             (void)spu94_set_reg_u16(state, (spu94_reg_t)r, (uint16_t)raw);
         }
     }

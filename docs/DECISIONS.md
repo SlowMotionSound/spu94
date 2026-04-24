@@ -30,6 +30,69 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-0022: Work-buf sizing contract + load_preset argument validation
+
+**Status:** Accepted (2026-04-24, M1 close-out)
+
+**Relates:** D-07 (result-code enum is append-only; existing numeric values are stable); D-14 (`spu94_init` contract); D-13 (caller-owned reverb work buffer); ADR-Phase-6-G (non-Off factory presets carry `vLOUT = vROUT = 0x7FFF` so a correctly loaded preset emits signal out of the box — this ADR extends the "correctly loaded" guarantee to cover work-buf adequacy).
+
+**Context:**
+
+`spu94_load_preset(state, id)` was originally specified to follow the lifecycle-null-safe convention (D-12 / D-14): passing `NULL` for `state` returned `SPU94_OK` as a quiet no-op, and passing an out-of-range `id` returned `SPU94_UNKNOWN_REG`. The tacit assumption was that callers who cared would check the return value and callers who didn't would be working with a freshly `spu94_init`-returned handle that never went NULL in practice.
+
+Two M1 close-out findings broke the assumption:
+
+- **Finding A (ARCHITECTURAL-AUDIT.md Part 6, REVIEW-c-core.md):** The reverb body's tap formulas can read arbitrary byte offsets into the work buffer — bounded by the preset's m-prefix register values, which can reach `0x1ED6` (Space Echo `mLSAME` = 7894 halfwords = 15,790 bytes). The C API required the caller to size the work buffer correctly, but offered no way to query the required size and no runtime check. An under-sized work buffer produced out-of-bounds reads on the first `spu94_tick` after `spu94_load_preset`; the symptoms were quiet distortion or zeroed output, not a loud failure.
+
+- **Finding B (REVIEW-cli-python.md):** `SPU94_UNKNOWN_REG` was overloaded across two semantically distinct error classes — "register id out of range" (the original meaning, emitted by `spu94_set_reg_*` on a bad reg id) and "preset id out of range" (a load-time argument error that happens to be unrelated to register-level I/O). A caller dispatching on `SPU94_UNKNOWN_REG` could not tell which mistake they had made. Similarly, `SPU94_OK` on `NULL` state meant "load_preset silently did nothing"; a caller who missed the NULL check silently produced a state where no preset was loaded at all.
+
+The tightening must preserve D-07's append-only numeric stability: existing codes `0..3` are live ABI, and callers that pattern-match on `if (rc != SPU94_OK)` must continue to work.
+
+**Decision:**
+
+1. **Three new `spu94_result_t` codes**, appended at `4`, `5`, `6`. Existing names and numeric values for `SPU94_OK = 0`, `SPU94_CLAMPED = 1`, `SPU94_UNKNOWN_REG = 2`, `SPU94_TYPE_MISMATCH = 3` are preserved.
+   - `SPU94_INVALID_STATE = 4` — a mutation API received `state == NULL`.
+   - `SPU94_WORK_BUF_TOO_SMALL = 5` — the caller's `work_buf_size` is smaller than the preset requires.
+   - `SPU94_INVALID_ARG = 6` — a mutation API received an argument out of range (e.g., preset id). Distinct from `SPU94_UNKNOWN_REG` which stays scoped to register-id validation on `spu94_set_reg_*` / `spu94_get_reg_*`.
+
+2. **New sizing surface** in the public header (`include/spu94/spu94.h`):
+   - `#define SPU94_WORK_BUF_MAX_BYTES 0x80000` — the PS1 SPU's full 512 KiB RAM, guaranteed to fit every factory preset. Callers that don't want to size per-preset can size once against this constant and forget about it. Matches the CLI's existing 512 KB default, so the CLI's work buffer is already at the max.
+   - `size_t spu94_preset_min_work_buf_size(spu94_preset_id_t id)` — scans the preset's u16-family register values and returns `(max_halfword_value + 1) * 2` bytes as a conservative upper bound on the highest work-buf byte the reverb network will access. Returns `0` for an out-of-range `id`. Deterministic; `O(SPU94_REG__COUNT)`.
+
+3. **`spu94_load_preset` contract tightened** — before touching any register:
+   - `state == NULL` → `SPU94_INVALID_STATE`, no mutation.
+   - `id >= SPU94_PRESET__COUNT` (or negative) → `SPU94_INVALID_ARG`, no mutation.
+   - `state->work_buf_size < spu94_preset_min_work_buf_size(id)` → `SPU94_WORK_BUF_TOO_SMALL`, no mutation. The caller can `spu94_init` again with a larger work buffer and retry.
+   Any of the three failures leaves state bit-identical to its pre-call value; the caller never has to clean up a half-applied preset.
+
+4. **Python binding surfaces the new codes** (`python/spu94/_binding.py`, `python/spu94/__init__.py`) and the new constants (`SPU94_WORK_BUF_MAX_BYTES`). `python/spu94/api.py::load_preset` raises `RuntimeError` on `SPU94_WORK_BUF_TOO_SMALL` with a message naming the exact required size from `spu94_preset_min_work_buf_size` — a correctly-sized work buffer is a configuration prerequisite, not a runtime condition worth silent recovery. The other two new codes pass through as integer return values, matching the existing `SPU94_OK` / `SPU94_UNKNOWN_REG` pattern. `self_test()` now sizes its work buffer against `SPU94_WORK_BUF_MAX_BYTES` (it loads Hall, whose minimum is ~11 KB).
+
+5. **CLI surfaces the new codes** (`src/cli/main.c`). The CLI's work buffer is already `SPU94_WORK_BUF_MAX_BYTES` so `SPU94_WORK_BUF_TOO_SMALL` is unreachable in normal operation, but the return value is now checked and surfaced as a one-line diagnostic on any failure path (discipline matches D-05 one-line-per-error).
+
+**Consequences:**
+
+- Behavior change for two `spu94_load_preset` input cases: `NULL` state flips from `SPU94_OK` → `SPU94_INVALID_STATE`; out-of-range `id` flips from `SPU94_UNKNOWN_REG` → `SPU94_INVALID_ARG`. Callers pattern-matching on `if (rc != SPU94_OK)` are unaffected. Two test files key on the old specific codes: `tests/unit/preset/test_preset_load_all.c` (Tests 1 and 2) and `tests/python/binding/test_binding_numpy_contract.py` (`test_load_preset_unknown_id_*`); both updated in the same commit.
+- One test file loads Hall with an 8 KB work buffer (`tests/python/binding/test_binding_preset_table.py`) — that path now returns `SPU94_WORK_BUF_TOO_SMALL` and fails the equality assertion. Updated to `SPU94_WORK_BUF_MAX_BYTES` so the test exercises a fully loaded Hall preset.
+- `python/spu94/api.py::init`'s default `work_buf_size=8192` remains a per-step-5 follow-up; Step 3 does not change it. End-user callers who load Hall through `spu94.init()` + `spu94.load_preset(state, "hall")` with the current default now get a clear `RuntimeError` instead of silent under-reads. Step 5 raises the default to `SPU94_WORK_BUF_MAX_BYTES` so the happy path is "just works" even with no `work_buf_size` argument.
+- No ABI break. The enum is append-only; `sizeof(spu94_result_t)` is unchanged (still `int`-promoted); existing code paths for codes 0..3 are bit-identical.
+- `.planning/v1.0-MILESTONE-AUDIT.md` flagged this gap under "validation missing at API boundaries"; the audit status flips to passed for this axis once Step 3 commits.
+
+**Revision triggers:**
+
+- If a future preset family introduces address registers that are NOT in the u16 signedness family (all current ones are), `spu94_preset_min_work_buf_size` needs to scan by write-policy table instead of by signedness. The current implementation is tight enough for the 10 PS1 factory presets and any forward-compatible variant that preserves the u16 address-register convention.
+- If the `mBASE` immediate-policy semantics change (unlikely — locked by ADR-0006), the sizing bound may need to add a mBASE-offset term. Currently `mBASE = 0` for every factory preset, so the bound is computed as if the reverb network started at byte 0.
+- If Phase-M4 plugin hosts set register values outside the factory tables (a deliberate design goal for real-time modulation), the sizing query becomes per-live-state rather than per-preset-id. A hypothetical `spu94_state_min_work_buf_size(state)` variant covers that case; out of M1 scope.
+
+**Sources:**
+
+- `.planning/ARCHITECTURAL-AUDIT.md` Part 6 ordered migration plan, Step 3 ("work-buf size contract") — the enumeration of required-vs-done items driving this ADR.
+- `.planning/REVIEW-c-core.md` (argument-validation gaps at mutation-call boundaries).
+- `.planning/REVIEW-cli-python.md` (CLI silent drop of `spu94_load_preset` return value; Python `load_preset` lacking work-buf diagnostic).
+- D-07 (result-code enum append-only + numeric stability).
+- D-14 (`spu94_init` contract — why it was OK there to be null-safe but not OK in `spu94_load_preset`).
+
+---
+
 ## ADR-Phase-6-I: Reverb input wiring correction — chain_step_impl writes mix_bus_l/r with the 22.05 kHz decimator output, not raw 44.1 kHz samples
 
 **Status:** Accepted (2026-04-24, M1 close-out)

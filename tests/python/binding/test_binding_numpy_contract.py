@@ -19,7 +19,10 @@ import pytest
 
 
 def _fresh_state(spu94_module):
-    state = spu94_module.init(work_buf_size=8192)
+    # Size for every factory preset (ADR-0022). Several tests downstream
+    # switch the loaded preset to Hall, whose work-buf requirement exceeds
+    # the prior 8192 default.
+    state = spu94_module.init(work_buf_size=spu94_module.SPU94_WORK_BUF_MAX_BYTES)
     spu94_module.load_preset(state, "off")  # silence-friendly
     spu94_module.tick(state)
     return state
@@ -193,11 +196,13 @@ def test_load_preset_accepts_string_enum_int(spu94_module):
         spu94_module.destroy(state)
 
 
-def test_load_preset_unknown_id_returns_unknown_reg(spu94_module):
+def test_load_preset_unknown_id_returns_invalid_arg(spu94_module):
     state = _fresh_state(spu94_module)
     try:
-        # Integer out-of-range → SPU94_UNKNOWN_REG
-        assert spu94_module.load_preset(state, 99) == spu94_module.SPU94_UNKNOWN_REG
+        # Integer out-of-range → SPU94_INVALID_ARG (ADR-0022: tightened
+        # from the previous SPU94_UNKNOWN_REG overloading so callers
+        # receive an argument-validation-specific signal).
+        assert spu94_module.load_preset(state, 99) == spu94_module.SPU94_INVALID_ARG
     finally:
         spu94_module.destroy(state)
 
@@ -243,7 +248,9 @@ def test_spu94_class_constructs_and_destroys(spu94_module):
 
 
 def test_spu94_class_context_manager(spu94_module):
-    with spu94_module.SPU94() as rev:
+    # ADR-0022: Hall needs > 8192 bytes of work buffer; pass the max so
+    # load_preset doesn't trip SPU94_WORK_BUF_TOO_SMALL.
+    with spu94_module.SPU94(work_buf_size=spu94_module.SPU94_WORK_BUF_MAX_BYTES) as rev:
         assert rev.state is not None
         assert spu94_module.SPU94_OK == rev.load_preset("hall")
         rev.tick()
@@ -307,7 +314,8 @@ def test_spu94_class_repr(spu94_module):
 
 def test_spu94_class_flush(spu94_module):
     """The class's flush() forwards to api.flush."""
-    with spu94_module.SPU94() as rev:
+    # ADR-0022: Hall's minimum work-buf size exceeds the prior SPU94 default.
+    with spu94_module.SPU94(work_buf_size=spu94_module.SPU94_WORK_BUF_MAX_BYTES) as rev:
         rev.load_preset("hall")
         rev.tick()
         n = 512

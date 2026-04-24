@@ -110,10 +110,15 @@ def test_preset_matches_snapshot_after_load(spu94_module):
     state_size = lib.spu94_state_size()
 
     # Generous buffers so any future struct growth (guarded by
-    # SPU94_STATE_SIZE_MAX) still fits.
+    # SPU94_STATE_SIZE_MAX) still fits. Work buffer sized to
+    # SPU94_WORK_BUF_MAX_BYTES (ADR-0022) so load_preset(Hall) — which
+    # now validates the work buffer and returns SPU94_WORK_BUF_TOO_SMALL
+    # on insufficient space — succeeds for every preset including the
+    # larger delay-line presets (Hall / Space Echo).
     state_buf = (ctypes.c_uint8 * 16384)()
-    work_buf = (ctypes.c_uint8 * 8192)()
-    state = lib.spu94_init(state_buf, 16384, work_buf, 8192)
+    work_buf = (ctypes.c_uint8 * spu94_module.SPU94_WORK_BUF_MAX_BYTES)()
+    state = lib.spu94_init(state_buf, 16384, work_buf,
+                           spu94_module.SPU94_WORK_BUF_MAX_BYTES)
     assert state, "spu94_init returned NULL"
     try:
         rc = lib.spu94_load_preset(state, int(spu94_module.Preset.HALL))

@@ -169,6 +169,12 @@ _lib.spu94_flush.argtypes = [
 _lib.spu94_load_preset.restype = ctypes.c_int    # spu94_result_t enum
 _lib.spu94_load_preset.argtypes = [ctypes.c_void_p, ctypes.c_int]
 
+# Work-buf sizing (ADR-0022) --- scans the preset's u16 address registers
+# and returns the minimum work_buf_size in bytes required to load the preset
+# safely. Returns 0 for an out-of-range id. ---------------------------
+_lib.spu94_preset_min_work_buf_size.restype = ctypes.c_size_t
+_lib.spu94_preset_min_work_buf_size.argtypes = [ctypes.c_int]
+
 # Register identity + reflection (used at IMPORT TIME by __init__.py) --
 _lib.spu94_reg_name.restype = ctypes.c_char_p
 _lib.spu94_reg_name.argtypes = [ctypes.c_int]
@@ -218,9 +224,21 @@ SPU94_LATENCY_SAMPLES = 58
 SPU94_REG__COUNT = 35
 SPU94_PRESET__COUNT = 10
 
+# Work-buf sizing contract (ADR-0022). SPU94_WORK_BUF_MAX_BYTES is the PS1
+# SPU's full 512 KiB RAM — guaranteed to fit every factory preset. Callers
+# that don't know which preset(s) they'll load can size against this and
+# forget about it. Embedded callers can instead query
+# spu94_preset_min_work_buf_size(id) for an exact bound per preset.
+SPU94_WORK_BUF_MAX_BYTES = 0x80000
+
 # Result codes — re-exported as module-level ints. Plan 2 may promote
 # to a proper IntEnum once the public API layer lands.
 SPU94_OK = 0
 SPU94_CLAMPED = 1
 SPU94_UNKNOWN_REG = 2
 SPU94_TYPE_MISMATCH = 3
+# Appended 2026-04-24 (ADR-0022): argument validation at mutation sites.
+# Existing codes 0..3 keep their names and numeric values (append-only D-07).
+SPU94_INVALID_STATE = 4
+SPU94_WORK_BUF_TOO_SMALL = 5
+SPU94_INVALID_ARG = 6

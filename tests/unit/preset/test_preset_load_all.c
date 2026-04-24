@@ -8,8 +8,8 @@
  * pending-to-active transition.
  *
  * Six sub-tests (RUN_TEST calls):
- *   1. test_load_null_state_ok           -- NULL-safe per lifecycle convention
- *   2. test_load_out_of_range_id         -- SPU94_UNKNOWN_REG + no mutation
+ *   1. test_load_null_state_invalid      -- SPU94_INVALID_STATE (ADR-0022)
+ *   2. test_load_out_of_range_id         -- SPU94_INVALID_ARG + no mutation
  *   3. test_load_each_preset_immediate_active
  *                                        -- 12 v-prefix I16 regs active-visible
  *                                           immediately for every preset
@@ -52,17 +52,20 @@ static int is_immediate_u16(spu94_reg_t r) {
     return r == SPU94_REG_mBASE;
 }
 
-/* Test 1: NULL state -> returns SPU94_OK (lifecycle-null-safe convention,
- * D-12). Must not crash. */
-static void test_load_null_state_ok(void) {
-    TEST_ASSERT_EQUAL_INT((int)SPU94_OK,
+/* Test 1: NULL state -> returns SPU94_INVALID_STATE (ADR-0022). Before
+ * ADR-0022 this path returned SPU94_OK under the lifecycle-null-safe
+ * convention; the tightened contract treats a NULL state passed to a
+ * mutation call as a caller bug worth surfacing. Must not crash. */
+static void test_load_null_state_invalid(void) {
+    TEST_ASSERT_EQUAL_INT((int)SPU94_INVALID_STATE,
         (int)spu94_load_preset(NULL, SPU94_PRESET_HALL));
 }
 
-/* Test 2: out-of-range id -> SPU94_UNKNOWN_REG + no register mutation.
- * Proves the T-5-3 mitigation: a bad id leaves state as-is. */
+/* Test 2: out-of-range id -> SPU94_INVALID_ARG + no register mutation
+ * (ADR-0022; was SPU94_UNKNOWN_REG pre-tightening). Proves the T-5-3
+ * mitigation: a bad id leaves state as-is. */
 static void test_load_out_of_range_id(void) {
-    TEST_ASSERT_EQUAL_INT((int)SPU94_UNKNOWN_REG,
+    TEST_ASSERT_EQUAL_INT((int)SPU94_INVALID_ARG,
         (int)spu94_load_preset(state, SPU94_PRESET__COUNT));
     /* Every register -- both active slots (I16 readers) and U16 readers --
      * must still be zero (the post-spu94_reset baseline). */
@@ -176,7 +179,7 @@ static void test_load_post_tick_commits_latched(void) {
 
 int main(void) {
     UNITY_BEGIN();
-    RUN_TEST(test_load_null_state_ok);
+    RUN_TEST(test_load_null_state_invalid);
     RUN_TEST(test_load_out_of_range_id);
     RUN_TEST(test_load_each_preset_immediate_active);
     RUN_TEST(test_load_each_preset_mbase_immediate_active);

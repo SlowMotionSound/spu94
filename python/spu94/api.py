@@ -33,10 +33,14 @@ from ._binding import (
     SPU94_LATENCY_SAMPLES,
     SPU94_REG__COUNT,
     SPU94_PRESET__COUNT,
+    SPU94_WORK_BUF_MAX_BYTES,
     SPU94_OK,
     SPU94_CLAMPED,
     SPU94_UNKNOWN_REG,
     SPU94_TYPE_MISMATCH,
+    SPU94_INVALID_STATE,
+    SPU94_WORK_BUF_TOO_SMALL,
+    SPU94_INVALID_ARG,
 )
 
 # Forward-referenced at runtime — Register / Preset / presets are built
@@ -280,9 +284,22 @@ def load_preset(state: ctypes.c_void_p,
         presets lookup table)
 
     Returns the ``spu94_result_t`` code: ``SPU94_OK`` on success,
-    ``SPU94_UNKNOWN_REG`` if the preset id is out of range. String
-    lookup failures raise ``ValueError`` directly (a typoed preset
-    name is a caller bug, not a runtime condition)."""
+    ``SPU94_INVALID_ARG`` if the integer preset id is out of range,
+    ``SPU94_INVALID_STATE`` if ``state`` is NULL. String lookup
+    failures raise ``ValueError`` directly (a typoed preset name is a
+    caller bug, not a runtime condition).
+
+    Raises
+    ------
+    RuntimeError
+        When the C side returns ``SPU94_WORK_BUF_TOO_SMALL`` — the
+        state's work buffer is too small for this preset. The message
+        names the exact required size (via
+        ``spu94_preset_min_work_buf_size``) so the caller can re-init
+        with a correctly sized buffer. Treat this as a configuration
+        error, not a runtime signal worth silent recovery — a
+        half-loaded preset would corrupt the reverb algorithm state
+        (ADR-0022 rationale)."""
     from . import Preset, presets  # late import — avoids circular
     if isinstance(preset, Preset):
         preset_id = int(preset)
@@ -298,7 +315,17 @@ def load_preset(state: ctypes.c_void_p,
         raise TypeError(
             f"load_preset expects Preset, int, or str; got {type(preset).__name__}"
         )
-    return _lib.spu94_load_preset(state, preset_id)
+    rc = _lib.spu94_load_preset(state, preset_id)
+    if rc == SPU94_WORK_BUF_TOO_SMALL:
+        required = _lib.spu94_preset_min_work_buf_size(preset_id)
+        raise RuntimeError(
+            f"spu94.load_preset: preset {preset_id} requires a work buffer "
+            f"of at least {required} bytes. Re-initialize the state with "
+            f"work_buf_size >= {required} (or use "
+            f"SPU94_WORK_BUF_MAX_BYTES = {SPU94_WORK_BUF_MAX_BYTES} to "
+            f"cover every factory preset)."
+        )
+    return rc
 
 
 # ----------------------------------------------------------------------
@@ -411,7 +438,11 @@ def self_test() -> None:
     Any Python exception propagates — ``cibuildwheel`` catches it as a
     non-zero exit and the wheel is rejected.
     """
-    state = init(work_buf_size=8192)
+    # ADR-0022: size against SPU94_WORK_BUF_MAX_BYTES so the smoke test is
+    # safe against every factory preset. (Hall in particular needs ~11 KB
+    # of work buffer; the prior 8192 default would now trip
+    # SPU94_WORK_BUF_TOO_SMALL instead of silently corrupting.)
+    state = init(work_buf_size=SPU94_WORK_BUF_MAX_BYTES)
     try:
         rc = load_preset(state, "hall")
         if rc != SPU94_OK:

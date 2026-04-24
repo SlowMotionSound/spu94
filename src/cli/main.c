@@ -237,7 +237,27 @@ int main(int argc, char **argv) {
             SPU94_ERROR("unknown preset '%s' — valid: %s", preset_name, names);
             return 2;
         }
-        spu94_load_preset(state, (spu94_preset_id_t)pid);
+        /* ADR-0022: spu94_load_preset now validates state/id/work_buf and
+         * returns a typed error on failure. The CLI's work_buf is
+         * SPU94_WORK_BUF_MAX_BYTES (covers every factory preset), so
+         * WORK_BUF_TOO_SMALL is unreachable here in practice -- but we
+         * still surface it as a one-line diagnostic in case the buffer
+         * size ever gets tightened. */
+        spu94_result_t lrc = spu94_load_preset(state, (spu94_preset_id_t)pid);
+        if (lrc != SPU94_OK) {
+            const char *reason =
+                (lrc == SPU94_WORK_BUF_TOO_SMALL)
+                    ? "work buffer too small for this preset"
+                : (lrc == SPU94_INVALID_ARG)
+                    ? "preset id out of range (internal error)"
+                : (lrc == SPU94_INVALID_STATE)
+                    ? "state not initialized (internal error)"
+                    : "internal error";
+            spu94_destroy(state);
+            free(input.L); free(input.R); free(work_buf);
+            SPU94_ERROR("failed to load preset '%s': %s", preset_name, reason);
+            return 2;
+        }
     } else {
         if (spu94_cli_json_apply(config_path, state, err_buf, sizeof err_buf) != 0) {
             spu94_destroy(state);

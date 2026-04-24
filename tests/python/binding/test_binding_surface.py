@@ -27,6 +27,8 @@ REQUIRED_FUNCTIONS = {
     "spu94_get_buffer_address":   (ctypes.c_uint32, [ctypes.c_void_p]),
     "spu94_get_latency_samples":  (ctypes.c_uint32, []),
     "spu94_load_preset":          (ctypes.c_int, [ctypes.c_void_p, ctypes.c_int]),
+    "spu94_preset_min_work_buf_size":
+                                  (ctypes.c_size_t, [ctypes.c_int]),
     "spu94_reg_name":             (ctypes.c_char_p, [ctypes.c_int]),
     "spu94_reg_hw_offset":        (ctypes.c_uint16, [ctypes.c_int]),
     "spu94_reg_type":             (ctypes.c_int, [ctypes.c_int]),
@@ -82,3 +84,9 @@ def test_required_constants_exported(spu94_module):
     assert spu94_module.SPU94_CLAMPED == 1
     assert spu94_module.SPU94_UNKNOWN_REG == 2
     assert spu94_module.SPU94_TYPE_MISMATCH == 3
+    # ADR-0022 appended three argument-validation codes at 4/5/6. The
+    # numeric stability of existing codes 0..3 is preserved (D-07).
+    assert spu94_module.SPU94_INVALID_STATE == 4
+    assert spu94_module.SPU94_WORK_BUF_TOO_SMALL == 5
+    assert spu94_module.SPU94_INVALID_ARG == 6
+    assert spu94_module.SPU94_WORK_BUF_MAX_BYTES == 0x80000
