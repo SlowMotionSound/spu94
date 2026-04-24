@@ -171,6 +171,25 @@ def test_negative_tail_seconds_rejected(spu94_cli_path, sample_wav_file, tmp_wav
     assert _stderr_line_count(result.stderr) == 1
 
 
+def test_overlong_json_key_distinct_error(tmp_path, spu94_cli_path,
+                                          sample_wav_file, tmp_wav_out):
+    """H-04: a 70-char JSON key must produce a 'key too long' message,
+    NOT a misleading 'unknown register' error keyed on the truncated
+    first 63 chars of the gibberish key."""
+    bad = tmp_path / "long_key.json"
+    long_key = "x" * 70
+    bad.write_text(json.dumps({"base": "hall", "overrides": {long_key: 0}}))
+    result = subprocess.run(
+        [spu94_cli_path, "--config", str(bad), sample_wav_file, tmp_wav_out],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 2
+    assert _stderr_line_count(result.stderr) == 1
+    assert "too long" in result.stderr or "chars long" in result.stderr
+    assert "unknown register" not in result.stderr
+
+
 def _run_with_tail(spu94_cli_path, sample_wav_file, tmp_wav_out, tail):
     return subprocess.run(
         [spu94_cli_path, "--preset", "hall", "--tail-seconds", tail,

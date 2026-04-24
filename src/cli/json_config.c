@@ -152,6 +152,24 @@ static int apply_one(const char *json,
                     const jsmntok_t *tkey, const jsmntok_t *tval,
                     spu94_state *state,
                     char *err_buf, size_t err_buf_size) {
+    /* H-04: keys >= 64 chars are silently rejected by find_reg_by_name
+     * (its name buffer is 64). Surface that case distinctly so the user
+     * sees "key is too long" instead of a misleading "unknown register
+     * 'FIRST_63_CHARS_OF_GIBBERISH'" message. The longest canonical
+     * register name is 7 chars (e.g. mLCOMB1), so 64 is plenty for
+     * legitimate keys; anything larger is malformed config. */
+    size_t key_len = (size_t)(tkey->end - tkey->start);
+    if (key_len >= 64) {
+        char preview[16];
+        size_t ph = (key_len < 12) ? key_len : 12;
+        memcpy(preview, json + tkey->start, ph);
+        preview[ph] = '\0';
+        snprintf(err_buf, err_buf_size,
+                 "JSON key starting '%s...' is %zu chars long; expected "
+                 "one of the 35 register names (none exceed 7 chars)",
+                 preview, key_len);
+        return 1;
+    }
     int reg = find_reg_by_name(json, tkey);
     if (reg < 0) {
         char name[64];
