@@ -17,6 +17,7 @@ Via ctest:    ctest --test-dir build -R regenerate_goldens_meta
 """
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -81,9 +82,15 @@ def test_check_fails_on_mutated_wav(tmp_path: Path):
 
     # Run the script from tmp_path so its relative "tests/golden" picks up
     # the mutated copy. Point SPU94_BIN at the real CLI binary explicitly.
+    # Inherit os.environ so HOME / USER / TMPDIR / LD_LIBRARY_PATH are
+    # preserved: a missing runtime library for the spu94 CLI would
+    # otherwise surface as a "wav mismatch" instead of a link error, and
+    # absent TMPDIR / HOME can break Python interpreter startup on some
+    # containerized CI layouts. Only override the determinism keys +
+    # SPU94_BIN so the test still exercises the deterministic render path.
     env = {
+        **os.environ,
         "SPU94_BIN": str(SPU94_BIN),
-        "PATH": "/usr/bin:/bin",
         "LC_ALL": "C",
         "TZ": "UTC",
         "SOURCE_DATE_EPOCH": "1704067200",
