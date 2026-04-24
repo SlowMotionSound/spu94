@@ -171,6 +171,59 @@ def test_negative_tail_seconds_rejected(spu94_cli_path, sample_wav_file, tmp_wav
     assert _stderr_line_count(result.stderr) == 1
 
 
+def _run_with_tail(spu94_cli_path, sample_wav_file, tmp_wav_out, tail):
+    return subprocess.run(
+        [spu94_cli_path, "--preset", "hall", "--tail-seconds", tail,
+         sample_wav_file, tmp_wav_out],
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_tail_seconds_rejects_inf(spu94_cli_path, sample_wav_file, tmp_wav_out):
+    """C-02: the integer parser must reject 'inf' (no digits → !saw_digit)."""
+    result = _run_with_tail(spu94_cli_path, sample_wav_file, tmp_wav_out, "inf")
+    assert result.returncode == 2
+    assert _stderr_line_count(result.stderr) == 1
+    assert "tail-seconds" in result.stderr
+
+
+def test_tail_seconds_rejects_nan(spu94_cli_path, sample_wav_file, tmp_wav_out):
+    """C-02: 'nan' is also non-digit; must be rejected."""
+    result = _run_with_tail(spu94_cli_path, sample_wav_file, tmp_wav_out, "nan")
+    assert result.returncode == 2
+    assert _stderr_line_count(result.stderr) == 1
+    assert "tail-seconds" in result.stderr
+
+
+def test_tail_seconds_rejects_scientific_notation(spu94_cli_path, sample_wav_file, tmp_wav_out):
+    """C-02: '1e18' (the original review's attack vector) must be rejected
+    by the integer parser — `e` is trailing garbage after the leading `1`."""
+    result = _run_with_tail(spu94_cli_path, sample_wav_file, tmp_wav_out, "1e18")
+    assert result.returncode == 2
+    assert _stderr_line_count(result.stderr) == 1
+    assert "tail-seconds" in result.stderr
+
+
+def test_tail_seconds_rejects_above_cap(spu94_cli_path, sample_wav_file, tmp_wav_out):
+    """C-02: 601 seconds is just above the 600 s cap; must be rejected
+    BEFORE allocation so no buffer overflow risk reaches malloc."""
+    result = _run_with_tail(spu94_cli_path, sample_wav_file, tmp_wav_out, "601")
+    assert result.returncode == 2
+    assert _stderr_line_count(result.stderr) == 1
+    assert "tail-seconds" in result.stderr
+
+
+def test_tail_seconds_rejects_trailing_whitespace(spu94_cli_path, sample_wav_file, tmp_wav_out):
+    """L-05 / C-02: '1.5 ' (trailing space) must be rejected — locks in the
+    no-trailing-garbage contract that the integer parser enforces. Closes
+    the L-05 finding about strtod accepting some whitespace inconsistently."""
+    result = _run_with_tail(spu94_cli_path, sample_wav_file, tmp_wav_out, "1.5 ")
+    assert result.returncode == 2
+    assert _stderr_line_count(result.stderr) == 1
+    assert "tail-seconds" in result.stderr
+
+
 def _write_wav_fixture(path, sampwidth_bytes, num_frames=441):
     """Write a minimal stereo 44.1 kHz WAV with the given sample width.
     sampwidth_bytes: 1 (8-bit), 2 (16-bit), or 3 (24-bit). Frame data is zeros."""
