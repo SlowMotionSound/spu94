@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-last_updated: "2026-04-24T01:35:50.278Z"
+last_updated: "2026-04-24T23:21:44.000Z"
 progress:
   total_phases: 8
   completed_phases: 7
@@ -14,7 +14,7 @@ progress:
 
 # STATE: SPU-94
 
-**Last updated:** 2026-04-23
+**Last updated:** 2026-04-24
 
 ## Project Reference
 
@@ -189,7 +189,8 @@ None.
 - Step 4 shipped 2026-04-24 as commit bce2c13 (feat(observability): OOB tap counter via spu94_get_error_counters, ADR-0023). uint64 oob_tap_count on spu94_state; public spu94_error_counters_t + snapshot accessor; Python api.get_error_counters. tests/unit/state/test_error_counters.c added. 80/80 ctest green.
 - Step 5 shipped 2026-04-24 as commit fdeeb57 (feat(python): default work_buf_size = SPU94_WORK_BUF_MAX_BYTES). Removes Step-3 bandaids; the prior 8192 default no longer traps Hall-or-larger callers. 80/80 ctest green.
 - Step 6 shipped 2026-04-24 as commit efdf9a5 (test(observability): assert oob_tap_count==0 + non-silence floor). api.self_test() and modulation harness now consume the Step-4 counter; non-silence floor strengthens the audibility assertion. 80/80 ctest green.
-- Next in close-out: Step 7 (NULL-state-on-mutation across set_reg_*), Step 8 (CLI + Python critical findings), Step 11 (first GitHub Actions CI run), Steps 12-15 (witness-diff gate, external anchor, VERIFICATION.md, /gsd-audit-milestone + /gsd-complete-milestone).
+- Step 7 shipped 2026-04-24 as commit e81b360 (feat(api): tighten NULL-state-on-mutation in set_reg_i16/u16 to SPU94_INVALID_STATE per ADR-0022). Two engine-layer setters; spu94_registers.h doc updated; test renamed; out-of-range branch + getter NULL-state convention left alone. 80/80 ctest green.
+- Next in close-out: Step 8 (CLI + Python critical findings — C-01 24-bit WAV gate, C-02 tail-seconds bound + size_t overflow guard, H-03 destroy-then-reset keep-alive leak), Step 11 (first GitHub Actions CI run), Steps 12-15 (witness-diff gate, external anchor, VERIFICATION.md, /gsd-audit-milestone + /gsd-complete-milestone).
 - Phase 7 planning resumes AFTER M1 close-out completes and milestone is tagged.
 
 ---

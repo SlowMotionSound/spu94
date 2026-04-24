@@ -4,7 +4,7 @@
   "milestone": "v1.0 close-out (M1 remediation)",
   "phase": "M1 close-out — Stage 1 of ARCHITECTURAL-AUDIT.md migration plan",
   "plan": "ARCHITECTURAL-AUDIT.md Part 6 ordered migration plan",
-  "current_step": "Step 7: NULL-state-on-mutation across set_reg_*",
+  "current_step": "Step 8: Fix CLI and Python critical findings",
   "total_steps": 15,
   "completed_steps": [
     "Step 1: Fix grep-guard scope + CLI tail-seconds integer parse (commit 262930a)",
@@ -13,13 +13,13 @@
     "Step 3: work-buf size contract + load_preset validation (commit 72f2270, ADR-0022)",
     "Step 4: OOB tap counter via spu94_get_error_counters (commit bce2c13, ADR-0023)",
     "Step 5: bump Python default work_buf_size to SPU94_WORK_BUF_MAX_BYTES (commit fdeeb57)",
-    "Step 6: assert oob_tap_count==0 + non-silence floor in self_test + modulation harness (commit efdf9a5)"
+    "Step 6: assert oob_tap_count==0 + non-silence floor in self_test + modulation harness (commit efdf9a5)",
+    "Step 7: tighten NULL-state-on-mutation in set_reg_i16/u16 to SPU94_INVALID_STATE per ADR-0022 (commit e81b360)"
   ],
   "in_progress_step": null,
   "uncommitted_files": [],
   "remaining_steps": [
-    {"id": 7, "name": "Fix NULL-state-on-mutation across set_reg_* (return SPU94_INVALID_STATE)"},
-    {"id": 8, "name": "Fix CLI and Python critical findings (wav_io.c 24-bit WAV gate, api.destroy() nulls handle, etc.)"},
+    {"id": 8, "name": "Fix CLI and Python critical findings (C-01 24-bit WAV gate in wav_io.c, C-02 tail-seconds bound + size_t overflow in main.c, H-03 destroy-then-reset keep-alive leak, etc.)"},
     {"id": 11, "name": "Push to GitHub and verify CI green on GitHub Actions (FIRST real CI run; see ARCHITECTURAL-AUDIT.md Root Cause #4)"},
     {"id": 12, "name": "Land witness-diff tolerance gate (ADR + witness_diff_thresholds.json)"},
     {"id": 13, "name": "Land external-anchor test (hand-computed impulse response for a known preset)"},
@@ -30,7 +30,7 @@
   "human_actions_pending": [
     "None immediate. When step 11 runs, Anthony will want to eyeball the first GitHub Actions CI run and confirm all 5 jobs green."
   ],
-  "next_action": "Start Step 7: spu94_set_reg_i16 / spu94_set_reg_u16 currently return SPU94_UNKNOWN_REG when state == NULL (reusing the register-id-out-of-range code). Tighten to return SPU94_INVALID_STATE per ADR-0022's pattern. Update tests/unit/registers/test_register_io.c lines 94-95 (currently assert SPU94_UNKNOWN_REG for the NULL-state case) to expect SPU94_INVALID_STATE. Touch only the two engine-layer setters; getters with NULL state already return 0 (separate convention, leave alone).",
+  "next_action": "Start Step 8 with the two CLI criticals from REVIEW-cli-python.md (most surgical first). C-01: src/cli/wav_io.c spu94_cli_wav_load checks channels/sample_rate but never bitsPerSample — drwav silently down-converts 24-bit to 16-bit, which is the most likely shape Anthony will drop on the CLI. Add `if (dw.bitsPerSample != 16)` and `if (dw.translatedFormatTag != DR_WAVE_FORMAT_PCM)` gates with actionable error messages (the review report has the exact patch around lines 91-107). C-02: src/cli/main.c lines 203-216 compute tail_frames = (uint64_t)(tail_seconds * sample_rate + 0.5) with no upper bound on tail_seconds + no isfinite() check + no overflow guard on total_out * sizeof(int16_t). Cap tail_seconds at 3600.0 + isfinite() reject + SIZE_MAX/sizeof(int16_t) overflow guard. Each is its own atomic commit (lib + test together — wav_io test goes in tests/cli/, main.c test extends the existing CLI smoke). H-03 (destroy-then-reset c_void_p keep-alive leak in python/spu94/api.py) is the third sub-fix, separate commit. Step 8 is a multi-commit step — that's expected since it's the largest remaining stage.",
   "context_notes": [
     "The audit that drove this remediation is in .planning/ARCHITECTURAL-AUDIT.md — read it first for full context on the 4 root causes and target architecture.",
     "Three review reports in .planning/REVIEW-c-core.md, REVIEW-cli-python.md, REVIEW-tests-ci.md provide per-finding detail.",
@@ -41,7 +41,10 @@
     "Step 4 shipped as commit bce2c13 (feat(observability): OOB tap counter via spu94_get_error_counters). uint64 oob_tap_count field on spu94_state; public spu94_error_counters_t + accessor; Python api.get_error_counters returns a dict. tests/unit/state/test_error_counters.c (4 sub-tests). 80/80 ctest green.",
     "Step 5 shipped as commit fdeeb57 (feat(python): default work_buf_size = SPU94_WORK_BUF_MAX_BYTES). Removes the four Step-3 bandaids that passed explicit SPU94_WORK_BUF_MAX_BYTES (test_binding_numpy_contract.py + modulation_harness.py). 80/80 ctest green.",
     "Step 6 shipped as commit efdf9a5 (test(observability): assert oob_tap_count==0 + non-silence floor). api.self_test() now requires >=100 non-zero output samples and oob_tap_count==0; modulation harness ModulationResult grows an oob_tap_count field; test_stability asserts ==0 across all 105 cases. 80/80 ctest green.",
-    "Step 7 pattern: src/spu94/spu94_register_io.c — spu94_set_reg_i16 + spu94_set_reg_u16 currently early-return SPU94_UNKNOWN_REG when state==NULL (line ~70 area, the existing 'NULL state' branch). Change to SPU94_INVALID_STATE per ADR-0022. Update tests/unit/registers/test_register_io.c lines 94-95 (the test_null_state_returns_unknown_reg test) to expect SPU94_INVALID_STATE. Rename the test for clarity. Single-commit pattern: lib + test together."
+    "Step 7 shipped as commit e81b360 (feat(api): tighten NULL-state-on-mutation in set_reg_i16/u16 to SPU94_INVALID_STATE). Two engine-layer setters' state==NULL branches changed from SPU94_UNKNOWN_REG to SPU94_INVALID_STATE per ADR-0022; test renamed test_null_state_set_returns_invalid_state_get_returns_zero; spu94_registers.h doc comment updated. Out-of-range reg id branch keeps SPU94_UNKNOWN_REG (separate semantic). Getters keep NULL-state-returns-zero (D-23 read-only observability). 80/80 ctest green.",
+    "Step 8 scope: REVIEW-cli-python.md lists 2 critical + 6 high + 7 medium + 5 low + 4 nit findings. Step 8 takes the 2 critical (C-01 24-bit WAV gate, C-02 tail-seconds bound + overflow guard) plus H-03 (destroy-then-reset keep-alive leak — the api.destroy() finding HANDOFF originally referenced). H-04..H-06 (json_config.c truncation + duplicate-key hole + parse_int_or_hex laxity) are also in scope but lower urgency; assess after the 3 surgical fixes ship. Mediums and below can be triaged into a separate cleanup pass after Step 11 CI run.",
+    "REVIEW-cli-python.md C-01 patch (lines 91-107) is verbatim usable; bitsPerSample != 16 gate + non-PCM gate. drwav uninit cleanup is in the review's snippet. Test goes in tests/cli/ (existing dir) — fixture WAV in 24-bit PCM should be small (a few hundred frames at 44.1kHz), built at test time via drwav write or python wave module to avoid binary fixtures in repo.",
+    "REVIEW-cli-python.md C-02 fix (lines 142-161): cap tail_seconds at 3600.0, reject !isfinite, overflow-guard tail_frames + total_out * sizeof(int16_t) before malloc. The cap is policy — Anthony may want a higher number; 3600 is a reasonable starting point for the CLI use case (one-hour reverb tail is way past audibility for any preset)."
   ],
   "handoff_markdown": ".planning/HANDOFF.md"
 }
