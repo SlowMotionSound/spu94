@@ -84,3 +84,17 @@ target_include_directories(test_process_reverb_linearity PRIVATE
     ${CMAKE_SOURCE_DIR}/include)
 add_test(NAME test_process_reverb_linearity COMMAND test_process_reverb_linearity)
 set_tests_properties(test_process_reverb_linearity PROPERTIES LABELS "process")
+
+# Step 13 / M1 close-out: external-anchor test.
+# Off preset + impulse input must produce all-zero output (algebra: every
+# gain register in Off is 0x0000, so the SPU reverb's output equation
+# evaluates to identically zero for any input). Catches the class of bug
+# where SPU-94 is reproducible-but-wrong — the witness-diff harness,
+# golden files, and modulation harness all confirm reproducibility but
+# none of them confirms correctness against an externally-derived value.
+add_executable(test_process_external_anchor_off test_process_external_anchor_off.c)
+target_link_libraries(test_process_external_anchor_off PRIVATE unity spu94_static spu94_warnings)
+target_include_directories(test_process_external_anchor_off PRIVATE
+    ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME test_process_external_anchor_off COMMAND test_process_external_anchor_off)
+set_tests_properties(test_process_external_anchor_off PROPERTIES LABELS "process")
