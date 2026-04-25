@@ -2,9 +2,11 @@
 
 ## Current State
 
-**Shipped:** v1.0 Reverb Core (2026-04-25). 7 phases, 33 plans, 58 tasks complete. The bit-faithful PS1 SPU reverb network is implemented end-to-end as `libspu94`, with Python bindings, a native CLI, the 10 PS1 factory presets, full spec-conformance + golden-file + witness-diff + modulation test infrastructure, and a polished README. 82/82 ctest green. M1 close-out remediation cycle (Steps 1-15 from `ARCHITECTURAL-AUDIT.md`) hardened the test surface and closed every audit-flagged correctness gap; see `.planning/milestones/v1.0-MILESTONE-AUDIT.md` for the post-remediation re-audit and `.planning/MILESTONES.md` for the shipped accomplishments list.
+**Shipped:** M1 — Reverb Core foundation (2026-04-25). 7 phases, 33 plans, 58 tasks complete. The bit-faithful PS1 SPU reverb network is implemented end-to-end as `libspu94`, with Python bindings, a native CLI, the 10 PS1 factory presets, full spec-conformance + golden-file + witness-diff + modulation test infrastructure, and a polished README. 82/82 ctest green. M1 close-out remediation cycle (Steps 1-15 from `ARCHITECTURAL-AUDIT.md`) hardened the test surface and closed every audit-flagged correctness gap; see `.planning/milestones/v1.0-MILESTONE-AUDIT.md` for the post-remediation re-audit (filename uses GSD's internal milestone numbering) and `.planning/MILESTONES.md` for the shipped accomplishments list.
 
-**Tagged:** v1.0 (annotated, local).
+**Important framing distinction (2026-04-25 redefinition):** GSD's internal "milestone v1.0" tracks the first batch of shipped phases (the library core). Anthony's user-facing **v1.0 = M4 JUCE plugin shippable to a DAW** — when a user can install the plugin, open it in Reaper / Ableton / Logic, and play with the PS1 reverb. Until M4 ships, the project version is **pre-1.0** (`m1-reverb-core` is the current tag).
+
+**Tagged:** `m1-reverb-core` (annotated, local). The `v1.0` tag is intentionally NOT used for this milestone — per Anthony's redefinition, **v1.0 = M4 plugin shippable to a DAW**, not just the library + CLI. What shipped here is M1 (reverb core foundation), tagged accordingly.
 
 **Next milestone:** v1.1 ADPCM (per the M1→M5 plan in `memory/project_milestones.md`). Run `/gsd-new-milestone` to scope properly — questioning → research → requirements → roadmap.
 
@@ -42,15 +44,19 @@ Rigor governs the algorithm; musicality governs everything that surrounds it. Th
 - ✓ Maintain `docs/LEVERS-CATALOG.md` — v1.0 (Phase 7, 35-register catalog with AUTO columns populated: 12 free / 6 sample-quantized / 17 catastrophic; HAND columns seeded for M4)
 - ✓ Resolve and document the delay-length-register-change gray area — v1.0 (Phase 5 fuzz harness + ADR-0006 mBASE snap-on-write + ADR-0005 split write-timing policy; mid-stream `m*`/`d*` writes are first-class via TICK_LATCHED semantics)
 
-### Active — Milestone 2 (ADPCM) — to be scoped
+### Active — Next Milestone: M4 (JUCE plugin → product v1.0) — to be scoped
 
-The next milestone is v1.1 ADPCM (per `memory/project_milestones.md`). Use `/gsd-new-milestone` to run a proper questioning → research → requirements → roadmap pass for M2; this section is intentionally empty until that pass produces the M2 requirements list.
+**Sequencing change (2026-04-25):** M4 is being pulled forward ahead of M2 (ADPCM) and M3 (DAC modeling). Anthony's framing: he wants a UI he can actually use; the reverb already works on PCM in / PCM out, so a DAW-hosted plugin doesn't need ADPCM (DAW provides PCM natively) and doesn't need DAC modeling (it can layer in later as a switchable flag). M4 completion = product v1.0 by Anthony's definition.
+
+M4 scope is intentionally empty until `/gsd-new-milestone` runs the questioning → research → requirements → roadmap pass. Open shaping questions for that pass include: VST3/AU/LV2/Standalone target priority; UI shape (Anthony's "living instrument" framing implies named musical levers — Room Size, Pre Delay, etc. — not raw register exposure, per `feedback_user_facing_docs_polished.md`); preset bank shape (all 10 PS1 factory presets vs curated subset); parameter automation / CV mapping shape.
+
+M2 (ADPCM) and M3 (DAC modeling) are deferred — not abandoned. They layer on top of the M1 reverb core without changing the plugin's user-facing surface and can ship as later updates.
 
 ### Out of Scope (for v1.0; most deferred, not abandoned)
 
-- **4-bit Sony ADPCM encode/decode** — deferred to Milestone 2 (next); its own gray-area journey
-- **DAC reconstruction modeling** — deferred to Milestone 3
-- **JUCE / VST3 / AU / LV2 plugin** — deferred to Milestone 4; library is the v1.0 product
+- **4-bit Sony ADPCM encode/decode** — deferred to AFTER M4 plugin per the 2026-04-25 sequencing change; the DAW provides PCM natively so ADPCM isn't needed for plugin usability. Will land as a post-v1.0 update; its own gray-area journey.
+- **DAC reconstruction modeling** — deferred to AFTER M4 plugin per the 2026-04-25 sequencing change; layers in as a switchable flag without changing the plugin's user-facing surface
+- **JUCE / VST3 / AU / LV2 plugin** — pulled forward as M4 = the next milestone (no longer deferred per 2026-04-25 redefinition; M4 completion is product v1.0)
 - **Named musical levers ("Room Size", "Pre Delay", etc.), parameter smoothing, CV mappings, plugin UI** — Milestone 4 work atop the v1.0 register API. v1.0 contributed: glitch-free mid-stream register API + `LEVERS-CATALOG.md` candidate-lever catalog. Lever abstraction itself is M4.
 - **Hardware validation via PSX homebrew + digital capture** — deferred to Milestone 5; Anthony has an original PSX
 - **Eurorack module** — explicitly future direction, separately documented in `ps1-reverb-eurorack.md`
@@ -126,4 +132,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-25 after v1.0 milestone shipped (M1 Reverb Core; 7 phases, 33 plans, 58 tasks; M1 close-out remediation 15-step plan landed; 82/82 ctest green; tagged v1.0).*
+*Last updated: 2026-04-25 after M1 Reverb Core shipped (7 phases, 33 plans, 58 tasks; M1 close-out remediation 15-step plan landed; 82/82 ctest green; tagged `m1-reverb-core`). Product v1.0 redefined same day to mean M4 JUCE plugin completion; M2/M3 deferred behind M4.*

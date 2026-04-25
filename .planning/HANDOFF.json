@@ -1,10 +1,10 @@
 {
-  "status": "milestone_shipped",
+  "status": "m1_shipped_pre_m4",
   "session_date": "2026-04-25",
-  "milestone": "v1.0 Reverb Core (shipped 2026-04-25)",
+  "milestone": "M1 Reverb Core shipped 2026-04-25 (tag m1-reverb-core); product v1.0 redefined to mean M4 plugin completion",
   "phase": "M1 close-out — ARCHITECTURAL-AUDIT.md Part 6 ordered migration plan",
   "plan": "ARCHITECTURAL-AUDIT.md Part 6 ordered migration plan",
-  "current_step": "v1.0 shipped; awaiting Anthony to pick the next workstream",
+  "current_step": "M1 shipped; ready to scope M4 (JUCE plugin) as the next milestone",
   "total_steps": 15,
   "completed_steps": [
     "Step 1: Fix grep-guard scope + CLI tail-seconds integer parse (commit 262930a)",
@@ -19,24 +19,25 @@
     "Step 12: per-preset witness-diff threshold gate + ADR-0024 (commit 009b636)",
     "Step 13: external-anchor regression gate via Off preset impulse → silent output algebraic invariant (commit 06e5b40)",
     "Step 14: Phase 6 VERIFICATION.md consolidating UAT + SUMMARY + post-remediation evidence; promotes 11 Phase 6 reqs from 2-source to 3-source (commit fddbcad)",
-    "Step 15: re-audit milestone (status: gaps_found → passed), archive ROADMAP/REQUIREMENTS/AUDIT to .planning/milestones/, evolve PROJECT.md to v1.0-shipped state, commit milestone close (commit 7e59b6c), tag v1.0 (annotated, unsigned)"
+    "Step 15: re-audit milestone (status: gaps_found → passed), archive ROADMAP/REQUIREMENTS/AUDIT to .planning/milestones/, evolve PROJECT.md to milestone-shipped state, commit milestone close (commit 7e59b6c), initially tagged v1.0 (annotated, unsigned). Tag was retagged later same day from `v1.0` to `m1-reverb-core` after Anthony redefined product v1.0 = M4 plugin completion (`v1.0` reserved for the future M4 ship)."
   ],
   "in_progress_step": null,
   "uncommitted_files": [],
   "remaining_steps": [],
   "blockers": [],
   "human_actions_pending": [],
-  "next_action": "v1.0 is shipped + tagged. Anthony picks the next workstream. Natural candidates: `/gsd-new-milestone` to scope M2 ADPCM; pre-M2 cleanup (REVIEW-cli-python.md mediums/lows/nits — M-01..M-07 + L-01..L-05 + N-01..N-04, all deferred per the review's own ship-with-known-issues triage); `/gsd-validate-phase 6` + `/gsd-validate-phase 7` to flip the Nyquist paperwork flag from draft to compliant. None are blockers; all are post-M1.",
+  "next_action": "M1 Reverb Core is shipped + tagged `m1-reverb-core`. The next milestone is M4 (JUCE plugin), pulled forward ahead of M2 (ADPCM) and M3 (DAC modeling) per Anthony's 2026-04-25 redefinition: product v1.0 = M4 completion, not M1. Scope M4 via `/gsd-new-milestone`; the questioning pass needs to surface plugin-format priority (VST3/AU/LV2/Standalone), UI shape (Anthony's 'living instrument' framing implies named musical levers — Room Size, Pre Delay, etc. — not raw register exposure), and preset-bank shape. M2 ADPCM and M3 DAC modeling are deferred PAST M4 — they layer on top of the reverb core without changing the plugin's user-facing surface. Pre-M4 cleanup is optional: REVIEW-cli-python.md mediums/lows/nits (M-01..M-07 + L-01..L-05 + N-01..N-04, all deferred per the review's own ship-with-known-issues triage); `/gsd-validate-phase 6` + `/gsd-validate-phase 7` for Nyquist paperwork. None are M4 blockers.",
   "context_notes": [
     "The audit that drove the remediation cycle is in .planning/ARCHITECTURAL-AUDIT.md — read it for full context on the 4 root causes and target architecture.",
     "Three review reports in .planning/REVIEW-c-core.md, REVIEW-cli-python.md, REVIEW-tests-ci.md provide per-finding detail.",
     ".planning/milestones/v1.0-MILESTONE-AUDIT.md is the post-remediation re-audit — status flipped from gaps_found to passed.",
     ".planning/v1.0-GOLDENS-REGEN.md documents the regen event that happened during Step 2.",
-    "Phase 8 (MCU cross-compile) is parked per Anthony's 2026-04-24 decision — moves to between M4 and M5. The portability claim is upheld by design discipline (no heap, no locks, no syscalls, no STL) verified at v1.0 by 4 rt_safety ctest targets.",
-    "v1.0 ship state: 82/82 ctest green, 19 spu94 T-symbols on libspu94.so, 24 numbered ADRs + 11 phase-prefixed ADRs, 50-pair golden corpus + Docker reproducibility, witness-diff per-preset threshold gate (ADR-0024) + external-anchor algebraic invariant (Step 13). Tagged v1.0 (annotated, unsigned) as commit 7e59b6c.",
+    "Phase 8 (MCU cross-compile) is parked per Anthony's 2026-04-24 decision — would move to between M4 and M5 if it happens at all. The portability claim is upheld by design discipline (no heap, no locks, no syscalls, no STL) verified at M1 by 4 rt_safety ctest targets.",
+    "M1 ship state: 82/82 ctest green, 19 spu94 T-symbols on libspu94.so, 24 numbered ADRs + 11 phase-prefixed ADRs, 50-pair golden corpus + Docker reproducibility, witness-diff per-preset threshold gate (ADR-0024) + external-anchor algebraic invariant (Step 13). Tagged `m1-reverb-core` (annotated, unsigned) at commit 7e59b6c.",
     "Phase 6 VERIFICATION.md (Step 14) consolidates the existing UAT + SUMMARY + traceability evidence; promotes 11 Phase 6 requirements (PYBIND-01..06, CLI-01..04, DOCS-04) from 2-source to 3-source. The remaining tech debt — VALIDATION.md draft status on Phases 6 and 7 — is paperwork-only (Nyquist sign-off ceremony); functional verification is complete.",
-    "PROJECT.md was evolved to v1.0-shipped state: 19 requirements moved to Validated; Active section reset; Key Decisions table flipped 'Pending' to 'Good'/'Revisit' outcomes; Current State section added.",
-    "Pre-M2 cleanup candidates (post-M1 nice-to-haves): REVIEW-cli-python.md mediums (M-01 thread-safe _silent_in cache, M-02 spu94_cli_preset_name_list silent truncation, M-03 fread return checking, M-04 fflush/fsync before drwav_uninit, M-05 _coerce_reg bounds check, M-06 process length validator None-check, M-07 preset name UTF-8 decoding) + lows (L-01 tolower-on-signed-char, L-02 stale work-buf comment, L-03 work_buf=0 not supported in Python init, L-04 os.execv leaks interpreter state, L-05 fold into Step 8 closure as best-effort). REVIEW-c-core.md, REVIEW-tests-ci.md were not exhaustively triaged in M1 close-out — review pre-M2."
+    "PROJECT.md was evolved to M1-shipped state then refined for the v1.0 redefinition: 19 requirements moved to Validated; Active section now points at M4 (JUCE plugin) as the next milestone; Key Decisions table flipped 'Pending' to 'Good'/'Revisit' outcomes; Current State section explains the GSD-internal-v1.0-vs-product-v1.0 distinction.",
+    "M4 sequencing: Anthony's 2026-04-25 redefinition pulled M4 (JUCE plugin) forward ahead of M2 (ADPCM) and M3 (DAC modeling). Reasoning: the reverb works on PCM in / PCM out, a DAW provides PCM natively, so ADPCM is unnecessary for plugin usability; DAC modeling can layer in later as a switchable flag without changing the plugin's user-facing surface. M4 completion = product v1.0.",
+    "Pre-M4 cleanup candidates (optional, not blockers): REVIEW-cli-python.md mediums (M-01 thread-safe _silent_in cache, M-02 spu94_cli_preset_name_list silent truncation, M-03 fread return checking, M-04 fflush/fsync before drwav_uninit, M-05 _coerce_reg bounds check, M-06 process length validator None-check, M-07 preset name UTF-8 decoding) + lows (L-01 tolower-on-signed-char, L-02 stale work-buf comment, L-03 work_buf=0 not supported in Python init, L-04 os.execv leaks interpreter state, L-05 fold into Step 8 closure as best-effort). REVIEW-c-core.md, REVIEW-tests-ci.md were not exhaustively triaged in M1 close-out — review opportunistically before / during M4 if relevant."
   ],
   "handoff_markdown": ".planning/HANDOFF.md"
 }

@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-last_updated: "2026-04-25T01:23:24.000Z"
+last_updated: "2026-04-25T14:04:33.000Z"
 progress:
   total_phases: 8
   completed_phases: 7
@@ -22,20 +22,22 @@ See: .planning/PROJECT.md (updated 2026-04-25 — v1.0 shipped)
 
 **Project:** SPU-94 — bit-faithful PS1 SPU reverb DSP
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current Focus:** v1.0 shipped 2026-04-25 (tag v1.0). Awaiting Anthony to pick the next workstream.
+**Current Focus:** M1 Reverb Core shipped 2026-04-25 (tag `m1-reverb-core`). Next milestone is M4 (JUCE plugin) per the 2026-04-25 sequencing change — M4 completion is product v1.0 by Anthony's redefinition.
 
 ## Current Position
 
-**Milestone v1.0 (Reverb Core) shipped 2026-04-25.** 7 phases, 33 plans, 58 tasks, 82/82 ctest green. Tagged v1.0 locally.
+**M1 Reverb Core shipped 2026-04-25.** 7 phases, 33 plans, 58 tasks, 82/82 ctest green. Tagged `m1-reverb-core` locally. Product v1.0 = M4 plugin (still ahead).
 
-- **Milestone:** 1 (v1.0) — **COMPLETED**
-- **Phase:** all v1.0 phases (1-7) complete; Phase 8 parked per 2026-04-24 decision (moves to between M4 and M5)
-- **Plan:** n/a — milestone closed
-- **Status:** v1.0 milestone complete
-- **Progress:** [██████████] 100%
+- **GSD milestone:** 1 — **COMPLETED** (internal phase batching; archived to `.planning/milestones/v1.0-*` keeping the GSD nomenclature)
+- **Product version:** pre-1.0; v1.0 reserved for M4 plugin ship
+- **Phase:** all M1 phases (1-7) complete; Phase 8 parked per 2026-04-24 decision (moves to between M4 and M5 if it happens at all)
+- **Plan:** n/a — M1 closed
+- **Status:** ready to scope M4 (JUCE plugin)
+- **Progress:** [██████████] 100% of M1; pre-M4
 
 ```
-[██████████] 33/33 plans + M1 close-out remediation (15-step plan landed locally) — v1.0 SHIPPED
+[██████████] M1 Reverb Core SHIPPED — library + CLI + Python binding + verification stack
+[░░░░░░░░░░] M4 JUCE plugin (next; product v1.0)
 ```
 
 ## Performance Metrics
@@ -194,13 +196,14 @@ None.
 - Step 12 shipped 2026-04-25 as commit 009b636 (feat(witness): per-preset divergence threshold gate + ADR-0024). config/witness_diff_thresholds.json + tests/python/test_witness_thresholds.py + ADR-0024 prepended to docs/DECISIONS.md. 81/81 ctest green.
 - Step 13 shipped 2026-04-25 as commit 06e5b40 (test(process): external-anchor regression gate via Off preset). Off preset + impulse → algebraically zero output; tests/unit/process/test_process_external_anchor_off.c. 82/82 ctest green.
 - Step 14 shipped 2026-04-25 as commit fddbcad (docs(verification): add Phase 6 VERIFICATION.md). Consolidates evidence from 06-UAT.md, 06-HUMAN-UAT.md, 06-VALIDATION.md, the five 06-0?-SUMMARY.md docs, plus all M1 close-out remediation commits. Promotes 11 Phase 6 requirements (PYBIND-01..06, CLI-01..04, DOCS-04) from 2-source to 3-source verified.
-- Step 15 shipped 2026-04-25 as commits 7e59b6c (chore: complete v1.0 milestone) + git tag v1.0. Re-audited v1.0-MILESTONE-AUDIT.md flipped status from gaps_found to passed. Archived ROADMAP/REQUIREMENTS/AUDIT to .planning/milestones/. Created MILESTONES.md with 7-phase shipped accomplishments. Evolved PROJECT.md to v1.0-shipped state. Tagged v1.0 (annotated, unsigned).
+- Step 15 shipped 2026-04-25 as commits 7e59b6c (chore: complete v1.0 milestone) + initial v1.0 git tag. Re-audited v1.0-MILESTONE-AUDIT.md flipped status from gaps_found to passed. Archived ROADMAP/REQUIREMENTS/AUDIT to .planning/milestones/. Created MILESTONES.md with 7-phase shipped accomplishments. Evolved PROJECT.md to milestone-shipped state. Tag was retagged later same day from `v1.0` to `m1-reverb-core` after Anthony redefined product v1.0 = M4 plugin completion (`v1.0` reserved for the future M4 ship).
 - **M1 close-out plan landed locally (Steps 1-10 + 12-15).** All correctness gates in; test surface hardened from 66 ctest at Phase 6 close to 82 ctest at v1.0 ship; zero existing tests broken throughout.
 
 ### Next Session
 
-- M2 ADPCM scoping via `/gsd-new-milestone` whenever Anthony is ready. The questioning → research → requirements → roadmap pass produces the M2 active-requirements list that PROJECT.md is currently holding empty.
-- Optional pre-M2 cleanup: REVIEW-cli-python.md M-01..M-07, L-01..L-05, N-01..N-04 findings (deferred per the review's own "ship-with-known-issues" triage); `/gsd-validate-phase 6` and `/gsd-validate-phase 7` to flip the Nyquist paperwork flag from draft to compliant. Both are post-M1 cleanup, not blockers.
+- **M4 (JUCE plugin) scoping** via `/gsd-new-milestone` — pulled forward ahead of M2 (ADPCM) and M3 (DAC modeling) per Anthony's 2026-04-25 redefinition. M4 completion = product v1.0. The questioning → research → requirements → roadmap pass needs to surface plugin-format priority (VST3 / AU / LV2 / Standalone), UI shape (named musical levers vs raw register exposure — Anthony's "living instrument" framing implies the former), and preset-bank shape (all 10 PS1 factory presets vs curated subset).
+- M2 ADPCM and M3 DAC modeling are deferred PAST M4. They layer on top of the reverb core without changing the plugin's user-facing surface and can ship as post-v1.0 updates.
+- Optional pre-M4 cleanup: REVIEW-cli-python.md M-01..M-07, L-01..L-05, N-01..N-04 findings (deferred per the review's own "ship-with-known-issues" triage); `/gsd-validate-phase 6` and `/gsd-validate-phase 7` to flip the Nyquist paperwork flag from draft to compliant. Both are post-M1, not blockers.
 
 ---
 *State initialized: 2026-04-18 at roadmap completion*
