@@ -1,10 +1,10 @@
 {
-  "status": "between_steps",
-  "session_date": "2026-04-24",
-  "milestone": "v1.0 close-out (M1 remediation)",
-  "phase": "M1 close-out — Stage 1 of ARCHITECTURAL-AUDIT.md migration plan",
+  "status": "milestone_shipped_pending_remote_ci",
+  "session_date": "2026-04-25",
+  "milestone": "v1.0 Reverb Core (shipped 2026-04-25)",
+  "phase": "M1 close-out — ARCHITECTURAL-AUDIT.md Part 6 ordered migration plan",
   "plan": "ARCHITECTURAL-AUDIT.md Part 6 ordered migration plan",
-  "current_step": "Step 12: Land witness-diff tolerance gate (Step 11 blocked on human GitHub setup)",
+  "current_step": "Step 11: Push to GitHub and verify CI green (BLOCKED on human GitHub setup)",
   "total_steps": 15,
   "completed_steps": [
     "Step 1: Fix grep-guard scope + CLI tail-seconds integer parse (commit 262930a)",
@@ -15,38 +15,36 @@
     "Step 5: bump Python default work_buf_size to SPU94_WORK_BUF_MAX_BYTES (commit fdeeb57)",
     "Step 6: assert oob_tap_count==0 + non-silence floor in self_test + modulation harness (commit efdf9a5; modulation_report regen committed separately as ce8385e)",
     "Step 7: tighten NULL-state-on-mutation in set_reg_i16/u16 to SPU94_INVALID_STATE per ADR-0022 (commit e81b360)",
-    "Step 8: CLI + Python critical and high findings closed across 6 atomic commits — C-01 24-bit WAV gate (3a6a9f5), C-02 tail-seconds parser hardening tests (0b48be8), H-03 null state on api.destroy (c329649), H-04 distinct error for over-long JSON keys (77197e3), H-05 flat-config missing-register pre-pass (fff3b73), H-06 hex-digit-required after 0x prefix + caught real strtol whitespace bug (c9154d8)"
+    "Step 8: CLI + Python critical and high findings closed across 6 atomic commits — C-01 24-bit WAV gate (3a6a9f5), C-02 tail-seconds parser hardening tests (0b48be8), H-03 null state on api.destroy (c329649), H-04 distinct error for over-long JSON keys (77197e3), H-05 flat-config missing-register pre-pass (fff3b73), H-06 hex-digit-required after 0x prefix + caught real strtol whitespace bug (c9154d8)",
+    "Step 12: per-preset witness-diff threshold gate + ADR-0024 (commit 009b636)",
+    "Step 13: external-anchor regression gate via Off preset impulse → silent output algebraic invariant (commit 06e5b40)",
+    "Step 14: Phase 6 VERIFICATION.md consolidating UAT + SUMMARY + post-remediation evidence; promotes 11 Phase 6 reqs from 2-source to 3-source (commit fddbcad)",
+    "Step 15: re-audit milestone (status: gaps_found → passed), archive ROADMAP/REQUIREMENTS/AUDIT to .planning/milestones/, evolve PROJECT.md to v1.0-shipped state, commit milestone close (commit 7e59b6c), tag v1.0 (annotated, unsigned)"
   ],
   "in_progress_step": null,
   "uncommitted_files": [],
   "remaining_steps": [
-    {"id": 11, "name": "Push to GitHub and verify CI green on GitHub Actions (FIRST real CI run; see ARCHITECTURAL-AUDIT.md Root Cause #4)"},
-    {"id": 12, "name": "Land witness-diff tolerance gate (ADR + witness_diff_thresholds.json)"},
-    {"id": 13, "name": "Land external-anchor test (hand-computed impulse response for a known preset)"},
-    {"id": 14, "name": "Write Phase 6 VERIFICATION.md (from existing UAT + SUMMARY evidence)"},
-    {"id": 15, "name": "Re-run /gsd-audit-milestone v1.0, then /gsd-complete-milestone v1.0, git tag v1.0"}
+    {"id": 11, "name": "Push to GitHub and verify CI green on GitHub Actions (FIRST real CI run; closes BUILD-04 + BUILD-05 'human_needed' sign-offs in Phase 1's VERIFICATION.md)"}
   ],
   "blockers": [
-    "Step 11 is blocked: no `origin` git remote configured (the project's pyproject.toml points at https://github.com/anthonyaccurso/spu94 as the intended URL, but the repo may not exist on GitHub yet and there are no credentials in this session). `gh` CLI is also not installed on this workstation. Step 11 requires Anthony to (1) create the GitHub repo (or confirm its existence + URL), (2) `git remote add origin <url>` locally, (3) install `gh` and `gh auth login` for run monitoring, then `git push -u origin master`. Steps 12-15 do not depend on Step 11 and have been advanced first."
+    "Step 11 is blocked: no `origin` git remote configured (the project's pyproject.toml points at https://github.com/anthonyaccurso/spu94 as the intended URL, but the repo may not exist on GitHub yet and there are no credentials in this session). `gh` CLI is also not installed on this workstation. Step 11 requires Anthony to (1) create the GitHub repo (or confirm its existence + URL), (2) `git remote add origin <url>` locally, (3) install `gh` and `gh auth login` for run monitoring, then `git push -u origin master` followed by `git push origin v1.0` to publish the tag."
   ],
   "human_actions_pending": [
-    "Step 11 setup: create GitHub repo, add origin remote, install gh CLI, authenticate. After that, push and confirm CI green.",
-    "Step 15 git tag: `git tag -s v1.0` (signed tag) requires Anthony's GPG key on this workstation; happens at the very end of close-out."
+    "Step 11 setup: create GitHub repo, add origin remote, install gh CLI, authenticate. After that, push master + v1.0 tag and confirm all 5 GitHub Actions jobs green. First cold-cache cibuildwheel run takes ~10 min.",
+    "Optional: re-tag v1.0 as a signed tag (`git tag -fa v1.0 -m '...' && git tag -s v1.0`) once GPG is configured on the workstation. The current v1.0 tag is annotated but unsigned."
   ],
-  "next_action": "Step 12 (Step 11 advanced past as blocker): land the witness-diff tolerance gate. Read .planning/REVIEW-tests-ci.md and .planning/ARCHITECTURAL-AUDIT.md for the full motivation; the short version is that the existing witness diff test (tests/witness/) prints a number but does not enforce a per-preset tolerance — a regression that doubles the diff would still pass CI silently. Create config/witness_diff_thresholds.json with one number per preset (start liberal, tighten in M2 once we have the lv2-psx-reverb baseline calibrated), wire the existing witness test to read the JSON and assert per-preset, and add an ADR (next number after ADR-0023, so ADR-0024) recording the threshold policy. Single commit if it stays small.",
+  "next_action": "M1 close-out plan is otherwise complete. Step 11 unblocks at Anthony's convenience. After Step 11 green, the natural next step is `/gsd-new-milestone` to scope M2 ADPCM. Optional pre-M2 cleanup work: REVIEW-cli-python.md M-01..M-07 + L-01..L-05 + N-01..N-04 mediums/lows/nits (deferred per the review's own 'ship-with-known-issues' triage), and `/gsd-validate-phase 6` + `/gsd-validate-phase 7` to flip the Nyquist paperwork flag from draft to compliant. Both are post-M1, not blockers.",
   "context_notes": [
-    "The audit that drove this remediation is in .planning/ARCHITECTURAL-AUDIT.md — read it first for full context on the 4 root causes and target architecture.",
+    "The audit that drove the remediation cycle is in .planning/ARCHITECTURAL-AUDIT.md — read it for full context on the 4 root causes and target architecture.",
     "Three review reports in .planning/REVIEW-c-core.md, REVIEW-cli-python.md, REVIEW-tests-ci.md provide per-finding detail.",
-    ".planning/v1.0-MILESTONE-AUDIT.md is the pre-remediation audit — its status was gaps_found; after Stage 1 it should flip to passed.",
+    ".planning/milestones/v1.0-MILESTONE-AUDIT.md is the post-remediation re-audit — status flipped from gaps_found to passed.",
     ".planning/v1.0-GOLDENS-REGEN.md documents the regen event that happened during Step 2.",
-    "Phase 8 (MCU cross-compile) is parked per Anthony's 2026-04-24 decision — moves to between M4 and M5. Do NOT attempt to close Phase 8 as part of M1.",
-    "Step 3 shipped as commit 72f2270 (feat(api): work-buf size contract + load_preset validation). Three new SPU94_INVALID_STATE/WORK_BUF_TOO_SMALL/INVALID_ARG result codes, SPU94_WORK_BUF_MAX_BYTES constant, spu94_preset_min_work_buf_size function. CLI + Python load_preset surface the errors. 79/79 ctest green.",
-    "Step 4 shipped as commit bce2c13 (feat(observability): OOB tap counter via spu94_get_error_counters). uint64 oob_tap_count field on spu94_state; public spu94_error_counters_t + accessor; Python api.get_error_counters returns a dict. tests/unit/state/test_error_counters.c (4 sub-tests). 80/80 ctest green.",
-    "Step 5 shipped as commit fdeeb57 (feat(python): default work_buf_size = SPU94_WORK_BUF_MAX_BYTES). Removes the four Step-3 bandaids that passed explicit SPU94_WORK_BUF_MAX_BYTES (test_binding_numpy_contract.py + modulation_harness.py). 80/80 ctest green.",
-    "Step 6 shipped as commit efdf9a5 (test(observability): assert oob_tap_count==0 + non-silence floor). api.self_test() now requires >=100 non-zero output samples and oob_tap_count==0; modulation harness ModulationResult grows an oob_tap_count field; test_stability asserts ==0 across all 105 cases. 80/80 ctest green. modulation_report.json regen was committed separately as ce8385e (chore — was generated by Step 6 but not staged).",
-    "Step 7 shipped as commit e81b360 (feat(api): tighten NULL-state-on-mutation in set_reg_i16/u16 to SPU94_INVALID_STATE). Two engine-layer setters' state==NULL branches changed from SPU94_UNKNOWN_REG to SPU94_INVALID_STATE per ADR-0022; test renamed; spu94_registers.h doc updated. 80/80 ctest green.",
-    "Step 8 closed all critical+high CLI/Python review findings across 6 atomic sub-commits (C-01..H-06). H-06 testing exposed a real strtol-whitespace bug the review's analysis missed; closed alongside. 80/80 ctest green throughout. Mediums and lows (M-01..M-07, L-01..L-05, N-01..N-04) deferred to a post-M1 cleanup pass per the review's own 'recommended close-out blocker vs ship-with-known-issues' triage.",
-    "Step 11 mechanics: there's a GitHub Actions workflow already wired (see .github/workflows/). If `gh` is not authenticated in this session, the user will need to do `gh auth login` interactively — surface that as a blocker rather than guessing credentials. Watch for the FIRST cold cache build to take ~10 minutes (cibuildwheel job dominates wall time)."
+    "Phase 8 (MCU cross-compile) is parked per Anthony's 2026-04-24 decision — moves to between M4 and M5. The portability claim is upheld by design discipline (no heap, no locks, no syscalls, no STL) verified at v1.0 by 4 rt_safety ctest targets.",
+    "v1.0 ship state: 82/82 ctest green, 19 spu94 T-symbols on libspu94.so, 24 numbered ADRs + 11 phase-prefixed ADRs, 50-pair golden corpus + Docker reproducibility, witness-diff per-preset threshold gate (ADR-0024) + external-anchor algebraic invariant (Step 13). Tagged v1.0 (annotated, unsigned) as commit 7e59b6c.",
+    "Phase 6 VERIFICATION.md (Step 14) consolidates the existing UAT + SUMMARY + traceability evidence; promotes 11 Phase 6 requirements (PYBIND-01..06, CLI-01..04, DOCS-04) from 2-source to 3-source. The remaining tech debt — VALIDATION.md draft status on Phases 6 and 7 — is paperwork-only (Nyquist sign-off ceremony); functional verification is complete.",
+    "PROJECT.md was evolved to v1.0-shipped state: 19 requirements moved to Validated; Active section reset; Key Decisions table flipped 'Pending' to 'Good'/'Revisit' outcomes; Current State section added.",
+    "Pre-M2 cleanup candidates (post-M1 nice-to-haves): REVIEW-cli-python.md mediums (M-01 thread-safe _silent_in cache, M-02 spu94_cli_preset_name_list silent truncation, M-03 fread return checking, M-04 fflush/fsync before drwav_uninit, M-05 _coerce_reg bounds check, M-06 process length validator None-check, M-07 preset name UTF-8 decoding) + lows (L-01 tolower-on-signed-char, L-02 stale work-buf comment, L-03 work_buf=0 not supported in Python init, L-04 os.execv leaks interpreter state, L-05 fold into Step 8 closure as best-effort). REVIEW-c-core.md, REVIEW-tests-ci.md were not exhaustively triaged in M1 close-out — review pre-M2.",
+    "Step 11 mechanics when Anthony is ready: GitHub Actions workflow already wired in .github/workflows/ci.yml. After remote setup + auth: `git push -u origin master && git push origin v1.0` then watch via `gh run list --limit 5` and `gh run watch <run-id>`. First cold-cache cibuildwheel takes ~10 min."
   ],
   "handoff_markdown": ".planning/HANDOFF.md"
 }

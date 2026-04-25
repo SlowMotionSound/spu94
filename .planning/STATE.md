@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-last_updated: "2026-04-25T00:14:22.217Z"
+last_updated: "2026-04-25T00:23:59.000Z"
 progress:
   total_phases: 8
   completed_phases: 7
@@ -14,29 +14,28 @@ progress:
 
 # STATE: SPU-94
 
-**Last updated:** 2026-04-24
+**Last updated:** 2026-04-25
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-23)
+See: .planning/PROJECT.md (updated 2026-04-25 — v1.0 shipped)
 
 **Project:** SPU-94 — bit-faithful PS1 SPU reverb DSP
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current Focus:** Phase 07 — verification-golden-files-witness-diff-modulation
+**Current Focus:** v1.0 shipped 2026-04-25 (tag v1.0). Awaiting Step 11 GitHub setup + `/gsd-new-milestone` for M2 ADPCM scoping.
 
 ## Current Position
 
-Phase: 07 (verification-golden-files-witness-diff-modulation) — EXECUTING
-Plan: 3 of 6 complete (07-01 foundation, 07-02 goldens+repro, 07-05 RT-safety gates)
+**Milestone v1.0 (Reverb Core) shipped 2026-04-25.** 7 phases, 33 plans, 58 tasks, 82/82 ctest green. Tagged v1.0 locally.
 
-- **Milestone:** 1 (v1.0)
-- **Phase:** 8
-- **Plan:** Not started
+- **Milestone:** 1 (v1.0) — **COMPLETED**
+- **Phase:** all v1.0 phases (1-7) complete; Phase 8 parked per 2026-04-24 decision (moves to between M4 and M5)
+- **Plan:** n/a — milestone closed
 - **Status:** v1.0 milestone complete
 - **Progress:** [██████████] 100%
 
 ```
-[███████░] 30/33 plans (~91%) — Phase 7 Wave 2 complete; Wave 3 (07-03 witness-diff + 07-04 modulation) next
+[██████████] 33/33 plans + M1 close-out remediation (Steps 1-15 except Step 11 GitHub setup) — v1.0 SHIPPED
 ```
 
 ## Performance Metrics
@@ -182,18 +181,27 @@ None.
 - Human UAT SC-4 (README walkthrough) closed with README content polish explicitly deferred to post-M4 per standing guidance (`feedback_readme_not_priority.md`). Structural gates — 10 section headings in order, 11 required content tokens, polished-tone invariants — are mechanized via `tests/docs/test_readme_sections.py` + `scripts/ci/verify-readme-sections.sh` (ctest id 66).
 - Transition to Phase 7 executed 2026-04-23. ROADMAP + STATE + PROJECT updated; PYBIND-01..06, CLI-01..04, DOCS-04 moved to Validated in PROJECT.md.
 
-### Next Session
+### M1 Close-Out (2026-04-24 → 2026-04-25)
 
-- M1 close-out (ARCHITECTURAL-AUDIT.md Part 6) is the active workstream, NOT Phase 7 planning. See `.planning/HANDOFF.json` for the 15-step migration plan and current position.
+- M1 close-out cycle (ARCHITECTURAL-AUDIT.md Part 6, 15 steps) executed end-to-end except Step 11 (GitHub Actions CI) which is blocked on human remote setup. See `.planning/HANDOFF.json` for the migration plan history.
 - Step 3 shipped 2026-04-24 as commit 72f2270 (feat(api): work-buf size contract + load_preset validation, ADR-0022). Three new error codes (INVALID_STATE/WORK_BUF_TOO_SMALL/INVALID_ARG); new SPU94_WORK_BUF_MAX_BYTES constant; spu94_preset_min_work_buf_size(id) accessor. 79/79 ctest green.
 - Step 4 shipped 2026-04-24 as commit bce2c13 (feat(observability): OOB tap counter via spu94_get_error_counters, ADR-0023). uint64 oob_tap_count on spu94_state; public spu94_error_counters_t + snapshot accessor; Python api.get_error_counters. tests/unit/state/test_error_counters.c added. 80/80 ctest green.
 - Step 5 shipped 2026-04-24 as commit fdeeb57 (feat(python): default work_buf_size = SPU94_WORK_BUF_MAX_BYTES). Removes Step-3 bandaids; the prior 8192 default no longer traps Hall-or-larger callers. 80/80 ctest green.
 - Step 6 shipped 2026-04-24 as commit efdf9a5 (test(observability): assert oob_tap_count==0 + non-silence floor). api.self_test() and modulation harness now consume the Step-4 counter; non-silence floor strengthens the audibility assertion. 80/80 ctest green.
 - Step 7 shipped 2026-04-24 as commit e81b360 (feat(api): tighten NULL-state-on-mutation in set_reg_i16/u16 to SPU94_INVALID_STATE per ADR-0022). Two engine-layer setters; spu94_registers.h doc updated; test renamed; out-of-range branch + getter NULL-state convention left alone. 80/80 ctest green.
 - Step 8 shipped 2026-04-24 across 6 atomic sub-commits — closed all 2 critical + 4 high CLI/Python findings from REVIEW-cli-python.md. C-01 (3a6a9f5) gates non-16-bit and non-PCM WAV input in wav_io.c. C-02 (0b48be8) locks in tail-seconds parser hardening (production code was already correct via Step 1's integer parser; tests cement the regression gates). H-03 (c329649) nulls api.destroy()'s state.value so subsequent C calls hit Step 7's INVALID_STATE guards instead of UB. H-04 (77197e3) gives over-long JSON keys a distinct error. H-05 (fff3b73) flat-config pre-pass reports missing real registers before fall-through to "unknown register" typo errors. H-06 (c9154d8) requires a hex digit immediately after `0x` — exposed AND fixed a real strtol-whitespace bug the review's analysis missed. Pre-existing modulation_report.json regen drift committed as ce8385e (Step 6 follow-up). 80/80 ctest green throughout.
-- Step 11 BLOCKED on human GitHub setup: no `origin` git remote, `gh` CLI not installed, no GitHub credentials in this session. Workstation needs Anthony's hands to create/confirm the GitHub repo, `git remote add origin`, `gh auth login`, then push. Steps 12-15 do not depend on 11 and are advancing first; CI will run against the full post-12-15 tree once Anthony unblocks the push.
-- Next in close-out: Step 12 (witness-diff tolerance gate + ADR), Step 13 (external-anchor test), Step 14 (Phase 6 VERIFICATION.md), Step 15 (/gsd-audit-milestone + /gsd-complete-milestone + git tag v1.0). Step 11 unblocks at Anthony's convenience.
-- Phase 7 planning resumes AFTER M1 close-out completes and milestone is tagged.
+- Step 11 BLOCKED on human GitHub setup (no `origin` remote, no `gh` CLI installed). Anthony unblocks at his convenience; the push will exercise the full post-Step-15 tree once the remote is configured.
+- Step 12 shipped 2026-04-25 as commit 009b636 (feat(witness): per-preset divergence threshold gate + ADR-0024). config/witness_diff_thresholds.json + tests/python/test_witness_thresholds.py + ADR-0024 prepended to docs/DECISIONS.md. 81/81 ctest green.
+- Step 13 shipped 2026-04-25 as commit 06e5b40 (test(process): external-anchor regression gate via Off preset). Off preset + impulse → algebraically zero output; tests/unit/process/test_process_external_anchor_off.c. 82/82 ctest green.
+- Step 14 shipped 2026-04-25 as commit fddbcad (docs(verification): add Phase 6 VERIFICATION.md). Consolidates evidence from 06-UAT.md, 06-HUMAN-UAT.md, 06-VALIDATION.md, the five 06-0?-SUMMARY.md docs, plus all M1 close-out remediation commits. Promotes 11 Phase 6 requirements (PYBIND-01..06, CLI-01..04, DOCS-04) from 2-source to 3-source verified.
+- Step 15 shipped 2026-04-25 as commits 7e59b6c (chore: complete v1.0 milestone) + git tag v1.0. Re-audited v1.0-MILESTONE-AUDIT.md flipped status from gaps_found to passed. Archived ROADMAP/REQUIREMENTS/AUDIT to .planning/milestones/. Created MILESTONES.md with 7-phase shipped accomplishments. Evolved PROJECT.md to v1.0-shipped state. Tagged v1.0 (annotated, unsigned).
+- **M1 close-out plan complete except for Step 11 (human GitHub setup).** All correctness gates landed; test surface hardened from 66 ctest at Phase 6 close to 82 ctest at v1.0 ship; zero existing tests broken throughout.
+
+### Next Session
+
+- Step 11 GitHub Actions CI run when Anthony has time to set up the remote: `git remote add origin https://github.com/anthonyaccurso/spu94`, install `gh` CLI, `gh auth login`, `git push -u origin master`, `git push origin v1.0`. Watch for first-run cache-cold cibuildwheel job (~10 min).
+- M2 ADPCM scoping via `/gsd-new-milestone` whenever Anthony is ready. The questioning → research → requirements → roadmap pass produces the M2 active-requirements list that PROJECT.md is currently holding empty.
+- Optional pre-M2 cleanup: REVIEW-cli-python.md M-01..M-07, L-01..L-05, N-01..N-04 findings (deferred per the review's own "ship-with-known-issues" triage); `/gsd-validate-phase 6` and `/gsd-validate-phase 7` to flip the Nyquist paperwork flag from draft to compliant. Both are post-M1 cleanup, not blockers.
 
 ---
 *State initialized: 2026-04-18 at roadmap completion*
