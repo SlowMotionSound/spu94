@@ -33,7 +33,10 @@ void SPU94AudioProcessor::prepareToPlay(double /*sampleRate*/, int /*samplesPerB
                      workBuf.getData(), SPU94_WORK_BUF_MAX_BYTES);
 
     if (spu != nullptr)
+    {
         spu94_load_preset(spu, SPU94_PRESET_HALL);
+        registerBridge.syncShadowsFromSPU(spu);
+    }
 }
 
 void SPU94AudioProcessor::releaseResources()
@@ -66,6 +69,17 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         buffer.clear();
         return;
     }
+
+    // 1. Drain preset command queue (GUI thread may have requested a switch)
+    if (presetQueue.drain(spu))
+    {
+        // Preset was applied on audio thread. GUI thread will observe
+        // appliedCount change and re-sync slider positions via Timer.
+        registerBridge.syncShadowsFromSPU(spu);
+    }
+
+    // 2. Push any GUI-changed register values to the SPU
+    registerBridge.pushPendingRegisterWrites(spu);
 
     const int n = buffer.getNumSamples();
     const auto numFrames = wavSource.numFrames;

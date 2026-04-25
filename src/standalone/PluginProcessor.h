@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "ParameterBridge.h"
 #include <atomic>
 #include <vector>
 #include <cstdint>
@@ -47,7 +48,13 @@ public:
     bool isPlaying() const;
     bool isLoaded() const;
 
+    // --- Parameter bridge (Plan 03: lock-free GUI <-> audio handoff) ---
+    RegisterBridge& getRegisterBridge() { return registerBridge; }
+    PresetCommandQueue& getPresetQueue() { return presetQueue; }
+
 private:
+    RegisterBridge registerBridge;
+    PresetCommandQueue presetQueue;
     // SPU state -- caller-owned buffers per libspu94 API contract
     juce::HeapBlock<unsigned char> stateBuf;
     juce::HeapBlock<unsigned char> workBuf;
