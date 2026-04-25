@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: product-v1.0-juce-plugin
+milestone_name: product-v1.0-spu94-standalone
 status: in_progress
-last_updated: "2026-04-25T18:00:00.000Z"
+last_updated: "2026-04-25T22:00:00.000Z"
 progress:
   total_phases: 8
   completed_phases: 7
@@ -11,7 +11,7 @@ progress:
   completed_plans: 33
   percent: 87
 current_phase: 8
-current_phase_name: m4-juce-plugin
+current_phase_name: spu94-standalone-gui
 ---
 
 # STATE: SPU-94
@@ -24,21 +24,21 @@ See: .planning/PROJECT.md (updated 2026-04-25 — v1.0 shipped)
 
 **Project:** SPU-94 — bit-faithful PS1 SPU reverb DSP
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current Focus:** M1 Reverb Core shipped 2026-04-25 (tag `m1-reverb-core`). Next milestone is M4 (JUCE plugin) per the 2026-04-25 sequencing change — M4 completion is product v1.0 by Anthony's redefinition.
+**Current Focus:** M1 Reverb Core shipped 2026-04-25 (tag `m1-reverb-core`). Phase 8 context gathered 2026-04-25 — v1.0 re-scoped to **SPU-94 Standalone GUI** (a JUCE-built standalone audio tool that loads a WAV, plays it through the reverb, exposes 18 raw register sliders + 10-preset dropdown + Wet/Dry knob). Plugin formats and DAW integration explicitly out of scope for v1.0.
 
 ## Current Position
 
-**Phase 8 (M4 JUCE plugin) — planning.** M1 Reverb Core (Phases 1-7) shipped 2026-04-25, tagged `m1-reverb-core`. Product v1.0 = M4 plugin completion.
+**Phase 8 (SPU-94 Standalone GUI) — context gathered, ready for planning.** M1 Reverb Core (Phases 1-7) shipped 2026-04-25, tagged `m1-reverb-core`. Product v1.0 = standalone GUI completion.
 
-- **Product milestone:** v1.0 — **IN PROGRESS** (M1 phases shipped; M4 plugin phase active)
-- **Phase:** 8 — M4 JUCE plugin
+- **Product milestone:** v1.0 — **IN PROGRESS** (M1 phases shipped; standalone GUI phase active)
+- **Phase:** 8 — SPU-94 Standalone GUI
 - **Plan:** TBD — `/gsd-plan-phase 8` will produce
-- **Status:** restoring bookkeeping then planning Phase 8
+- **Status:** CONTEXT.md committed; ready for `/gsd-plan-phase 8`
 - **Progress:** [████████░░] 7/8 phases complete
 
 ```
 [██████████] Phase 1-7: M1 Reverb Core SHIPPED — library + CLI + Python binding + verification stack (tag m1-reverb-core)
-[░░░░░░░░░░] Phase 8: M4 JUCE plugin (planning now; product v1.0 ships when this is done)
+[░░░░░░░░░░] Phase 8: SPU-94 Standalone GUI (context gathered; planning next; product v1.0 ships when this is done)
 ```
 
 ## Performance Metrics
@@ -202,9 +202,20 @@ None.
 
 ### Next Session
 
-- **M4 (JUCE plugin) scoping** via `/gsd-discuss-phase` — pulled forward ahead of M2 (ADPCM) and M3 (DAC modeling) per Anthony's 2026-04-25 redefinition. M4 is the next PHASE within the v1.0 milestone, NOT a new milestone (Anthony's correction; using `/gsd-new-milestone` would re-run the questioning ceremony unnecessarily). The discuss-phase pass needs to surface plugin-format priority (VST3 / AU / LV2 / Standalone), UI shape (named musical levers vs raw register exposure — Anthony's "living instrument" framing implies the former), and preset-bank shape (all 10 PS1 factory presets vs curated subset). The earlier `/gsd-complete-milestone v1.0` was premature — its bookkeeping side effects (deleted ROADMAP.md, status: completed in STATE.md frontmatter) get reversed opportunistically as the discuss-phase flow needs them.
-- M2 ADPCM and M3 DAC modeling are deferred PAST M4. They layer on top of the reverb core without changing the plugin's user-facing surface and can ship as post-v1.0 updates.
-- Optional pre-M4 cleanup: REVIEW-cli-python.md M-01..M-07, L-01..L-05, N-01..N-04 findings (deferred per the review's own "ship-with-known-issues" triage); `/gsd-validate-phase 6` and `/gsd-validate-phase 7` to flip the Nyquist paperwork flag from draft to compliant. Both are post-M1, not blockers.
+- **`/gsd-plan-phase 8`** — planner consumes `.planning/phases/08-m4-juce-plugin-product-v1-0/08-CONTEXT.md` and produces plans for the standalone GUI. Expected ~3-5 plans (build-system extension + JUCE scaffolding, I/O wrapper + WAV loader, register slider wiring + preset dropdown, Wet/Dry mix, audio output + transport).
+- **Pending follow-up cleanup** (not v1.0-blocking): PROJECT.md / REQUIREMENTS.md / ROADMAP.md still contain the older "v1.0 = JUCE plugin shippable to DAW" framing. These artifacts need rewriting to match the standalone-GUI re-scope captured in 08-CONTEXT.md. Can be done as a single small follow-up pass before or after planning — CONTEXT.md is authoritative for Phase 8 either way.
+- M2 ADPCM and M3 DAC modeling deferred past v1.0; standalone GUI will become the testbed for them when they land.
+- Optional post-v1.0 cleanup: REVIEW-cli-python.md M/L/N findings; `/gsd-validate-phase 6` and `/gsd-validate-phase 7` to flip the Nyquist paperwork flag from draft to compliant.
+
+### Phase 8 Context Decisions (locked, 2026-04-25)
+
+- **D-01:** v1.0 standalone exposes all 18 viable SPU registers (12 free + 6 sample-quantized) as raw labeled sliders. Named musical lever curation deferred to a follow-up phase informed by listening evidence from the v1.0 tool. Reason: prior topology-inferred musical-role labels (vIIR=decay, vWALL=damping, etc.) are inferences not empirical knowledge — the right way to design named levers is from listening, not topology.
+- **D-01-A:** v1.0 ships standalone only. No VST3 / LV2 / CLAP / AU. Plugin formats deferred to a separate future phase.
+- **D-02:** Wet/Dry mix is the only DSP added outside `libspu94`. No Pre-Delay buffer, Input HPF, Freeze toggle, Tail-modulation LFO. v1.0 does not patch additional DSP onto the native reverb algorithm.
+- **D-03:** WAV file load + realtime playback only. No file save/export. No live audio input. Both deferred.
+- **D-04:** JUCE stock look-and-feel. No custom skin. Visual identity belongs in a future polish phase.
+- **D-05:** Flat 10-item dropdown for preset selector. No categories or advanced disclosure.
+- **D-06:** Light JUCE-side I/O wrapper handles any-SR / any-bit-depth WAV input — bit-depth conversion to int16, sample-rate conversion to 44.1 kHz, mono-to-stereo channel adaptation. SPU core stays unchanged and bit-faithful.
 
 ---
 *State initialized: 2026-04-18 at roadmap completion*
