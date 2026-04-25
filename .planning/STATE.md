@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-last_updated: "2026-04-25T14:04:33.000Z"
+last_updated: "2026-04-25T14:18:13.000Z"
 progress:
   total_phases: 8
   completed_phases: 7
@@ -201,7 +201,7 @@ None.
 
 ### Next Session
 
-- **M4 (JUCE plugin) scoping** via `/gsd-new-milestone` — pulled forward ahead of M2 (ADPCM) and M3 (DAC modeling) per Anthony's 2026-04-25 redefinition. M4 completion = product v1.0. The questioning → research → requirements → roadmap pass needs to surface plugin-format priority (VST3 / AU / LV2 / Standalone), UI shape (named musical levers vs raw register exposure — Anthony's "living instrument" framing implies the former), and preset-bank shape (all 10 PS1 factory presets vs curated subset).
+- **M4 (JUCE plugin) scoping** via `/gsd-discuss-phase` — pulled forward ahead of M2 (ADPCM) and M3 (DAC modeling) per Anthony's 2026-04-25 redefinition. M4 is the next PHASE within the v1.0 milestone, NOT a new milestone (Anthony's correction; using `/gsd-new-milestone` would re-run the questioning ceremony unnecessarily). The discuss-phase pass needs to surface plugin-format priority (VST3 / AU / LV2 / Standalone), UI shape (named musical levers vs raw register exposure — Anthony's "living instrument" framing implies the former), and preset-bank shape (all 10 PS1 factory presets vs curated subset). The earlier `/gsd-complete-milestone v1.0` was premature — its bookkeeping side effects (deleted ROADMAP.md, status: completed in STATE.md frontmatter) get reversed opportunistically as the discuss-phase flow needs them.
 - M2 ADPCM and M3 DAC modeling are deferred PAST M4. They layer on top of the reverb core without changing the plugin's user-facing surface and can ship as post-v1.0 updates.
 - Optional pre-M4 cleanup: REVIEW-cli-python.md M-01..M-07, L-01..L-05, N-01..N-04 findings (deferred per the review's own "ship-with-known-issues" triage); `/gsd-validate-phase 6` and `/gsd-validate-phase 7` to flip the Nyquist paperwork flag from draft to compliant. Both are post-M1, not blockers.
 
