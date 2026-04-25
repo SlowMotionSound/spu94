@@ -1,15 +1,17 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: milestone
-status: completed
-last_updated: "2026-04-25T14:18:13.000Z"
+milestone_name: product-v1.0-juce-plugin
+status: in_progress
+last_updated: "2026-04-25T18:00:00.000Z"
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 33
   completed_plans: 33
-  percent: 100
+  percent: 87
+current_phase: 8
+current_phase_name: m4-juce-plugin
 ---
 
 # STATE: SPU-94
@@ -26,18 +28,17 @@ See: .planning/PROJECT.md (updated 2026-04-25 — v1.0 shipped)
 
 ## Current Position
 
-**M1 Reverb Core shipped 2026-04-25.** 7 phases, 33 plans, 58 tasks, 82/82 ctest green. Tagged `m1-reverb-core` locally. Product v1.0 = M4 plugin (still ahead).
+**Phase 8 (M4 JUCE plugin) — planning.** M1 Reverb Core (Phases 1-7) shipped 2026-04-25, tagged `m1-reverb-core`. Product v1.0 = M4 plugin completion.
 
-- **GSD milestone:** 1 — **COMPLETED** (internal phase batching; archived to `.planning/milestones/v1.0-*` keeping the GSD nomenclature)
-- **Product version:** pre-1.0; v1.0 reserved for M4 plugin ship
-- **Phase:** all M1 phases (1-7) complete; Phase 8 parked per 2026-04-24 decision (moves to between M4 and M5 if it happens at all)
-- **Plan:** n/a — M1 closed
-- **Status:** ready to scope M4 (JUCE plugin)
-- **Progress:** [██████████] 100% of M1; pre-M4
+- **Product milestone:** v1.0 — **IN PROGRESS** (M1 phases shipped; M4 plugin phase active)
+- **Phase:** 8 — M4 JUCE plugin
+- **Plan:** TBD — `/gsd-plan-phase 8` will produce
+- **Status:** restoring bookkeeping then planning Phase 8
+- **Progress:** [████████░░] 7/8 phases complete
 
 ```
-[██████████] M1 Reverb Core SHIPPED — library + CLI + Python binding + verification stack
-[░░░░░░░░░░] M4 JUCE plugin (next; product v1.0)
+[██████████] Phase 1-7: M1 Reverb Core SHIPPED — library + CLI + Python binding + verification stack (tag m1-reverb-core)
+[░░░░░░░░░░] Phase 8: M4 JUCE plugin (planning now; product v1.0 ships when this is done)
 ```
 
 ## Performance Metrics
