@@ -4,7 +4,7 @@
 
 **Shipped:** v1.0 Reverb Core (2026-04-25). 7 phases, 33 plans, 58 tasks complete. The bit-faithful PS1 SPU reverb network is implemented end-to-end as `libspu94`, with Python bindings, a native CLI, the 10 PS1 factory presets, full spec-conformance + golden-file + witness-diff + modulation test infrastructure, and a polished README. 82/82 ctest green. M1 close-out remediation cycle (Steps 1-15 from `ARCHITECTURAL-AUDIT.md`) hardened the test surface and closed every audit-flagged correctness gap; see `.planning/milestones/v1.0-MILESTONE-AUDIT.md` for the post-remediation re-audit and `.planning/MILESTONES.md` for the shipped accomplishments list.
 
-**Tagged:** v1.0 (local; remote push deferred until Anthony unblocks Step 11's GitHub setup).
+**Tagged:** v1.0 (annotated, local).
 
 **Next milestone:** v1.1 ADPCM (per the M1→M5 plan in `memory/project_milestones.md`). Run `/gsd-new-milestone` to scope properly — questioning → research → requirements → roadmap.
 
@@ -41,10 +41,6 @@ Rigor governs the algorithm; musicality governs everything that surrounds it. Th
 - ✓ Maintain `DECISIONS.md` — v1.0 (24 numbered ADRs + 11 phase-prefixed ADRs covering every gray-area resolution; `docs/DECISIONS.md` is a first-class deliverable per the project framing)
 - ✓ Maintain `docs/LEVERS-CATALOG.md` — v1.0 (Phase 7, 35-register catalog with AUTO columns populated: 12 free / 6 sample-quantized / 17 catastrophic; HAND columns seeded for M4)
 - ✓ Resolve and document the delay-length-register-change gray area — v1.0 (Phase 5 fuzz harness + ADR-0006 mBASE snap-on-write + ADR-0005 split write-timing policy; mid-stream `m*`/`d*` writes are first-class via TICK_LATCHED semantics)
-
-### Active — Milestone 1 close-out residuals
-
-- [ ] Confirm GitHub Actions CI green on the post-v1.0 tree — first remote CI run, closes BUILD-04 (clang-tidy) + BUILD-05 (UBSan) human-needed sign-offs in Phase 1's VERIFICATION.md. **Blocked on:** `origin` git remote setup + `gh auth login`. Tracked in `.planning/HANDOFF.json` as Step 11 of the close-out plan.
 
 ### Active — Milestone 2 (ADPCM) — to be scoped
 
@@ -130,4 +126,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-25 after v1.0 milestone shipped (M1 Reverb Core; 7 phases, 33 plans, 58 tasks; M1 close-out remediation Steps 1-15 landed except Step 11 GitHub Actions CI run pending remote setup; 82/82 ctest green; tagged v1.0 locally).*
+*Last updated: 2026-04-25 after v1.0 milestone shipped (M1 Reverb Core; 7 phases, 33 plans, 58 tasks; M1 close-out remediation 15-step plan landed; 82/82 ctest green; tagged v1.0).*

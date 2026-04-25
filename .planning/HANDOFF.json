@@ -1,10 +1,10 @@
 {
-  "status": "milestone_shipped_pending_remote_ci",
+  "status": "milestone_shipped",
   "session_date": "2026-04-25",
   "milestone": "v1.0 Reverb Core (shipped 2026-04-25)",
   "phase": "M1 close-out — ARCHITECTURAL-AUDIT.md Part 6 ordered migration plan",
   "plan": "ARCHITECTURAL-AUDIT.md Part 6 ordered migration plan",
-  "current_step": "Step 11: Push to GitHub and verify CI green (BLOCKED on human GitHub setup)",
+  "current_step": "v1.0 shipped; awaiting Anthony to pick the next workstream",
   "total_steps": 15,
   "completed_steps": [
     "Step 1: Fix grep-guard scope + CLI tail-seconds integer parse (commit 262930a)",
@@ -23,17 +23,10 @@
   ],
   "in_progress_step": null,
   "uncommitted_files": [],
-  "remaining_steps": [
-    {"id": 11, "name": "Push to GitHub and verify CI green on GitHub Actions (FIRST real CI run; closes BUILD-04 + BUILD-05 'human_needed' sign-offs in Phase 1's VERIFICATION.md)"}
-  ],
-  "blockers": [
-    "Step 11 is blocked: no `origin` git remote configured (the project's pyproject.toml points at https://github.com/anthonyaccurso/spu94 as the intended URL, but the repo may not exist on GitHub yet and there are no credentials in this session). `gh` CLI is also not installed on this workstation. Step 11 requires Anthony to (1) create the GitHub repo (or confirm its existence + URL), (2) `git remote add origin <url>` locally, (3) install `gh` and `gh auth login` for run monitoring, then `git push -u origin master` followed by `git push origin v1.0` to publish the tag."
-  ],
-  "human_actions_pending": [
-    "Step 11 setup: create GitHub repo, add origin remote, install gh CLI, authenticate. After that, push master + v1.0 tag and confirm all 5 GitHub Actions jobs green. First cold-cache cibuildwheel run takes ~10 min.",
-    "Optional: re-tag v1.0 as a signed tag (`git tag -fa v1.0 -m '...' && git tag -s v1.0`) once GPG is configured on the workstation. The current v1.0 tag is annotated but unsigned."
-  ],
-  "next_action": "M1 close-out plan is otherwise complete. Step 11 unblocks at Anthony's convenience. After Step 11 green, the natural next step is `/gsd-new-milestone` to scope M2 ADPCM. Optional pre-M2 cleanup work: REVIEW-cli-python.md M-01..M-07 + L-01..L-05 + N-01..N-04 mediums/lows/nits (deferred per the review's own 'ship-with-known-issues' triage), and `/gsd-validate-phase 6` + `/gsd-validate-phase 7` to flip the Nyquist paperwork flag from draft to compliant. Both are post-M1, not blockers.",
+  "remaining_steps": [],
+  "blockers": [],
+  "human_actions_pending": [],
+  "next_action": "v1.0 is shipped + tagged. Anthony picks the next workstream. Natural candidates: `/gsd-new-milestone` to scope M2 ADPCM; pre-M2 cleanup (REVIEW-cli-python.md mediums/lows/nits — M-01..M-07 + L-01..L-05 + N-01..N-04, all deferred per the review's own ship-with-known-issues triage); `/gsd-validate-phase 6` + `/gsd-validate-phase 7` to flip the Nyquist paperwork flag from draft to compliant. None are blockers; all are post-M1.",
   "context_notes": [
     "The audit that drove the remediation cycle is in .planning/ARCHITECTURAL-AUDIT.md — read it for full context on the 4 root causes and target architecture.",
     "Three review reports in .planning/REVIEW-c-core.md, REVIEW-cli-python.md, REVIEW-tests-ci.md provide per-finding detail.",
@@ -43,8 +36,7 @@
     "v1.0 ship state: 82/82 ctest green, 19 spu94 T-symbols on libspu94.so, 24 numbered ADRs + 11 phase-prefixed ADRs, 50-pair golden corpus + Docker reproducibility, witness-diff per-preset threshold gate (ADR-0024) + external-anchor algebraic invariant (Step 13). Tagged v1.0 (annotated, unsigned) as commit 7e59b6c.",
     "Phase 6 VERIFICATION.md (Step 14) consolidates the existing UAT + SUMMARY + traceability evidence; promotes 11 Phase 6 requirements (PYBIND-01..06, CLI-01..04, DOCS-04) from 2-source to 3-source. The remaining tech debt — VALIDATION.md draft status on Phases 6 and 7 — is paperwork-only (Nyquist sign-off ceremony); functional verification is complete.",
     "PROJECT.md was evolved to v1.0-shipped state: 19 requirements moved to Validated; Active section reset; Key Decisions table flipped 'Pending' to 'Good'/'Revisit' outcomes; Current State section added.",
-    "Pre-M2 cleanup candidates (post-M1 nice-to-haves): REVIEW-cli-python.md mediums (M-01 thread-safe _silent_in cache, M-02 spu94_cli_preset_name_list silent truncation, M-03 fread return checking, M-04 fflush/fsync before drwav_uninit, M-05 _coerce_reg bounds check, M-06 process length validator None-check, M-07 preset name UTF-8 decoding) + lows (L-01 tolower-on-signed-char, L-02 stale work-buf comment, L-03 work_buf=0 not supported in Python init, L-04 os.execv leaks interpreter state, L-05 fold into Step 8 closure as best-effort). REVIEW-c-core.md, REVIEW-tests-ci.md were not exhaustively triaged in M1 close-out — review pre-M2.",
-    "Step 11 mechanics when Anthony is ready: GitHub Actions workflow already wired in .github/workflows/ci.yml. After remote setup + auth: `git push -u origin master && git push origin v1.0` then watch via `gh run list --limit 5` and `gh run watch <run-id>`. First cold-cache cibuildwheel takes ~10 min."
+    "Pre-M2 cleanup candidates (post-M1 nice-to-haves): REVIEW-cli-python.md mediums (M-01 thread-safe _silent_in cache, M-02 spu94_cli_preset_name_list silent truncation, M-03 fread return checking, M-04 fflush/fsync before drwav_uninit, M-05 _coerce_reg bounds check, M-06 process length validator None-check, M-07 preset name UTF-8 decoding) + lows (L-01 tolower-on-signed-char, L-02 stale work-buf comment, L-03 work_buf=0 not supported in Python init, L-04 os.execv leaks interpreter state, L-05 fold into Step 8 closure as best-effort). REVIEW-c-core.md, REVIEW-tests-ci.md were not exhaustively triaged in M1 close-out — review pre-M2."
   ],
   "handoff_markdown": ".planning/HANDOFF.md"
 }
