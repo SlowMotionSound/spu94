@@ -23,6 +23,7 @@ target_sources(spu94_standalone
         PluginProcessor.cpp
         PluginEditor.cpp
         WavLoader.cpp
+        ParameterBridge.cpp
 )
 
 target_compile_definitions(spu94_standalone
