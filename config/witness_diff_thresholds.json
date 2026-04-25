@@ -1,0 +1,17 @@
+{
+  "_doc": "Per-preset low-band aligned-RMS divergence ceiling vs lv2-psx-reverb (in dBFS). Step 12 / ADR-0024. The witness harness writes .artifacts/witness_report.json with per-pair `low_band_diff_dbfs`; the CI gate asserts each pair's value stays at-or-below the preset's threshold. High-band divergence is informational only (lv2 omits the half-band FIR by design per ADR-Phase-4-I). Thresholds are deliberately liberal at M1 close-out — they are a regression gate, not a correctness gate. M2 will tighten them after the calibrated lv2 baseline lands.",
+  "_units": "dBFS — values BELOW the threshold pass; values AT or BELOW pass; ABOVE fails.",
+  "_skip_off_preset": "preset 'off' produces silence on both sides (low-band diff is -inf / -360 dBFS); the gate skips it explicitly to avoid asserting on a silent baseline.",
+  "low_band_max_dbfs": {
+    "delay":      3.0,
+    "echo":       4.0,
+    "half_echo":  3.0,
+    "hall":       3.0,
+    "room":       3.0,
+    "space_echo": 3.0,
+    "studio_a":   3.0,
+    "studio_b":   3.0,
+    "studio_c":   3.0
+  },
+  "skip_presets": ["off"]
+}

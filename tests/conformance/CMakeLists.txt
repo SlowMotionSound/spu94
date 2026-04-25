@@ -78,6 +78,25 @@ set_tests_properties(witness_determinism PROPERTIES
     TIMEOUT 600
 )
 
+# Step 12 / ADR-0024 — per-preset low-band divergence threshold gate.
+# Reads .artifacts/witness_report.json (produced by witness_determinism
+# above OR by a manual scripts/ci/witness_diff.py run) and asserts each
+# pair's low_band_diff_dbfs sits at-or-below the preset's threshold in
+# config/witness_diff_thresholds.json. Self-skips when the report is
+# absent (same precondition shape as witness_determinism). Cheap (no
+# audio rendering) — purely reads JSON.
+add_test(
+    NAME witness_thresholds
+    COMMAND ${Python3_EXECUTABLE} -m pytest
+        ${CMAKE_SOURCE_DIR}/tests/python/test_witness_thresholds.py
+        -q --no-header
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(witness_thresholds PROPERTIES
+    LABELS "witness"
+    DEPENDS witness_determinism
+)
+
 # Phase 7 Plan 04 Task 2 — LEVERS-CATALOG.md structural conformance +
 # idempotent-AUTO-writer meta-tests.
 #   - levers_catalog_complete: 35 data rows in spu94_reg_t enum order;

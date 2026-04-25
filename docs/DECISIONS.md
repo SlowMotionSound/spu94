@@ -30,6 +30,66 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-0024: Witness-diff per-preset tolerance gate — `config/witness_diff_thresholds.json`
+
+**Status:** Accepted (2026-04-24, M1 close-out)
+
+**Relates:** Phase 7 Plan 03 D-06 (witness-diff harness is measurement-only; this ADR is the deferred follow-up that lands the gate on top of the numbers). ADR-Phase-4-I (lv2-psx-reverb omits the half-band FIR by design — high-band divergence is informational only). ADR-Phase-6-I (reverb input wiring fix changed the witness-diff numerical baseline; the regen on commit 4fcad49 is the post-Step-2 reference these thresholds are calibrated against).
+
+**Context:**
+
+`scripts/ci/witness_diff.py` renders 50 audio pairs (10 presets × 5 standard inputs) through SPU-94 vs lv2-psx-reverb and writes per-pair split-band aligned-RMS divergence in dBFS to `.artifacts/witness_report.json`. The harness is deliberately measurement-only: it prints numbers, never returns non-zero on magnitude. That was the right shape for Phase 7 — calibrating tolerance numbers in the same step that landed the harness would have either over-tightened (false positives during normal development) or under-tightened (silently passed regressions).
+
+By M1 close-out, the harness has produced a stable post-fix baseline (low-band max divergence ~+1.4 dBFS on the echo preset, ~+0.25 dBFS or below on the other eight non-silent presets, exactly -inf / -360 dBFS on the silent `off` preset). A future regression — e.g. a bad Q15 saturation change, a new buffer-arithmetic bug, a register-write-policy change that drifts apply ordering — would manifest as a bump in these numbers. Without a gate, that regression ships silently to the next milestone.
+
+The gate must satisfy three constraints to be useful rather than annoying:
+
+1. **Tight enough to catch a 2× regression.** A change that doubles echo's +1.4 dBFS to +2.8 dBFS should fail CI on the next push.
+2. **Loose enough to absorb measurement noise.** Successive harness runs are byte-identical (witness_determinism asserts this), so noise is zero on the same machine, but the lv2 build is rebuilt fresh every CI run; small numerical jitter from compiler-version differences is plausible.
+3. **Algorithmic-difference-aware.** lv2 omits the half-band FIR; high-band divergence is huge by design (~+30 to +50 dBFS at the worst). Gating the high band would gate a known-and-documented difference. Only the low band (≤ 10 kHz) is a valid witness axis.
+
+A separate concern: the `off` preset has both sides go silent, producing low-band divergence of -inf / -360 dBFS. Asserting against any positive ceiling on that pair is meaningless; the gate must skip it explicitly.
+
+**Decision:**
+
+Adopt a per-preset low-band divergence ceiling table at `config/witness_diff_thresholds.json` and a CI gate at `tests/python/test_witness_thresholds.py` (ctest target `witness_thresholds`, label `witness`, depends on `witness_determinism` so a fresh report is on disk before the gate fires).
+
+Initial thresholds:
+
+- echo: `+4.0 dBFS` (covers the current +1.4 dBFS baseline with ~2.5 dB headroom).
+- delay, half_echo, hall, room, space_echo, studio_a, studio_b, studio_c: `+3.0 dBFS` (covers the current ≤ +0.25 dBFS baseline with > 2.5 dB headroom; also covers the -1.0 dBFS delay floor from the other side).
+- off: explicitly listed in `skip_presets` — silence-vs-silence baseline.
+
+The gate asserts every non-skipped (preset, input) pair satisfies `low_band_diff_dbfs <= preset_threshold`. High-band values are written to the report and printed by the harness but not gated — they remain a measurement-only output for human review per ADR-Phase-4-I.
+
+**Consequences:**
+
+Tradeoffs:
+
+- The thresholds are deliberately liberal at M1 close-out. They are a regression gate, not a correctness gate. M2 (when the lv2 baseline calibration plan lands and the half-band-FIR-equivalence gap is quantified more tightly) will tighten these numbers; the new thresholds will be a normal config-file change without an ADR follow-up unless the policy itself changes (per the "accepted ADRs not edited in place" rule).
+- A real divergence regression that stays below the threshold (e.g. a 0.5 dB shift on an arm currently sitting at +0.1 dBFS) will not fire the gate. That is acceptable for the M1 gate's stated purpose: catch the kind of regressions that matter (silent doubling, structural breaks). Smaller drifts will surface in normal `witness_diff.py` print output during development.
+- The skip-list for `off` is principled (silence-vs-silence is degenerate), not a fudge. Adding a real signal path to the `off` preset (which is unlikely — it's the documented bypass case) would warrant removing the skip and picking a real threshold; that revision path is a one-line config change.
+
+Test obligations:
+
+- `witness_thresholds` ctest target asserts every non-skipped pair stays at-or-below its threshold.
+- `test_witness_thresholds_table_well_formed` (a sub-test in the same file) asserts the threshold table itself is well-formed: nine non-skipped presets each with a numeric threshold, `off` listed in `skip_presets`. Catches typos in the JSON before they ship as silently-disabled gates.
+
+Known revision paths:
+
+- M2 lv2 calibration → tighten thresholds; commit-message references this ADR but does not modify it.
+- New witness sources beyond lv2 → may require a per-source threshold dimension; would warrant a new ADR superseding this one.
+- `off` becomes non-silent → remove from `skip_presets`, pick a low-band threshold; one-line config change.
+
+**Sources:**
+
+- `scripts/ci/witness_diff.py` D-06 measurement-only contract (this ADR is its deferred-follow-up gate).
+- ADR-Phase-4-I (high-band omission; gate excludes high-band as a result).
+- ADR-Phase-6-I (Step 2 reverb-input fix and goldens regen; sets the numerical baseline these thresholds are calibrated against).
+- `.planning/v1.0-GOLDENS-REGEN.md` (event log for the Step 2 regen, which was the reference point for picking initial threshold values).
+
+---
+
 ## ADR-0023: Observable error counters — spu94_get_error_counters + oob_tap_count
 
 **Status:** Accepted (2026-04-24, M1 close-out)
