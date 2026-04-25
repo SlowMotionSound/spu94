@@ -73,7 +73,13 @@ Detailed phase 1-7 archive: `.planning/milestones/v1.0-ROADMAP.md` (filename use
 - Whether playback auto-starts on file load or requires a button press
 - Whether to show numeric value next to each slider (recommended yes for debug)
 
-**Plans:** TBD (filled by `/gsd-plan-phase 8`) — expected ~3-5 plans (build/JUCE scaffolding + standalone target, I/O wrapper + WAV loader, register slider wiring + preset dropdown, Wet/Dry mix, audio output + transport).
+**Plans:** 4 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — JUCE 8.0.12 build scaffolding + empty AudioProcessor shell (install deps, FetchContent, standalone target)
+- [ ] 08-02-PLAN.md — WAV I/O wrapper (any-SR/BD/mono-stereo to 44.1 kHz int16 stereo) + real-time audio playback pipeline
+- [ ] 08-03-PLAN.md — 18 register sliders + 10-preset dropdown + lock-free parameter bridge
+- [ ] 08-04-PLAN.md — Wet/Dry equal-power crossfade knob + full v1.0 UAT checkpoint
 
 ### Phase 9: MCU Cross-Compile Smoke Test (PARKED)
 
