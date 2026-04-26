@@ -1,0 +1,3 @@
+add_executable(test_adpcm_decode test_adpcm_decode.c)
+target_link_libraries(test_adpcm_decode PRIVATE unity spu94_static)
+add_test(NAME adpcm_decode_unit COMMAND test_adpcm_decode)
