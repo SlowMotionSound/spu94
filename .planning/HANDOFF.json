@@ -1,32 +1,37 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-26T03:17:09.318Z",
-  "phase": "08",
-  "phase_name": "m4-juce-plugin-product-v1-0",
-  "phase_dir": ".planning/phases/08-m4-juce-plugin-product-v1-0",
-  "plan": 4,
-  "task": "complete",
-  "total_tasks": 4,
-  "status": "milestone_complete",
+  "timestamp": "2026-04-26T22:30:00.000Z",
+  "phase": "none",
+  "phase_name": "m2-adpcm-milestone-setup",
+  "phase_dir": ".planning",
+  "plan": 0,
+  "task": "roadmap",
+  "total_tasks": 0,
+  "status": "requirements_defined",
   "completed_tasks": [
-    {"id": "08-01", "name": "JUCE scaffold + test infra", "status": "done", "commit": "abce83c"},
-    {"id": "08-02", "name": "WAV loader + audio playback", "status": "done", "commit": "adb5ef0"},
-    {"id": "08-03", "name": "Register sliders + preset dropdown", "status": "done", "commit": "06cd6ba"},
-    {"id": "08-04", "name": "Wet/Dry mix knob", "status": "done", "commit": "1c2e08c"},
-    {"id": "uat-fixes", "name": "Input level knob + layout + size lock", "status": "done", "commit": "85d1874"},
-    {"id": "code-review", "name": "08-REVIEW.md", "status": "done", "commit": "bfb2336"},
-    {"id": "cr-fix", "name": "7/7 code review findings fixed", "status": "done", "commit": "0cb4d07"},
-    {"id": "verify", "name": "08-VERIFICATION.md", "status": "done", "commit": "3b8f1b9"},
-    {"id": "close-out", "name": "Phase 8 close-out", "status": "done", "commit": "14b98b9"}
+    {"id": "research-pass-1", "name": "ADPCM algorithm research (4 agents: stack, features, architecture, pitfalls)", "status": "done"},
+    {"id": "research-pass-2", "name": "Deep dive research (4 agents: decode edges, encoder internals, coloration character, hardware evidence)", "status": "done"},
+    {"id": "research-pass-3", "name": "Digital patina research (4 agents: codec survey, Comrex, creative exploitation, module architecture)", "status": "done"},
+    {"id": "milestone-setup", "name": "PROJECT.md updated for M2, STATE.md reset", "status": "done"},
+    {"id": "requirements", "name": "23 requirements defined across 4 categories (ADPCM, ADPCM-INT, ADPCM-IO, ADPCM-TEST)", "status": "done"}
   ],
-  "remaining_tasks": [],
+  "remaining_tasks": [
+    {"id": "roadmap", "name": "Create ROADMAP.md — decompose 23 requirements into phased execution", "priority": "next"},
+    {"id": "plan-phases", "name": "Plan each phase via /gsd-plan-phase", "priority": "after-roadmap"},
+    {"id": "execute", "name": "Execute phases", "priority": "after-planning"}
+  ],
   "blockers": [],
-  "human_actions_pending": [],
+  "human_actions_pending": [
+    "Deep listening session with the v1.0 standalone (in progress, not blocking)"
+  ],
   "decisions": [
-    {"decision": "v1.0 product milestone complete", "rationale": "All 8 phases shipped, 37 plans executed, standalone GUI functional", "phase": "08"},
-    {"decision": "Parameter smoothing lives in named-lever curation phase", "rationale": "LEVERS-CATALOG.md line 20 ties smoothing to that stage; no separate phase needed", "phase": "post-v1.0"}
+    {"decision": "v1.1 version tag applied AFTER ADPCM is fully integrated into reverb", "rationale": "Version reflects product capability, not library code", "phase": "M2"},
+    {"decision": "M2 and M3 are separate milestones (not combined)", "rationale": "Anthony's preference — individual scoping for each", "phase": "M2"},
+    {"decision": "ADPCM decode uses rounding (+32 >> 6), different from reverb truncation — both hardware-faithful", "rationale": "Different SPU subsystems, different arithmetic", "phase": "M2"},
+    {"decision": "Filter mask / creative exploitation hooks designed in research but NOT built in M2", "rationale": "Foundation first, exploitation later", "phase": "M2"},
+    {"decision": "Digital patina engine vision documented — codecs as reusable modules under src/patina/<codec>/", "rationale": "Long-term product direction: faithful codecs as creative effects", "phase": "post-M2"}
   ],
   "uncommitted_files": [],
-  "next_action": "Product v1.0 complete. Next work is post-v1.0: named-lever curation, plugin formats, DSP extensions, or any item from ROADMAP.md post-v1.0 section.",
-  "context_notes": "All phases shipped. Anthony confirmed standalone sounds 'a little gritty but nothing wildly out of the ordinary' — good enough for a testing/refining tool. Smoothing concern noted as part of future named-lever curation phase."
+  "next_action": "Create ROADMAP.md via /gsd-resume-work → roadmapper. Requirements are defined, research is complete. 23 requirements across 4 categories need decomposition into phases.",
+  "context_notes": "Three research passes (12 agents, 12 documents) provide deep technical foundation. Key finding: ADPCM is well-understood, zero new deps, ~250 lines of C. The broader digital patina engine vision (cross-codec processing, filter modulation, Comrex frequency extender) is documented in research but explicitly out of M2 scope. Anthony is doing deep listening sessions with the v1.0 standalone in parallel."
 }
