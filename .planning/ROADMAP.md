@@ -28,7 +28,7 @@ M2 adds bit-faithful Sony 4-bit ADPCM encode/decode to libspu94 and wires it int
   4. Existing 82 ctest all pass unchanged; new codec unit tests cover each filter, shift extremes, clamp triggering, and state carry across blocks
 **Plans**: 2 plans
 Plans:
-- [ ] 01-01-PLAN.md — ADPCM decoder + filter tables + known-vector tests
+- [x] 01-01-PLAN.md — ADPCM decoder + filter tables + known-vector tests
 - [ ] 01-02-PLAN.md — ADPCM encoder with brute-force search + round-trip tests
 
 ### Phase 2: Pipeline Integration
@@ -81,13 +81,13 @@ Plans:
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| ADPCM-01 | Phase 1 | Pending |
-| ADPCM-02 | Phase 1 | Pending |
-| ADPCM-03 | Phase 1 | Pending |
+| ADPCM-01 | Phase 1 | Complete (01-01) |
+| ADPCM-02 | Phase 1 | Complete (01-01) |
+| ADPCM-03 | Phase 1 | Complete (01-01) |
 | ADPCM-04 | Phase 1 | Pending |
 | ADPCM-05 | Phase 1 | Pending |
 | ADPCM-06 | Phase 1 | Pending |
-| ADPCM-07 | Phase 1 | Pending |
+| ADPCM-07 | Phase 1 | Partial (01-01) |
 | ADPCM-INT-01 | Phase 2 | Pending |
 | ADPCM-INT-02 | Phase 2 | Pending |
 | ADPCM-INT-03 | Phase 2 | Pending |
@@ -115,7 +115,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Codec | 0/2 | Not started | - |
+| 1. Core Codec | 1/2 | In progress | - |
 | 2. Pipeline Integration | 0/TBD | Not started | - |
 | 3. I/O Layer | 0/TBD | Not started | - |
 | 4. Verification + Documentation | 0/TBD | Not started | - |
