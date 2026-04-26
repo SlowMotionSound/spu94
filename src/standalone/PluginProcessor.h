@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "ParameterBridge.h"
+#include <array>
 #include <atomic>
 #include <vector>
 #include <cstdint>
@@ -79,10 +80,20 @@ private:
     };
     WavSource wavSource;
 
-    // Pending WAV data (set on message thread, consumed on audio thread)
+    // Double-buffered pending WAV data.  Message thread fills one slot;
+    // audio thread consumes from whichever slot the generation counter
+    // points at.  Two slots prevent a data race when loadWavFile() is
+    // called while the audio thread is mid-swap (CR-01).  The old
+    // wavSource vectors are swapped *into* the consumed slot, so the
+    // heap deallocation happens on the next message-thread load rather
+    // than on the audio thread (WR-01).
+    struct PendingWav {
+        std::vector<int16_t> L, R;
+        uint64_t numFrames = 0;
+    };
+    std::array<PendingWav, 2> pendingSlots;
+    std::atomic<int> pendingWriteSlot{0};
     std::atomic<bool> newWavReady{false};
-    std::vector<int16_t> pendingL, pendingR;
-    uint64_t pendingFrames = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SPU94AudioProcessor)
 };
