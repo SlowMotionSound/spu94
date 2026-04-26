@@ -1,817 +1,536 @@
-# Pitfalls Research — SPU-94
+# Pitfalls Research — ADPCM Encode/Decode for libspu94
 
-**Domain:** Bit-faithful reimplementation of PS1 SPU reverb (fixed-point DSP, C library + Python bindings, mid-stream-modulatable)
-**Researched:** 2026-04-18
-**Confidence:** MEDIUM-HIGH (primary facts from nocash/psx-spx; implementation pitfalls from comparable projects' public artifacts; legal commentary from secondary sources — verify with counsel before final license/naming decisions)
+**Domain:** Adding Sony 4-bit ADPCM encode/decode to an existing bit-faithful PS1 SPU reverb reimplementation
+**Researched:** 2026-04-26
+**Confidence:** MEDIUM-HIGH (decode algorithm from nocash/psx-spx XA-ADPCM spec is well-documented; shift 13-15 edge case has MEDIUM confidence due to conflicting accounts; encoder design has LOW-MEDIUM confidence as Sony SDK encoder is not publicly documented in detail)
 
 ---
 
 ## Orientation
 
-Pitfalls are grouped by the eight categories in the research brief. Each pitfall specifies: **What goes wrong**, **Why it happens**, **Severity** (catastrophic / significant / nuisance), **Warning signs**, **Prevention**, **M1 phase mapping**, and **Source**.
+This document covers pitfalls specific to **adding ADPCM encode/decode to the existing libspu94 reverb library**. It does NOT repeat the M1 reverb pitfalls (those are in the git history of this file). The focus is:
 
-Phase labels below reference the M1 requirement bullets in `.planning/PROJECT.md`. M1 has no formally numbered phases yet — the labels below are provisional groupings the orchestrator can collapse into phases during roadmap construction:
+1. Getting the decode algorithm bit-accurate to PS1 hardware
+2. Building an encoder that produces hardware-compatible output
+3. Integrating ADPCM into the existing libspu94 pipeline without breaking reverb correctness
+4. Maintaining the project's licensing posture while implementing a codec that every GPL emulator has already implemented
 
-- **P-REG** — implement 24 reverb registers with documented semantics
-- **P-FIXPOINT** — implement fixed-point arithmetic + hard clip
-- **P-NETWORK** — implement comb + all-pass network + work buffer
-- **P-API** — design the public C API, including mid-stream writes
-- **P-MODTEST** — build the modulation test harness
-- **P-PYBIND** — ship Python bindings via ctypes
-- **P-CLI** — ship `spu94` CLI + golden-file harness
-- **P-CROSS** — cross-compile smoke test to Daisy / Cortex-M
-- **P-WITNESS** — lv2-psx-reverb output-only witness diff harness
-- **P-DECISIONS** — maintain `DECISIONS.md`
-- **P-LEVERS** — maintain `docs/LEVERS-CATALOG.md`
-- **P-PRESETS** — ship 10 factory presets as fixtures
+Phase labels below reference the ADPCM milestone's expected structure:
 
----
-
-## Category 1 — PS1 SPU Reverb Algorithmic Pitfalls (The Actual DSP)
-
-### 1.1 The vIIR = -8000h hardware anomaly
-
-**Severity:** Significant (catastrophic if aiming for bit-exact and not handled)
-
-**What goes wrong:** vIIR is documented as operating only in the range -7FFFh..+7FFFh. When written with -8000h (0x8000 interpreted as a signed int16 — the most-negative value), the multiplication step is performed correctly, but the final value written to memory gets negated. An implementation that treats -8000h as a normal coefficient will produce outputs that diverge from hardware and from any witness that models this quirk.
-
-**Why it happens:** The anomaly arises from PS1 hardware's handling of `INT16_MIN * x` — the product's saturation or sign-flip path differs from the other 16-bit coefficients. It is counter-intuitive enough that implementations often treat the full int16 range uniformly.
-
-**Warning signs:** Preset audition sounds "close" but shows a persistent wrongness only on presets that happen to use -8000h in vIIR; witness diff shows a sign inversion in one channel at late reverb decay.
-
-**Prevention:** Treat vIIR as a 16-bit register but explicitly special-case the -8000h value and document in `DECISIONS.md`. Add a P-REG unit test that writes -8000h to vIIR and checks the post-write memory value against the nocash-documented behavior.
-
-**Phase:** P-REG (register unit tests), P-DECISIONS (document the special case)
-
-**Source:** [psx-spx SPU documentation](https://psx-spx.consoledev.net/soundprocessingunitspu/); mirrored in [problemkaputt.de/psx-spx.txt](https://problemkaputt.de/psx-spx.txt)
+- **P-DECODE** — implement the 4-bit ADPCM decoder (nibble-to-PCM)
+- **P-ENCODE** — implement the ADPCM encoder (PCM-to-nibble)
+- **P-INTEGRATE** — wire ADPCM decode into the reverb pipeline (ADPCM colors audio before reverb)
+- **P-LOOPFLAGS** — implement loop flag handling (loop start, loop end, loop repeat, one-shot)
+- **P-VERIFY** — test infrastructure for ADPCM bit-accuracy
+- **P-DECISIONS** — document gray-area resolutions
 
 ---
 
-### 1.2 Signed vs unsigned coefficient interpretation
+## Critical Pitfalls
 
-**Severity:** Catastrophic
+Mistakes that cause rewrites, bit-accuracy failures, or licensing problems.
 
-**What goes wrong:** All 16-bit reverb volume registers (vIIR, vWALL, vCOMB1-4, vAPF1-2, vLOUT, vROUT, vLIN, vRIN) are *signed* int16 in the range -8000h..+7FFFh. Treating them as unsigned (which is tempting if your register-write API takes `uint16_t`) turns any negative coefficient (bit 15 set) into a wildly wrong positive number. Result: network becomes unstable, output saturates to silence or clip.
+### C1: Shift values 13-15 — the biggest known divergence between emulators
 
-**Why it happens:** Ingesting raw hex preset values into a `uint16_t*` array is natural and looks correct until you multiply. The nocash docs write register values in hex, which reads as unsigned to a first glance.
+**Severity:** Critical (for bit-accuracy claim)
 
-**Warning signs:** Any preset with negative coefficients (half the factory presets do) produces instantly saturated / NaN-like output. Witness diff is wildly different on precisely those presets.
+**What goes wrong:** The ADPCM header byte's low 4 bits encode a shift value (0-15). The nocash decode formula computes the effective shift as `shift = 12 - (header AND 0Fh)`. For header shift values 0-12, this produces left-shifts of 12 down to 0. For values 13-15, the formula produces *negative* shift values (-1, -2, -3). The nocash spec simply states: "reserved shift values 13..15 will act same as shift=9."
 
-**Prevention:** Public register-write API takes `int16_t` for volume registers and `uint16_t` for address/offset registers. Internal coefficient storage is `int16_t`. Assertion tests feed the 10 factory presets through the register writer and verify the sign bit round-trips. Document the signedness of every register in `docs/LEVERS-CATALOG.md`.
+Different sources describe different hardware behavior:
 
-**Phase:** P-REG, P-API, P-LEVERS
+- **nocash/psx-spx:** "act same as shift=9" (i.e., treat header value 13-15 as if it were 3, producing `12 - 3 = 9` effective shift, which is equivalent to `nibble << 9`). This is the simplest interpretation.
+- **jsgroth's blog (emulator developer):** States shift 13-15 are "invalid and behave the same as shift=9."
+- **SNES BRR (closely related codec on the SPC700):** For range values 13-15, the SnesLab wiki documents the hardware formula as `sample = (nibble >> 3) << 11`. This is NOT equivalent to shift=9. For a nibble of -8 (0x8 signed), shift=9 gives -4096 while the BRR formula gives -2048. The SNES and PS1 SPU share a codec lineage (both are Sony ADPCM), but the hardware may differ.
+- **No definitive hardware capture exists** in the public domain that disambiguates the PS1 behavior specifically for shift 13-15.
 
-**Source:** [psx-spx SPU](https://psx-spx.consoledev.net/soundprocessingunitspu/) — "all volume registers store signed 16-bit values in the range -8000h..+7FFFh"
+**Why it happens:** Shift 13-15 are never used by any known commercial PS1 game's ADPCM data. The Sony SDK encoder never produces them. Emulator developers implement "whatever makes the spec stop complaining" without hardware verification.
 
----
-
-### 1.3 The implicit "divide by 8000h" fractional point
-
-**Severity:** Catastrophic
-
-**What goes wrong:** Every coefficient multiplication in the reverb formula is effectively Q15: `(a * b) / 0x8000` with the result re-saturated to int16. Omitting the shift, using `/ 0x10000`, or using `>> 16` (Q16 instead of Q15) halves or doubles every reflection gain. The network goes silent or explodes.
-
-**Why it happens:** Confusion between Q15 (shift right by 15) and Q16 (shift right by 16), or between `/ 0x8000` (Q15 with sign handling) and `>> 15` on a signed integer (implementation-defined in C99 — see Pitfall 2.3). Also tempting to refactor into `* coeff_as_float` where `coeff_as_float = coeff / 32768.0f`.
-
-**Warning signs:** Every register acts like it's 6 dB too loud or quiet; preset audition shows characteristic decay that is either too short or infinite.
-
-**Prevention:** Implement a single `q15_mul(int32_t a, int16_t b) -> int16_t` helper used by every reverb-stage multiply, with truncation semantics (see 1.4) and saturation (see 1.5). Unit-test `q15_mul` exhaustively against a known table before wiring into the network.
-
-**Phase:** P-FIXPOINT (single macro/inline helper with unit tests precedes P-NETWORK)
-
-**Source:** Inferred from the uniform `/8000h` structure of the nocash reverb formulas; consistent with [fixed-point DSP Q15 conventions](https://sestevenson.wordpress.com/2009/08/19/rounding-in-fixed-point-number-conversions/).
-
----
-
-### 1.4 Truncation vs rounding in the Q15 multiply
-
-**Severity:** Catastrophic (for bit-accuracy goal)
-
-**What goes wrong:** The PS1 SPU truncates (discards fractional bits toward -∞ for negative two's-complement values); rounding — even banker's rounding — is a semantic divergence that accumulates across every reverb pass and breaks bit-exact witness diffs. The M1 requirements explicitly call out "integer truncation (not rounding)."
-
-**Why it happens:** "Rounding is more accurate" is conventional DSP wisdom ([dsprelated on Q15](https://sestevenson.wordpress.com/2009/08/19/rounding-in-fixed-point-number-conversions/)). Any engineer applying that default loses bit-accuracy. It is also invisible on a single sample — only emerges after many recirculations.
-
-**Warning signs:** Golden-file tests pass individual register tests but diverge on long-tail reverb (where truncation error accumulates); witness diff shows a tiny, slowly-growing delta.
-
-**Prevention:** Explicit `q15_mul_truncate` helper with a comment block citing the M1 requirement. Dedicated unit test comparing truncate vs round on a sweep of (a, b) pairs to verify the implementation is the truncate variant. Bit-truncation on two's-complement is equivalent to arithmetic shift right on *positive* values but diverges for negative — the test must cover negatives.
-
-**Phase:** P-FIXPOINT
-
-**Source:** M1 requirement in `PROJECT.md`; reinforced by [nocash/psx-spx reverb formulas](https://psx-spx.consoledev.net/soundprocessingunitspu/) which describe results as written-back-to-memory int16.
-
----
-
-### 1.5 Saturation (clamp to [-8000h, +7FFFh]) vs wrap-around overflow
-
-**Severity:** Catastrophic
-
-**What goes wrong:** Every intermediate reverb value must saturate (clamp) to int16 range on overflow, not wrap. A C implementation that lets int arithmetic wrap naturally (e.g., `int16_t r = (int16_t)(a * b)` with truncation of the int32 product) will produce audible glitches on loud inputs that diverge from hardware's hard-clip behavior. Conversely, an implementation that accidentally clamps *address* registers (which are 16-bit unsigned wraparound pointers into SPU RAM) will break buffer addressing.
-
-**Why it happens:** C integer overflow on signed types is undefined behavior; implementers either use `(int16_t)x` casts (wrap) or hand-roll saturation. Applying saturation to address arithmetic (should wrap) is a symmetric mistake.
-
-**Warning signs:** Loud transients produce clicks or discontinuities on the reverb return that aren't present on the dry signal; OR loud transients sound cleaner on SPU-94 than on lv2-psx-reverb witness — the witness preserves the hardware's clip color.
-
-**Prevention:** Separate `sat_add_i16`, `sat_sub_i16`, `q15_mul` helpers (which saturate) from `addr_add_u16` helpers (which wrap modulo buffer). Each has its own unit test. `q15_mul` must take an `int32_t` accumulator so the product has headroom *before* saturation. P-FIXPOINT test vector includes deliberately-overflowing operands.
-
-**Phase:** P-FIXPOINT; address arithmetic belongs to P-NETWORK
-
-**Source:** Mednafen's Nov 2020 fix specifically addressed "output precision/ranges/clamping" — evidence this is a pitfall even experienced emulator authors hit. [Mednafen ChangeLog](https://mednafen.github.io/documentation/ChangeLog.txt)
-
----
-
-### 1.6 22050Hz half-rate: the single biggest implementation divergence in the field
-
-**Severity:** Catastrophic (for bit-accuracy goal); Significant (for perceptual accuracy)
-
-**What goes wrong:** The SPU reverb engine runs at half the main SPU rate. Per nocash: "The reverb hardware spends one 44100h cycle on left calculations, and the next 44100h cycle on right calculations" — so the reverb effectively operates at 22050 Hz, with L/R interleaved on alternating 44.1 kHz ticks. Implementations that run reverb at full 44.1 kHz on both channels produce a brighter reverb that misses the hardware's characteristic HF roll-off. **lv2-psx-reverb explicitly ships this deviation:** the README states "Unlike the real console, this code doesn't downsample the reverb to 22050 Hz. But other than the additional brightness of the higher frequencies it sounds almost spot on to the original."
-
-**Why it happens:** Downsample → process → upsample is extra code and adds a filter-design question. Skipping the step yields "basically the same reverb" at half-ish the engineering cost. Also, host audio is almost always 44.1 or 48 kHz, so the 22050 conversion is friction.
-
-**Warning signs:** Witness diff against lv2-psx-reverb looks "close" on the dry transient but the reverb tail is noticeably brighter than either hardware capture or a witness that models the half-rate. If you diff against lv2-psx-reverb and the spectra match, you've both made the same mistake.
+**Consequences:** If SPU-94's decoder picks the wrong behavior, any future ADPCM test data that exercises shift 13-15 will diverge from hardware. More importantly, the ADPCM encoder must never *produce* these shift values, so the decoder behavior is only relevant for round-trip fidelity of adversarial test vectors.
 
 **Prevention:**
-1. Run reverb internally at 22050 Hz with explicit L/R alternation per the nocash formula.
-2. Host-rate I/O handled by an input downsampler and an output upsampler that are documented and justified in `DECISIONS.md` — these are "outside the bit-accurate core."
-3. Cross-reference against a hardware capture (M5 requirement) rather than against lv2-psx-reverb on this specific question — lv2-psx-reverb is NOT a witness for half-rate behavior.
-4. Document this explicitly in `DECISIONS.md` as a known witness divergence, so future readers don't assume lv2-psx-reverb agreement implies correctness.
+1. The decoder MUST handle shift 13-15 explicitly, not through undefined behavior (negative shift in C is UB).
+2. Pick the nocash interpretation (treat as shift=9) as the default. Document in DECISIONS.md.
+3. Implement via a clamp: `if (shift_from_header > 12) shift_from_header = 9;` — this matches nocash literally and avoids negative-shift UB.
+4. Flag this as a **hardware-verification target for M5** (when Anthony's PS1 is available for capture testing).
+5. Write a dedicated unit test with nibble patterns at shift 13, 14, 15 so the behavior is locked and documented regardless of which interpretation is chosen.
 
-**Phase:** P-NETWORK (internal 22050 rate); P-API (rate conversion at the boundary); P-DECISIONS (document lv2-psx-reverb's deliberate deviation on this axis); P-WITNESS (call this out in the diff harness so diffs don't silently mask the divergence)
+**Detection:** Test vectors with shift=13/14/15 headers compared against at least two emulator witnesses.
 
-**Source:** [psx-spx SPU](https://psx-spx.consoledev.net/soundprocessingunitspu/); [lv2-psx-reverb README](https://github.com/ipatix/lv2-psx-reverb/blob/master/README.md)
+**Phase:** P-DECODE, P-DECISIONS, P-VERIFY
+
+**Source:** [psx-spx XA-ADPCM](https://problemkaputt.de/psxspx-cdrom-xa-audio-adpcm-compression.htm); [jsgroth SPU Part 1](https://jsgroth.dev/blog/posts/ps1-spu-part-1/); [SnesLab BRR](https://sneslab.net/wiki/Bit_Rate_Reduction)
 
 ---
 
-### 1.7 Work buffer wrap addressing and the `(MAX(mBASE, (addr+2) AND 7FFFEh))` formula
+### C2: The +32 rounding bias in the filter — truncation vs rounding inconsistency with reverb core
 
-**Severity:** Significant (crash or silent corruption)
+**Severity:** Critical (for internal consistency)
 
-**What goes wrong:** The reverb buffer address advances per sample using `BufferAddress = MAX(mBASE, (BufferAddress+2) AND 7FFFEh)`. Getting any element of this wrong — forgetting the MAX clamp, using `0x7FFFF` instead of `0x7FFFE`, advancing by 1 instead of 2 (addresses are in 16-bit units, not bytes per spec), or comparing as signed — produces read/write-out-of-range bugs at the top of SPU RAM (near 0x80000), buffer wraparound artifacts at the mBASE boundary, or phase discontinuities when the address recycles.
+**What goes wrong:** The nocash ADPCM decode formula explicitly includes a rounding term: `s = (t SHL shift) + ((old*f0 + older*f1 + 32) / 64)`. The `+32` before `/64` is a round-to-nearest bias (adding half the divisor before integer division). This is **rounding**, not truncation.
 
-**Why it happens:** Address units in the spec are inconsistent: `mBASE` is documented as "divided by 8" in some contexts, register offsets are in int16 units, and SPU RAM is byte-addressed. Translation errors are the norm. Off-by-one at the wraparound boundary is a classic crash.
+Meanwhile, the existing libspu94 reverb core uses *truncation* everywhere (ASR >>15, no rounding bias) per ADR-0001. An implementer who internalizes "SPU-94 always truncates" will reflexively omit the +32, producing a decoder that truncates where the hardware rounds.
 
-**Warning signs:** Long-running tests crash (SIGSEGV) after minutes; short tests pass. Or: perfectly clean output except for a single click at a predictable interval (the wrap boundary).
+**Why it happens:** The reverb and ADPCM are different hardware subsystems with different arithmetic conventions. The reverb's Q15 multiplies truncate; the ADPCM filter's division-by-64 rounds. Applying a blanket "no rounding" policy to the entire project is wrong.
+
+**Consequences:** Every decoded sample is potentially off by 1 LSB. Over 28 samples per block with filter feedback, the error compounds through prev1/prev2 state, producing audibly different decode output on any non-trivial audio.
 
 **Prevention:**
-- Write the address math as an `spu_rev_addr_advance` helper with a unit test that specifically probes the mBASE boundary and the 0x7FFFE wrap.
-- Fuzz test: pick 1000 random `mBASE` values and 1000 random offsets, advance 10^6 samples, assert no address ever exceeds 0x7FFFE and never drops below mBASE.
-- The internal buffer in SPU-94 can be a power-of-two C array with a compile-time assertion that `0x7FFFE < buffer_size`; the wrap math uses `& (size-1)` rather than the hardware's more-complex form — and this substitution is *documented in DECISIONS.md as equivalent* (or is it? Verify that hardware MAX(mBASE, wrap) produces identical addresses to a pure power-of-two mask given the same register writes — this may itself be a gray-area decision).
+1. Implement the ADPCM decode formula EXACTLY as nocash specifies it, including `+32`.
+2. Document in DECISIONS.md: "ADPCM filter uses rounding (`+32` / 64) per the spec. This differs from the reverb core's truncation convention (ADR-0001). Both are correct for their respective hardware subsystems."
+3. Do NOT refactor `q15_mul_truncate` to serve double duty for ADPCM filter math. The ADPCM filter operates at a different precision (divide-by-64, not divide-by-32768).
+4. Unit test: decode a known ADPCM block with and without the +32 term; verify the +32 version matches witness output.
 
-**Phase:** P-NETWORK, P-DECISIONS
+**Detection:** Witness diff of decoded ADPCM output against Mednafen or DuckStation; the +32 rounding is well-established across emulators.
 
-**Source:** [psx-spx SPU](https://psx-spx.consoledev.net/soundprocessingunitspu/) — "BufferAddress = MAX(mBASE, (BufferAddress+2) AND 7FFFEh)"
+**Phase:** P-DECODE, P-DECISIONS
 
----
-
-### 1.8 Zero-valued registers: "off" vs "blow up"
-
-**Severity:** Significant
-
-**What goes wrong:** Some registers at zero mean "skip this stage"; some mean "feed the network with 0"; some are undefined. E.g., `vCOMB1 = 0` zeros one comb contribution (legitimate and part of the "Reverb off" preset). But `dCOMB1 = 0` pointing at a buffer region that isn't cleared can alias an adjacent stage's tap and produce non-silence even when the operator expected silence. The "Reverb off" preset uses *nonzero* dummy offsets specifically to prevent buffer-fill corruption — per the spec. Implementations that "helpfully" zero offsets when zeroing volumes replicate the wrong semantics.
-
-**Why it happens:** "0 means off" is the intuitive API design for a musical control, but it's not what the hardware does.
-
-**Warning signs:** "Reverb off" preset produces non-silence, or worse, noise-shaped silence that changes with input. Witness diff on "Off" preset disagrees.
-
-**Prevention:** Treat every register as "write-through" — no bailout logic that says "if volume is 0, skip this stage." Implement the formulas literally. Unit-test the "Reverb off" preset explicitly: load it, feed white noise, assert output is zero (or the documented near-zero value, whatever the spec specifies).
-
-**Phase:** P-REG, P-PRESETS
-
-**Source:** [psx-spx SPU](https://psx-spx.consoledev.net/soundprocessingunitspu/) — "The 'Reverb off' configuration uses dummy registers with specific nonzero memory offsets to prevent buffer fill corruption"
+**Source:** [psx-spx XA-ADPCM decode formula](https://problemkaputt.de/psxspx-cdrom-xa-audio-adpcm-compression.htm)
 
 ---
 
-### 1.9 Input gain ambiguity — vLIN/vRIN vs vIIR vs the main SPU mix
+### C3: Clamping to int16 AFTER filter, not before — wrong clamping order
 
-**Severity:** Significant
+**Severity:** Critical (for bit-accuracy)
 
-**What goes wrong:** Where "input" enters the reverb is genuinely confusing because there are multiple gain stages: the main SPU mix sends a signal to the reverb via the *main volume* × *reverb send* path, which reaches `Lin/Rin` in the reverb formula. Inside the formula, `vLIN * Lin` appears at the Lin contribution to `dLSAME/dLDIFF`. `vIIR` is the IIR coefficient for same-side reflections, not input gain — a common misreading. Implementations that put input gain in the wrong stage sound louder/quieter or have wrong-feeling "depth."
+**What goes wrong:** The nocash formula specifies: compute the full expression `s = (t SHL shift) + ((old*f0 + older*f1 + 32) / 64)`, THEN clamp: `s = MinMax(s, -8000h, +7FFFh)`. An implementer who clamps the shifted nibble to int16 *before* adding the filter contribution, or who clamps the filter contribution separately, gets different results when the intermediate exceeds int16 range.
 
-**Why it happens:** The nocash formula is dense. It's tempting to skim it and put "the input gain" at the first multiply you encounter.
+The critical detail: `old` and `older` (the feedback samples) are the *clamped* output from the previous iteration. So the pipeline is:
 
-**Warning signs:** Wet/dry balance feels wrong across all presets uniformly (suggests a gain-stage misplacement, not a coefficient bug); witness diff shows output level off by a consistent dB across all presets.
-
-**Prevention:** Before writing code, in `DECISIONS.md` draw the full signal graph with every multiply labeled by register name. Implement from the diagram; review the diagram against nocash side-by-side. Unit-test each register's musical effect in isolation (P-MODTEST).
-
-**Phase:** P-NETWORK, P-DECISIONS (signal-flow diagram is a deliverable, not a sketch)
-
-**Source:** [psx-spx SPU](https://psx-spx.consoledev.net/soundprocessingunitspu/) — reverb formula block
-
----
-
-### 1.10 Silent reordering of operations within a sample
-
-**Severity:** Significant (for bit-accuracy)
-
-**What goes wrong:** The nocash formulas prescribe an order: Lin-side reflections, then Rin-side, then comb filters, then APF1, then APF2. A compiler-friendly refactor that interleaves L/R or reorders comb+APF stages produces the same ideal output but diverges on overflow/saturation (since saturation is not associative).
-
-**Why it happens:** Refactoring for cache locality or vectorization. The reordering is invisible in float math but observable in saturated int math.
-
-**Warning signs:** Bit-exact witness diff passes on small amplitudes and fails on loud ones.
-
-**Prevention:** Implement the reverb step function as a single flat sequence matching the nocash formula line-by-line, with each intermediate in its own named local variable. Add a comment block above each stage citing the exact nocash line. Resist optimization until P-MODTEST passes.
-
-**Phase:** P-NETWORK
-
-**Source:** Inferred from saturation non-associativity (general fixed-point DSP wisdom); [dsprelated](https://www.dsprelated.com/showthread/comp.dsp/78628-1.php)
-
----
-
-## Category 2 — Bit-Accuracy Verification Pitfalls
-
-### 2.1 Floating-point creep ("just this one coefficient as float")
-
-**Severity:** Catastrophic
-
-**What goes wrong:** An engineer thinks "the coefficient is a constant, I can store it as a float, multiply by float, and cast back." Each int16→float→int16 round-trip introduces rounding (since `float` has 24 bits of mantissa and can represent every int16 exactly, this is safe *in isolation* — but combined with the wrong saturation/truncation semantics, it injects rounding where the hardware truncates). **lv2-psx-reverb converts all coefficients to float at load time.** This is why lv2-psx-reverb is a *behavioral* witness, not a bit-accurate one.
-
-**Why it happens:** Speed, readability, fewer bugs in the arithmetic — float is just easier. SPU-94's entire value proposition rejects this trade.
-
-**Warning signs:** Any appearance of `float` or `double` types anywhere in `libspu94/src/reverb*.c`. Any use of `*`, `/` on non-integer types within the hot path. `grep -rn 'float\|double' libspu94/src/reverb*` as a CI check.
-
-**Prevention:**
-- Enforce via CI: `grep -E '\b(float|double)\b' libspu94/src/reverb*.c` must return zero matches except in explicit "rate converter" files at the API boundary.
-- Type the hot path with `int16_t`, `int32_t`, `uint16_t` exclusively.
-- All test vectors are integer-valued.
-
-**Phase:** P-FIXPOINT, P-NETWORK, and a CI guard added in the earliest P-API increment
-
-**Source:** [lv2-psx-reverb README](https://github.com/ipatix/lv2-psx-reverb/blob/master/README.md) confirms float-based implementation; general fixed-point DSP discussion at [Valhalla DSP](https://valhalladsp.com/2011/07/07/algorithmic-reverbs-distortion-and-noise/)
-
----
-
-### 2.2 Endian or bit-order assumptions in preset / register init
-
-**Severity:** Significant
-
-**What goes wrong:** Hex values in the nocash preset tables are the little-endian 16-bit words as they appear in SPU register space. Reading them into a host struct with wrong field layout, or reading a hardware capture file with wrong endian, inverts bytes and turns sensible register values into garbage.
-
-**Why it happens:** Most test environments are x86_64 little-endian and Cortex-M is also little-endian, so the bug stays hidden until exactly the wrong platform test.
-
-**Warning signs:** Test on x86 passes; Cortex-M cross-compile passes build but fails smoke test (if smoke test ever runs code). Alternatively, any `.wav` or `.bin` fixture loaded directly into a struct triggers garbage.
-
-**Prevention:** Always read preset / capture data through an explicit `read_u16_le(uint8_t *p)` helper; never `memcpy` a struct from disk. Preset tables are C constants in source (`{ .vIIR = 0x4C96, ... }`) — the compiler handles endian.
-
-**Phase:** P-PRESETS, P-CLI (WAV I/O), P-CROSS (smoke test)
-
-**Source:** General systems-programming wisdom; reinforced by psx-spx noting "games will typically write to [SPU registers] using two 16-bit writes instead of a single 32-bit write" — implying byte-order sensitivity at the hardware interface.
-
----
-
-### 2.3 Signed right-shift implementation-defined behavior
-
-**Severity:** Nuisance → Significant (depends on compiler target)
-
-**What goes wrong:** `int x = -7; x >> 1;` is implementation-defined in C99 for negative values. GCC, Clang, MSVC, and ARM's compilers all arithmetic-shift (sign-extend), so in practice this is a nonissue on our targets. **But:** the *standard* doesn't guarantee it, so some static analyzers flag it, and some older/embedded toolchains (legacy TI, Keil) documented differently. If SPU-94 ever targets a toolchain that logical-shifts signed negatives, truncation becomes rounding-toward-zero, breaking bit-accuracy silently.
-
-**Why it happens:** Using `x >> 15` for Q15 truncation "because it's faster than divide."
-
-**Warning signs:** Cross-compile to an exotic target passes unit tests but fails golden-file tests; behavior differs between `-O0` and `-O3`.
-
-**Prevention:** Prefer `/ 0x8000` and let the compiler optimize (modern compilers produce the same arithmetic shift). If you need `>>`, wrap in a `q15_shr(int32_t x)` helper with a static_assert probe: `_Static_assert((-1 >> 1) == -1, "arithmetic shift required");` — fail the build loudly on any platform that doesn't arithmetic-shift. Cortex-M GCC is fine; this is insurance.
-
-**Phase:** P-FIXPOINT (the helper + static_assert), P-CROSS (run the assert on the Cortex-M build)
-
-**Source:** [ISO C99 § 6.5.7 / Autoconf discussion](https://lists.gnu.org/archive/html/autoconf-patches/2001-08/msg00104.html); [CMSIS uses fixed-width types specifically for this reason](https://arm-software.github.io/CMSIS_5/DSP/html/group__group.html)
-
----
-
-### 2.4 Sample-offset ambiguity in witness diffs — "one sample off but otherwise identical"
-
-**Severity:** Significant (wastes weeks if not handled upfront)
-
-**What goes wrong:** You render the same audio through SPU-94 and lv2-psx-reverb, diff them, and they're wrong by a single sample of latency. You assume bug. It's actually buffer scheduling. OR: it's a real bug that adds one sample of latency that accumulates. You can't tell without an alignment step.
-
-**Why it happens:** Different implementations have different first-sample conventions, different startup-silence lengths, different internal buffer initialization.
-
-**Warning signs:** Witness diff shows "large" error only at first N samples, then "small" error after; or cross-correlation peak is at a nonzero lag.
-
-**Prevention:** The diff harness runs cross-correlation first, aligns to peak lag, and reports lag separately from post-alignment diff. Report both `raw_rms_diff` and `aligned_rms_diff`. Configure an acceptable lag tolerance (e.g., ±4 samples) and fail if lag drifts over time or differs between presets. Use the approach of tools like [Audio DiffMaker](https://www.libinst.com/Audio%20DiffMaker.htm).
-
-**Phase:** P-WITNESS (the harness is where this lives)
-
-**Source:** [Audio DiffMaker](https://www.libinst.com/Audio%20DiffMaker.htm); general audio-comparison tooling
-
----
-
-### 2.5 Golden files pinned to a buggy implementation
-
-**Severity:** Significant
-
-**What goes wrong:** You snapshot output on day 30, then on day 60 you fix a real bug and 80% of your golden tests fail. You have to distinguish "fixed a bug" from "regressed." Every regeneration of goldens is a mini-crisis.
-
-**Why it happens:** Goldens are seductive — they catch real regressions cheaply.
-
-**Prevention:**
-- Every golden file has a companion `*.sha256` AND a companion `*.sig.md` describing: what inputs produced it, what commit hash was checked out, what the author listened for and believed correct, and what *known limitations* applied at sign-off.
-- Regenerating a golden is a git-committed event with a mandatory DECISIONS.md entry.
-- Goldens are signed off by explicit human audition (listen to the file) at creation, not just "algorithm didn't crash."
-
-**Phase:** P-CLI (golden harness), P-DECISIONS
-
-**Source:** Inferred from experience with golden-file testing in audio projects
-
----
-
-## Category 3 — API Design Pitfalls for Real-Time DSP Libraries
-
-### 3.1 Hidden allocations in the process path
-
-**Severity:** Catastrophic (for RT-safety; less so for M1 since no RT path yet)
-
-**What goes wrong:** The C library itself is RT-safe, but the Python binding's `process_block()` allocates a numpy array on every call. Or the CLI's WAV-reader allocates per-block. Or a debug log path conditionally calls `malloc()`. When the code is later wrapped in JUCE (M4), these allocations cause dropouts.
-
-**Why it happens:** Python / WAV I/O code is written at a different level of rigor than the core; allocations hide in innocuous-looking constructs (`numpy.empty`, `struct.pack` into a new bytes object).
-
-**Warning signs:** M1 tests pass but M4 JUCE integration has xruns; profiling shows `malloc` in the audio callback.
-
-**Prevention:**
-- Core C library: grep for `malloc|calloc|realloc|free|mmap|brk` in `libspu94/src/` — CI-enforced zero matches. All state is in a caller-allocated `struct spu94_state`.
-- Python binding: the `process_block(state, input_np, output_np)` API takes caller-supplied numpy arrays (both input and output); the binding never allocates. Document in a README.
-- CLI: WAV I/O is outside the "core" and may allocate, but the per-sample path inside does not.
-
-**Phase:** P-API (design), P-PYBIND (binding design), P-CLI (keep allocation out of per-sample loop)
-
-**Source:** Standard real-time-audio guidance; [Ross Bencina "real-time audio programming 101"](http://www.rossbencina.com/code/real-time-audio-programming-101-time-waits-for-nothing)
-
----
-
-### 3.2 Locks or syscalls in the process path
-
-**Severity:** Catastrophic (for RT-safety; less for M1)
-
-**What goes wrong:** To make mid-stream register writes "safe," an implementer adds a mutex around the register array. Audio thread takes the lock every sample; control thread takes it every write. Priority inversion, blocking, dropouts.
-
-**Why it happens:** "Thread safety" intuition from general-purpose programming.
-
-**Prevention:**
-- Register writes from the control side use atomics or a single-writer-single-reader lock-free pattern.
-- Document the concurrency model in `DECISIONS.md`: which registers are safe to write from which thread, under what memory-ordering guarantees.
-- Specifically: option A — the audio thread reads a `_Atomic int16_t` register array written by the control thread (may tear on non-atomic-word-sized writes on some MCUs — verify `_Atomic int16_t` is lock-free on Cortex-M). Option B — ring-buffer of pending writes drained at the start of each block. Option B is safer and easier to verify; A has lower latency.
-- M1 test: run the modulation test harness with register writes on a separate thread and verify zero drops (P-MODTEST).
-
-**Phase:** P-API, P-MODTEST, P-DECISIONS
-
-**Source:** Standard RT-audio guidance; Ross Bencina; [timur.audio "Four common mistakes in audio development"](https://timur.audio/using-locks-in-real-time-audio-processing-safely)
-
----
-
-### 3.3 Callback vs push vs pull API choice
-
-**Severity:** Significant
-
-**What goes wrong:** Choosing a callback-driven API forecloses the pull-based CLI use case (golden-file rendering). Choosing pure push forecloses the real-time-plugin use case. Choosing something bespoke makes the FFI harder.
-
-**Why it happens:** API designed around today's caller (Python tests), not tomorrow's caller (JUCE plugin, MCU firmware).
-
-**Prevention:** Adopt a pure **block-processing pull API** as the primitive: `spu94_process_block(state, in_L, in_R, out_L, out_R, n_samples)`. All other styles are wrappers. This works for CLI (call in a loop), for Python (call on numpy slices), for JUCE (call from the audio callback), for MCU (call from the DMA half-complete ISR). Callbacks or push adapters can be added later on top; the primitive is pull.
-
-**Phase:** P-API
-
-**Source:** Idiomatic to JUCE's AudioProcessor::processBlock, PortAudio's callback, CoreAudio's AUInternalAudioStreamBasicDescription, and every MCU DMA-double-buffer pattern. Lowest common denominator.
-
----
-
-### 3.4 Parameter smoothing sneaking into the "bit-accurate" core
-
-**Severity:** Catastrophic (for accuracy claim)
-
-**What goes wrong:** To make mid-stream modulation glitch-free, an implementer adds coefficient smoothing (one-pole LPF on every register change) inside the core. Now the core isn't bit-accurate anymore — every coefficient the network sees is a smoothed version of the one the user wrote. The accuracy claim is silently gone.
-
-**Why it happens:** The M1 mandate ("mid-stream register updates must be glitch-free") and the bit-accuracy mandate pull opposite directions. Smoothing is the obvious solution to the first; it contradicts the second.
-
-**Prevention:**
-- The core is **bit-accurate given the sequence of register values it observes**. Smoothing is *outside* the core — it lives in the M4 "lever layer."
-- For M1: mid-stream writes take effect at sample boundaries with no internal smoothing. The modulation test (P-MODTEST) verifies that writing a coefficient at sample N produces, at sample N+1, network behavior consistent with "coefficient was this value from the start."
-- Glitch-freedom in M1 means: no crashes, no denormals/NaN, bounded output, no buffer corruption. It does NOT mean: no zipper noise. Zipper noise at audio-rate coefficient sweeps IS expected in M1 (the hardware has it too at high modulation rates).
-- This boundary is documented in `DECISIONS.md` and `LEVERS-CATALOG.md`: each lever is annotated with "needs smoothing at the lever layer (M4)" vs "safe to modulate raw at audio rate."
-
-**Phase:** P-API, P-MODTEST, P-DECISIONS, P-LEVERS
-
-**Source:** [Valhalla DSP on smoothing](https://valhalladsp.com/2010/11/27/valhallashimmer-the-controls/) — "all sliders have been designed to be tweaked in real time and have a smoothed response to avoid clicks" (i.e., smoothing is a musical-lever concern); this must live outside the bit-accurate core.
-
----
-
-## Category 4 — Mid-Stream Register Modulation Pitfalls
-
-### 4.1 Delay-length (`dCOMB1..4`, `dAPF1/2`, `dLSAME`, etc.) changes: phase discontinuity
-
-**Severity:** Significant (audible click); Catastrophic (if buffer state corrupts)
-
-**What goes wrong:** Changing a delay offset mid-stream makes the next read tap a different location in the work buffer than the previous read expected. Depending on what's at the new location, the result is: a click (most common), a phase-inverted echo (if the new tap reads from an inverted copy), or — worst — silently-wrong output that still sounds plausible.
-
-The real PS1 hardware just does this. Games that changed reverb preset mid-gameplay produced the same click. So there is no "correct" glitch-free behavior to replicate — there is only a *policy* to choose and document.
-
-**Why it happens:** The implementer tries to "smooth out" the delay-length change via crossfade or interpolated read position, adding dependencies (read+write indices, sub-sample delay, sinc interpolation) that are outside the bit-accurate mandate.
-
-**Prevention:**
-- Policy decision documented in `DECISIONS.md`: "Delay-length register changes take effect at the next sample boundary. No fractional delay, no crossfade, no interpolation. Resulting clicks are part of the faithful behavior."
-- The M4 lever layer can later add a crossfade wrapper for musical use (flagged as a non-bit-accurate mode).
-- Modulation test (P-MODTEST) verifies the click happens at the expected sample and doesn't propagate beyond the immediate transient.
-- **Separate test:** rapid delay-length modulation (sweep at 10 Hz) must not corrupt the work buffer or cause unbounded output. Catches the *catastrophic* failure mode.
-
-**Phase:** P-API, P-MODTEST, P-DECISIONS, P-LEVERS
-
-**Source:** [KVR forum on delay-line interpolation and zipper](https://www.kvraudio.com/forum/viewtopic.php?t=42849); [CCRMA on delay-line interpolation](https://ccrma.stanford.edu/~jos/pasp06/Delay_Line_Interpolation.html)
-
----
-
-### 4.2 Coefficient zipper noise at audio-rate modulation
-
-**Severity:** Nuisance (expected); only a pitfall if unacknowledged
-
-**What goes wrong:** Sweeping vWALL or vIIR at audio rate produces zipper — stepped artifacts as the coefficient quantizes across int16 values. This is audible. Users expect smooth modulation.
-
-**Why it happens:** Coefficients are int16. A sweep from 0x4000 to 0x4001 is a discrete step.
-
-**Prevention:**
-- Acknowledge in M1: zipper at audio-rate modulation is expected and documented. Not a bug.
-- In `LEVERS-CATALOG.md`, annotate each register with its expected zipper behavior under modulation.
-- M4 lever layer adds interpolation where musically appropriate, explicitly crossing the bit-accuracy boundary with documentation.
-
-**Phase:** P-LEVERS, P-MODTEST (observe and document, not fix)
-
-**Source:** [Valhalla on smoothing as a plugin-level concern](https://valhalladsp.com/2010/11/27/valhallashimmer-the-controls/)
-
----
-
-### 4.3 Register write happening between internal L and R sub-samples
-
-**Severity:** Significant
-
-**What goes wrong:** The reverb runs at 22050 Hz with L and R on alternating 44.1 kHz ticks. A register write from the control thread at 44.1 kHz may land between the L-calc tick and the R-calc tick. If the write lands there, L and R use *different* coefficients for "the same sample." Depending on policy this is correct (matches hardware) or wrong (creates L/R imbalance).
-
-**Why it happens:** The implementer picks one convention without realizing the interaction with half-rate processing.
-
-**Prevention:**
-- Pick and document the convention in `DECISIONS.md`. Two reasonable choices: (a) writes take effect only at L-tick boundaries (stereo-synchronous); (b) writes take effect immediately, accepting L-before-R mismatch on the transitional sample (matches hardware more closely).
-- Choice (b) is more faithful and simpler; prefer unless witness diff disproves.
-- Modulation test (P-MODTEST) includes a test that writes a register at a known sub-sample offset and verifies the observed L/R output matches the policy.
-
-**Phase:** P-NETWORK, P-API, P-MODTEST, P-DECISIONS
-
-**Source:** Inferred from [psx-spx](https://psx-spx.consoledev.net/soundprocessingunitspu/) L/R alternation description
-
----
-
-### 4.4 Comparable projects' approaches (observable, not source-read)
-
-**What the field does:**
-- **lv2-psx-reverb:** smooths wet/dry/master gain parameters with exponential ramping (`rev->dry += 0.001f * (dry_coef - rev->dry)`), but switches presets by *reloading all coefficients at once* — audible click on preset change, no interpolation of individual register values. On preset-switch specifically, it clears the SPU buffer with `memset()`, which is a design choice (avoids loud artifacts from an old-preset tail bleeding into the new preset) but isn't hardware-faithful.
-- **Valhalla plugins:** all parameters are smoothed ("designed to be tweaked in real time and have a smoothed response to avoid clicks"). This is a plugin-level contract, above the DSP core.
-- **Strymon pedals:** proprietary, public documentation is marketing-level.
-
-**Implication for SPU-94:** M1 core does not memset on preset switch (hardware doesn't), does not smooth coefficients (hardware doesn't). The M4 lever layer may offer a `preset_morph` wrapper that does one or both, clearly flagged as "non-bit-accurate convenience feature."
-
-**Source:** [lv2-psx-reverb architecture summary](https://github.com/ipatix/lv2-psx-reverb/blob/master/psx-reverb.c) (reviewed for architectural approach only, not code); [Valhalla blog](https://valhalladsp.com/2010/11/27/valhallashimmer-the-controls/)
-
----
-
-## Category 5 — Python Binding Pitfalls (ctypes + numpy)
-
-### 5.1 numpy array garbage-collected while ctypes pointer is live
-
-**Severity:** Catastrophic (segfault)
-
-**What goes wrong:**
-```python
-ptr = np.ascontiguousarray(np.zeros(1024, dtype=np.float32)).ctypes.data_as(POINTER(c_float))
-# np.ascontiguousarray result has no ref; GC runs; ptr is dangling
-lib.spu94_process(ptr, 1024)  # SEGV
+```
+raw = shift_nibble + filter_contribution(old_clamped, older_clamped)
+clamped = MinMax(raw, -0x8000, +0x7FFF)
+older = old;  old = clamped;  // feedback uses CLAMPED value
 ```
 
-**Why it happens:** Fluent-API pattern hides the array object. Temporary numpy arrays from arithmetic (`(a+b).ctypes.data`) are immediately GC-eligible.
+**Why it happens:** Premature clamping is a natural defensive-programming instinct. An implementer sees a 32-bit intermediate and thinks "clamp early to prevent overflow." But the hardware computes the full sum in wider-than-16-bit arithmetic and only clamps the final result.
+
+**Consequences:** Divergence on any sample where shifted nibble + filter contribution temporarily exceeds int16 range before the final clamp brings it back. This affects loud passages and high-shift-value blocks.
 
 **Prevention:**
-- The Python wrapper always takes named numpy arrays as arguments and keeps references in locals/attributes during the call.
-- Wrapper docstring explicitly warns: "Do not pass expression results directly — bind to a local first."
-- Use `.ctypes.data_as()` (keeps a ref) not `.ctypes.data` (raw int).
-- Test: `pytest` + `valgrind` (or at least `faulthandler` enabled) on a hot-loop test that creates fresh arrays in a tight loop, to surface GC-interaction bugs.
+1. Use `int32_t` for ALL intermediates in the decode loop. The maximum possible value is bounded: nibble (-8..+7) shifted left by 12 = -32768..+28672, plus filter contribution bounded by 2 * 32767 * 122 / 64 ~ 124,000. Total fits comfortably in int32.
+2. Clamp only once, at the assignment to the output and to the feedback state.
+3. Explicit unit test: construct a block where shifted nibble is +28672 and filter contribution pushes the intermediate above +32767, verify the output is +32767 (clamped), not some premature-clamp artifact.
 
-**Phase:** P-PYBIND
+**Detection:** Test vectors with deliberately overflowing intermediates.
 
-**Source:** [numpy GH#28238 "array.ctypes.data_as is not memory safe"](https://github.com/numpy/numpy/issues/28238); [numpy docs](https://numpy.org/doc/stable/reference/generated/numpy.ndarray.ctypes.html)
+**Phase:** P-DECODE, P-VERIFY
+
+**Source:** [psx-spx XA-ADPCM formula](https://problemkaputt.de/psxspx-cdrom-xa-audio-adpcm-compression.htm) — clamping follows the full expression
 
 ---
 
-### 5.2 ctypes does not release the GIL
+### C4: Filter coefficient index out of range — SPU has 5 filters, XA has 4
 
-**Severity:** Significant (for perf); not catastrophic for M1 tests
+**Severity:** Significant (wrong filter = wrong audio)
 
-**What goes wrong:** A ctypes-called C function holds the GIL for its entire duration. For long `process_block()` calls with large block sizes, this blocks other Python threads. If test harness tries to stream register writes from a separate Python thread during processing, writes stall until the block returns.
+**What goes wrong:** The filter index is extracted from bits 4-6 of the header byte (for SPU-ADPCM) or bits 4-5 (for XA-ADPCM). This gives a 3-bit range of 0-7 for SPU-ADPCM. Only indices 0-4 are defined:
 
-**Why it happens:** ctypes default.
+| Filter | f0 (pos) | f1 (neg) |
+|--------|----------|----------|
+| 0      | 0        | 0        |
+| 1      | +60      | 0        |
+| 2      | +115     | -52      |
+| 3      | +98      | -55      |
+| 4      | +122     | -60      |
+
+Filter indices 5, 6, 7 are undefined. An implementation that indexes into a 5-element table with index 5-7 reads garbage memory (buffer overrun). An implementation that clamps to 4 or wraps modulo 5 has made an assumption about hardware behavior.
+
+**Why it happens:** The header format allows 3 bits for filter, giving indices 0-7, but only 5 are defined. No commercial game uses filter 5-7. The hardware behavior for these indices is undocumented.
 
 **Prevention:**
-- For M1, acceptable: tests run single-threaded.
-- For the modulation test (P-MODTEST), use blocks small enough that the write-thread latency is acceptable (e.g., 64-sample blocks at 44.1 kHz = ~1.5 ms quantum), OR bypass ctypes for the hot loop and use a cffi/Cython shim later.
-- Document in `DECISIONS.md`: "ctypes chosen for minimum-maintenance binding; does not release GIL. Multi-threaded stress tests use small blocks to keep control-thread latency bounded. A future cffi migration is viable if GIL becomes a blocker."
-- If the modulation test requires it, consider a C-side test entry point (a function that internally does both processing and scheduled writes, called once from Python).
+1. Allocate the coefficient table as 8 entries (indices 0-7), with entries 5-7 set to (0, 0) as a safe default.
+2. Document in DECISIONS.md: "Filter indices 5-7 are treated as (0, 0). Hardware behavior for these indices is undocumented. This is a hardware-verification target."
+3. Alternatively, clamp filter index to 0-4 with a note that the clamp value is a guess.
+4. Never let an untrusted ADPCM header index directly into a fixed-size array without bounds checking.
 
-**Phase:** P-PYBIND, P-MODTEST, P-DECISIONS
+**Detection:** Fuzz test with random header bytes; valgrind/ASAN on decode of adversarial data.
 
-**Source:** [Python ctypes docs](https://docs.python.org/3/library/ctypes.html); [NumPy "Python as glue"](https://numpy.org/devdocs/user/c-info.python-as-glue.html)
+**Phase:** P-DECODE, P-DECISIONS
+
+**Source:** [psx-spx XA-ADPCM](https://problemkaputt.de/psxspx-cdrom-xa-audio-adpcm-compression.htm) — "SPU-ADPCM supports five filters (0..4)"
 
 ---
 
-### 5.3 C/Python struct layout mismatches
+### C5: Licensing pitfall — every GPL emulator has an ADPCM decoder you must not copy
 
-**Severity:** Catastrophic (wrong data, hard to diagnose)
+**Severity:** Critical (licensing)
 
-**What goes wrong:** C struct has implicit padding; `ctypes.Structure` has default packing (which may or may not match). Register values read from the Python side are garbage.
+**What goes wrong:** The ADPCM decode loop is ~15 lines of C. Every PS1 emulator (Mednafen GPLv2, DuckStation GPLv2, PCSX-Redux GPLv2) has one. The temptation to "just look at how they do it" is enormous because the nocash spec's pseudocode is somewhat ambiguous on edge cases. If the implementer reads any GPL decode loop, the resulting code is arguably derivative even if rewritten — the structure, variable names, and edge-case handling are absorbed unconsciously.
 
-**Why it happens:** `ctypes.Structure` fields are packed to native alignment by default, which *usually* matches C's, but not for unusual field orderings. Adding a `uint64_t` field later silently re-aligns later fields.
+**Why it happens:** The decode algorithm is simple enough that independent implementations look similar. But the project's licensing posture (MIT/Apache, build from spec) requires that the implementation demonstrably derives from the spec, not from GPL sources.
+
+**Consequences:** If derivative-work status is established, the entire libspu94 library inherits GPL, foreclosing MIT/Apache licensing. The blast radius is worse than for the reverb (M1) because ADPCM is simpler and structural similarity is harder to rebut.
 
 **Prevention:**
-- `struct spu94_state` is defined in C with explicit `_Static_assert` on offsets of every public field.
-- Python side uses `ctypes.Structure` with `_pack_ = 1` only if C side uses `__attribute__((packed))` — otherwise, match natively.
-- Alternative: expose no public state fields across FFI. Python sees only an opaque pointer + getter/setter functions. This is slower but bulletproof; preferred for M1.
-- Test: trivial Python test that writes a register and reads it back via a C-side getter verifies the round-trip. Run on every commit.
+1. Implement EXCLUSIVELY from the nocash XA-ADPCM pseudocode (which is a factual specification, not a copyrightable implementation).
+2. Do NOT read Mednafen's `SPU_Decode_ADPCM()`, DuckStation's `DecodeBlock()`, or any GPL source.
+3. Use SPU-94's own naming conventions (already established: `sat_s16`, `q15_mul_truncate`, etc.) — do NOT mirror emulator variable names.
+4. If a gray area arises that the spec doesn't resolve, use audio-level witness comparison (decode the same ADPCM block, diff outputs numerically) rather than reading the witness's source code.
+5. Log every spec consultation in DECISIONS.md per the existing M1 protocol.
+6. The decode loop's simplicity is actually an advantage: there are very few ways to write `shifted_nibble + filter(old, older)` in C. The spec IS the implementation; there is no creative expression to copy.
 
-**Phase:** P-API (opaque-pointer contract), P-PYBIND
+**Phase:** P-DECODE, P-DECISIONS
 
-**Source:** [ctypes docs](https://docs.python.org/3/library/ctypes.html); general FFI wisdom.
+**Source:** Project constraint from `.planning/PROJECT.md`; [Clean-room design principles](https://en.wikipedia.org/wiki/Clean_room_design)
 
 ---
 
-### 5.4 "It works on my Linux" — glibc/ABI distribution pitfalls
+### C6: Feedback state (old/older) initialization and carry across blocks
 
-**Severity:** Nuisance for M1 (single-user); Significant if project expands
+**Severity:** Significant (audible glitch at block boundaries)
 
-**What goes wrong:** Shared library built against glibc 2.38 fails to load on a user's older Ubuntu with glibc 2.31. Or: symbol visibility defaults to public, exposing internal symbols that break ABI on the next release.
+**What goes wrong:** The ADPCM decoder maintains two feedback samples (`old` and `older`, also called `prev1` and `prev2`). These carry across block boundaries — the last two decoded samples of block N become the initial `old`/`older` for block N+1. Getting this wrong produces:
+
+- **Zeroed state at each block:** A click every 28 samples (every block boundary) as the filter "restarts from silence."
+- **Swapped old/older:** Filter coefficients are asymmetric (f0 != f1 for filters 1-4), so swapping the two feedback samples produces wrong predictions.
+- **Unclamped feedback:** If the raw (pre-clamp) value is fed back instead of the clamped value, the filter sees values outside int16 range, producing cascading overflow.
+
+**Why it happens:**
+- "Reset state per block" is a natural assumption from other codecs (e.g., IMA-ADPCM resets predictor state per block).
+- Variable naming confusion: which is `old` (most recent, one sample ago) and which is `older` (two samples ago)? The nocash formula uses `old` for sample[-1] and `older` for sample[-2], but other sources reverse the naming.
 
 **Prevention:**
-- For M1 (Linux dev target), build script is reproducible (pinned container or documented flags).
-- `-fvisibility=hidden` by default, `__attribute__((visibility("default")))` on the public API.
-- Use a dedicated Linux container (Ubuntu 22.04 LTS baseline or similar) for builds; document.
-- Avoid C library features not in the Cortex-M newlib subset (see Category 8).
-- `readelf -d libspu94.so` in CI to audit the ABI and catch accidental symbol-leakage or unwanted dependencies.
+1. State struct holds `int16_t prev1, prev2;` with clear documentation: `prev1` = most recent decoded sample (nocash's `old`), `prev2` = second most recent (nocash's `older`).
+2. State is initialized to zero at voice key-on (matching hardware behavior — the PS1 zeroes the decode state when a voice is keyed on).
+3. State carries across blocks without reset (unless loop-end flag triggers a jump to loop-start, at which point state carries, it does NOT reset).
+4. Feedback uses the CLAMPED output value, not the pre-clamp intermediate.
+5. Unit test: decode two consecutive blocks where block 2's filter depends on block 1's tail samples. Verify that zeroing state between blocks produces different (wrong) output.
 
-**Phase:** P-API (visibility annotations), P-PYBIND, P-CROSS
+**Detection:** Audible click at block boundaries in decoded audio; witness diff shows periodic 28-sample-interval errors.
 
-**Source:** General Linux distribution wisdom; [GCC visibility docs](https://gcc.gnu.org/wiki/Visibility)
+**Phase:** P-DECODE, P-VERIFY
+
+**Source:** [psx-spx XA-ADPCM](https://problemkaputt.de/psxspx-cdrom-xa-audio-adpcm-compression.htm) — `older=old, old=s` at end of each sample
 
 ---
 
-## Category 6 — Licensing / Legal Pitfalls
+## Significant Pitfalls
 
-### 6.1 Inadvertent derivative work from GPL witnesses
+### S1: Nibble extraction order — high nibble first or low nibble first?
 
-**Severity:** Catastrophic (relicensing/project reset required)
+**Severity:** Significant (every other sample is wrong)
 
-**What goes wrong:** Even with a stated "no reading GPL source" policy, implementer checks a witness's source to resolve an ambiguity, unconsciously absorbs structure (variable names, function ordering, comment cadence), and produces code that is arguably derivative. Mednafen is GPLv2; lv2-psx-reverb is GPLv3. A derivative work inherits the copyleft; SPU-94 could not then be relicensed MIT/Apache.
+**What goes wrong:** Each byte of ADPCM data contains two 4-bit nibbles. The extraction order matters: for SPU-ADPCM, the LOW nibble (bits 0-3) is decoded FIRST, then the HIGH nibble (bits 4-7). Getting this backwards swaps every pair of samples, producing garbled audio that still "kind of sounds like something."
 
-**Why it happens:** "Just a quick peek to resolve this one question" compounds. Even without copy-paste, *structural similarity* has been held to matter in cases like Oracle v. Google and Computer Associates v. Altai.
+This is the OPPOSITE of some other ADPCM variants (e.g., IMA-ADPCM typically decodes high nibble first).
+
+**Why it happens:** Byte-level data layout is easy to get backwards. The nocash spec for XA-ADPCM describes a different nibble arrangement than SPU-ADPCM (XA interleaves differently due to sector structure), adding confusion.
 
 **Prevention:**
-- Written policy (already in PROJECT.md Constraints): witness source is not read as a primary activity.
-- If a consultation happens (e.g., to resolve a specific ambiguity), log it in `DECISIONS.md` with: what was consulted, what question, what was learned, what was NOT taken.
-- **Positive defense — the "non-tainted implementer" pattern from Computer Associates v. Altai:** write the implementation from the spec FIRST, then consult witnesses only for behavioral diffs via audio comparison, never structural diffs via code review. This is the clean-room pattern the Altai court accepted.
-- Avoid naming conventions that mirror Mednafen/lv2-psx-reverb (their `rev->dry += 0.001f * ...` pattern, their file structure, their function names).
-- Final license choice deferred to end of M1 — if derivation creeps in, the project falls back to GPLv3.
+1. SPU-ADPCM: low nibble first, high nibble second within each data byte.
+2. Extract with: `nibble_lo = (byte >> 0) & 0xF; nibble_hi = (byte >> 4) & 0xF;` — decode lo first.
+3. Sign-extend 4-bit to int32: `int32_t signed_nibble = (nibble < 8) ? nibble : nibble - 16;` or cast through `int8_t`: `int32_t signed_nibble = ((int8_t)(nibble << 4)) >> 4;`
+4. Unit test: decode a known VAG file (the Sony SDK includes sample VAG files; psxavenc can produce them) and compare against a known-good PCM decode.
 
-**Phase:** P-DECISIONS (log every witness consultation)
+**Detection:** Decoded audio sounds "phasy" or garbled but still recognizably musical — the samples are present but misordered within pairs.
 
-**Source:** [Wikipedia Clean-room design](https://en.wikipedia.org/wiki/Clean_room_design); [RetroReversing](https://www.retroreversing.com/clean-room-reversing); [Computer Associates v. Altai](https://en.wikipedia.org/wiki/Computer_Associates_Int%27l,_Inc._v._Altai,_Inc.); [Sony v. Connectix](https://en.wikipedia.org/wiki/Sony_Computer_Entertainment,_Inc._v._Connectix_Corp.)
+**Phase:** P-DECODE, P-VERIFY
+
+**Source:** [psx-spx SPU ADPCM](https://problemkaputt.de/psxspx-spu-adpcm-samples.htm); [jsgroth SPU Part 1](https://jsgroth.dev/blog/posts/ps1-spu-part-1/)
 
 ---
 
-### 6.2 nocash psx-spx is itself of ambiguous copyright status
+### S2: Encoder filter selection — greedy vs brute-force vs Sony SDK behavior
 
-**Severity:** Significant (project's licensing posture is less defensible than assumed)
+**Severity:** Significant (encoder quality, not decoder correctness)
 
-**What goes wrong:** The psx-spx GitHub project README openly states: "No copyright or license have been properly acquired to republish and alter the document... This document isn't a clean room reverse engineering project. A good chunk of the original document has been either directly copy/pasted from the confidential code and documentation from Sony, or summarized." The nocash document is the *primary* spec reference for SPU-94. If Sony were to assert copyright over the spec document, anyone who built software strictly from it would be in a grayer zone than they thought.
+**What goes wrong:** The ADPCM encoder must choose, for each 28-sample block, which filter (0-4) and which shift (0-12) minimize the quantization error. There are 5 * 13 = 65 possible (filter, shift) combinations per block. Three encoding strategies exist:
 
-**Why it happens:** Reverse-engineering docs for consoles are a legal gray area, and Sony specifically is believed to have been aggressive historically. The psx-spx maintainers are honest about their posture, but users downstream may not read the fine print.
+- **Sony SDK (vagconv/aiff2vag):** Unknown algorithm, but the output is the "ground truth" that PS1 games shipped with. The SDK tools are not publicly available and their encoding strategy is not documented.
+- **Greedy/heuristic:** Try all 5 filters, pick the one with lowest error, then find the best shift. Fast but may not find the global optimum for a given block.
+- **Brute-force:** Try all 65 combinations, pick the one with lowest total error across all 28 samples. Slow but optimal given the block constraint.
+
+The pitfall: an encoder that picks filter/shift independently (best filter ignoring shift, then best shift for that filter) can produce worse quality than brute-force. And ANY encoder that doesn't simulate the actual decode loop (including clamping and feedback) during encoding will produce output that sounds different after hardware decode than the encoder predicted.
+
+**Why it happens:** Encoder quality is a separate concern from decoder correctness. But if the project ships an encoder that produces poor ADPCM, users will blame the reverb for "sounding bad" when the degradation is actually in the encoding.
 
 **Prevention:**
-- Do not redistribute nocash/psx-spx content verbatim in SPU-94 documentation — paraphrase in your own words.
-- Cite nocash as *a* reference among several (hitmen.c02.at, archived Sony SDK docs), not as the single source.
-- DECISIONS.md treats each ambiguity resolution as an engineering decision, not a citation. The SPU-94 code is authored from understanding, not transcription.
-- Do not include verbatim register tables from psx-spx in the SPU-94 repository. The 10 factory presets are register values (facts, uncopyrightable individually), but the presentation / table structure should be SPU-94's own.
-- Consult a lawyer before a public release if this matters to you; acceptable risk for personal project.
+1. Encoder evaluates ALL 65 (filter, shift) combinations per block.
+2. For each candidate, the encoder runs the actual decode loop (including clamping and feedback) to compute the true reconstruction error — not a linear approximation.
+3. Error metric: sum of squared differences between original PCM and decoded PCM across the 28-sample block.
+4. The encoder's internal decode loop MUST be identical to the standalone decoder. Factor into a shared function.
+5. Document the encoding strategy in DECISIONS.md, including the quality-vs-speed tradeoff.
 
-**Phase:** P-DECISIONS, P-PRESETS
+**Detection:** Encode a sine wave, decode it, compare SNR against psxavenc output.
 
-**Source:** [psx-spx GitHub README](https://github.com/psx-spx/psx-spx.github.io/blob/master/docs/index.md); [kraptor/psx-docs](https://github.com/kraptor/psx-docs)
+**Phase:** P-ENCODE, P-DECISIONS
+
+**Source:** [psxavenc](https://github.com/WonderfulToolchain/psxavenc); general ADPCM encoder design
 
 ---
 
-### 6.3 Trademark naming — "PSX Reverb" and "PS1"
+### S3: Loop flag handling — the repeat-address-disable quirk
 
-**Severity:** Significant (easy to avoid, expensive to remediate)
+**Severity:** Significant (games depend on this; SPU-94's scope may not include it, but it must be documented)
 
-**What goes wrong:** Product named "PS1 Reverb" or marketed with the Sony logo invites a trademark takedown. Sony has been historically assertive (cf. Sony v. Connectix, though Connectix won on fair-use for the *emulator* — the trademark question was separate).
+**What goes wrong:** The ADPCM block's flag byte (byte 1) contains three meaningful bits:
+- Bit 0: Loop End — jump to repeat address, set ENDX flag
+- Bit 1: Loop Repeat — if set with bit 0, voice continues looping; if bit 0 alone, voice enters release/mute
+- Bit 2: Loop Start — copy current block address to repeat address register
 
-**Why it happens:** SEO temptation. "PSX" and "PS1" are search terms; the recognizable names sell.
+The documented quirk (from jsgroth's PS1 emulator blog, confirmed by Valkyrie Profile and Tron Bonne behavior): **if software writes to a voice's repeat address register directly, the Loop Start flag in ADPCM headers is disabled until the voice is keyed on again.** This means the hardware remembers "repeat address was set by software, not by ADPCM flag" and suppresses the flag until key-on.
+
+For SPU-94, which implements reverb but not the full voice engine (no ADSR, no pitch, no key-on), the question is: does the ADPCM codec need to handle loop flags at all, or is that the caller's responsibility?
 
 **Prevention:**
-- Product name is **SPU-94** (already decided). Working directory "PSX Reverb" is internal only.
-- Marketing copy describes the project by its technical character ("reimplementation of the Sound Processing Unit reverb from a 1990s home console") without using "PlayStation," "PS1," or "PSX" in product names, package names (`libspu94`, not `libps1reverb`), or the main README title.
-- Sony's trademarks ("PlayStation", "PS1", "PSX", the logo) are nominatively fair-use-able in descriptive prose ("SPU-94 is inspired by the reverb implementation in Sony's PlayStation 1"), but not usable in trademark position.
-- Package registry names (future PyPI, crates.io, etc.) should not use "psx" / "ps1".
+1. The ADPCM decoder's minimal contract: decode 16-byte blocks to 28 PCM samples. Loop flags are parsed and returned to the caller as metadata, not acted upon by the decoder.
+2. The caller (future voice engine, or test harness) is responsible for acting on loop flags.
+3. Document this boundary in DECISIONS.md: "ADPCM decoder reports loop flags; does not implement loop behavior. Loop behavior is out of scope for the reverb-focused codec."
+4. If SPU-94 later grows a voice engine, the repeat-address-disable quirk must be implemented. Flag it in PITFALLS for that milestone.
 
-**Phase:** P-API (package naming), P-CLI (binary name), P-DECISIONS
+**Detection:** N/A for the codec milestone (loop behavior is out of scope); relevant for future voice-engine work.
 
-**Source:** [Sony v. Connectix](https://en.wikipedia.org/wiki/Sony_Computer_Entertainment,_Inc._v._Connectix_Corp.); [retroreversing.com on trademark vs copyright](https://www.retroreversing.com/clean-room-reversing)
+**Phase:** P-LOOPFLAGS, P-DECISIONS
+
+**Source:** [jsgroth SPU Part 4](https://jsgroth.dev/blog/posts/ps1-spu-part-4/); [psx-spx SPU ADPCM](https://problemkaputt.de/psxspx-spu-adpcm-samples.htm)
 
 ---
 
-### 6.4 "Clean-room" defense for a solo developer
+### S4: ADPCM as reverb input coloration — integration ordering matters
 
-**Severity:** Significant
+**Severity:** Significant (architectural)
 
-**What goes wrong:** Strict clean-room (one person writes spec, another writes code, never meet) is impossible for a solo project. Without it, derivative-work claims are harder to rebut.
+**What goes wrong:** In the real PS1, the signal path is: ADPCM decode -> Gaussian interpolation -> ADSR envelope -> voice volume -> mix bus -> reverb input. The ADPCM decode step *colors* the audio before it reaches the reverb. Quantization noise from 4-bit compression, the filter's predictive errors, and the codec's frequency response all feed into the reverb and become part of the reverb's character.
+
+If SPU-94's ADPCM module is bolted on as a separate tool (encode file, decode file, then feed PCM to reverb), the pipeline is:
+
+```
+PCM -> ADPCM encode -> ADPCM decode -> [file] -> reverb
+```
+
+This produces the correct coloration. But if the integration skips ADPCM decode (feeding the original PCM directly to the reverb), users will hear "cleaner" reverb that lacks the PS1's characteristic grit. The ADPCM is not optional coloration — it IS part of the sound.
+
+**Why it happens:** The natural inclination is "reverb already works on PCM, why add a lossy step?" But the PS1 never feeds raw PCM to reverb — it always goes through ADPCM first.
 
 **Prevention:**
-- Solo-friendly defensive posture (consistent with Altai):
-  1. **Temporal separation** — specification reading and code writing are different sessions, logged in `DECISIONS.md`.
-  2. **Source provenance** — every non-obvious design choice in code has a `DECISIONS.md` entry citing the spec section it derives from, not the witness it matches.
-  3. **No witness-reading as primary activity** — already in PROJECT.md.
-  4. **Audio-level witness diffing only** — structural comparison is never the method of verification.
-  5. **Written record of work** — git commits with meaningful messages serve as contemporaneous evidence of independent authorship.
-- Be realistic: this is defensible for a non-commercial, non-competing project. If SPU-94 becomes a commercial product, formal legal review is warranted.
+1. libspu94's pipeline API should offer both paths: raw PCM in (for DAW use where ADPCM coloration is optional) and ADPCM-colored input (for authentic PS1 reproduction).
+2. The "authentic" path decodes ADPCM on-the-fly, sample by sample, before feeding each sample to the reverb input.
+3. Do NOT decode ADPCM in bulk and then process reverb in bulk — this is functionally equivalent but obscures the per-sample coloration interaction.
+4. The Gaussian interpolation and ADSR envelope are NOT in scope for M2 (they are voice-engine features). ADPCM decode -> reverb is the M2 signal path. Document this simplification.
 
-**Phase:** P-DECISIONS (the log IS the defense artifact)
+**Detection:** A/B listening test: reverb on raw PCM vs reverb on ADPCM-decoded PCM. The difference should be audible as added grit/noise floor.
 
-**Source:** [RetroReversing](https://www.retroreversing.com/clean-room-reversing); [Lexology on IP clean room policy](https://www.lexology.com/library/detail.aspx?g=57ce5c16-717f-4fe0-9925-30628c54085c)
+**Phase:** P-INTEGRATE, P-DECISIONS
+
+**Source:** [psx-spx SPU signal path](https://psx-spx.consoledev.net/soundprocessingunitspu/)
 
 ---
 
-## Category 7 — Project-Management Pitfalls
+### S5: The division-by-64 is an arithmetic right shift by 6 — precision matters
 
-### 7.1 Scope creep toward "the rest of the SPU"
+**Severity:** Significant (off-by-one in filter output)
 
-**Severity:** Catastrophic for delivery timeline
+**What goes wrong:** The filter formula `(old*f0 + older*f1 + 32) / 64` involves integer division by 64. In C, integer division truncates toward zero for positive values and is implementation-defined for negative values (C99 specifies truncation toward zero, but C89 left it implementation-defined). The hardware likely performs an arithmetic right shift by 6 (truncation toward negative infinity), which differs from C's `/` operator for negative values.
 
-**What goes wrong:** "The reverb works — while I'm at it, let me add ADPCM decode, because it's related." ADPCM is M2 work; ADSR is explicitly out of scope; pitch modulation and noise are out of scope. Each addition delays M1 and expands verification surface.
+Example: `(-33 + 32) / 64 = -1 / 64 = 0` in C (truncation toward zero), but `(-33 + 32) >> 6 = -1 >> 6 = -1` with arithmetic right shift (truncation toward negative infinity).
 
-**Why it happens:** Adjacent features are tempting precisely because the domain knowledge is fresh.
+The +32 rounding bias makes this divergence less frequent (it shifts the distribution toward positive intermediates), but it doesn't eliminate it for large negative filter contributions.
+
+**Why it happens:** Using C's `/` operator for what the hardware implements as a right shift. The libspu94 codebase already has the `_Static_assert` for arithmetic right shift (ADR-0001), so using `>> 6` is safe on the project's target compilers.
 
 **Prevention:**
-- `PROJECT.md` already enumerates Out of Scope bulletpoints — treat these as a contract.
-- Every time the temptation appears, ask: "Does this make M1 reverb demonstrably more faithful to hardware, or is this M2+?" If the latter, create a note in a `FUTURE.md` or analogous file and return to the current work.
-- Use the factory presets as a ground-truth completion criterion: M1 is done when all 10 presets produce documented, signed-off output matching witness + listener-audition. Not when every tangentially-related idea is implemented.
+1. Implement the filter division as `>> 6`, not `/ 64`, and add a comment explaining why.
+2. The existing `_Static_assert` in `spu94_q15.h` already validates arithmetic shift behavior.
+3. Unit test: verify that the decode of a block with large negative filter contributions matches the `>> 6` interpretation, not the `/ 64` interpretation.
+4. Document in DECISIONS.md: "ADPCM filter division implemented as `>> 6` (arithmetic right shift), matching hardware behavior. This differs from C's `/ 64` for negative values."
 
-**Phase:** Project-wide; guarded at every phase transition via the GSD transition checklist
+**Detection:** Divergence on blocks with strong negative filter feedback; rare in practice but fails bit-accuracy.
 
-**Source:** [atd.org "Just one more thing"](https://www.td.org/content/atd-blog/scope-creep-the-allure-of-just-one-more-thing); project-management wisdom
+**Phase:** P-DECODE, P-DECISIONS
+
+**Source:** Inferred from hardware behavior (Sony's SPU is a hardware shift, not a software divider); consistent with libspu94's existing ASR policy (ADR-0001)
 
 ---
 
-### 7.2 DECISIONS.md becoming a dumping ground
+### S6: Sign extension of 4-bit nibbles — the classic off-by-one
 
-**Severity:** Significant (undermines document's value)
+**Severity:** Significant (every sample wrong if botched)
 
-**What goes wrong:** Every small choice ("used `static` for internal function") gets logged, burying the real gray-area resolutions in noise. Readers can't find the meaningful decisions. The document stops being consulted.
+**What goes wrong:** Each ADPCM nibble is a 4-bit signed value in the range -8 to +7 (two's complement). Sign-extending from 4 bits to 32 bits requires recognizing bit 3 as the sign bit. Common mistakes:
+
+- Treating nibbles as unsigned 0-15 (no sign extension) — all "negative" samples become large positive values.
+- Sign-extending from bit 7 instead of bit 3 (treating as int8 instead of int4) — wrong sign for values 8-15.
+- Using `(int8_t)(nibble << 4) >> 4` which works but is subtle and easy to get the shift count wrong.
 
 **Prevention:**
-- DECISIONS.md entries are admitted only for:
-  1. Ambiguity resolutions where the spec is incomplete (every entry names the spec section or documents "spec silent").
-  2. Witness consultations (what was consulted and why).
-  3. Deviations from witnesses where the rationale matters (e.g., "we model the 22050 Hz half-rate; lv2-psx-reverb does not").
-  4. Policy choices with downstream consequences (e.g., the mid-stream write ordering convention).
-- NOT admitted: routine coding choices, refactoring notes, TODO-list items.
-- Each entry has a standard template: **Question / Context (spec section) / Options considered / Decision / Witness check / Date / Status (open|resolved|deferred)**.
-- Monthly review of DECISIONS.md to audit whether every entry still earns its place.
+1. Explicit sign extension: `int32_t signed_nib = (nibble & 0x8) ? (nibble | 0xFFFFFFF0) : nibble;` — or equivalently `int32_t signed_nib = (int32_t)(int16_t)(int8_t)((nibble << 4) & 0xF0) >> 4;`
+2. Simplest correct form: `int32_t signed_nib = (nibble < 8) ? nibble : nibble - 16;`
+3. Unit test: verify sign extension for all 16 possible nibble values (0x0 through 0xF). This is an exhaustive test.
 
-**Phase:** P-DECISIONS (establish template in first commit)
+**Detection:** All audio sounds "bright" and "clicky" because negative nibbles become large positive values.
 
-**Source:** Architecture Decision Record (ADR) community practice; [Michael Nygard's original ADR essay](https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions)
+**Phase:** P-DECODE
+
+**Source:** General two's-complement arithmetic; [psx-spx](https://problemkaputt.de/psxspx-cdrom-xa-audio-adpcm-compression.htm) — `signed4bit()` function
 
 ---
 
-### 7.3 Witness-chasing — tuning code to match a specific witness when spec is silent
+### S7: Encoder must model decode loop exactly — encoder/decoder asymmetry
 
-**Severity:** Significant
+**Severity:** Significant (encoder produces non-optimal output)
 
-**What goes wrong:** Witness diff against lv2-psx-reverb shows mismatch on a gray-area behavior; implementer tweaks SPU-94 to match lv2-psx-reverb. But lv2-psx-reverb may itself have resolved the ambiguity arbitrarily (or wrongly — see its documented 22050 divergence). Now SPU-94's behavior is inherited from a witness's decision, not from an independent reading of spec.
+**What goes wrong:** An ADPCM encoder that evaluates candidate (filter, shift) combinations using a simplified model (e.g., linear prediction without clamping) will select different parameters than one that runs the full decode loop. The difference: the simplified model doesn't account for the nonlinearity of clamping. When a sample clamps, the feedback state diverges from the linear prediction, and subsequent samples in the block are encoded against a wrong prediction.
+
+**Why it happens:** Running the full decode loop for each candidate combination is 65x slower than a linear approximation. The temptation to approximate is strong.
+
+**Consequences:** Encoder chooses suboptimal filter/shift for blocks where clamping occurs (loud passages, high-energy content). Output has higher distortion than necessary.
 
 **Prevention:**
-- Process rule: when a witness diff reveals a disagreement and the spec is silent, **STOP before changing code**. Open a `DECISIONS.md` entry. Document: what the witness does, what the spec says (silent or partial), what the other witnesses do, what Anthony's musical ear prefers, what the decision is, *and why it's not just "match the witness."*
-- If witnesses agree and Anthony's ear agrees, matching is legitimate (consensus behavior). Document as such.
-- If witnesses disagree, SPU-94 picks one side; document the split and the choice. The choice may or may not match any individual witness.
-- Include multiple witnesses where possible — at minimum lv2-psx-reverb (primary for M1) plus one auditioned hardware capture (for M5). Agreement of two > agreement of one.
+1. Factor the decode loop into a function used by BOTH the decoder and the encoder.
+2. Encoder calls `decode_block(candidate_shift, candidate_filter, nibbles, &prev1, &prev2)` for each candidate and measures actual reconstruction error.
+3. For encoder performance: the inner loop is 28 iterations of simple integer math — 65 * 28 = 1820 iterations per block is fast enough for offline encoding.
+4. If real-time encoding is ever needed (unlikely for SPU-94's use case), the brute-force search can be narrowed by heuristic pre-filtering.
 
-**Phase:** P-WITNESS, P-DECISIONS
+**Phase:** P-ENCODE
 
-**Source:** Direct from `PROJECT.md` gray-area philosophy; reinforced by the lv2-psx-reverb 22050 divergence — a concrete example where witness-chasing would produce *less* faithful output than spec-following.
+**Source:** General ADPCM encoder design; [adpcm-xq](https://github.com/dbry/adpcm-xq) demonstrates brute-force search for IMA-ADPCM
 
 ---
 
-### 7.4 False confidence from factory-preset audition
+## Minor Pitfalls
 
-**Severity:** Significant
+### M1: One-shot samples need a terminator block
 
-**What goes wrong:** The 10 factory presets are the most familiar PS1 reverb sounds. If they *sound right*, it's tempting to declare victory. But "sounds right" is a terrible oracle — sampling many recognizable sounds doesn't prove bit-accuracy; it proves "approximately the right shape." A reimplementation with wrong truncation can still audition convincingly on "Hall."
+**What goes wrong:** A one-shot ADPCM sample (no loop) must end with a dummy block that has both Loop Start and Loop End flags set, with all nibbles zero. Without this terminator, the SPU voice engine continues reading past the end of the sample data, producing noise from whatever happens to be in SPU RAM.
+
+**Prevention:** The encoder must append a terminator block for one-shot samples. The decoder should document that it expects the caller to handle termination (the decoder itself just decodes blocks as given).
+
+**Phase:** P-ENCODE, P-LOOPFLAGS
+
+**Source:** [psx-spx SPU ADPCM](https://problemkaputt.de/psxspx-spu-adpcm-samples.htm) — "one-shot samples must use a dummy block"
+
+---
+
+### M2: VAG file header parsing — big-endian fields in a little-endian ecosystem
+
+**What goes wrong:** The VAG file format (standard PS1 ADPCM container) uses big-endian fields in its header (version, data size, sample rate) despite the PS1 being a little-endian MIPS machine. Parsing VAG headers with native-endian reads produces wrong values on little-endian hosts.
 
 **Prevention:**
-- Presets are **fixtures**, not **tests**. Their role: drive the witness-diff harness with real-world register configurations. Their role is NOT: to serve as "the reverb sounds correct."
-- Numeric tests are primary: spec-checklist coverage (every documented behavior has a test), register-level unit tests, witness diff RMS/peak deltas, golden-file diffs.
-- Preset audition is a final sanity check at milestone sign-off — documented in DECISIONS.md as "auditioned, agreed with hardware capture / lv2-psx-reverb to within [tolerance], signed off."
-- Never ship a release because "it sounds right." Ship because the numeric tests pass AND it sounds right.
+1. Read VAG header fields through explicit `read_u32_be()` helpers.
+2. The raw ADPCM block data (after the header) is byte-oriented and endian-neutral.
+3. Unit test: parse a known VAG file and verify header fields match expected values.
 
-**Phase:** P-PRESETS, P-WITNESS, P-CLI (golden-file)
+**Phase:** P-ENCODE (VAG output), P-DECODE (VAG input), P-VERIFY
 
-**Source:** Inferred from general audio-regression-testing wisdom; [Audio DiffMaker](https://www.libinst.com/Audio%20DiffMaker.htm) and similar tools exist precisely because ear-test isn't sufficient.
-
----
-
-## Category 8 — Hardware-Port Foresight Pitfalls (from M1, looking toward M5+)
-
-### 8.1 Dynamic allocation in the core
-
-**Severity:** Catastrophic for MCU port (cross-compile may fail; audio may glitch)
-
-**What goes wrong:** `malloc`/`free` in the core makes MCU port impossible (no heap, or statically sized heap) and risks RT-violations on desktop. Even a single `malloc` in an init function is a problem if re-init happens on the audio thread.
-
-**Prevention:** Already in PROJECT.md constraints: no heap in hot path. M1-level rule: **no heap, period, in `libspu94/src/`**. All state is caller-allocated (`spu94_state_size()` returns the required byte count; caller provides `spu94_init(void *memory, size_t len, ...)`). CI lint on `malloc|calloc|realloc|free|mmap|brk` yields zero hits.
-
-**Phase:** P-API, P-CROSS
-
-**Source:** Standard embedded-C practice; [Daisy seed examples](https://github.com/electro-smith/libDaisy)
+**Source:** [VAG format](http://justsolve.archiveteam.org/wiki/VAG_(PlayStation))
 
 ---
 
-### 8.2 `long` and `int` are platform-dependent
+### M3: Keyed-off voices still decode ADPCM (SPU IRQ interaction)
 
-**Severity:** Significant
+**What goes wrong:** On real PS1 hardware, voices with volume=0 (keyed off) continue to decode ADPCM data. This matters because ADPCM decoding can trigger SPU IRQs when the decode address matches the IRQ address. Games like Casper depend on this for lip-sync animation timing.
 
-**What goes wrong:** On Linux x86_64, `long` is 64-bit; on Cortex-M, `long` is 32-bit. Code that packs something into `long` and expects 64 bits silently loses half the bits on cross-compile. `int` is 32-bit on both major targets (but not guaranteed — `int` can be 16-bit in embedded systems historically).
+For SPU-94 (reverb-only, no voice engine), this is out of scope. But if the ADPCM decoder is designed with an "early-exit if voice is muted" optimization, it will break this behavior when a voice engine is added later.
+
+**Prevention:** The ADPCM decoder should not have any "skip decode if muted" logic. It always decodes when called. The caller decides whether to call it.
+
+**Phase:** P-DECODE (design), P-DECISIONS
+
+**Source:** [jsgroth SPU Part 4](https://jsgroth.dev/blog/posts/ps1-spu-part-4/) — "keyed off voices can still trigger SPU IRQs"
+
+---
+
+## Integration Pitfalls (ADPCM + existing libspu94)
+
+### I1: ADPCM module must not break existing RT-safety guarantees
+
+**What goes wrong:** The existing libspu94 core passes 4 rt_safety ctest targets (no heap, no locks, no syscalls, bounded latency). Adding ADPCM decode/encode code that calls `malloc`, uses `printf` for debug, or has unbounded loops would fail these gates.
 
 **Prevention:**
-- **Ban `long`, `int`, `unsigned`, etc. in all public APIs and hot paths.** Use `int16_t`, `int32_t`, `int64_t`, `uint16_t`, `uint32_t`, `uint64_t`, `size_t`, `ptrdiff_t` exclusively.
-- CI check: grep for `\b(long|int|short|unsigned|signed)\b` (with exceptions for `const`, `static`, etc.) — flag any non-stdint usage.
-- Cortex-M smoke test (P-CROSS) compiles with `-Wall -Wextra -Wconversion -Werror`.
+1. ADPCM decode: pure function, no allocations, no state beyond the caller-provided struct. Follows the same pattern as `spu94_process()`.
+2. ADPCM encode: may be offline-only (not RT-safe), but if included in libspu94.so, it must still pass the rt_safety gates. If encode is slow (brute-force search), it should be a separate compilation unit excluded from the RT binary, or clearly documented as non-RT.
+3. Run all 4 existing rt_safety tests after ADPCM integration. They must still pass.
 
-**Phase:** P-API, P-CROSS
+**Phase:** P-INTEGRATE, P-VERIFY
 
-**Source:** [ARM Cortex-M ABI](https://developer.arm.com/documentation); [CMSIS-DSP uses C99 fixed-width types](https://github.com/ARM-software/CMSIS-DSP); general embedded-C wisdom
+**Source:** Existing libspu94 constraints; `rt_safety` ctest targets
 
 ---
 
-### 8.3 Unaligned memory access
+### I2: ADPCM state is per-voice, not per-reverb-instance
 
-**Severity:** Significant (Cortex-M0 faults; M3/M4 slow)
-
-**What goes wrong:** Desktop x86 handles unaligned access silently (penalty, but no fault). Cortex-M0 hardfaults on unaligned load/store. If the reverb work buffer is exposed as an `int16_t*` but sized/offset such that the pointer lands on an odd byte, SPU-94 crashes on M0 but runs on M4 and on Linux.
+**What goes wrong:** The reverb has one state object (`spu94_state`). ADPCM decode state (prev1, prev2, current block address, loop address) is per-voice — the PS1 has 24 voices. If ADPCM state is crammed into the reverb state struct, the API becomes confused: reverb is a shared resource, ADPCM is per-voice.
 
 **Prevention:**
-- Work buffer is `int16_t[N]` (static array) — compiler guarantees alignment.
-- No casts from `void*` or `uint8_t*` to `int16_t*` without an alignment assertion.
-- Cross-compile flags include `-mno-unaligned-access` or the equivalent for the target; clean build is the test.
+1. ADPCM state is a separate struct: `spu94_adpcm_state` (or `spu94_voice_state` if it grows to include pitch/envelope later).
+2. Caller allocates one per voice (or one per ADPCM stream in the non-voice use case).
+3. The reverb API accepts PCM input — the caller is responsible for running ADPCM decode and feeding PCM to the reverb.
+4. Integration helper (convenience function): `spu94_adpcm_decode_to_reverb()` that decodes one block and feeds the output to the reverb input — but this is a composition of two independent APIs, not a merged one.
 
-**Phase:** P-NETWORK (buffer definition), P-CROSS
+**Phase:** P-INTEGRATE, P-DECODE (API design)
 
-**Source:** [ARM Cortex-M0 reference manual](https://developer.arm.com/documentation/ddi0419/latest/); general embedded-C wisdom
+**Source:** PS1 architecture — 24 voices share one reverb unit
 
 ---
 
-### 8.4 Recursive functions and large stack frames
+### I3: Float-free ADPCM — no floating point creep from encoder optimization
 
-**Severity:** Significant (silent corruption on MCU)
-
-**What goes wrong:** Cortex-M typically has 4–32 KB of stack; recursion or large stack-allocated arrays (e.g., `int32_t scratch[8192]`) blow the stack without warning, corrupting adjacent heap/data.
+**What goes wrong:** The encoder's brute-force search involves computing error metrics. A natural implementation computes MSE as `float mse = (float)total_sq_error / 28.0f;`. If this float code ends up in `libspu94.so`, it breaks the float-free CI gate (`grep -E '\b(float|double)\b'` in core sources).
 
 **Prevention:**
-- Zero recursive functions in the core.
-- Large buffers allocated in `spu94_state` (caller-provided); never `int32_t scratch[N]` in a function body where N > 64 or so.
-- Cross-compile with `-Wstack-usage=256` (or similar) to flag any function with large stack frames.
+1. Encoder error metric: use integer sum-of-squared-errors (`int64_t`), compared as raw sums without division. Division by 28 is unnecessary for comparison (same divisor for all candidates).
+2. If the encoder must live in a separate compilation unit that allows float (for analysis/reporting), ensure it is NOT linked into `libspu94.so`.
+3. The decoder is trivially float-free (all integer arithmetic).
 
-**Phase:** P-NETWORK, P-CROSS
+**Phase:** P-ENCODE
 
-**Source:** Embedded-C norms; Cortex-M startup code conventions
-
----
-
-### 8.5 libc dependencies that aren't in newlib-nano
-
-**Severity:** Significant (cross-compile link failure)
-
-**What goes wrong:** `printf("%f", ...)` pulls in the full float-formatting paths; `sin()` / `exp()` pull in libm; `fopen` is absent on bare-metal. Innocuous inclusion of `<stdio.h>` for debug becomes an MCU link error.
-
-**Prevention:**
-- Core C library uses only `<stdint.h>`, `<stddef.h>`, optionally `<string.h>` for `memset`/`memcpy` (which newlib-nano provides).
-- No `<stdio.h>`, `<math.h>`, `<stdlib.h>` (except `<stdlib.h>` for `size_t`? — no, that's in `<stddef.h>`).
-- CLI / Python binding may use anything; they are not cross-compiled.
-- Cross-compile smoke test (P-CROSS) link-errors out if any forbidden symbol sneaks in.
-
-**Phase:** P-CROSS, P-API
-
-**Source:** [newlib-nano docs](https://sourceware.org/newlib/); [ARM embedded toolchain](https://developer.arm.com/Tools%20and%20Software/GNU%20Toolchain)
+**Source:** Existing libspu94 CI gate; ADR-0001
 
 ---
 
-### 8.6 `size_t` vs `uint32_t` on 32-bit targets
+## Verification Strategies for ADPCM Bit-Accuracy
 
-**Severity:** Nuisance
+### V1: Known-answer test vectors
 
-**What goes wrong:** Public API takes `size_t` for sample counts. On 32-bit MCU, `size_t` is 32-bit; on 64-bit desktop, 64-bit. This is fine for sizes (both exceed 2^31 samples = 13 hours of audio) but not fine for printf format strings or struct-layout assumptions.
+Generate ADPCM blocks with hand-computed expected output:
+- All-zero nibbles with each filter (0-4) — verifies filter coefficients
+- Maximum positive nibble (+7) at each shift (0-12) — verifies shift range
+- Maximum negative nibble (-8) at each shift — verifies sign extension + shift
+- Shift 13, 14, 15 — verifies the edge-case policy
+- Block that causes intermediate overflow — verifies clamping order
+- Two consecutive blocks — verifies state carry
 
-**Prevention:** Use `size_t` for counts in the API (idiomatic). Use `%zu` in printf (CLI only). Don't store `size_t` in a struct with strict layout — use `uint32_t` for explicit-size fields.
+### V2: Round-trip test (encode then decode)
 
-**Phase:** P-API
+Encode a known PCM signal (sine wave, impulse, white noise), decode it, measure SNR. Compare SNR against psxavenc + a known-good decoder.
 
-**Source:** C99 standard
+### V3: Witness comparison (audio-level, not source-level)
+
+Decode the same ADPCM data with SPU-94 and with a witness (psxavenc's decoder, or audio captured from a PS1 emulator). Compare decoded PCM sample-by-sample. Acceptable divergence: 0 (bit-exact) for the main decode path; document any divergence on shift 13-15 edge cases.
+
+### V4: Hardware capture (M5 target)
+
+Use Anthony's PS1 to:
+1. Upload known ADPCM data to SPU RAM via homebrew
+2. Key on a voice with volume=max, no ADSR modulation, pitch=1:1 (sample rate = native)
+3. Capture the digital output (SPU capture buffers or DAC output)
+4. Compare captured samples against SPU-94's decode output
+
+This is the gold standard for resolving the shift 13-15 question and any other undocumented edge cases.
+
+### V5: Encoder quality regression test
+
+Encode a reference WAV file, store the resulting ADPCM as a golden file. On each commit, re-encode and verify bit-identical ADPCM output. This catches accidental changes to filter/shift selection.
+
+---
+
+## Phase-Specific Warnings
+
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| P-DECODE | Shift 13-15 UB in C (negative shift) | Clamp shift, document choice, test edge cases |
+| P-DECODE | Wrong nibble order (hi/lo swap) | Test against known VAG decode |
+| P-DECODE | Omit +32 rounding bias | Implement formula verbatim from nocash |
+| P-DECODE | Premature clamping | Single clamp point after full expression |
+| P-DECODE | `/64` vs `>>6` for negative values | Use `>>6`, validated by existing _Static_assert |
+| P-ENCODE | Simplified error model (no clamping in eval) | Shared decode function for encoder and decoder |
+| P-ENCODE | Float creep in error metric | int64_t sum-of-squares, no division |
+| P-ENCODE | Missing terminator block for one-shot | Append dummy block with loop start+end flags |
+| P-INTEGRATE | ADPCM state in reverb struct | Separate struct, per-voice not per-reverb |
+| P-INTEGRATE | Breaking rt_safety gates | Run existing 4 rt_safety tests after integration |
+| P-LOOPFLAGS | Acting on loop flags in decoder | Report only; caller acts |
+| P-VERIFY | Testing against only one witness | Use at least 2 independent witnesses |
+| P-DECISIONS | Not logging the +32 rounding policy | DECISIONS.md entry for ADPCM arithmetic |
 
 ---
 
@@ -819,80 +538,12 @@ lib.spu94_process(ptr, 1024)  # SEGV
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Use `float` for "just one" coefficient | Easier arithmetic | Silently loses bit-accuracy; CI guard becomes selective | Never in core; OK at API boundary (rate converter) |
-| Skip the 22050 downsample | Simpler hot loop | Brightens reverb tail; permanent divergence from hardware; project's core claim undermined | Never (this is SPU-94's differentiator vs lv2-psx-reverb) |
-| Mutex around register array | "Easy" thread safety for mid-stream writes | RT-unsafe; kills MCU port | Never; use atomics or SPSC ring |
-| Inline witness source "just to check" | Resolves an ambiguity fast | Derivative-work risk; license constraint; DECISIONS.md integrity | Never as primary activity; logged exception only |
-| `malloc` in `spu94_init` | Natural C idiom for state allocation | Kills MCU port | Never — use caller-allocated state |
-| Coefficient smoothing in core | "Glitch-free" modulation out of the box | Bit-accuracy silently broken | Never in core; M4 lever layer only |
-| `printf` for debug in core | Fast debugging | Kills MCU build; drags in libc | Only behind `#ifdef DEBUG_DESKTOP` + excluded from MCU build |
-| Skip golden-file sign-off protocol | Ship faster | Goldens pin to bugs; regeneration crises | Never — protocol takes 10 min, saves days |
-
----
-
-## Integration Gotchas
-
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| nocash psx-spx as spec | Treat as definitive and comprehensive | Treat as primary, cross-reference with hitmen.c02.at; paraphrase, don't transcribe |
-| lv2-psx-reverb as witness | Assume agreement means correctness | Use for *behavioral* diff only; know its deviations (22050 half-rate, float coefficients, memset on preset switch); never as a clean-room source |
-| numpy arrays across ctypes FFI | Pass expressions (GC risk) | Bind to named local, use `.ctypes.data_as()`, test with faulthandler enabled |
-| WAV I/O | Let WAV lib allocate inside per-sample loop | Allocate once outside the loop; pass in pre-sized buffers |
-| JUCE (future M4) | Let the plugin wrapper call `spu94_init` from the audio thread | `spu94_init` on the control thread; `spu94_process_block` only on the audio thread |
-| Cortex-M DMA (future M5+) | Assume buffers are aligned | Explicit align attribute on the buffer struct; runtime assert in `spu94_init` |
-
----
-
-## Performance Traps
-
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| Allocating inside `process_block` | Dropouts under RT load | Caller-allocated state and buffers | At first JUCE integration (M4) or MCU port (future) |
-| Mutex on register array | Occasional dropouts under parameter automation | Atomics or SPSC ring buffer | Under sustained automation/modulation |
-| GIL blocking modulation thread | Control-write latency correlates with block size | Small blocks, or C-side test entry point | Modulation test harness (P-MODTEST) with write rates > 1/block |
-| Running core at 44.1 kHz instead of 22.05 kHz | Slightly faster processing, but wrong sound | Explicit half-rate path | M1 witness diff vs hardware capture (if captured); otherwise caught at M5 |
-| Cache-unfriendly buffer layout | Minor MCU-side perf issues | Keep work buffer as a single contiguous `int16_t` array | MCU port, where the buffer may not fit in tightly-coupled memory |
-
----
-
-## Security Mistakes
-
-(SPU-94 is a local audio library; traditional network/auth security is not relevant. Safety-adjacent concerns:)
-
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| Buffer overflow on register write | Corrupt state; exploit via crafted preset file | Bounds-check register index in `spu94_write_register` |
-| Integer overflow in size math | Heap / stack overflow via oversized `n_samples` | `size_t` checks on block size; cap at a sensible maximum |
-| Reading preset from untrusted source | Denial-of-service via pathological register values | Validate register values against documented ranges; reject NaN coefficients; clamp address registers to SPU RAM size |
-
----
-
-## UX Pitfalls (Library / API Users)
-
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| API takes `uint16_t` for signed coefficients | User writes `0x8000` expecting -32768; gets +32768 or undefined | Separate signed-volume and unsigned-address register accessors |
-| "Helpful" smoothing always on | User who wants bit-accurate diff gets smoothed output and can't tell why | Core is raw; smoothing is opt-in at a higher layer |
-| Silent sample-rate conversion | User passes 48 kHz input, expects 48 kHz bit-accurate output, gets resampled | Explicit `spu94_set_host_rate()`; resampling is documented as outside the bit-accurate core |
-| Unclear L/R buffer convention | User passes interleaved `L,R,L,R` where API wants separate `L[]`, `R[]` | API explicitly takes two separate `int16_t*` (matches hardware's L-half/R-half buffer model) |
-
----
-
-## "Looks Done But Isn't" Checklist
-
-- [ ] **24 registers implemented:** Often missing the vIIR = -8000h special case — verify with dedicated test (Pitfall 1.1).
-- [ ] **Fixed-point math:** Often quietly rounding when it should truncate — verify with exhaustive q15_mul test (Pitfall 1.4).
-- [ ] **Saturation:** Often wrapping when it should saturate, OR saturating when it should wrap (address math) — verify with separate helpers and negative-value test vectors (Pitfall 1.5).
-- [ ] **22050 half-rate:** Often skipped entirely — verify with spectral test vs hardware capture or by comparing to a known-half-rate witness (Pitfall 1.6).
-- [ ] **Work buffer wrap:** Often off-by-one at the mBASE or 0x7FFFE boundary — verify with fuzz test at boundary (Pitfall 1.7).
-- [ ] **"Reverb off" preset:** Often produces non-silence due to zero-offset aliasing — verify explicit silence test (Pitfall 1.8).
-- [ ] **Mid-stream write glitch-freedom:** Often means "no crashes" but not "no buffer corruption" — verify with sustained fast-modulation stress test (Pitfall 4.1).
-- [ ] **No allocations in hot path:** Often missed by CI because `malloc` hides in included stdlib functions — verify with `-Wl,--wrap=malloc` or `ldd` symbol audit (Pitfall 3.1, 8.1).
-- [ ] **Python binding memory safety:** Often missing GC-reference checks — verify with stress test + `faulthandler` + valgrind (Pitfall 5.1).
-- [ ] **DECISIONS.md coverage:** Often claim "documented all gray areas" but many implicit decisions are uncaptured — verify by reviewer asking "where is this decision recorded?" for every non-obvious code path.
-- [ ] **Witness-vs-spec-vs-ear separation:** Often blurred. Verify that every DECISIONS.md entry explicitly states which basis drove the choice (Pitfall 7.3).
-- [ ] **Trademark-clean naming:** Often "PSX" or "PS1" leaks into package/binary names — verify `grep -ri 'psx\|ps1' libspu94/ --exclude-dir=.git` finds only internal comments, never user-facing identifiers (Pitfall 6.3).
-- [ ] **Cross-compile smoke test:** Often "builds" but never "links" — verify that the Cortex-M build actually produces an `.elf` with `arm-none-eabi-size` showing the full core, not just stubs.
+| Omit shift 13-15 handling | Fewer branches | UB on adversarial input; untested code path | Never — must handle, even if behavior is guessed |
+| Skip the +32 rounding | "Consistent with reverb truncation" | Every sample off by up to 1 LSB; compounds through feedback | Never — spec says +32, implement +32 |
+| Encode with float error metric | Cleaner code | Float creep into libspu94; CI gate failure | Only in a separate tool binary, never in libspu94 |
+| Merge ADPCM state into reverb state | One struct to manage | Wrong abstraction; blocks future voice-engine work | Never — separate structs |
+| Read a GPL decoder "just to check" | Fast resolution of ambiguity | Derivative-work risk; license contamination | Never — use audio-level witness comparison |
+| Approximate encoder (skip decode simulation) | Faster encoding | Suboptimal quality on clamping-heavy blocks | Acceptable for draft/preview; not for final encode |
 
 ---
 
@@ -900,109 +551,41 @@ lib.spu94_process(ptr, 1024)  # SEGV
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Truncation vs rounding error found late | MEDIUM | Isolate via q15_mul audit; replace; re-run all golden + witness tests; regenerate goldens with DECISIONS entry |
-| Float creep discovered | HIGH | Grep for `float\|double` in core; rewrite affected stages; new golden files; this is the "relicense to GPL" scenario if discovered after public release |
-| Derivative-work claim | CATASTROPHIC | Options: relicense to match witness's GPL; or rewrite affected portions clean-room with a second (non-tainted) implementer. Document. |
-| mBASE wrap crash in production | MEDIUM | Reproduce with fuzz test; fix; regression test on boundary cases |
-| Witness diff suddenly diverges on all presets | MEDIUM | Bisect git history; check for accidental float creep or reorder; often a single-line change |
-| Scope creep threatens M1 shipment | LOW-MEDIUM | Freeze feature set at M1 checkpoint; move non-M1 work to FUTURE.md; ship what's done |
-| DECISIONS.md consensus drifted from code | MEDIUM | Audit each entry; update code or update document; the truth is in the code — the doc follows |
-
----
-
-## Pitfall-to-Phase Mapping
-
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| 1.1 vIIR = -8000h | P-REG | Unit test on vIIR with -8000h input |
-| 1.2 Signedness | P-REG, P-API | Type system (`int16_t` in API); round-trip test |
-| 1.3 Q15 vs Q16 fractional point | P-FIXPOINT | Exhaustive `q15_mul` test with known table |
-| 1.4 Truncation vs rounding | P-FIXPOINT | Dedicated truncation test incl. negative values |
-| 1.5 Saturation vs wrap | P-FIXPOINT, P-NETWORK | Separate helpers + overflow test vectors |
-| 1.6 22050 half-rate | P-NETWORK, P-WITNESS, P-DECISIONS | Internal 22050 path; hardware capture comparison at M5 |
-| 1.7 Work buffer wrap | P-NETWORK | Fuzz test at mBASE and 0x7FFFE boundaries |
-| 1.8 Zero-register semantics | P-REG, P-PRESETS | "Reverb off" preset silence test |
-| 1.9 Input gain path | P-NETWORK, P-DECISIONS | Signal-flow diagram review + per-register unit tests |
-| 1.10 Operation reordering | P-NETWORK | Implementation matches nocash formula line-by-line |
-| 2.1 Float creep | P-FIXPOINT, P-NETWORK, CI | Grep enforcement on `float\|double` in core |
-| 2.2 Endian / bit-order | P-PRESETS, P-CLI, P-CROSS | Explicit `read_u16_le` helper; no raw struct reads |
-| 2.3 Signed right-shift UB | P-FIXPOINT, P-CROSS | `_Static_assert` on arithmetic shift behavior |
-| 2.4 Witness diff sample offset | P-WITNESS | Cross-correlation alignment + report lag |
-| 2.5 Goldens pin to buggy state | P-CLI, P-DECISIONS | Sign-off protocol + companion `.sig.md` per golden |
-| 3.1 Allocations in hot path | P-API, P-PYBIND, P-CLI | CI grep on `malloc`-family; caller-allocated state |
-| 3.2 Locks in hot path | P-API, P-MODTEST, P-DECISIONS | Atomics / SPSC ring; concurrency doc |
-| 3.3 Callback-vs-pull API | P-API | Block-processing pull primitive |
-| 3.4 Smoothing in core | P-API, P-MODTEST, P-LEVERS | Smoothing is M4; core is raw |
-| 4.1 Delay-length change policy | P-API, P-MODTEST, P-DECISIONS | Documented policy + stress test |
-| 4.2 Coefficient zipper | P-MODTEST, P-LEVERS | Observe, document, do not "fix" in M1 |
-| 4.3 Writes between L and R | P-API, P-NETWORK, P-MODTEST | Documented convention + sub-sample-offset write test |
-| 5.1 numpy GC / ctypes | P-PYBIND | Stress test with `faulthandler` / valgrind |
-| 5.2 ctypes GIL | P-PYBIND, P-MODTEST | Small blocks for mod test; document limitation |
-| 5.3 Struct layout mismatch | P-API, P-PYBIND | Opaque-pointer API; round-trip getter test |
-| 5.4 glibc / ABI | P-API, P-CROSS | `-fvisibility=hidden`; reproducible build |
-| 6.1 Derivative work | P-DECISIONS | No-read policy; consultation log |
-| 6.2 nocash copyright | P-DECISIONS, P-PRESETS | Paraphrase spec; cross-reference multiple sources |
-| 6.3 Trademark | P-API, P-CLI, P-DECISIONS | Package name is `libspu94`; no "psx"/"ps1" in user-facing identifiers |
-| 6.4 Solo clean-room defense | P-DECISIONS | Git log + DECISIONS.md as contemporaneous record |
-| 7.1 Scope creep | project-wide | Out-of-Scope list is contractual |
-| 7.2 DECISIONS.md dumping ground | P-DECISIONS | Template + monthly audit |
-| 7.3 Witness-chasing | P-WITNESS, P-DECISIONS | Process rule: no code change before DECISIONS.md entry |
-| 7.4 Preset-audition false confidence | P-PRESETS, P-WITNESS, P-CLI | Numeric tests primary; audition is final sanity |
-| 8.1 Dynamic allocation | P-API, P-CROSS | Caller-allocated state; CI grep |
-| 8.2 `long`/`int` sizes | P-API, P-CROSS | Stdint-only; `-Wconversion` |
-| 8.3 Unaligned access | P-NETWORK, P-CROSS | Static `int16_t` buffer; alignment asserts |
-| 8.4 Recursion / stack frames | P-NETWORK, P-CROSS | `-Wstack-usage=256` |
-| 8.5 libc dependencies | P-CROSS, P-API | `<stdint.h>` + `<stddef.h>` + `<string.h>` only in core |
-| 8.6 `size_t` portability | P-API | Use stdint for on-disk/ABI; `size_t` for counts only |
+| Shift 13-15 wrong | LOW | Change one conditional; re-run tests; update DECISIONS.md |
+| +32 rounding omitted | MEDIUM | Add +32; regenerate all ADPCM golden files; re-audit witness diffs |
+| Wrong nibble order | MEDIUM | Swap extraction; all decoded audio changes; regenerate goldens |
+| Wrong clamping order | MEDIUM | Restructure decode loop; regenerate goldens |
+| GPL contamination discovered | HIGH-CATASTROPHIC | Rewrite decode loop clean-room with a second reviewer; document provenance; may require relicensing |
+| Encoder selects wrong filters | LOW | Improve search; re-encode test vectors; no decoder change needed |
 
 ---
 
 ## Sources
 
-### Primary (HIGH confidence — documentation of facts)
-- [psx-spx Sound Processing Unit](https://psx-spx.consoledev.net/soundprocessingunitspu/) — canonical spec reference; caveats in Pitfall 6.2
-- [problemkaputt.de psx-spx.txt](https://problemkaputt.de/psx-spx.txt) — nocash original
-- [hitmen.c02.at PSX SPU docs](https://hitmen.c02.at/files/docs/psx/spu.txt) — secondary cross-reference
+### Primary (HIGH confidence)
+- [psx-spx XA-ADPCM Compression](https://problemkaputt.de/psxspx-cdrom-xa-audio-adpcm-compression.htm) — decode formula, filter coefficients, shift handling
+- [psx-spx SPU ADPCM Samples](https://problemkaputt.de/psxspx-spu-adpcm-samples.htm) — block format, flag bytes, loop handling
+- [psx-spx SPU documentation](https://psx-spx.consoledev.net/soundprocessingunitspu/) — signal path, capture buffers, SPU architecture
 
-### Witness projects (observable behavior only — source not read as primary activity)
-- [lv2-psx-reverb](https://github.com/ipatix/lv2-psx-reverb) — README and architectural posture only; GPLv3
-- [Mednafen ChangeLog](https://mednafen.github.io/documentation/ChangeLog.txt) — Nov 2020 reverb precision fix
-- [jsgroth's PS1 SPU series](https://jsgroth.dev/blog/posts/ps1-spu-part-1/) — implementation commentary
-- [DuckStation SPU commit using Mednafen formula](https://github.com/stenzek/duckstation/commit/809b9f89ca0a24934ffa13c7901345ed0aa82eeb) — shows Mednafen's formula as de facto reference
+### Emulator developer blogs (MEDIUM-HIGH confidence)
+- [jsgroth SPU Part 1 — ADPCM](https://jsgroth.dev/blog/posts/ps1-spu-part-1/) — decode implementation details, shift edge cases
+- [jsgroth SPU Part 4 — Everything Else](https://jsgroth.dev/blog/posts/ps1-spu-part-4/) — loop quirks, repeat address disable, capture buffers, IRQ interaction
 
-### DSP / audio (MEDIUM confidence — general wisdom)
-- [Valhalla DSP on algorithmic reverbs](https://valhalladsp.com/2011/07/07/algorithmic-reverbs-distortion-and-noise/)
-- [Valhalla DSP on parameter smoothing](https://valhalladsp.com/2010/11/27/valhallashimmer-the-controls/)
-- [CCRMA on delay-line interpolation](https://ccrma.stanford.edu/~jos/pasp06/Delay_Line_Interpolation.html)
-- [KVR zipper-noise thread](https://www.kvraudio.com/forum/viewtopic.php?t=42849)
-- [Shawn's DSP tutorials on Q15 rounding](https://sestevenson.wordpress.com/2009/08/19/rounding-in-fixed-point-number-conversions/)
-- [dsprelated on truncation and saturation](https://www.dsprelated.com/showthread/comp.dsp/78628-1.php)
+### Related codec documentation (MEDIUM confidence)
+- [SnesLab BRR (Bit Rate Reduction)](https://sneslab.net/wiki/Bit_Rate_Reduction) — SNES cousin of PS1 ADPCM, shift 13-15 hardware behavior documented
+- [SNESdev BRR samples](https://snes.nesdev.org/wiki/BRR_samples) — filter coefficients and edge cases for the related SNES codec
 
-### Python / ctypes / numpy (MEDIUM confidence)
-- [Python ctypes docs](https://docs.python.org/3/library/ctypes.html)
-- [NumPy "Python as glue"](https://numpy.org/devdocs/user/c-info.python-as-glue.html)
-- [numpy ctypes memory safety GH#28238](https://github.com/numpy/numpy/issues/28238)
-- [Python bug tracker — ctypes dangling pointer](https://bugs.python.org/issue41883)
+### Tools and test infrastructure (MEDIUM confidence)
+- [psxavenc](https://github.com/WonderfulToolchain/psxavenc) — open-source PS1 ADPCM encoder
+- [ps1-tests](https://github.com/JaCzekanski/ps1-tests) — PS1 hardware test suite (limited SPU coverage)
+- [VAG format spec](http://justsolve.archiveteam.org/wiki/VAG_(PlayStation)) — file format details
 
-### Embedded / C portability (MEDIUM confidence)
-- [GCC visibility wiki](https://gcc.gnu.org/wiki/Visibility)
-- [CMSIS-DSP on fixed-width types](https://github.com/ARM-software/CMSIS-DSP)
-- [Rupt/c-arithmetic-right-shift (portable shift)](https://github.com/Rupt/c-arithmetic-right-shift)
-- [Autoconf on signed shift](https://lists.gnu.org/archive/html/autoconf-patches/2001-08/msg00104.html)
-
-### Legal (MEDIUM confidence — lay summaries; consult counsel for decisions)
-- [Wikipedia — Clean-room design](https://en.wikipedia.org/wiki/Clean_room_design)
-- [RetroReversing — clean-room reversing](https://www.retroreversing.com/clean-room-reversing)
-- [Sony v. Connectix](https://en.wikipedia.org/wiki/Sony_Computer_Entertainment,_Inc._v._Connectix_Corp.)
-- [Lexology — IP clean room policy](https://www.lexology.com/library/detail.aspx?g=57ce5c16-717f-4fe0-9925-30628c54085c)
-- [psx-spx GitHub README — admitted copyright ambiguity](https://github.com/psx-spx/psx-spx.github.io/blob/master/docs/index.md)
-
-### Project management (LOW-MEDIUM confidence — general wisdom)
-- [atd.org — scope creep](https://www.td.org/content/atd-blog/scope-creep-the-allure-of-just-one-more-thing)
-- [Michael Nygard — ADR](https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions)
-- [Audio DiffMaker](https://www.libinst.com/Audio%20DiffMaker.htm) — tooling precedent for audio diff
+### Existing libspu94 architecture (HIGH confidence — project-internal)
+- `include/spu94/spu94_q15.h` — existing ASR policy, _Static_assert for arithmetic shift
+- `docs/DECISIONS.md` — ADR-0001 (truncation policy), ADR-0004 (error observation)
+- `.planning/PROJECT.md` — licensing constraints, witness-only policy
 
 ---
 
-*Pitfalls research for: SPU-94 — PS1 SPU reverb bit-faithful reimplementation*
-*Researched: 2026-04-18*
+*Pitfalls research for: ADPCM encode/decode milestone for libspu94*
+*Researched: 2026-04-26*

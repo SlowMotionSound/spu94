@@ -8,7 +8,7 @@
 
 **Tagged:** `m1-reverb-core` (annotated, local). The `v1.0` tag is intentionally NOT used for this milestone — per Anthony's redefinition, **v1.0 = M4 plugin shippable to a DAW**, not just the library + CLI. What shipped here is M1 (reverb core foundation), tagged accordingly.
 
-**Next milestone:** v1.1 ADPCM (per the M1→M5 plan in `memory/project_milestones.md`). Run `/gsd-new-milestone` to scope properly — questioning → research → requirements → roadmap.
+**Current milestone:** M2 — Sony 4-bit ADPCM Encode/Decode (version tag v1.1 upon completion). Adds bit-faithful ADPCM codec to libspu94, wired into the reverb signal path as toggleable coloration reproducing the authentic PS1 audio character. Research complete 2026-04-26 (3 passes, 12 researcher agents, 12 documents in `.planning/research/m2-adpcm/`).
 
 ## What This Is
 
@@ -44,17 +44,15 @@ Rigor governs the algorithm; musicality governs everything that surrounds it. Th
 - ✓ Maintain `docs/LEVERS-CATALOG.md` — v1.0 (Phase 7, 35-register catalog with AUTO columns populated: 12 free / 6 sample-quantized / 17 catastrophic; HAND columns seeded for M4)
 - ✓ Resolve and document the delay-length-register-change gray area — v1.0 (Phase 5 fuzz harness + ADR-0006 mBASE snap-on-write + ADR-0005 split write-timing policy; mid-stream `m*`/`d*` writes are first-class via TICK_LATCHED semantics)
 
-### Active — Next Milestone: M4 (JUCE plugin → product v1.0) — to be scoped
+### Active — Current Milestone: M2 (ADPCM → v1.1)
 
-**Sequencing change (2026-04-25):** M4 is being pulled forward ahead of M2 (ADPCM) and M3 (DAC modeling). Anthony's framing: he wants a UI he can actually use; the reverb already works on PCM in / PCM out, so a DAW-hosted plugin doesn't need ADPCM (DAW provides PCM natively) and doesn't need DAC modeling (it can layer in later as a switchable flag). M4 completion = product v1.0 by Anthony's definition.
+**Goal:** Add bit-faithful Sony 4-bit ADPCM encode/decode to libspu94, integrated into the reverb signal path as a toggleable coloration stage. When enabled, input PCM is encoded to ADPCM then decoded back, introducing the quantization noise and filter ringing that characterized every PS1 game's audio before it reached the reverb. Version v1.1 upon completion.
 
-M4 scope is intentionally empty until `/gsd-new-milestone` runs the questioning → research → requirements → roadmap pass. Open shaping questions for that pass include: VST3/AU/LV2/Standalone target priority; UI shape (Anthony's "living instrument" framing implies named musical levers — Room Size, Pre Delay, etc. — not raw register exposure, per `feedback_user_facing_docs_polished.md`); preset bank shape (all 10 PS1 factory presets vs curated subset); parameter automation / CV mapping shape.
-
-M2 (ADPCM) and M3 (DAC modeling) are deferred — not abandoned. They layer on top of the M1 reverb core without changing the plugin's user-facing surface and can ship as later updates.
+See REQUIREMENTS.md for scoped requirements (ADPCM-xx series).
 
 ### Out of Scope (for v1.0; most deferred, not abandoned)
 
-- **4-bit Sony ADPCM encode/decode** — deferred to AFTER M4 plugin per the 2026-04-25 sequencing change; the DAW provides PCM natively so ADPCM isn't needed for plugin usability. Will land as a post-v1.0 update; its own gray-area journey.
+- **4-bit Sony ADPCM encode/decode** — NOW ACTIVE as M2 milestone (resumed 2026-04-26 after v1.0 standalone shipped)
 - **DAC reconstruction modeling** — deferred to AFTER M4 plugin per the 2026-04-25 sequencing change; layers in as a switchable flag without changing the plugin's user-facing surface
 - **JUCE / VST3 / AU / LV2 plugin** — pulled forward as M4 = the next milestone (no longer deferred per 2026-04-25 redefinition; M4 completion is product v1.0)
 - **Named musical levers ("Room Size", "Pre Delay", etc.), parameter smoothing, CV mappings, plugin UI** — Milestone 4 work atop the v1.0 register API. v1.0 contributed: glitch-free mid-stream register API + `LEVERS-CATALOG.md` candidate-lever catalog. Lever abstraction itself is M4.

@@ -1,77 +1,89 @@
-# Requirements: SPU-94 — Product v1.0
+# Requirements: SPU-94 — M2 ADPCM
 
-**Updated:** 2026-04-26 (Phase 8 re-scoped to SPU-94 Standalone GUI per `.planning/phases/08-m4-juce-plugin-product-v1-0/08-CONTEXT.md`; PLUGIN-01..09 archived, replaced with STANDALONE-01..09)
+**Updated:** 2026-04-26 (M2 milestone scoped — Sony 4-bit ADPCM encode/decode)
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
+**Milestone:** M2 — ADPCM (version tag v1.1 upon completion and integration)
 
-Product v1.0 = SPU-94 Standalone GUI — a single-window JUCE-built standalone audio tool that loads any-SR / any-bit-depth WAV input and plays it through the M1 reverb core at 44.1 kHz int16 internally, with 18 raw register sliders, the 10 PS1 factory presets, and a Wet/Dry mix knob. M1 (reverb core library, tag `m1-reverb-core`) shipped 2026-04-25; the standalone GUI completes product v1.0.
+M2 adds bit-faithful Sony 4-bit ADPCM encode/decode to libspu94, wired into the reverb signal path as a toggleable coloration stage. When enabled, input PCM is encoded to ADPCM then decoded back, introducing the quantization noise and filter ringing that characterized every PS1 game's audio before it reached the reverb. Research complete 2026-04-26 (3 passes, 12 researcher agents, 12 documents in `.planning/research/m2-adpcm/`).
 
-## Active — Phase 8 SPU-94 Standalone GUI Requirements
+## Active — M2 ADPCM Requirements
 
-### STANDALONE — JUCE Standalone Audio Tool
+### ADPCM — Core Codec
 
-- [ ] **STANDALONE-01**: User can launch SPU-94 as a single-window standalone JUCE application on Linux. No DAW required, no plugin host required. Plugin formats (VST3 / LV2 / CLAP / AU) are explicitly out of scope for v1.0.
-- [ ] **STANDALONE-02**: User can load a WAV file (any sample rate, any bit depth, mono or stereo) via a file picker. The light I/O wrapper handles bit-depth conversion (any → int16), sample-rate conversion (any → 44.1 kHz), and channel adaptation (mono → duplicate to stereo) before the reverb core sees the buffer.
-- [ ] **STANDALONE-03**: Loaded audio plays back in real-time through `libspu94` at the SPU's native 44.1 kHz int16 stereo internally. No crashes, no buffer underruns, no obvious distortion. The SPU core is bit-faithful and unmodified — all input adaptation happens in the I/O wrapper.
-- [ ] **STANDALONE-04**: All 10 PS1 factory presets (Room, Studio A, Studio B, Studio C, Hall, Half Echo, Space Echo, Echo, Delay, Off) are selectable from a flat dropdown and each produces audibly correct output matching the M1 CLI's output for the same input. No preset categories or advanced disclosure splits.
-- [ ] **STANDALONE-05**: User can manipulate 18 raw labeled SPU register sliders during playback — the 12 free-class registers (`vLOUT`, `vROUT`, `vLIN`, `vRIN`, `vIIR`, `vWALL`, `vCOMB1..4`, `vAPF1..2`) and the 6 sample-quantized registers (`dLSAME`, `dRSAME`, `dLDIFF`, `dRDIFF`, `dAPF1`, `dAPF2`). Slider labels are the raw register names (no musical-role aliases). Free-class movement is smooth; sample-quantized movement steps audibly per the LEVERS-CATALOG modulation cost classification (audible stepping is character, not bug). The 17 catastrophic / preset-fixed `m*` registers are NOT exposed as sliders.
-- [ ] **STANDALONE-06**: User can adjust a Wet/Dry mix knob to A/B between the dry input signal and the SPU-processed wet output. Wet/Dry is the only DSP added outside `libspu94` — no Pre-Delay, no Input HPF, no Freeze, no LFO.
-- [ ] **STANDALONE-07**: GUI uses JUCE stock look-and-feel — no custom skin, no painted backgrounds, no bespoke widgets. Functional appearance matching the debug-tool framing of v1.0. Custom UI / visual identity belongs in a future polish phase.
-- [ ] **STANDALONE-08**: Standalone application builds reproducibly on Linux via the existing root `CMakeLists.txt` extended with JUCE. The C core stays unmodified — `libspu94` (the existing `spu94_shared` CMake target) is linked, not forked. The standalone executable is a separate CMake target alongside the library and Python binding.
-- [ ] **STANDALONE-09**: Application name, version metadata, and vendor string in the JUCE plugin manifest / Standalone wrapper use "SPU-94" (not "PSX Reverb" — see Constraints in PROJECT.md re: trademark).
+- [ ] **ADPCM-01**: Decoder decodes a 16-byte ADPCM block into 28 int16 PCM samples using all 5 SPU filter coefficient pairs (f0={0,60,115,98,122}, f1={0,0,-52,-55,-60}), with round-to-nearest via `(old*f0 + older*f1 + 32) >> 6` arithmetic right shift, single clamp to int16 after the full expression, and two-sample state carry across blocks.
+- [ ] **ADPCM-02**: Decoder handles shift values 0-12 normally and maps shift 13-15 to shift=9 per nocash psx-spx. No undefined behavior from negative shift amounts.
+- [ ] **ADPCM-03**: Decoder parses nibbles in correct order (low nibble first within each data byte) and sign-extends 4-bit nibbles to signed integers before shifting.
+- [ ] **ADPCM-04**: Encoder selects optimal (filter, shift) pair per 28-sample block via brute-force search over all 65 combinations (5 filters × 13 shifts), using sum-of-squared-error in int64 as the metric, with deterministic tiebreaking (lower filter index, then lower shift).
+- [ ] **ADPCM-05**: Encoder uses reconstructed (decoded) sample values for prediction state, not original PCM. The encoder contains an internal copy of the decoder.
+- [ ] **ADPCM-06**: Encoder quantizes residuals to 4-bit signed range [-8, +7] with round-to-nearest, guarding against UB at shift=12 where the half-step rounding term would be `1 << -1`.
+- [ ] **ADPCM-07**: Both encode and decode are pure C functions with caller-allocated state (4 bytes: two int16 for old/older), zero heap, integer-only arithmetic. No dependency on `spu94_state`.
 
-## Validated — M1 Reverb Core (Shipped 2026-04-25, tag `m1-reverb-core`)
+### ADPCM-INT — Integration with Reverb Pipeline
 
-All 49 M1 requirements validated through phases 1-7. See PROJECT.md "Validated" section for the per-requirement traceability with phase references and ADR citations. The full archived REQUIREMENTS.md is at `.planning/milestones/v1.0-REQUIREMENTS.md`.
+- [ ] **ADPCM-INT-01**: ADPCM encode+decode is wired into `spu94_process` as an optional stage upstream of the FIR decimator, matching PS1 hardware signal flow. Toggled via `spu94_set_adpcm_enabled()` / `spu94_get_adpcm_enabled()`.
+- [ ] **ADPCM-INT-02**: Block/frame boundary handled via double-buffer (input accumulates in one 28-sample buffer, output emits from the previous decoded block). Fixed 28-sample latency when enabled, zero when disabled.
+- [ ] **ADPCM-INT-03**: `spu94_get_total_latency_samples()` reports 58 (FIR) + 28 (ADPCM) when enabled, 58 when disabled.
+- [ ] **ADPCM-INT-04**: ADPCM state is zeroed by `spu94_init` and `spu94_reset`. Mid-stream toggle discards partial accumulation buffer (silence gap is inaudible at 28 samples).
+- [ ] **ADPCM-INT-05**: ADPCM is off by default. All existing tests pass unchanged. No modification to the reverb network, FIR chain, presets, or registers. `spu94_state` growth stays within `SPU94_STATE_SIZE_MAX` (16384 bytes).
+- [ ] **ADPCM-INT-06**: Existing rt_safety gates (no heap, no locks, no syscalls, bounded latency) pass with ADPCM code linked into `libspu94.so`.
 
-Categories shipped:
-- **CORE-01..10**: 10 / 10 validated (DSP algorithm)
-- **API-01..09**: 9 / 9 validated (C library public surface)
-- **PYBIND-01..06**: 6 / 6 validated (Python bindings)
-- **CLI-01..04**: 4 / 4 validated (CLI tool)
-- **TEST-01..08**: 8 / 8 validated (verification)
-- **BUILD-01..08**: 8 / 8 validated (build + portability — BUILD-03 MCU smoke test parked, portability claim upheld by design discipline + `rt_safety` ctests)
-- **DOCS-01..05**: 5 / 5 validated (first-class documentation artifacts)
+### ADPCM-IO — CLI + Python + Standalone
 
-## Future Requirements (Deferred Past v1.0 Standalone)
+- [ ] **ADPCM-IO-01**: CLI gains `spu94 adpcm-encode` (WAV→VAG), `spu94 adpcm-decode` (VAG→WAV), and `spu94 adpcm-roundtrip` (WAV→ADPCM→WAV) subcommands.
+- [ ] **ADPCM-IO-02**: CLI gains `--adpcm` flag for the existing reverb processing mode, enabling the ADPCM coloration stage before reverb.
+- [ ] **ADPCM-IO-03**: VAG file reader parses the 48-byte big-endian header (magic, version, sample rate, data size) using explicit byte-order conversion (no `ntohl`). Accepts any version on read. Handles terminator blocks.
+- [ ] **ADPCM-IO-04**: VAG file writer produces valid VAG v2 files (mono, big-endian header). Zero-pads final block to 28 samples and sets end flag.
+- [ ] **ADPCM-IO-05**: Python ctypes bindings expose `spu94_adpcm_decode_block()`, `spu94_adpcm_encode_block()`, `spu94_set_adpcm_enabled()`, and `spu94_get_adpcm_enabled()`.
+- [ ] **ADPCM-IO-06**: JUCE standalone gains an "ADPCM" toggle in the GUI that enables/disables the coloration stage during playback.
 
-### Plugin Formats (deferred to a separate post-v1.0 phase)
+### ADPCM-TEST — Verification
 
-- **PLUGIN-FORMAT-01**: VST3 / LV2 / CLAP / AU plugin builds wrapping the same JUCE codebase as the v1.0 standalone. Same `juce_add_plugin` target with additional `FORMATS` arguments. Lands when Anthony installs a Linux DAW or a DAW user requests it.
+- [ ] **ADPCM-TEST-01**: Known-vector decode tests cover: all-zero block, single-impulse, each filter (0-4) with known state, shift 0/6/12, shift 13/14/15, clamp-triggering overflow, two consecutive blocks verifying state carry.
+- [ ] **ADPCM-TEST-02**: Round-trip test: encode→decode is deterministic and produces bit-identical output across runs. Decode of the encode matches standalone decode sample-for-sample.
+- [ ] **ADPCM-TEST-03**: ADPCM golden files committed (reverb output with ADPCM on vs off, for at least 3 presets × 2 inputs), with SHA-256 sidecars and regression gate.
+- [ ] **ADPCM-TEST-04**: Gray-area resolutions documented in `docs/DECISIONS.md` as numbered ADRs: rounding vs truncation, shift 13-15 policy, filter 5-7 policy, division semantics (>>6 vs /64), encoder error metric, encoder tiebreaking, tail block padding.
 
-### Named-Lever Curation (deferred to a follow-up phase informed by v1.0 listening evidence)
+## Future Scope (documented in research, NOT built in M2)
 
-- **LEVER-CURATION-01**: Named musical levers (Room Size, Pre Delay, Damping, Width, Mix at minimum) curated from `docs/LEVERS-CATALOG.md` HAND columns, derived from listening evidence Anthony gathers using the v1.0 standalone tool. Replaces or supplements the raw register sliders.
+### Creative Exploitation (post-M2, informed by M2 listening evidence)
 
-### Plugin-Layer DSP Extensions (deferred until v1.0 use surfaces a real need)
+- Filter mask / exclude / bias / lock as encoder parameter
+- Continuous K0/K1 coefficient modulation at the decoder (hero feature — turns ADPCM predictor into resonant filter with unique character)
+- Cross-codec encode/decode (PS1 ADPCM ↔ SNES BRR)
+- Asymmetric half-codec processing (encode-only, decode-only)
+- Real-time filter selection modulation via LFO / envelope / random
+- Per-channel filter splitting (different filters L vs R)
 
-- **DSP-EXT-01**: True Pre-Delay buffer before SPU input
-- **DSP-EXT-02**: Input HPF before SPU input
-- **DSP-EXT-03**: Freeze (max `vIIR` + lock — UI trick or dedicated toggle)
-- **DSP-EXT-04**: Tail-modulation LFO module targeting a chosen register
+### Digital Patina Engine (broader codec collection, post-M2)
 
-### M2 — ADPCM (deferred past v1.0 per 2026-04-25 sequencing change)
+- Tier 1 (days each): SNES BRR, G.711 mu-law/A-law, IMA-ADPCM
+- Tier 2 (days each): CVSD, OKI arcade ADPCM, Comrex frequency extender, GSM 06.10
+- Tier 3 (weeks): ATRAC1/MiniDisc, MP2
+- Codec chaining and feedback loops
+- `src/patina/<codec>/` module architecture with independent per-codec APIs
 
-- **M2-ADPCM-01**: 4-bit Sony ADPCM encode
-- **M2-ADPCM-02**: 4-bit Sony ADPCM decode with filter coefficient tables, loop flags, block structure
-- **M2-ADPCM-03**: Integrated pipeline: PCM → ADPCM encode → ADPCM decode → M1 reverb → PCM
-- **M2-ADPCM-04**: ADPCM-specific DECISIONS.md entries for its own gray areas
+Research artifacts: `.planning/research/m2-adpcm/CODEC-SURVEY.md`, `CREATIVE-EXPLOITATION.md`, `COMREX-FREQUENCY-EXTENDER.md`, `MODULE-ARCHITECTURE.md`
 
-### M3 — DAC Reconstruction Modeling (deferred past v1.0; layers in as switchable flag without changing the standalone's user-facing surface)
+## Validated — Previous Milestones
 
-- **M3-DAC-01**: Period-appropriate DAC reconstruction colors as a switchable parameter
+### v1.0 Standalone GUI (Shipped 2026-04-26, Phase 8)
 
-### M5 — Hardware Validation (deferred; Anthony has original PS1 hardware)
+STANDALONE-01..09 validated. See `.planning/phases/08-m4-juce-plugin-product-v1-0/08-VERIFICATION.md`.
 
-- **M5-HW-01**: Capture reverb output from original PS1 hardware via PSX homebrew + digital capture
-- **M5-HW-02**: Diff captured hardware output against SPU-94 output; resolve any divergences via DECISIONS.md
+### M1 Reverb Core (Shipped 2026-04-25, tag `m1-reverb-core`)
 
-## Out of Scope (for product v1.0)
+All 49 M1 requirements validated through phases 1-7. See PROJECT.md "Validated" section. The full archived REQUIREMENTS.md is at `.planning/milestones/v1.0-REQUIREMENTS.md`.
 
-See PROJECT.md "Out of Scope" section. Notable v1.0 exclusions:
-- Hardware (Eurorack, FPGA, MCU firmware)
-- macOS / Windows builds (Linux primary; cross-platform straightforward but not in scope)
-- SPU voice engine, envelope generation, pitch modulation, noise, ADSR (project-wide exclusion — reverb-only reimplementation)
-- Reading Mednafen / lv2-psx-reverb / DuckStation / MiSTer source as a primary development activity (excluded by licensing posture)
+Categories shipped: CORE-01..10, API-01..09, PYBIND-01..06, CLI-01..04, TEST-01..08, BUILD-01..08, DOCS-01..05.
+
+## Out of Scope (project-wide)
+
+- SPU voice engine, envelope generation, pitch modulation, noise, ADSR (reverb-only reimplementation)
+- Gaussian interpolation (voice pitch engine, different subsystem)
+- XA-ADPCM variant (CD subsystem, different format)
+- SPU RAM simulation (zero audio benefit)
+- Reading GPL emulator source as primary development activity (licensing posture)
+- Noise shaping / multi-pass encoding (exceeds PS1 quality — future creative scope, not M2)
 
 ## Traceability
 
@@ -82,15 +94,13 @@ See PROJECT.md "Out of Scope" section. Notable v1.0 exclusions:
 | PYBIND-01..06 | Phase 6 | ✓ Validated |
 | CLI-01..04 | Phase 6 | ✓ Validated |
 | TEST-01..08 | Phase 7 | ✓ Validated |
-| BUILD-01..08 | Phases 1, 6, 7 (BUILD-03 parked) | ✓ Validated |
+| BUILD-01..08 | Phases 1, 6, 7 | ✓ Validated |
 | DOCS-01..05 | Phases 1, 6, 7 | ✓ Validated |
-| **STANDALONE-01..09** | **Phase 8 (Standalone GUI = product v1.0)** | **Active** |
-| PLUGIN-FORMAT-01 | Future (post-v1.0) | Deferred |
-| LEVER-CURATION-01 | Future (post-v1.0, informed by v1.0 listening) | Deferred |
-| DSP-EXT-01..04 | Future (post-v1.0, on real-need surfacing) | Deferred |
-| M2-ADPCM-01..04 | Future (post-v1.0) | Deferred |
-| M3-DAC-01 | Future (post-v1.0) | Deferred |
-| M5-HW-01..02 | Future (post-v1.0) | Deferred |
+| STANDALONE-01..09 | Phase 8 | ✓ Validated |
+| **ADPCM-01..07** | **M2 (TBD)** | **Active** |
+| **ADPCM-INT-01..06** | **M2 (TBD)** | **Active** |
+| **ADPCM-IO-01..06** | **M2 (TBD)** | **Active** |
+| **ADPCM-TEST-01..04** | **M2 (TBD)** | **Active** |
 
 ---
-*Requirements file restored 2026-04-25 after the premature `/gsd-complete-milestone v1.0` deletion. PLUGIN-01..09 added 2026-04-25 to scope the M4 plugin work, then archived 2026-04-26 when Phase 8 was re-scoped to the SPU-94 Standalone GUI per `.planning/phases/08-m4-juce-plugin-product-v1-0/08-CONTEXT.md`. Active surface is now STANDALONE-01..09; plugin formats deferred to a separate post-v1.0 phase as PLUGIN-FORMAT-01.*
+*Requirements scoped: 2026-04-26. 23 active requirements across 4 categories. Research basis: 12 documents in `.planning/research/m2-adpcm/`.*

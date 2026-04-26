@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: product-v1.0-spu94-standalone
-status: complete
-last_updated: "2026-04-26T03:30:00.000Z"
+milestone: M2
+milestone_name: adpcm-encode-decode
+status: planning
+last_updated: "2026-04-26T22:00:00.000Z"
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 37
-  completed_plans: 37
-  percent: 100
-current_phase: 8
-current_phase_name: spu94-standalone-gui
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
+current_phase: 0
+current_phase_name: defining-requirements
 ---
 
 # STATE: SPU-94
@@ -20,24 +20,25 @@ current_phase_name: spu94-standalone-gui
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-25 — v1.0 shipped)
+See: .planning/PROJECT.md (updated 2026-04-26 — M2 ADPCM milestone started)
 
 **Project:** SPU-94 — bit-faithful PS1 SPU reverb DSP
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current Focus:** Product v1.0 SHIPPED 2026-04-26. M1 Reverb Core (Phases 1-7, tag `m1-reverb-core`) + Phase 8 SPU-94 Standalone GUI. JUCE standalone loads WAV, plays through reverb, 18 register sliders + 10-preset dropdown + Wet/Dry + Input Level knobs. Plugin formats deferred post-v1.0.
+**Current Focus:** M2 — Sony 4-bit ADPCM Encode/Decode. Adds bit-faithful ADPCM codec to libspu94, wired into the reverb signal path as toggleable coloration. 23 requirements scoped across 4 categories. Research complete (3 passes, 12 documents). Version tag v1.1 upon completion.
 
 ## Current Position
 
-**All 8 phases complete. Product v1.0 shipped.**
+**M2 milestone — defining requirements, ready for roadmap.**
 
-- **Product milestone:** v1.0 — **COMPLETE**
-- **Phase:** 8 of 8 — SPU-94 Standalone GUI — **SHIPPED 2026-04-26**
-- **Plans:** 4 of 4 complete (08-01 through 08-04)
-- **Progress:** [██████████] 8/8 phases complete
+- **Milestone:** M2 — ADPCM
+- **Phase:** Not started (defining requirements)
+- **Plans:** —
+- **Status:** Requirements defined, awaiting roadmap
+- **Last activity:** 2026-04-26 — Research complete, requirements scoped
 
 ```
-[██████████] Phase 1-7: M1 Reverb Core SHIPPED (tag m1-reverb-core)
-[██████████] Phase 8: SPU-94 Standalone GUI SHIPPED — 4 plans, UAT passed, 7/7 CR fixes, verification complete
+[██████████] v1.0: M1 Reverb Core + Standalone GUI SHIPPED (8 phases, 37 plans)
+[░░░░░░░░░░] M2: ADPCM — requirements defined, roadmap next
 ```
 
 ## Performance Metrics
