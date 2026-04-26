@@ -45,6 +45,27 @@ uint8_t spu94_adpcm_decode_block(
     int16_t            out[SPU94_ADPCM_BLOCK_SAMPLES]
 );
 
+/* Encode 28 int16_t PCM samples into one 16-byte ADPCM block.
+ *
+ * state: caller-allocated encoder state. Zero-init for new stream.
+ *        Updated in-place with the winning candidate's reconstructed
+ *        decoder state (NOT the original PCM values).
+ * in:    28 PCM samples to encode.
+ * flags: flag byte to embed in block[1] (caller manages loop flags).
+ * block: output 16-byte ADPCM block.
+ *
+ * Selects optimal (filter, shift) via brute-force over 65 combinations
+ * (5 filters x 13 shifts 0-12). Error metric: sum of squared errors
+ * in int64. Tiebreak: lower filter index, then lower shift.
+ * Nibble quantization: round-to-nearest with guard for shift=12
+ * (half_step=0 when shift_amount=0 to avoid 1 << -1 UB). */
+void spu94_adpcm_encode_block(
+    spu94_adpcm_state *state,
+    const int16_t      in[SPU94_ADPCM_BLOCK_SAMPLES],
+    uint8_t            flags,
+    uint8_t            block[SPU94_ADPCM_BLOCK_BYTES]
+);
+
 #ifdef __cplusplus
 }
 #endif
