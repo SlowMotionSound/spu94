@@ -18,6 +18,7 @@
 
 #include <spu94/spu94.h>
 #include <spu94/spu94_registers.h>
+#include <spu94/spu94_adpcm.h>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -134,6 +135,25 @@ struct spu94_state {
      * ----------------------------------------------------------------- */
     int16_t        reverb_out_l;
     int16_t        reverb_out_r;
+
+    /* -----------------------------------------------------------------
+     * Phase 2 (ADPCM-INT): double-buffer state for ADPCM coloration
+     * stage. When adpcm_enabled=1, spu94_process accumulates input
+     * samples into adpcm_in_buf_{l,r} and emits from adpcm_out_buf_{l,r}
+     * (previous block's decoded output). At buf_pos==28, encode+decode
+     * produces the next output block. One spu94_adpcm_state per channel
+     * shared between encode and decode (correctness guaranteed by
+     * ADPCM-05: encoder tracks reconstructed samples identically to
+     * decoder). Zeroed by spu94_init/reset (existing byte-loop covers).
+     * ----------------------------------------------------------------- */
+    uint8_t            adpcm_enabled;       /* 0=off (default), 1=on */
+    uint8_t            adpcm_buf_pos;       /* 0..27 accumulation index */
+    int16_t            adpcm_in_buf_l[28];  /* input accumulation, L */
+    int16_t            adpcm_in_buf_r[28];  /* input accumulation, R */
+    int16_t            adpcm_out_buf_l[28]; /* decoded output, L */
+    int16_t            adpcm_out_buf_r[28]; /* decoded output, R */
+    spu94_adpcm_state  adpcm_state_l;       /* encode+decode state, L (4 bytes) */
+    spu94_adpcm_state  adpcm_state_r;       /* encode+decode state, R (4 bytes) */
 
     /* -----------------------------------------------------------------
      * ADR-0023 (Step 4 of M1 close-out): observable error counters.

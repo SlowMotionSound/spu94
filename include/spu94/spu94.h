@@ -211,6 +211,27 @@ uint32_t      spu94_get_buffer_address(const spu94_state *state);
  * returns SPU94_LATENCY_SAMPLES. LTO-eliminable at C consumer call sites. */
 uint32_t      spu94_get_latency_samples(void);
 
+/* -----------------------------------------------------------------------
+ * ADPCM coloration stage (M2 Phase 2, ADPCM-INT-01..06)
+ *
+ * When enabled, spu94_process routes input PCM through ADPCM
+ * encode+decode before the FIR decimator, introducing PS1-characteristic
+ * quantization noise and filter ringing. Off by default. Adds 28 samples
+ * of latency (one ADPCM block) when enabled.
+ * ----------------------------------------------------------------------- */
+
+/** Enable/disable ADPCM coloration upstream of the FIR decimator.
+ *  Off by default. NULL state is a no-op. */
+void     spu94_set_adpcm_enabled(spu94_state *state, int enabled);
+
+/** Query ADPCM coloration state. NULL state returns 0. */
+int      spu94_get_adpcm_enabled(const spu94_state *state);
+
+/** Total processing latency in samples at 44.1 kHz, including ADPCM
+ *  block latency when enabled. Returns SPU94_LATENCY_SAMPLES (58) when
+ *  ADPCM is off, 86 (58 + 28) when on. NULL state returns 58. */
+uint32_t spu94_get_total_latency_samples(const spu94_state *state);
+
 /* ------------------------------------------------------------------------- */
 /* Public block-based audio entry point (Phase 5, D-01, D-02, D-03, D-04)    */
 /* ------------------------------------------------------------------------- */

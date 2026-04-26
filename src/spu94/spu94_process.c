@@ -21,6 +21,7 @@
  * a CLI implementation detail. Both paths run the same per-sample math.
  */
 #include <spu94/spu94.h>
+#include <spu94/spu94_adpcm.h>
 #include "spu94_fir_internal.h"
 #include "spu94_state_internal.h"
 #include <stdint.h>
@@ -32,8 +33,44 @@ void spu94_process(spu94_state *state,
                    uint32_t num_samples) {
     if (state == NULL) return;
     for (uint32_t i = 0; i < num_samples; i++) {
-        const int16_t l = (L_in != NULL) ? L_in[i] : (int16_t)0;
-        const int16_t r = (R_in != NULL) ? R_in[i] : (int16_t)0;
+        int16_t l = (L_in != NULL) ? L_in[i] : (int16_t)0;
+        int16_t r = (R_in != NULL) ? R_in[i] : (int16_t)0;
+
+        /* ADPCM coloration stage (ADPCM-INT-01, INT-02).
+         * Double-buffer: emit from previous decoded block while
+         * accumulating current input. When buffer fills to 28,
+         * encode+decode produces the next output block. */
+        if (state->adpcm_enabled) {
+            /* Emit from previously decoded block */
+            int16_t out_l = state->adpcm_out_buf_l[state->adpcm_buf_pos];
+            int16_t out_r = state->adpcm_out_buf_r[state->adpcm_buf_pos];
+
+            /* Accumulate current input */
+            state->adpcm_in_buf_l[state->adpcm_buf_pos] = l;
+            state->adpcm_in_buf_r[state->adpcm_buf_pos] = r;
+
+            state->adpcm_buf_pos++;
+            if (state->adpcm_buf_pos == SPU94_ADPCM_BLOCK_SAMPLES) {
+                /* Block complete: encode+decode for next emission */
+                uint8_t block[SPU94_ADPCM_BLOCK_BYTES];
+
+                spu94_adpcm_encode_block(&state->adpcm_state_l,
+                    state->adpcm_in_buf_l, 0, block);
+                spu94_adpcm_decode_block(&state->adpcm_state_l,
+                    block, state->adpcm_out_buf_l);
+
+                spu94_adpcm_encode_block(&state->adpcm_state_r,
+                    state->adpcm_in_buf_r, 0, block);
+                spu94_adpcm_decode_block(&state->adpcm_state_r,
+                    block, state->adpcm_out_buf_r);
+
+                state->adpcm_buf_pos = 0;
+            }
+
+            l = out_l;
+            r = out_r;
+        }
+
         /* chain_step_impl owns the mix-bus write (ADR-Phase-6-I).
          * Raw 44.1 kHz samples feed the decimator here; the decimator's
          * retained-phase output populates state->mix_bus_l/r inside

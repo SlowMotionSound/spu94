@@ -4,8 +4,8 @@ milestone: v1.1
 milestone_name: milestone
 status: executing
 stopped_at: Phase 1 (Core Codec) shipped. Verification passed 9/9. Ready to plan Phase 2 (Pipeline Integration).
-last_updated: "2026-04-26T22:08:02.852Z"
-last_activity: 2026-04-26 -- Phase 2 planning complete
+last_updated: "2026-04-26T22:09:23.286Z"
+last_activity: 2026-04-26 -- Phase 2 execution started
 progress:
   total_phases: 4
   completed_phases: 1
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-26)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** M2 Phase 2 — Pipeline Integration (wire ADPCM into spu94_process)
+**Current focus:** Phase 2 — Pipeline Integration
 
 ## Current Position
 
-Phase: 2 of 4 (Pipeline Integration)
-Plan: 0 of TBD in current phase
-Status: Ready to execute
-Last activity: 2026-04-26 -- Phase 2 planning complete
+Phase: 2 (Pipeline Integration) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 2
+Last activity: 2026-04-26 -- Phase 2 execution started
 
 Progress: [██▓░░░░░░░] 25%
 

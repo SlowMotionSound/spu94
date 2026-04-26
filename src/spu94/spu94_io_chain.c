@@ -32,6 +32,7 @@
 #include "spu94_fir_internal.h"
 #include "spu94_state_internal.h"
 #include <spu94/spu94.h>
+#include <spu94/spu94_adpcm.h>
 #include <stdint.h>
 
 /* Forward decl: spu94_tick lives in spu94_tick.c. Phase 4 calls it as the
@@ -142,4 +143,36 @@ void spu94_fir_chain_step_reverb_bypass(spu94_state *state,
  * makes consumer call sites emit a constant return (e.g., mov eax, 38; ret). */
 uint32_t spu94_get_latency_samples(void) {
     return SPU94_LATENCY_SAMPLES;
+}
+
+/* ADPCM-INT-01: toggle coloration stage. */
+void spu94_set_adpcm_enabled(spu94_state *state, int enabled) {
+    if (state == NULL) return;
+    if (!enabled && state->adpcm_enabled) {
+        /* ADPCM-INT-04: discard partial accumulation buffer on disable.
+         * Zero output buffer so no stale audio leaks on re-enable. */
+        state->adpcm_buf_pos = 0;
+        for (int j = 0; j < SPU94_ADPCM_BLOCK_SAMPLES; j++) {
+            state->adpcm_out_buf_l[j] = 0;
+            state->adpcm_out_buf_r[j] = 0;
+        }
+        /* Reset codec state so re-enable starts clean */
+        state->adpcm_state_l.old = 0;
+        state->adpcm_state_l.older = 0;
+        state->adpcm_state_r.old = 0;
+        state->adpcm_state_r.older = 0;
+    }
+    state->adpcm_enabled = enabled ? 1 : 0;
+}
+
+int spu94_get_adpcm_enabled(const spu94_state *state) {
+    if (state == NULL) return 0;
+    return state->adpcm_enabled;
+}
+
+/* ADPCM-INT-03: total latency including ADPCM block delay. */
+uint32_t spu94_get_total_latency_samples(const spu94_state *state) {
+    if (state == NULL) return SPU94_LATENCY_SAMPLES;
+    return SPU94_LATENCY_SAMPLES +
+           (state->adpcm_enabled ? SPU94_ADPCM_BLOCK_SAMPLES : 0u);
 }
