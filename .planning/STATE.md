@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-04-26)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** M2 Phase 1 — Core Codec (ADPCM decode + encode)
+**Current focus:** M2 Phase 2 — Pipeline Integration (wire ADPCM into spu94_process)
 
 ## Current Position
 
-Phase: 1 of 4 (Core Codec)
-Plan: 2 of 2 in current phase (phase complete)
-Status: Phase 01 complete, ready for Phase 02
-Last activity: 2026-04-26 — Plan 01-02 complete (ADPCM encoder + 12 tests)
+Phase: 2 of 4 (Pipeline Integration)
+Plan: 0 of TBD in current phase
+Status: Ready to plan
+Last activity: 2026-04-26 — Phase 1 verified (9/9 must-haves, ADPCM-01..07 satisfied, 84 ctest green)
 
-Progress: [██░░░░░░░░] 20%
+Progress: [██▓░░░░░░░] 25%
 
 ## Performance Metrics
 
@@ -62,5 +62,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-26
-Stopped at: Completed 01-02-PLAN.md (ADPCM encoder). Phase 01 (Core Codec) complete. Ready for Phase 02.
-Resume file: .planning/phases/01-core-codec/01-02-SUMMARY.md
+Stopped at: Phase 1 (Core Codec) shipped. Verification passed 9/9. Ready to plan Phase 2 (Pipeline Integration).
+Resume file: .planning/phases/01-core-codec/01-VERIFICATION.md
