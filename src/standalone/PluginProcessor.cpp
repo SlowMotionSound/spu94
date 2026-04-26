@@ -113,9 +113,12 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
     // Stack-allocated int16 I/O buffers -- no heap in the audio thread.
     // JUCE block sizes are typically 256-1024; 4096 is a generous ceiling.
+    // If the host delivers an oversized block, clear and bail rather than
+    // silently truncating (WR-02: unwritten tail would be garbage audio).
     constexpr int kMaxBlock = 4096;
     jassert(n <= kMaxBlock);
-    const int samplesToProcess = (n <= kMaxBlock) ? n : kMaxBlock;
+    if (n > kMaxBlock) { buffer.clear(); return; }
+    const int samplesToProcess = n;
 
     int16_t tmpL_in[kMaxBlock];
     int16_t tmpR_in[kMaxBlock];
