@@ -89,18 +89,37 @@ Categories shipped: CORE-01..10, API-01..09, PYBIND-01..06, CLI-01..04, TEST-01.
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| CORE-01..10 | Phases 1-5 | ✓ Validated |
-| API-01..09 | Phases 2-5 | ✓ Validated |
-| PYBIND-01..06 | Phase 6 | ✓ Validated |
-| CLI-01..04 | Phase 6 | ✓ Validated |
-| TEST-01..08 | Phase 7 | ✓ Validated |
-| BUILD-01..08 | Phases 1, 6, 7 | ✓ Validated |
-| DOCS-01..05 | Phases 1, 6, 7 | ✓ Validated |
-| STANDALONE-01..09 | Phase 8 | ✓ Validated |
-| **ADPCM-01..07** | **M2 (TBD)** | **Active** |
-| **ADPCM-INT-01..06** | **M2 (TBD)** | **Active** |
-| **ADPCM-IO-01..06** | **M2 (TBD)** | **Active** |
-| **ADPCM-TEST-01..04** | **M2 (TBD)** | **Active** |
+| CORE-01..10 | v1.0 Phases 1-5 | Validated |
+| API-01..09 | v1.0 Phases 2-5 | Validated |
+| PYBIND-01..06 | v1.0 Phase 6 | Validated |
+| CLI-01..04 | v1.0 Phase 6 | Validated |
+| TEST-01..08 | v1.0 Phase 7 | Validated |
+| BUILD-01..08 | v1.0 Phases 1, 6, 7 | Validated |
+| DOCS-01..05 | v1.0 Phases 1, 6, 7 | Validated |
+| STANDALONE-01..09 | v1.0 Phase 8 | Validated |
+| ADPCM-01 | M2 Phase 1 | Pending |
+| ADPCM-02 | M2 Phase 1 | Pending |
+| ADPCM-03 | M2 Phase 1 | Pending |
+| ADPCM-04 | M2 Phase 1 | Pending |
+| ADPCM-05 | M2 Phase 1 | Pending |
+| ADPCM-06 | M2 Phase 1 | Pending |
+| ADPCM-07 | M2 Phase 1 | Pending |
+| ADPCM-INT-01 | M2 Phase 2 | Pending |
+| ADPCM-INT-02 | M2 Phase 2 | Pending |
+| ADPCM-INT-03 | M2 Phase 2 | Pending |
+| ADPCM-INT-04 | M2 Phase 2 | Pending |
+| ADPCM-INT-05 | M2 Phase 2 | Pending |
+| ADPCM-INT-06 | M2 Phase 2 | Pending |
+| ADPCM-IO-01 | M2 Phase 3 | Pending |
+| ADPCM-IO-02 | M2 Phase 3 | Pending |
+| ADPCM-IO-03 | M2 Phase 3 | Pending |
+| ADPCM-IO-04 | M2 Phase 3 | Pending |
+| ADPCM-IO-05 | M2 Phase 3 | Pending |
+| ADPCM-IO-06 | M2 Phase 3 | Pending |
+| ADPCM-TEST-01 | M2 Phase 4 | Pending |
+| ADPCM-TEST-02 | M2 Phase 4 | Pending |
+| ADPCM-TEST-03 | M2 Phase 4 | Pending |
+| ADPCM-TEST-04 | M2 Phase 4 | Pending |
 
 ---
 *Requirements scoped: 2026-04-26. 23 active requirements across 4 categories. Research basis: 12 documents in `.planning/research/m2-adpcm/`.*
