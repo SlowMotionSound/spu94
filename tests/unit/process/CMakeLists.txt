@@ -98,3 +98,15 @@ target_include_directories(test_process_external_anchor_off PRIVATE
     ${CMAKE_SOURCE_DIR}/include)
 add_test(NAME test_process_external_anchor_off COMMAND test_process_external_anchor_off)
 set_tests_properties(test_process_external_anchor_off PROPERTIES LABELS "process")
+
+# Phase 2 (ADPCM-INT): integration tests for ADPCM pipeline wiring.
+# Covers: toggle (INT-01), double-buffer latency (INT-02), latency report
+# (INT-03), state management (INT-04), default-off regression (INT-05),
+# state size cap (INT-05).
+add_executable(test_process_adpcm test_process_adpcm.c)
+target_link_libraries(test_process_adpcm PRIVATE unity spu94_static spu94_warnings)
+target_include_directories(test_process_adpcm PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src/spu94)
+add_test(NAME test_process_adpcm COMMAND test_process_adpcm)
+set_tests_properties(test_process_adpcm PROPERTIES LABELS "process;adpcm_integration")
