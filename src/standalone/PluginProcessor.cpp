@@ -2,12 +2,30 @@
 #include "PluginEditor.h"
 #include "WavLoader.h"
 #include <cmath>
+#include <cstring>
+#include <memory>
 
 SPU94AudioProcessor::SPU94AudioProcessor()
     : AudioProcessor(BusesProperties()
                          .withInput("Input", juce::AudioChannelSet::stereo(), true)
                          .withOutput("Output", juce::AudioChannelSet::stereo(), true))
 {
+    // Pre-seed register shadows with the Hall preset so the editor shows
+    // correct slider values even before prepareToPlay runs (CR-02).
+    // Heap-allocate the temporary buffers (~528 KB) to avoid a large stack frame.
+    auto tmpState = std::make_unique<unsigned char[]>(SPU94_STATE_SIZE_MAX);
+    auto tmpWork  = std::make_unique<unsigned char[]>(SPU94_WORK_BUF_MAX_BYTES);
+    std::memset(tmpState.get(), 0, SPU94_STATE_SIZE_MAX);
+    std::memset(tmpWork.get(),  0, SPU94_WORK_BUF_MAX_BYTES);
+
+    auto* tmp = spu94_init(tmpState.get(), SPU94_STATE_SIZE_MAX,
+                           tmpWork.get(),  SPU94_WORK_BUF_MAX_BYTES);
+    if (tmp)
+    {
+        spu94_load_preset(tmp, SPU94_PRESET_HALL);
+        registerBridge.syncShadowsFromSPU(tmp);
+        spu94_destroy(tmp);
+    }
 }
 
 SPU94AudioProcessor::~SPU94AudioProcessor()
