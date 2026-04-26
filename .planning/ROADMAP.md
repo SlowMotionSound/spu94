@@ -10,7 +10,7 @@ M2 adds bit-faithful Sony 4-bit ADPCM encode/decode to libspu94 and wires it int
 
 ## Phases
 
-- [ ] **Phase 1: Core Codec** - Standalone ADPCM decode + encode functions: 5 filters, brute-force encoder, caller-allocated state, pure C
+- [x] **Phase 1: Core Codec** - Standalone ADPCM decode + encode functions: 5 filters, brute-force encoder, caller-allocated state, pure C
 - [ ] **Phase 2: Pipeline Integration** - Wire ADPCM into spu94_process as toggleable upstream stage with latency reporting and state management
 - [ ] **Phase 3: I/O Layer** - CLI subcommands (encode/decode/roundtrip), VAG file format, Python bindings, JUCE GUI toggle
 - [ ] **Phase 4: Verification + Documentation** - Known-vector tests, round-trip gates, golden files, gray-area ADRs
@@ -29,7 +29,7 @@ M2 adds bit-faithful Sony 4-bit ADPCM encode/decode to libspu94 and wires it int
 **Plans**: 2 plans
 Plans:
 - [x] 01-01-PLAN.md — ADPCM decoder + filter tables + known-vector tests
-- [ ] 01-02-PLAN.md — ADPCM encoder with brute-force search + round-trip tests
+- [x] 01-02-PLAN.md — ADPCM encoder with brute-force search + round-trip tests
 
 ### Phase 2: Pipeline Integration
 **Goal**: Users can toggle ADPCM coloration on/off in the reverb pipeline and hear the authentic PS1 signal path character
@@ -84,10 +84,10 @@ Plans:
 | ADPCM-01 | Phase 1 | Complete (01-01) |
 | ADPCM-02 | Phase 1 | Complete (01-01) |
 | ADPCM-03 | Phase 1 | Complete (01-01) |
-| ADPCM-04 | Phase 1 | Pending |
-| ADPCM-05 | Phase 1 | Pending |
-| ADPCM-06 | Phase 1 | Pending |
-| ADPCM-07 | Phase 1 | Partial (01-01) |
+| ADPCM-04 | Phase 1 | Complete (01-02) |
+| ADPCM-05 | Phase 1 | Complete (01-02) |
+| ADPCM-06 | Phase 1 | Complete (01-02) |
+| ADPCM-07 | Phase 1 | Complete (01-01, 01-02) |
 | ADPCM-INT-01 | Phase 2 | Pending |
 | ADPCM-INT-02 | Phase 2 | Pending |
 | ADPCM-INT-03 | Phase 2 | Pending |
@@ -115,7 +115,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Codec | 1/2 | In progress | - |
+| 1. Core Codec | 2/2 | Complete | 2026-04-26 |
 | 2. Pipeline Integration | 0/TBD | Not started | - |
 | 3. I/O Layer | 0/TBD | Not started | - |
 | 4. Verification + Documentation | 0/TBD | Not started | - |

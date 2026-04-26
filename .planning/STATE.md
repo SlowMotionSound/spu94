@@ -10,23 +10,23 @@ See: .planning/PROJECT.md (updated 2026-04-26)
 ## Current Position
 
 Phase: 1 of 4 (Core Codec)
-Plan: 1 of 2 in current phase
-Status: Executing
-Last activity: 2026-04-26 — Plan 01-01 complete (ADPCM decoder + 19 tests)
+Plan: 2 of 2 in current phase (phase complete)
+Status: Phase 01 complete, ready for Phase 02
+Last activity: 2026-04-26 — Plan 01-02 complete (ADPCM encoder + 12 tests)
 
-Progress: [█░░░░░░░░░] 10%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1 (M2)
+- Total plans completed: 2 (M2)
 - Prior milestone: v1.0 product shipped 37 plans across 8 phases
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-core-codec | 1 | 32min | 32min |
+| 01-core-codec | 2 | 48min | 24min |
 
 ## Accumulated Context
 
@@ -41,6 +41,7 @@ Recent decisions affecting current work:
 - Arithmetic: `>> 6` ASR (not `/64`) per existing ADR-0001 discipline; `+32` rounding bias is hardware-faithful
 - Shift 13-15 mapped to 9 per psx-spx; filter 5-7 clamped to 4 per emulator consensus
 - Filter 1 prediction (old=1000): (60000+32)>>6 = 938 exactly (plan said 937, corrected during test authoring)
+- Encoder tiebreak: strict < with iteration order (outer=filter, inner=shift) selects lowest filter then lowest shift
 
 ### Blockers/Concerns
 
@@ -61,5 +62,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-26
-Stopped at: Completed 01-01-PLAN.md (ADPCM decoder), ready for 01-02-PLAN.md (encoder)
-Resume file: .planning/phases/01-core-codec/01-01-SUMMARY.md
+Stopped at: Completed 01-02-PLAN.md (ADPCM encoder). Phase 01 (Core Codec) complete. Ready for Phase 02.
+Resume file: .planning/phases/01-core-codec/01-02-SUMMARY.md

@@ -13,9 +13,9 @@ M2 adds bit-faithful Sony 4-bit ADPCM encode/decode to libspu94, wired into the 
 - [x] **ADPCM-01**: Decoder decodes a 16-byte ADPCM block into 28 int16 PCM samples using all 5 SPU filter coefficient pairs (f0={0,60,115,98,122}, f1={0,0,-52,-55,-60}), with round-to-nearest via `(old*f0 + older*f1 + 32) >> 6` arithmetic right shift, single clamp to int16 after the full expression, and two-sample state carry across blocks. *(Plan 01-01, commit 8bdd664)*
 - [x] **ADPCM-02**: Decoder handles shift values 0-12 normally and maps shift 13-15 to shift=9 per nocash psx-spx. No undefined behavior from negative shift amounts. *(Plan 01-01, commit 8bdd664)*
 - [x] **ADPCM-03**: Decoder parses nibbles in correct order (low nibble first within each data byte) and sign-extends 4-bit nibbles to signed integers before shifting. *(Plan 01-01, commit 8bdd664)*
-- [ ] **ADPCM-04**: Encoder selects optimal (filter, shift) pair per 28-sample block via brute-force search over all 65 combinations (5 filters × 13 shifts), using sum-of-squared-error in int64 as the metric, with deterministic tiebreaking (lower filter index, then lower shift).
-- [ ] **ADPCM-05**: Encoder uses reconstructed (decoded) sample values for prediction state, not original PCM. The encoder contains an internal copy of the decoder.
-- [ ] **ADPCM-06**: Encoder quantizes residuals to 4-bit signed range [-8, +7] with round-to-nearest, guarding against UB at shift=12 where the half-step rounding term would be `1 << -1`.
+- [x] **ADPCM-04**: Encoder selects optimal (filter, shift) pair per 28-sample block via brute-force search over all 65 combinations (5 filters x 13 shifts), using sum-of-squared-error in int64 as the metric, with deterministic tiebreaking (lower filter index, then lower shift). *(Plan 01-02, commit d91707a)*
+- [x] **ADPCM-05**: Encoder uses reconstructed (decoded) sample values for prediction state, not original PCM. The encoder contains an internal copy of the decoder. *(Plan 01-02, commit d91707a)*
+- [x] **ADPCM-06**: Encoder quantizes residuals to 4-bit signed range [-8, +7] with round-to-nearest, guarding against UB at shift=12 where the half-step rounding term would be `1 << -1`. *(Plan 01-02, commit d91707a)*
 - [x] **ADPCM-07**: Both encode and decode are pure C functions with caller-allocated state (4 bytes: two int16 for old/older), zero heap, integer-only arithmetic. No dependency on `spu94_state`. *(Decoder half: Plan 01-01, commit 8bdd664; encoder half: Plan 01-02)*
 
 ### ADPCM-INT — Integration with Reverb Pipeline
@@ -100,10 +100,10 @@ Categories shipped: CORE-01..10, API-01..09, PYBIND-01..06, CLI-01..04, TEST-01.
 | ADPCM-01 | M2 Phase 1 | Complete (01-01) |
 | ADPCM-02 | M2 Phase 1 | Complete (01-01) |
 | ADPCM-03 | M2 Phase 1 | Complete (01-01) |
-| ADPCM-04 | M2 Phase 1 | Pending |
-| ADPCM-05 | M2 Phase 1 | Pending |
-| ADPCM-06 | M2 Phase 1 | Pending |
-| ADPCM-07 | M2 Phase 1 | Partial (01-01, decoder half) |
+| ADPCM-04 | M2 Phase 1 | Complete (01-02) |
+| ADPCM-05 | M2 Phase 1 | Complete (01-02) |
+| ADPCM-06 | M2 Phase 1 | Complete (01-02) |
+| ADPCM-07 | M2 Phase 1 | Complete (01-01 + 01-02) |
 | ADPCM-INT-01 | M2 Phase 2 | Pending |
 | ADPCM-INT-02 | M2 Phase 2 | Pending |
 | ADPCM-INT-03 | M2 Phase 2 | Pending |
