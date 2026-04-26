@@ -38,12 +38,12 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. Calling `spu94_set_adpcm_enabled(state, true)` causes `spu94_process` to run input PCM through encode+decode before the FIR decimator, and `spu94_set_adpcm_enabled(state, false)` restores the original M1 signal path with zero behavioral change
   2. `spu94_get_total_latency_samples()` reports 86 (58 FIR + 28 ADPCM) when enabled and 58 when disabled
-  3. ADPCM is off by default — all 82 existing tests pass with zero modification to reverb network, FIR, presets, or registers, and spu94_state stays within SPU94_STATE_SIZE_MAX (16384 bytes)
+  3. ADPCM is off by default — all 84 existing tests pass with zero modification to reverb network, FIR, presets, or registers, and spu94_state stays within SPU94_STATE_SIZE_MAX (16384 bytes)
   4. All 4 rt_safety gates (no heap, no locks, no syscalls, bounded latency) pass with ADPCM code linked into libspu94.so
 **Plans**: 2 plans
 Plans:
-- [ ] 01-01-PLAN.md — ADPCM decoder + filter tables + known-vector tests
-- [ ] 01-02-PLAN.md — ADPCM encoder with brute-force search + round-trip tests
+- [ ] 02-01-PLAN.md — ADPCM state fields, public API, process-loop integration with double-buffer
+- [ ] 02-02-PLAN.md — Integration tests covering toggle, latency, state management, default-off
 
 ### Phase 3: I/O Layer
 **Goal**: Users can encode/decode ADPCM via CLI, Python, and JUCE standalone — making the codec accessible through every existing interface
@@ -55,10 +55,9 @@ Plans:
   3. Python callers can call `spu94_adpcm_decode_block()`, `spu94_adpcm_encode_block()`, `spu94_set_adpcm_enabled()`, and `spu94_get_adpcm_enabled()` via ctypes bindings
   4. The JUCE standalone shows an "ADPCM" toggle that enables/disables the coloration stage during real-time playback
   5. VAG reader handles big-endian headers with explicit byte-order conversion (no ntohl) and respects terminator blocks
-**Plans**: 2 plans
+**Plans**: TBD
 Plans:
-- [ ] 01-01-PLAN.md — ADPCM decoder + filter tables + known-vector tests
-- [ ] 01-02-PLAN.md — ADPCM encoder with brute-force search + round-trip tests
+- [ ] (to be planned)
 **UI hint**: yes
 
 ### Phase 4: Verification + Documentation
@@ -70,10 +69,9 @@ Plans:
   2. Encode-then-decode produces bit-identical output across runs, and decode of the encode matches standalone decode sample-for-sample
   3. Golden files exist for reverb output with ADPCM on vs off (at least 3 presets x 2 inputs), with SHA-256 sidecars and a ctest regression gate that fails on any drift
   4. docs/DECISIONS.md contains numbered ADRs for: rounding vs truncation, shift 13-15 policy, filter 5-7 policy, division semantics (>>6 vs /64), encoder error metric, encoder tiebreaking, tail block padding
-**Plans**: 2 plans
+**Plans**: TBD
 Plans:
-- [ ] 01-01-PLAN.md — ADPCM decoder + filter tables + known-vector tests
-- [ ] 01-02-PLAN.md — ADPCM encoder with brute-force search + round-trip tests
+- [ ] (to be planned)
 
 ---
 
@@ -116,7 +114,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Core Codec | 2/2 | Complete | 2026-04-26 |
-| 2. Pipeline Integration | 0/TBD | Not started | - |
+| 2. Pipeline Integration | 0/2 | In progress | - |
 | 3. I/O Layer | 0/TBD | Not started | - |
 | 4. Verification + Documentation | 0/TBD | Not started | - |
 
