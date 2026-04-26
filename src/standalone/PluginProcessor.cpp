@@ -86,7 +86,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         newWavReady.store(false, std::memory_order_release);
     }
 
-    if (!wavSource.loaded.load(std::memory_order_relaxed) ||
+    if (!wavSource.loaded.load(std::memory_order_acquire) ||
         !wavSource.playing.load(std::memory_order_relaxed) ||
         spu == nullptr)
     {
@@ -107,6 +107,9 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
     const int n = buffer.getNumSamples();
     const auto numFrames = wavSource.numFrames;
+
+    // Guard against divide-by-zero if numFrames is somehow 0 (CR-03).
+    if (numFrames == 0) { buffer.clear(); return; }
 
     // Stack-allocated int16 I/O buffers -- no heap in the audio thread.
     // JUCE block sizes are typically 256-1024; 4096 is a generous ceiling.
