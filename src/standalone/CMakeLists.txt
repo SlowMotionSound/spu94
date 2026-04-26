@@ -28,7 +28,7 @@ target_sources(spu94_standalone
 )
 
 target_compile_definitions(spu94_standalone
-    PUBLIC
+    PRIVATE
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
 )
