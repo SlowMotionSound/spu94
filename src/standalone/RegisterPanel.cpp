@@ -57,9 +57,9 @@ void RegisterPanel::resized()
     // Layout: vertical stack of group-header rows and slider rows.
     // 80px label width, remaining width for slider, 28px row height, 4px gap.
     const int labelW = 80;
-    const int rowH = 28;
-    const int headerH = 24;
-    const int gap = 4;
+    const int rowH = 24;
+    const int headerH = 22;
+    const int gap = 2;
     const int margin = 4;
 
     auto area = getLocalBounds().reduced(margin, 0);

@@ -55,8 +55,12 @@ public:
     // --- Wet/Dry mix (Plan 04: equal-power crossfade, D-02 / STANDALONE-06) ---
     std::atomic<float>& getWetDry() { return wetDry; }
 
+    // --- Input level (pre-SPU gain staging) ---
+    std::atomic<float>& getInputLevel() { return inputLevel; }
+
 private:
-    std::atomic<float> wetDry{0.5f};  // [0.0 = fully dry, 1.0 = fully wet]
+    std::atomic<float> wetDry{0.5f};      // [0.0 = fully dry, 1.0 = fully wet]
+    std::atomic<float> inputLevel{0.25f}; // [0.0 = silence, 1.0 = unity gain]
     RegisterBridge registerBridge;
     PresetCommandQueue presetQueue;
     // SPU state -- caller-owned buffers per libspu94 API contract

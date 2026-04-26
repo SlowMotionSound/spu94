@@ -30,6 +30,9 @@ private:
     juce::Slider wetDryKnob;
     juce::Label wetDryLabel;
 
+    juce::Slider inputLevelKnob;
+    juce::Label inputLevelLabel;
+
     // Track preset-switch completion for slider sync.
     int lastAppliedCount = 0;
 

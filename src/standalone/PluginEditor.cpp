@@ -74,6 +74,23 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     wetDryLabel.setText("Wet/Dry", juce::dontSendNotification);
     wetDryLabel.setJustificationType(juce::Justification::centred);
 
+    // Input Level rotary knob -- pre-SPU attenuation for hot sources.
+    addAndMakeVisible(inputLevelKnob);
+    inputLevelKnob.setSliderStyle(juce::Slider::Rotary);
+    inputLevelKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+    inputLevelKnob.setRange(0.0, 1.0, 0.01);
+    inputLevelKnob.setValue(0.25, juce::dontSendNotification);
+
+    inputLevelKnob.onValueChange = [this] {
+        processorRef.getInputLevel().store(
+            static_cast<float>(inputLevelKnob.getValue()),
+            std::memory_order_relaxed);
+    };
+
+    addAndMakeVisible(inputLevelLabel);
+    inputLevelLabel.setText("Input", juce::dontSendNotification);
+    inputLevelLabel.setJustificationType(juce::Justification::centred);
+
     // Register panel -- 18 sliders grouped by register class.
     addAndMakeVisible(registerPanel);
 
@@ -84,6 +101,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     lastAppliedCount = processorRef.getPresetQueue().getAppliedCount();
     startTimerHz(30);
 
+    setResizeLimits(800, 750, 800, 750);
     setSize(800, 750);
 }
 
@@ -119,9 +137,13 @@ void SPU94AudioProcessorEditor::resized()
     presetLabel.setBounds(330, 10, 60, 30);
     presetSelector.setBounds(395, 10, 180, 30);
 
-    // Wet/Dry rotary knob sits to the right of the preset selector.
-    wetDryLabel.setBounds(590, 2, 90, 16);
-    wetDryKnob.setBounds(590, 16, 90, 54);
+    // Input Level knob sits to the right of the preset selector.
+    inputLevelLabel.setBounds(590, 2, 80, 16);
+    inputLevelKnob.setBounds(590, 16, 80, 54);
+
+    // Wet/Dry rotary knob sits to the right of the Input knob.
+    wetDryLabel.setBounds(680, 2, 80, 16);
+    wetDryKnob.setBounds(680, 16, 80, 54);
 
     // Register panel fills remaining height below the toolbar.
     registerPanel.setBounds(10, 75, getWidth() - 20, getHeight() - 85);

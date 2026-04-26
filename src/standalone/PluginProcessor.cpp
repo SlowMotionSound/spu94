@@ -97,12 +97,15 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     int16_t tmpR_out[kMaxBlock];
 
     // Fill input from the loaded WAV data, wrapping for continuous loop.
+    // Apply input level attenuation before the SPU to avoid driving
+    // the fixed-point feedback loops into saturation with hot sources.
+    const float inGain = inputLevel.load(std::memory_order_relaxed);
     auto playPos = wavSource.playPos.load(std::memory_order_relaxed);
     for (int i = 0; i < samplesToProcess; ++i)
     {
         const auto idx = static_cast<size_t>((playPos + static_cast<uint64_t>(i)) % numFrames);
-        tmpL_in[i] = wavSource.L[idx];
-        tmpR_in[i] = wavSource.R[idx];
+        tmpL_in[i] = static_cast<int16_t>(wavSource.L[idx] * inGain);
+        tmpR_in[i] = static_cast<int16_t>(wavSource.R[idx] * inGain);
     }
 
     // Feed through the SPU reverb.
