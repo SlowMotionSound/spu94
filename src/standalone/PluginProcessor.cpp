@@ -86,7 +86,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // message-thread load, not here on the audio thread (WR-01).
     if (newWavReady.load(std::memory_order_acquire))
     {
-        const int slot = pendingWriteSlot.load(std::memory_order_relaxed);
+        const auto slot = static_cast<size_t>(pendingWriteSlot.load(std::memory_order_relaxed));
         std::swap(wavSource.L, pendingSlots[slot].L);
         std::swap(wavSource.R, pendingSlots[slot].R);
         wavSource.numFrames = pendingSlots[slot].numFrames;
@@ -187,7 +187,7 @@ void SPU94AudioProcessor::loadWavFile(const juce::File& file)
     // Write into whichever slot is NOT currently being consumed by the
     // audio thread.  The slot flip + release fence on newWavReady makes
     // the data visible before the audio thread sees the flag (CR-01).
-    const int slot = 1 - pendingWriteSlot.load(std::memory_order_relaxed);
+    const auto slot = static_cast<size_t>(1 - pendingWriteSlot.load(std::memory_order_relaxed));
     pendingSlots[slot].L = std::move(result->L);
     pendingSlots[slot].R = std::move(result->R);
     pendingSlots[slot].numFrames = result->numFrames;
