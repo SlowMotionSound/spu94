@@ -1,6 +1,6 @@
 # Roadmap: SPU-94 — Product v1.0
 
-**Updated:** 2026-04-26 (Phase 8 re-scoped to SPU-94 Standalone GUI per `.planning/phases/08-m4-juce-plugin-product-v1-0/08-CONTEXT.md`)
+**Updated:** 2026-04-26 (Phase 8 shipped — v1.0 standalone complete)
 **Milestone:** v1.0 (product) = SPU-94 Standalone GUI (single-window JUCE-built standalone audio tool wrapping the M1 reverb core)
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
 
@@ -17,7 +17,7 @@ Anthony (or any user) launches SPU-94 as a single-window standalone application 
 - [x] **Phase 5: Public API + Presets Integration** *(shipped)*
 - [x] **Phase 6: Python Binding + CLI** *(shipped 2026-04-23)*
 - [x] **Phase 7: Verification — Golden Files, Witness Diff, Modulation** *(shipped 2026-04-25, tagged `m1-reverb-core`)*
-- [ ] **Phase 8: SPU-94 Standalone GUI (product v1.0)** — JUCE-built standalone audio tool that loads any-SR / any-bit-depth WAV, plays it through `libspu94` in real-time, exposes 18 raw register sliders + 10-preset dropdown + Wet/Dry knob. JUCE stock look-and-feel. Linux primary. No plugin formats, no DAW integration.
+- [x] **Phase 8: SPU-94 Standalone GUI (product v1.0)** *(shipped 2026-04-26)* — JUCE-built standalone audio tool that loads any-SR / any-bit-depth WAV, plays it through `libspu94` in real-time, exposes 18 raw register sliders + 10-preset dropdown + Wet/Dry knob + Input Level knob. JUCE stock look-and-feel. Linux primary. No plugin formats, no DAW integration.
 - [ ] **Phase 9: MCU Cross-Compile Smoke Test** *(parked per 2026-04-24; may move past v1.0 or be removed entirely — design-discipline + `rt_safety` ctests already prove portability)*
 
 **Post-v1.0 (deferred — layer on top of the standalone GUI without changing the v1.0 user-facing surface):**

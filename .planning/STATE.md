@@ -2,21 +2,21 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: product-v1.0-spu94-standalone
-status: in_progress
-last_updated: "2026-04-25T22:00:00.000Z"
+status: complete
+last_updated: "2026-04-26T03:30:00.000Z"
 progress:
   total_phases: 8
-  completed_phases: 7
-  total_plans: 33
-  completed_plans: 33
-  percent: 87
+  completed_phases: 8
+  total_plans: 37
+  completed_plans: 37
+  percent: 100
 current_phase: 8
 current_phase_name: spu94-standalone-gui
 ---
 
 # STATE: SPU-94
 
-**Last updated:** 2026-04-25
+**Last updated:** 2026-04-26
 
 ## Project Reference
 
@@ -24,21 +24,20 @@ See: .planning/PROJECT.md (updated 2026-04-25 — v1.0 shipped)
 
 **Project:** SPU-94 — bit-faithful PS1 SPU reverb DSP
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current Focus:** M1 Reverb Core shipped 2026-04-25 (tag `m1-reverb-core`). Phase 8 context gathered 2026-04-25 — v1.0 re-scoped to **SPU-94 Standalone GUI** (a JUCE-built standalone audio tool that loads a WAV, plays it through the reverb, exposes 18 raw register sliders + 10-preset dropdown + Wet/Dry knob). Plugin formats and DAW integration explicitly out of scope for v1.0.
+**Current Focus:** Product v1.0 SHIPPED 2026-04-26. M1 Reverb Core (Phases 1-7, tag `m1-reverb-core`) + Phase 8 SPU-94 Standalone GUI. JUCE standalone loads WAV, plays through reverb, 18 register sliders + 10-preset dropdown + Wet/Dry + Input Level knobs. Plugin formats deferred post-v1.0.
 
 ## Current Position
 
-**Phase 8 (SPU-94 Standalone GUI) — context gathered, ready for planning.** M1 Reverb Core (Phases 1-7) shipped 2026-04-25, tagged `m1-reverb-core`. Product v1.0 = standalone GUI completion.
+**All 8 phases complete. Product v1.0 shipped.**
 
-- **Product milestone:** v1.0 — **IN PROGRESS** (M1 phases shipped; standalone GUI phase active)
-- **Phase:** 8 — SPU-94 Standalone GUI
-- **Plan:** TBD — `/gsd-plan-phase 8` will produce
-- **Status:** CONTEXT.md committed; ready for `/gsd-plan-phase 8`
-- **Progress:** [████████░░] 7/8 phases complete
+- **Product milestone:** v1.0 — **COMPLETE**
+- **Phase:** 8 of 8 — SPU-94 Standalone GUI — **SHIPPED 2026-04-26**
+- **Plans:** 4 of 4 complete (08-01 through 08-04)
+- **Progress:** [██████████] 8/8 phases complete
 
 ```
-[██████████] Phase 1-7: M1 Reverb Core SHIPPED — library + CLI + Python binding + verification stack (tag m1-reverb-core)
-[░░░░░░░░░░] Phase 8: SPU-94 Standalone GUI (context gathered; planning next; product v1.0 ships when this is done)
+[██████████] Phase 1-7: M1 Reverb Core SHIPPED (tag m1-reverb-core)
+[██████████] Phase 8: SPU-94 Standalone GUI SHIPPED — 4 plans, UAT passed, 7/7 CR fixes, verification complete
 ```
 
 ## Performance Metrics
@@ -200,12 +199,20 @@ None.
 - Step 15 shipped 2026-04-25 as commits 7e59b6c (chore: complete v1.0 milestone) + initial v1.0 git tag. Re-audited v1.0-MILESTONE-AUDIT.md flipped status from gaps_found to passed. Archived ROADMAP/REQUIREMENTS/AUDIT to .planning/milestones/. Created MILESTONES.md with 7-phase shipped accomplishments. Evolved PROJECT.md to milestone-shipped state. Tag was retagged later same day from `v1.0` to `m1-reverb-core` after Anthony redefined product v1.0 = M4 plugin completion (`v1.0` reserved for the future M4 ship).
 - **M1 close-out plan landed locally (Steps 1-10 + 12-15).** All correctness gates in; test surface hardened from 66 ctest at Phase 6 close to 82 ctest at v1.0 ship; zero existing tests broken throughout.
 
+### Phase 8 Ship (2026-04-26)
+
+- Phase 8 shipped. 4 plans executed (JUCE scaffold, WAV loader + playback, register sliders + presets, Wet/Dry mix).
+- UAT passed with 3 inline fixes: Input Level knob (default 0.25), layout tightening (rowH 28→24), window size lock (setResizeLimits 800x750).
+- Code review found 3 critical + 4 warning findings — all 7 fixed in atomic commits (double-buffer WAV swap, pre-seed shadows, numFrames guard, oversized block clear, SPU reinit teardown, CMake scope fix, sign-conversion cast).
+- Verification: 8/8 must-haves confirmed in code, 6 perceptual checks confirmed by Anthony ("a little gritty, but nothing wildly out of the ordinary").
+- 80/82 ctest pass (2 pre-existing packaging timeouts). C core untouched throughout.
+- Handoff artifacts (.continue-here.md, HANDOFF.json) consumed and can be cleaned up.
+
 ### Next Session
 
-- **`/gsd-plan-phase 8`** — planner consumes `.planning/phases/08-m4-juce-plugin-product-v1-0/08-CONTEXT.md` and produces plans for the standalone GUI. Expected ~3-5 plans (build-system extension + JUCE scaffolding, I/O wrapper + WAV loader, register slider wiring + preset dropdown, Wet/Dry mix, audio output + transport).
-- **Pending follow-up cleanup** (not v1.0-blocking): PROJECT.md / REQUIREMENTS.md / ROADMAP.md still contain the older "v1.0 = JUCE plugin shippable to DAW" framing. These artifacts need rewriting to match the standalone-GUI re-scope captured in 08-CONTEXT.md. Can be done as a single small follow-up pass before or after planning — CONTEXT.md is authoritative for Phase 8 either way.
-- M2 ADPCM and M3 DAC modeling deferred past v1.0; standalone GUI will become the testbed for them when they land.
-- Optional post-v1.0 cleanup: REVIEW-cli-python.md M/L/N findings; `/gsd-validate-phase 6` and `/gsd-validate-phase 7` to flip the Nyquist paperwork flag from draft to compliant.
+- **Product v1.0 is complete.** All 8 phases shipped, 37 plans executed.
+- Future work lives in ROADMAP.md post-v1.0 section: plugin formats, named levers, DSP extensions, WAV export, live input, custom UI, M2/M3/M5.
+- Optional cleanup: REVIEW-cli-python.md M/L/N findings; `/gsd-validate-phase 6` and `/gsd-validate-phase 7` Nyquist paperwork.
 
 ### Phase 8 Context Decisions (locked, 2026-04-25)
 
