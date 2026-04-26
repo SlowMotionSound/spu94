@@ -56,6 +56,24 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
                 static_cast<spu94_preset_id_t>(id));
     };
 
+    // Wet/Dry rotary knob -- equal-power crossfade (D-02, STANDALONE-06).
+    addAndMakeVisible(wetDryKnob);
+    wetDryKnob.setSliderStyle(juce::Slider::Rotary);
+    wetDryKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+    wetDryKnob.setRange(0.0, 1.0, 0.01);
+    wetDryKnob.setValue(0.5, juce::dontSendNotification);  // default 50/50
+    wetDryKnob.setName("Wet/Dry");
+
+    wetDryKnob.onValueChange = [this] {
+        processorRef.getWetDry().store(
+            static_cast<float>(wetDryKnob.getValue()),
+            std::memory_order_relaxed);
+    };
+
+    addAndMakeVisible(wetDryLabel);
+    wetDryLabel.setText("Wet/Dry", juce::dontSendNotification);
+    wetDryLabel.setJustificationType(juce::Justification::centred);
+
     // Register panel -- 18 sliders grouped by register class.
     addAndMakeVisible(registerPanel);
 
@@ -94,13 +112,17 @@ void SPU94AudioProcessorEditor::paint(juce::Graphics& g)
 
 void SPU94AudioProcessorEditor::resized()
 {
-    // Top row (y=10, h=30): buttons + preset selector.
+    // Top row (y=10, h=30): buttons + preset selector + Wet/Dry knob.
     loadButton.setBounds(10, 10, 120, 30);
     playButton.setBounds(140, 10, 80, 30);
     stopButton.setBounds(230, 10, 80, 30);
     presetLabel.setBounds(330, 10, 60, 30);
     presetSelector.setBounds(395, 10, 180, 30);
 
-    // Register panel fills remaining height below buttons.
-    registerPanel.setBounds(10, 50, getWidth() - 20, getHeight() - 60);
+    // Wet/Dry rotary knob sits to the right of the preset selector.
+    wetDryLabel.setBounds(590, 2, 90, 16);
+    wetDryKnob.setBounds(590, 16, 90, 54);
+
+    // Register panel fills remaining height below the toolbar.
+    registerPanel.setBounds(10, 75, getWidth() - 20, getHeight() - 85);
 }

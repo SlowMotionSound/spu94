@@ -52,7 +52,11 @@ public:
     RegisterBridge& getRegisterBridge() { return registerBridge; }
     PresetCommandQueue& getPresetQueue() { return presetQueue; }
 
+    // --- Wet/Dry mix (Plan 04: equal-power crossfade, D-02 / STANDALONE-06) ---
+    std::atomic<float>& getWetDry() { return wetDry; }
+
 private:
+    std::atomic<float> wetDry{0.5f};  // [0.0 = fully dry, 1.0 = fully wet]
     RegisterBridge registerBridge;
     PresetCommandQueue presetQueue;
     // SPU state -- caller-owned buffers per libspu94 API contract

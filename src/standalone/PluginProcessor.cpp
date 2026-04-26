@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "WavLoader.h"
+#include <cmath>
 
 SPU94AudioProcessor::SPU94AudioProcessor()
     : AudioProcessor(BusesProperties()
@@ -108,17 +109,27 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     spu94_process(spu, tmpL_in, tmpR_in, tmpL_out, tmpR_out,
                   static_cast<uint32_t>(samplesToProcess));
 
-    // Convert int16 output to float and write to the JUCE buffer.
-    const int outChans = buffer.getNumChannels();
-    auto* outL = buffer.getWritePointer(0);
-    for (int i = 0; i < samplesToProcess; ++i)
-        outL[i] = tmpL_out[i] / 32768.0f;
+    // Equal-power crossfade: dry input vs SPU wet output (D-02, STANDALONE-06).
+    // sqrt pan law preserves perceived loudness across the sweep:
+    //   wet=0.0 → dryGain=1.0, wetGain=0.0 (unprocessed input only)
+    //   wet=0.5 → dryGain=0.707, wetGain=0.707 (constant-power midpoint)
+    //   wet=1.0 → dryGain=0.0, wetGain=1.0 (SPU reverb output only)
+    const float wet = wetDry.load(std::memory_order_relaxed);
+    const float wetGain = std::sqrt(wet);
+    const float dryGain = std::sqrt(1.0f - wet);
 
-    if (outChans >= 2)
+    auto* outL = buffer.getWritePointer(0);
+    auto* outR = (buffer.getNumChannels() > 1) ? buffer.getWritePointer(1) : nullptr;
+
+    for (int i = 0; i < samplesToProcess; ++i)
     {
-        auto* outR = buffer.getWritePointer(1);
-        for (int i = 0; i < samplesToProcess; ++i)
-            outR[i] = tmpR_out[i] / 32768.0f;
+        const float dryL = tmpL_in[i] / 32768.0f;
+        const float dryR = tmpR_in[i] / 32768.0f;
+        const float spuL = tmpL_out[i] / 32768.0f;
+        const float spuR = tmpR_out[i] / 32768.0f;
+
+        outL[i] = dryL * dryGain + spuL * wetGain;
+        if (outR) outR[i] = dryR * dryGain + spuR * wetGain;
     }
 
     // Advance play position (continuous loop).

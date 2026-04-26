@@ -27,6 +27,9 @@ private:
     juce::ComboBox presetSelector;
     juce::Label presetLabel{"", "Preset:"};
 
+    juce::Slider wetDryKnob;
+    juce::Label wetDryLabel;
+
     // Track preset-switch completion for slider sync.
     int lastAppliedCount = 0;
 
