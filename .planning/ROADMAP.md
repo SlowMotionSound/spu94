@@ -42,7 +42,7 @@ Plans:
   4. All 4 rt_safety gates (no heap, no locks, no syscalls, bounded latency) pass with ADPCM code linked into libspu94.so
 **Plans**: 2 plans
 Plans:
-- [ ] 02-01-PLAN.md — ADPCM state fields, public API, process-loop integration with double-buffer
+- [x] 02-01-PLAN.md — ADPCM state fields, public API, process-loop integration with double-buffer
 - [ ] 02-02-PLAN.md — Integration tests covering toggle, latency, state management, default-off
 
 ### Phase 3: I/O Layer
@@ -114,7 +114,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Core Codec | 2/2 | Complete | 2026-04-26 |
-| 2. Pipeline Integration | 0/2 | In progress | - |
+| 2. Pipeline Integration | 1/2 | In Progress|  |
 | 3. I/O Layer | 0/TBD | Not started | - |
 | 4. Verification + Documentation | 0/TBD | Not started | - |
 
