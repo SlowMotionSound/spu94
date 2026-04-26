@@ -44,6 +44,15 @@ const juce::String SPU94AudioProcessor::getName() const
 
 void SPU94AudioProcessor::prepareToPlay(double /*sampleRate*/, int /*samplesPerBlock*/)
 {
+    // Tear down any existing SPU state before reinitializing (WR-03).
+    // JUCE calls prepareToPlay on every audio device change; without this
+    // the old spu pointer leaks its internal bookkeeping.
+    if (spu != nullptr)
+    {
+        spu94_destroy(spu);
+        spu = nullptr;
+    }
+
     // Allocate caller-owned SPU state and work buffers.
     stateBuf.allocate(SPU94_STATE_SIZE_MAX, true);
     workBuf.allocate(SPU94_WORK_BUF_MAX_BYTES, true);
@@ -51,11 +60,11 @@ void SPU94AudioProcessor::prepareToPlay(double /*sampleRate*/, int /*samplesPerB
     spu = spu94_init(stateBuf.getData(), SPU94_STATE_SIZE_MAX,
                      workBuf.getData(), SPU94_WORK_BUF_MAX_BYTES);
 
-    if (spu != nullptr)
-    {
-        spu94_load_preset(spu, SPU94_PRESET_HALL);
-        registerBridge.syncShadowsFromSPU(spu);
-    }
+    if (spu == nullptr)
+        return;
+
+    spu94_load_preset(spu, SPU94_PRESET_HALL);
+    registerBridge.syncShadowsFromSPU(spu);
 }
 
 void SPU94AudioProcessor::releaseResources()
