@@ -76,10 +76,10 @@ Detailed phase 1-7 archive: `.planning/milestones/v1.0-ROADMAP.md` (filename use
 **Plans:** 4 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — JUCE 8.0.12 build scaffolding + empty AudioProcessor shell (install deps, FetchContent, standalone target)
-- [ ] 08-02-PLAN.md — WAV I/O wrapper (any-SR/BD/mono-stereo to 44.1 kHz int16 stereo) + real-time audio playback pipeline
-- [ ] 08-03-PLAN.md — 18 register sliders + 10-preset dropdown + lock-free parameter bridge
-- [ ] 08-04-PLAN.md — Wet/Dry equal-power crossfade knob + full v1.0 UAT checkpoint
+- [x] 08-01-PLAN.md — JUCE 8.0.12 build scaffolding + empty AudioProcessor shell (install deps, FetchContent, standalone target)
+- [x] 08-02-PLAN.md — WAV I/O wrapper (any-SR/BD/mono-stereo to 44.1 kHz int16 stereo) + real-time audio playback pipeline
+- [x] 08-03-PLAN.md — 18 register sliders + 10-preset dropdown + lock-free parameter bridge
+- [x] 08-04-PLAN.md — Wet/Dry equal-power crossfade knob + full v1.0 UAT checkpoint
 
 ### Phase 9: MCU Cross-Compile Smoke Test (PARKED)
 
