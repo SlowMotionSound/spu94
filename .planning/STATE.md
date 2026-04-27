@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
-status: milestone_complete
-stopped_at: All 4 phases complete. M2 ADPCM milestone finished — 23/23 requirements verified.
+status: idle
+stopped_at: M2 ADPCM milestone shipped and archived as v1.1. Next milestone TBD.
 last_updated: "2026-04-27"
-last_activity: 2026-04-27 -- Phase 04 execution complete (3/3 plans, 4/4 must-haves verified)
+last_activity: 2026-04-27 -- v1.1 milestone archived (4 phases, 10 plans, 23/23 reqs)
 progress:
   total_phases: 4
   completed_phases: 4
@@ -21,16 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-26)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** M2 milestone complete — all 4 phases shipped
+**Current focus:** Between milestones — v1.1 shipped, next milestone TBD
 
 ## Current Position
 
-Phase: 4 of 4 (all complete)
-Plan: 10/10 complete
-Status: Milestone M2 complete
-Last activity: 2026-04-27 — Phase 04 complete (test coverage maps, 30 ADPCM goldens, 7 ADRs)
+Milestone: v1.1 shipped (M2 ADPCM)
+Status: Idle — awaiting next milestone
+Last activity: 2026-04-27 — v1.1 archived
 
-Progress: [██████████] 100%
+Progress: [██████████] 100% (M2 complete)
 
 ## Performance Metrics
 

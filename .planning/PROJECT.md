@@ -8,7 +8,9 @@
 
 **Tagged:** `m1-reverb-core` (annotated, local). The `v1.0` tag is intentionally NOT used for this milestone — per Anthony's redefinition, **v1.0 = M4 plugin shippable to a DAW**, not just the library + CLI. What shipped here is M1 (reverb core foundation), tagged accordingly.
 
-**Current milestone:** M2 — Sony 4-bit ADPCM Encode/Decode (version tag v1.1 upon completion). Adds bit-faithful ADPCM codec to libspu94, wired into the reverb signal path as toggleable coloration reproducing the authentic PS1 audio character. Research complete 2026-04-26 (3 passes, 12 researcher agents, 12 documents in `.planning/research/m2-adpcm/`).
+**Shipped:** M2 — Sony 4-bit ADPCM Encode/Decode (2026-04-27, tag `v1.1`). Bit-faithful ADPCM codec added to libspu94 as toggleable coloration stage. 4 phases, 10 plans, 23/23 requirements verified. 380 LOC C core + 841 LOC tests + 30 golden files + 7 ADRs.
+
+**Current milestone:** None active. Next milestone TBD (candidates: M3 DAC modeling, M4 JUCE plugin product, Digital Patina Engine).
 
 ## What This Is
 
@@ -44,15 +46,23 @@ Rigor governs the algorithm; musicality governs everything that surrounds it. Th
 - ✓ Maintain `docs/LEVERS-CATALOG.md` — v1.0 (Phase 7, 35-register catalog with AUTO columns populated: 12 free / 6 sample-quantized / 17 catastrophic; HAND columns seeded for M4)
 - ✓ Resolve and document the delay-length-register-change gray area — v1.0 (Phase 5 fuzz harness + ADR-0006 mBASE snap-on-write + ADR-0005 split write-timing policy; mid-stream `m*`/`d*` writes are first-class via TICK_LATCHED semantics)
 
-### Active — Current Milestone: M2 (ADPCM → v1.1)
+### Validated — M2 ADPCM (Shipped 2026-04-27, tag `v1.1`)
 
-**Goal:** Add bit-faithful Sony 4-bit ADPCM encode/decode to libspu94, integrated into the reverb signal path as a toggleable coloration stage. When enabled, input PCM is encoded to ADPCM then decoded back, introducing the quantization noise and filter ringing that characterized every PS1 game's audio before it reached the reverb. Version v1.1 upon completion.
+- ✓ ADPCM decode: 5 filters, round-to-nearest, shift/filter clamping, state carry — v1.1 (Phase 1)
+- ✓ ADPCM encode: brute-force 65-combination search, reconstructed state, int64 L2 metric — v1.1 (Phase 1)
+- ✓ Pipeline integration: toggleable upstream stage, 28-sample latency, default-off, rt_safety clean — v1.1 (Phase 2)
+- ✓ I/O layer: CLI subcommands, VAG format, Python ctypes, JUCE toggle — v1.1 (Phase 3)
+- ✓ Verification: coverage maps, 30 ADPCM goldens + regression gate, 7 ADRs (0047-0053) — v1.1 (Phase 4)
 
-See REQUIREMENTS.md for scoped requirements (ADPCM-xx series).
+See `.planning/milestones/v1.1-REQUIREMENTS.md` for full 23-requirement traceability.
+
+### Active — Next Milestone: TBD
+
+No active requirements. Run `/gsd-new-milestone` to scope the next body of work.
 
 ### Out of Scope (for v1.0; most deferred, not abandoned)
 
-- **4-bit Sony ADPCM encode/decode** — NOW ACTIVE as M2 milestone (resumed 2026-04-26 after v1.0 standalone shipped)
+- **4-bit Sony ADPCM encode/decode** — SHIPPED as M2 / v1.1 (2026-04-27)
 - **DAC reconstruction modeling** — deferred to AFTER M4 plugin per the 2026-04-25 sequencing change; layers in as a switchable flag without changing the plugin's user-facing surface
 - **JUCE / VST3 / AU / LV2 plugin** — pulled forward as M4 = the next milestone (no longer deferred per 2026-04-25 redefinition; M4 completion is product v1.0)
 - **Named musical levers ("Room Size", "Pre Delay", etc.), parameter smoothing, CV mappings, plugin UI** — Milestone 4 work atop the v1.0 register API. v1.0 contributed: glitch-free mid-stream register API + `LEVERS-CATALOG.md` candidate-lever catalog. Lever abstraction itself is M4.
@@ -65,6 +75,8 @@ See REQUIREMENTS.md for scoped requirements (ADPCM-xx series).
 - **Reading Mednafen / lv2-psx-reverb / DuckStation / MiSTer source as a primary development activity** — excluded by licensing posture (see Constraints)
 
 ## Context
+
+Shipped v1.1 additions: 380 LOC ADPCM C core (`spu94_adpcm.c`, `spu94_adpcm_encode.c`, `vag.c`), 841 LOC unit tests, 30 ADPCM golden WAV files with SHA-256 sidecars, 7 numbered ADRs (ADR-0047 through ADR-0053). Total project C LOC: ~6,300. Total ctest: ~100.
 
 Shipped v1.0 totals: ~33,000 LOC across `src/spu94/` (C core), `src/cli/` (CLI), `python/spu94/` (binding), `tests/` (35 directories of test code), `docs/` (5 first-class deliverables — DECISIONS, BIBLIOGRAPHY, COVERAGE, LEVERS-CATALOG, plus README).
 
@@ -130,4 +142,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-25 after M1 Reverb Core shipped (7 phases, 33 plans, 58 tasks; M1 close-out remediation 15-step plan landed; 82/82 ctest green; tagged `m1-reverb-core`). Product v1.0 redefined same day to mean M4 JUCE plugin completion; M2/M3 deferred behind M4.*
+*Last updated: 2026-04-27 after v1.1 ADPCM milestone shipped (4 phases, 10 plans, 23/23 requirements; tagged `v1.1`). Next milestone TBD.*

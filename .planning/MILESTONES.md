@@ -41,3 +41,36 @@
 - 1. [Rule 3 — Blocking] BIB-003 and BIB-004 orphaned in DECISIONS.md since Phase 1
 
 ---
+
+## v1.1 ADPCM Encode/Decode (Shipped: 2026-04-27)
+
+**Phases completed:** 4 phases, 10 plans
+**Tag:** `v1.1`
+**Requirements:** 23/23 complete (ADPCM-01..07, ADPCM-INT-01..06, ADPCM-IO-01..06, ADPCM-TEST-01..04)
+
+**What shipped:**
+
+Bit-faithful Sony 4-bit ADPCM encode/decode added to libspu94 as a peer module (380 LOC C, zero heap, integer-only). Wired into the reverb pipeline as a toggleable coloration stage — when enabled, input PCM round-trips through ADPCM before reverb, reproducing the quantization noise and filter ringing of PS1 audio. Accessible via C API, CLI (`--adpcm` flag + `adpcm-encode`/`adpcm-decode` subcommands), Python ctypes, and JUCE standalone GUI toggle.
+
+**Key accomplishments:**
+
+1. ADPCM decoder + encoder with 5 SPU filter pairs, brute-force best-fit encoder over 65 combinations, caller-allocated 4-byte state
+2. Pipeline integration as toggleable upstream stage with 28-sample latency, default-off, all rt_safety gates passing
+3. VAG v2 file format I/O (big-endian, terminator blocks), CLI subcommands, Python bindings, JUCE ADPCM toggle
+4. 32 unit tests with coverage maps, 30 ADPCM golden files (10 presets x 3 inputs) with SHA-256 regression gate
+5. 7 ADRs (ADR-0047 through ADR-0053) formalizing all gray-area resolutions
+
+**Key decisions:**
+
+- Rounding: `(old*f0 + older*f1 + 32) >> 6` — round-to-nearest via +32 bias (ADR-0047)
+- Shift 13-15 mapped to shift 9 per psx-spx (ADR-0048)
+- Filter 5-7 clamped to filter 4 per emulator consensus (ADR-0049)
+- ASR division semantics per ADR-0001 discipline (ADR-0050)
+- L2 error metric in int64 (ADR-0051), strict `<` tiebreak with iteration order (ADR-0052)
+- Caller zero-pads tail blocks to 28 samples (ADR-0053)
+
+**Issues deferred:** None — clean close.
+
+**Archived to:** `.planning/milestones/v1.1-ROADMAP.md`, `.planning/milestones/v1.1-REQUIREMENTS.md`
+
+---
