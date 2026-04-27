@@ -18,6 +18,7 @@ add_library(spu94_obj OBJECT
     spu94_presets.c
     spu94_adpcm.c
     spu94_adpcm_encode.c
+    vag.c
 )
 
 # PUBLIC include dirs: downstream consumers of spu94_shared/static see them too.
