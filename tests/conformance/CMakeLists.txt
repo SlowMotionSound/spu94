@@ -58,6 +58,22 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
+# Phase 4 Plan 02: ADPCM golden regression gate.
+# Re-renders all 30 ADPCM goldens (10 presets x 3 inputs) and checks
+# SHA-256 sidecars. If codec or pipeline changes drift the output, this
+# test fails.
+add_test(
+    NAME adpcm_goldens_regression
+    COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/regenerate_goldens.py
+        --check-adpcm
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(adpcm_goldens_regression PROPERTIES
+    LABELS "golden;adpcm"
+    TIMEOUT 300
+)
+
 # Phase 7 Plan 03 Task 3 — witness-diff D-06 determinism meta-test.
 # Runs scripts/ci/witness_diff.py twice in a row and asserts the resulting
 # witness_report.json is identical (byte-equal or numerically within 1e-9).

@@ -1,14 +1,22 @@
 #!/usr/bin/env python3
-"""scripts/regenerate_goldens.py — Phase 7 TEST-04 + TEST-08 golden generator.
+"""scripts/regenerate_goldens.py — Phase 7 TEST-04 + TEST-08 golden generator,
+extended Phase 4 Plan 02 for ADPCM golden corpus.
 
 D-09 .wav + .sha256 sidecar pair; D-10 tests/golden/<preset>/<input>.{wav,sha256};
 D-11 five inputs (impulse/white_noise/sine_1khz/silence/sweep); D-12 regeneration
 requires ADR.
 
+Phase 4 D-03/D-04/D-05: ADPCM goldens in tests/golden/<preset>/adpcm/<input>.wav
+with 3 inputs (impulse, sine_1khz, chirp) x 10 presets = 30 pairs.
+
 Modes:
-  default (no args) — regenerate all 50 goldens + sidecars, overwriting.
-  --check          — for each committed sidecar, re-render and compare SHA-256;
-                     exit 1 on any mismatch (identifies preset/input pair on stderr).
+  default (no args) — regenerate all 50 reverb-only goldens + sidecars, overwriting.
+  --check           — verify each committed reverb sidecar by re-rendering; exit 1 on mismatch.
+  --adpcm           — regenerate all 30 ADPCM goldens + sidecars, overwriting.
+  --check-adpcm     — verify each committed ADPCM sidecar by re-rendering; exit 1 on mismatch.
+
+Flags can be combined: `--adpcm` with no other flags generates only ADPCM goldens.
+Running with no flags generates only the original 50 reverb goldens.
 
 Determinism discipline (mirrors the reproducibility Docker container):
   - LC_ALL=C, TZ=UTC, SOURCE_DATE_EPOCH=1704067200 forced in the env that
@@ -30,6 +38,8 @@ Standard input set (D-11; parameters locked here per plan's discretion):
   sine_1khz   : 16000*sin(2*pi*1000*t/Fs), applied identically L=R.
   sweep       : 16000*scipy.signal.chirp(t, 20, 2.0, 20000, 'logarithmic'),
                 applied identically L=R.
+  chirp       : identical to sweep (20Hz-20kHz log chirp); named separately
+                for ADPCM corpus per D-05.
 """
 import argparse
 import hashlib
@@ -59,6 +69,9 @@ PRESETS = [
     "hall", "half_echo", "space_echo", "echo", "delay",
 ]
 INPUTS = ["impulse", "white_noise", "sine_1khz", "silence", "sweep"]
+
+# Phase 4 D-04: 3 ADPCM inputs (subset + chirp). Closed allowlist.
+ADPCM_INPUTS = ["impulse", "sine_1khz", "chirp"]
 
 # ----------------------------------------------------------------------------
 # Standard input set parameters (D-11 lock).
@@ -92,6 +105,15 @@ def generate_input(name: str) -> np.ndarray:
         y = (AMP * np.sin(2.0 * np.pi * 1000.0 * t)).astype(np.int16)
         return np.stack([y, y], axis=1)
     if name == "sweep":
+        t = np.arange(N, dtype=np.float64) / FS
+        y = (AMP * chirp(t, SWEEP_F0, DURATION_SEC, SWEEP_F1,
+                         method=SWEEP_METHOD)).astype(np.int16)
+        return np.stack([y, y], axis=1)
+    if name == "chirp":
+        # Phase 4 D-05: chirp is a 20Hz-20kHz log sweep — identical generation
+        # to the existing "sweep" input. Named separately for the ADPCM corpus
+        # so ADPCM-on + chirp vs reverb-only + sweep provides a useful
+        # before/after comparison on the same underlying waveform.
         t = np.arange(N, dtype=np.float64) / FS
         y = (AMP * chirp(t, SWEEP_F0, DURATION_SEC, SWEEP_F1,
                          method=SWEEP_METHOD)).astype(np.int16)
@@ -142,6 +164,35 @@ def render_golden(preset: str, input_name: str, out_path: Path,
         )
 
 
+def render_adpcm_golden(preset: str, input_name: str, out_path: Path,
+                        tmp_in_path: Path, spu94_bin: str) -> None:
+    """Write the input WAV, run spu94 reverb with --adpcm, capture to out_path.
+
+    Phase 4 D-03: ADPCM golden = reverb + ADPCM coloration enabled.
+    """
+    x = generate_input(input_name)
+    wavfile.write(str(tmp_in_path), FS, x)
+
+    env = dict(os.environ)
+    env["LC_ALL"] = "C"
+    env["TZ"] = "UTC"
+    env["SOURCE_DATE_EPOCH"] = "1704067200"
+
+    r = subprocess.run(
+        [spu94_bin, "reverb", "--adpcm", "--preset", preset,
+         str(tmp_in_path), str(out_path)],
+        check=False,
+        capture_output=True,
+        env=env,
+    )
+    if r.returncode != 0:
+        stderr_snip = r.stderr.decode("utf-8", errors="replace")[:200].strip()
+        raise RuntimeError(
+            f"{spu94_bin} (adpcm) failed on {preset}/{input_name} "
+            f"(rc={r.returncode}): {stderr_snip}"
+        )
+
+
 def sha256_of(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -150,81 +201,142 @@ def sha256_of(path: Path) -> str:
     return h.hexdigest()
 
 
+def _check_loop(presets, inputs, golden_root, render_fn, tmpd, tmp_in,
+                spu94_bin, failures, label=""):
+    """Shared check logic for reverb and ADPCM golden verification."""
+    for preset in presets:
+        for input_name in inputs:
+            if label:
+                preset_dir = golden_root / preset / label
+                tag = f"{preset}/{label}/{input_name}"
+            else:
+                preset_dir = golden_root / preset
+                tag = f"{preset}/{input_name}"
+
+            out_wav = preset_dir / f"{input_name}.wav"
+            out_sha = preset_dir / f"{input_name}.wav.sha256"
+
+            # Read committed sidecar digest.
+            if out_sha.exists():
+                committed_line = out_sha.read_text().strip()
+                committed = committed_line.split()[0] if committed_line else ""
+            else:
+                committed = ""
+
+            # (a) Committed .wav bytes must match the sidecar.
+            if out_wav.exists():
+                wav_digest = sha256_of(out_wav)
+            else:
+                wav_digest = ""
+            if wav_digest != committed:
+                failures.append(
+                    f"{tag}: committed-wav mismatches sidecar — "
+                    f"sidecar={committed[:16] if committed else '<missing>'}... "
+                    f"wav={wav_digest[:16] if wav_digest else '<missing>'}..."
+                )
+
+            # (b) Fresh re-render must match the sidecar.
+            scratch = Path(tmpd) / f"{preset}_{label}_{input_name}.wav"
+            render_fn(preset, input_name, scratch, tmp_in, spu94_bin)
+            fresh_digest = sha256_of(scratch)
+            if fresh_digest != committed:
+                failures.append(
+                    f"{tag}: fresh render mismatches sidecar — "
+                    f"committed={committed[:16] if committed else '<missing>'}... "
+                    f"fresh={fresh_digest[:16]}..."
+                )
+
+
+def _generate_loop(presets, inputs, golden_root, render_fn, tmp_in,
+                   spu94_bin, label=""):
+    """Shared generation logic for reverb and ADPCM goldens."""
+    for preset in presets:
+        if label:
+            preset_dir = golden_root / preset / label
+        else:
+            preset_dir = golden_root / preset
+        preset_dir.mkdir(parents=True, exist_ok=True)
+        for input_name in inputs:
+            out_wav = preset_dir / f"{input_name}.wav"
+            out_sha = preset_dir / f"{input_name}.wav.sha256"
+            render_fn(preset, input_name, out_wav, tmp_in, spu94_bin)
+            digest = sha256_of(out_wav)
+            out_sha.write_text(f"{digest}  {input_name}.wav\n")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Regenerate or verify the 50 golden WAV + SHA-256 sidecar pairs."
+        description="Regenerate or verify golden WAV + SHA-256 sidecar pairs."
     )
     ap.add_argument(
         "--check", action="store_true",
-        help="verify each committed sidecar by re-rendering into a scratch "
-             "directory and comparing SHA-256; exit 1 on mismatch.",
+        help="verify each committed reverb sidecar by re-rendering into a "
+             "scratch directory and comparing SHA-256; exit 1 on mismatch.",
+    )
+    ap.add_argument(
+        "--adpcm", action="store_true",
+        help="regenerate all 30 ADPCM goldens + sidecars (10 presets x 3 inputs).",
+    )
+    ap.add_argument(
+        "--check-adpcm", action="store_true",
+        help="verify each committed ADPCM sidecar by re-rendering with "
+             "--adpcm and comparing SHA-256; exit 1 on mismatch.",
     )
     args = ap.parse_args()
 
     spu94_bin = locate_cli()
     failures: list[str] = []
-    total = len(PRESETS) * len(INPUTS)
+
+    # Determine what to run. With no flags at all: reverb generation (original behavior).
+    # --adpcm alone: ADPCM generation only.
+    # --check alone: reverb check only.
+    # --check-adpcm alone: ADPCM check only.
+    do_reverb_gen = not args.check and not args.adpcm and not args.check_adpcm
+    do_reverb_check = args.check
+    do_adpcm_gen = args.adpcm and not args.check_adpcm
+    do_adpcm_check = args.check_adpcm
+
+    reverb_total = len(PRESETS) * len(INPUTS)
+    adpcm_total = len(PRESETS) * len(ADPCM_INPUTS)
 
     with tempfile.TemporaryDirectory(prefix="spu94_goldens_") as tmpd:
         tmp_in = Path(tmpd) / "input.wav"
 
-        for preset in PRESETS:
-            preset_dir = GOLDEN_ROOT / preset
-            preset_dir.mkdir(parents=True, exist_ok=True)
-            for input_name in INPUTS:
-                out_wav = preset_dir / f"{input_name}.wav"
-                out_sha = preset_dir / f"{input_name}.wav.sha256"
+        # --- Reverb goldens (original 50) ---
+        if do_reverb_check:
+            _check_loop(PRESETS, INPUTS, GOLDEN_ROOT, render_golden,
+                        tmpd, tmp_in, spu94_bin, failures)
+        elif do_reverb_gen:
+            _generate_loop(PRESETS, INPUTS, GOLDEN_ROOT, render_golden,
+                           tmp_in, spu94_bin)
 
-                if args.check:
-                    # Read committed sidecar digest.
-                    if out_sha.exists():
-                        committed_line = out_sha.read_text().strip()
-                        committed = committed_line.split()[0] if committed_line else ""
-                    else:
-                        committed = ""
-
-                    # (a) Committed .wav bytes must match the sidecar — catches
-                    # tampering with either the .wav or the sidecar alone.
-                    if out_wav.exists():
-                        wav_digest = sha256_of(out_wav)
-                    else:
-                        wav_digest = ""
-                    if wav_digest != committed:
-                        failures.append(
-                            f"{preset}/{input_name}: committed-wav mismatches sidecar — "
-                            f"sidecar={committed[:16] if committed else '<missing>'}... "
-                            f"wav={wav_digest[:16] if wav_digest else '<missing>'}..."
-                        )
-                        # Still re-render below so a later sidecar forge plus
-                        # matching .wav forge is still caught by the fresh check.
-
-                    # (b) Fresh re-render must match the sidecar — this is the
-                    # reproducibility gate (host vs container). If the wav
-                    # already mismatched in (a), this is additional signal.
-                    scratch = Path(tmpd) / f"{preset}_{input_name}.wav"
-                    render_golden(preset, input_name, scratch, tmp_in, spu94_bin)
-                    fresh_digest = sha256_of(scratch)
-                    if fresh_digest != committed:
-                        failures.append(
-                            f"{preset}/{input_name}: fresh render mismatches sidecar — "
-                            f"committed={committed[:16] if committed else '<missing>'}... "
-                            f"fresh={fresh_digest[:16]}..."
-                        )
-                else:
-                    render_golden(preset, input_name, out_wav, tmp_in, spu94_bin)
-                    digest = sha256_of(out_wav)
-                    # Sidecar body: <64 hex>  <basename>\n (sha256sum-compatible).
-                    out_sha.write_text(f"{digest}  {input_name}.wav\n")
+        # --- ADPCM goldens (30) ---
+        if do_adpcm_check:
+            _check_loop(PRESETS, ADPCM_INPUTS, GOLDEN_ROOT,
+                        render_adpcm_golden, tmpd, tmp_in, spu94_bin,
+                        failures, label="adpcm")
+        elif do_adpcm_gen:
+            _generate_loop(PRESETS, ADPCM_INPUTS, GOLDEN_ROOT,
+                           render_adpcm_golden, tmp_in, spu94_bin,
+                           label="adpcm")
 
     if failures:
         for f in failures:
             print(f"FAIL: {f}", file=sys.stderr)
         return 1
 
-    if args.check:
-        print(f"PASS: {total}/{total} goldens match")
-    else:
-        print(f"Regenerated {total} goldens under {GOLDEN_ROOT}")
+    # Summary output.
+    parts = []
+    if do_reverb_check:
+        parts.append(f"PASS: {reverb_total}/{reverb_total} reverb goldens match")
+    elif do_reverb_gen:
+        parts.append(f"Regenerated {reverb_total} reverb goldens under {GOLDEN_ROOT}")
+    if do_adpcm_check:
+        parts.append(f"PASS: {adpcm_total}/{adpcm_total} ADPCM goldens match")
+    elif do_adpcm_gen:
+        parts.append(f"Regenerated {adpcm_total} ADPCM goldens under {GOLDEN_ROOT}")
+    for p in parts:
+        print(p)
     return 0
 
 
