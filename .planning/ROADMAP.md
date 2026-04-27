@@ -13,7 +13,7 @@ M2 adds bit-faithful Sony 4-bit ADPCM encode/decode to libspu94 and wires it int
 - [x] **Phase 1: Core Codec** - Standalone ADPCM decode + encode functions: 5 filters, brute-force encoder, caller-allocated state, pure C
 - [x] **Phase 2: Pipeline Integration** - Wire ADPCM into spu94_process as toggleable upstream stage with latency reporting and state management (completed 2026-04-27)
 - [ ] **Phase 3: I/O Layer** - CLI subcommands (encode/decode/roundtrip), VAG file format, Python bindings, JUCE GUI toggle
-- [ ] **Phase 4: Verification + Documentation** - Known-vector tests, round-trip gates, golden files, gray-area ADRs
+- [x] **Phase 4: Verification + Documentation** - Known-vector tests, round-trip gates, golden files, gray-area ADRs (completed 2026-04-27)
 
 ## Phase Details
 
@@ -73,9 +73,9 @@ Plans:
   4. docs/DECISIONS.md contains numbered ADRs for: rounding vs truncation, shift 13-15 policy, filter 5-7 policy, division semantics (>>6 vs /64), encoder error metric, encoder tiebreaking, tail block padding
 **Plans**: 3 plans
 Plans:
-- [ ] 04-01-PLAN.md — Audit TEST-01/TEST-02 coverage, fill gaps, add coverage maps
-- [ ] 04-02-PLAN.md — ADPCM golden files (30 WAV + 30 SHA-256) + regression gate
-- [ ] 04-03-PLAN.md — Write ADR-0047 through ADR-0053 (7 gray-area ADRs)
+- [x] 04-01-PLAN.md — Audit TEST-01/TEST-02 coverage, fill gaps, add coverage maps
+- [x] 04-02-PLAN.md — ADPCM golden files (30 WAV + 30 SHA-256) + regression gate
+- [x] 04-03-PLAN.md — Write ADR-0047 through ADR-0053 (7 gray-area ADRs)
 
 ---
 
@@ -96,16 +96,16 @@ Plans:
 | ADPCM-INT-04 | Phase 2 | Complete (02-01, 02-02) |
 | ADPCM-INT-05 | Phase 2 | Complete (02-01, 02-02) |
 | ADPCM-INT-06 | Phase 2 | Complete (02-01, 02-02) |
-| ADPCM-IO-01 | Phase 3 | Pending (03-01) |
-| ADPCM-IO-02 | Phase 3 | Pending (03-01) |
-| ADPCM-IO-03 | Phase 3 | Pending (03-01) |
-| ADPCM-IO-04 | Phase 3 | Pending (03-01) |
-| ADPCM-IO-05 | Phase 3 | Pending (03-03) |
-| ADPCM-IO-06 | Phase 3 | Pending (03-02) |
-| ADPCM-TEST-01 | Phase 4 | Pending |
-| ADPCM-TEST-02 | Phase 4 | Pending |
-| ADPCM-TEST-03 | Phase 4 | Pending |
-| ADPCM-TEST-04 | Phase 4 | Pending |
+| ADPCM-IO-01 | Phase 3 | Complete (03-01) |
+| ADPCM-IO-02 | Phase 3 | Complete (03-01) |
+| ADPCM-IO-03 | Phase 3 | Complete (03-01) |
+| ADPCM-IO-04 | Phase 3 | Complete (03-01) |
+| ADPCM-IO-05 | Phase 3 | Complete (03-03) |
+| ADPCM-IO-06 | Phase 3 | Complete (03-02) |
+| ADPCM-TEST-01 | Phase 4 | Complete (04-01) |
+| ADPCM-TEST-02 | Phase 4 | Complete (04-01) |
+| ADPCM-TEST-03 | Phase 4 | Complete (04-02) |
+| ADPCM-TEST-04 | Phase 4 | Complete (04-03) |
 
 **Mapped:** 23/23
 **Unmapped:** 0
@@ -120,7 +120,7 @@ Plans:
 | 1. Core Codec | 2/2 | Complete | 2026-04-26 |
 | 2. Pipeline Integration | 2/2 | Complete   | 2026-04-27 |
 | 3. I/O Layer | 3/3 | Complete | 2026-04-27 |
-| 4. Verification + Documentation | 0/3 | Planning complete | - |
+| 4. Verification + Documentation | 3/3 | Complete | 2026-04-27 |
 
 ---
 
