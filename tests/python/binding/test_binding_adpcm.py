@@ -1,9 +1,13 @@
 """Tests for ADPCM + VAG Python ctypes bindings (ADPCM-IO-05, D-09, D-10)."""
 import ctypes
+import sys
+from pathlib import Path
 
 import pytest
 
-from spu94._binding import (
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "python"))
+
+from spu94._binding import (  # noqa: E402
     _lib,
     _Spu94AdpcmState,
     _Spu94VagHeader,
