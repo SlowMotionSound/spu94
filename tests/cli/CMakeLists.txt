@@ -8,6 +8,7 @@ set(_cli_tests
     test_cli_preset_hall_roundtrip
     test_cli_config_and_list
     test_cli_error_paths
+    test_cli_adpcm
 )
 
 foreach(test_name IN LISTS _cli_tests)

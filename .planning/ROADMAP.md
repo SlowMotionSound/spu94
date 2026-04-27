@@ -57,9 +57,9 @@ Plans:
   5. VAG reader handles big-endian headers with explicit byte-order conversion (no ntohl) and respects terminator blocks
 **Plans**: 3 plans
 Plans:
-- [ ] 03-01-PLAN.md — VAG library module + CLI subcommand dispatch + ADPCM commands + --adpcm flag
-- [ ] 03-02-PLAN.md — JUCE ADPCM toggle in standalone GUI
-- [ ] 03-03-PLAN.md — Python ctypes bindings for ADPCM + VAG functions
+- [x] 03-01-PLAN.md — VAG library module + CLI subcommand dispatch + ADPCM commands + --adpcm flag
+- [x] 03-02-PLAN.md — JUCE ADPCM toggle in standalone GUI
+- [x] 03-03-PLAN.md — Python ctypes bindings for ADPCM + VAG functions
 **UI hint**: yes
 
 ### Phase 4: Verification + Documentation
@@ -117,7 +117,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Core Codec | 2/2 | Complete | 2026-04-26 |
 | 2. Pipeline Integration | 2/2 | Complete   | 2026-04-27 |
-| 3. I/O Layer | 0/3 | Planning complete | - |
+| 3. I/O Layer | 3/3 | Complete | 2026-04-27 |
 | 4. Verification + Documentation | 0/TBD | Not started | - |
 
 ---

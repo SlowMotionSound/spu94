@@ -110,12 +110,12 @@ Categories shipped: CORE-01..10, API-01..09, PYBIND-01..06, CLI-01..04, TEST-01.
 | ADPCM-INT-04 | M2 Phase 2 | Complete (02-01, 02-02) |
 | ADPCM-INT-05 | M2 Phase 2 | Complete (02-01, 02-02) |
 | ADPCM-INT-06 | M2 Phase 2 | Complete (02-01, 02-02) |
-| ADPCM-IO-01 | M2 Phase 3 | Pending |
-| ADPCM-IO-02 | M2 Phase 3 | Pending |
-| ADPCM-IO-03 | M2 Phase 3 | Pending |
-| ADPCM-IO-04 | M2 Phase 3 | Pending |
-| ADPCM-IO-05 | M2 Phase 3 | Pending |
-| ADPCM-IO-06 | M2 Phase 3 | Pending |
+| ADPCM-IO-01 | M2 Phase 3 | Complete |
+| ADPCM-IO-02 | M2 Phase 3 | Complete |
+| ADPCM-IO-03 | M2 Phase 3 | Complete |
+| ADPCM-IO-04 | M2 Phase 3 | Complete |
+| ADPCM-IO-05 | M2 Phase 3 | Complete |
+| ADPCM-IO-06 | M2 Phase 3 | Complete |
 | ADPCM-TEST-01 | M2 Phase 4 | Pending |
 | ADPCM-TEST-02 | M2 Phase 4 | Pending |
 | ADPCM-TEST-03 | M2 Phase 4 | Pending |
