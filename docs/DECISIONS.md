@@ -30,6 +30,116 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-0050: ADPCM division semantics — arithmetic right shift (`>>6`), not division (`/64`)
+
+**Status:** Accepted (2026-04-26, M2 Phase 1)
+
+**Relates:** ADR-0001 (Q15 multiply semantics — truncation direction); ADR-0047 (ADPCM rounding bias, which rides on top of this shift).
+
+**Context:**
+
+The ADPCM prediction formula divides by 64: `(old * f0 + older * f1) / 64`. In C, `>> 6` on a negative signed integer is implementation-defined behavior: arithmetic right shift (ASR) rounds toward negative infinity, while `/64` rounds toward zero. These produce different results for negative predictions. For example, with prediction = -65: ASR gives `(-65) >> 6 = -2`, while truncation-toward-zero gives `(-65) / 64 = -1`. The 1-LSB difference compounds across a 28-sample block and is audible on bass-heavy material.
+
+This is the same fundamental ambiguity as ADR-0001 (Q15 multiply uses `>> 15`, not `/ 32768`), applied to the ADPCM filter domain. The PS1 hardware uses a barrel shifter, which is inherently ASR.
+
+**Decision:**
+
+Use `>> 6` (arithmetic right shift) throughout the ADPCM decoder and encoder prediction paths. This is consistent with the project-wide ADR-0001 discipline that all fixed-point divisions are implemented as ASR, not C division. The existing `_Static_assert((-1 >> 1) == -1, ...)` in `spu94_q15.h` covers this assumption at compile time for all target platforms.
+
+Implementation: `int32_t predicted = (old * f0 + older * f1 + 32) >> 6;` in both `spu94_adpcm.c` (decoder) and `spu94_adpcm_encode.c` (encoder internal decoder).
+
+**Consequences:**
+
+All compilers targeting this project (gcc 11+, clang 14+, arm-none-eabi-gcc) emit ASR for signed right-shift. The ADR-0001 static assert protects this assumption at compile time, so a platform where signed right-shift is not arithmetic will fail to build rather than silently produce wrong audio. No additional test obligation beyond the existing ADPCM round-trip and vector tests.
+
+**Sources:**
+
+- ADR-0001 (Q15 multiply semantics — establishes the project-wide ASR discipline).
+- `spu94_q15.h` `_Static_assert` (compile-time guarantee).
+- psx-spx SPU ADPCM section (barrel shifter semantics).
+
+---
+
+## ADR-0049: ADPCM filter index 5-7 policy — clamp to filter 4
+
+**Status:** Accepted (2026-04-26, M2 Phase 1)
+
+**Context:**
+
+The ADPCM block header byte encodes the filter index in 3 bits (values 0-7), but only 5 coefficient pairs are defined (indices 0-4). Filter indices 5, 6, and 7 have no documented coefficient values in any Sony SDK reference or psx-spx. A real PS1 game is unlikely to produce these values, but a corrupted or hand-crafted VAG stream could.
+
+Three approaches exist: (a) clamp to the highest defined filter (4), making the decoder deterministic for any input; (b) treat undefined indices as filter 0 (zero coefficients, disabling prediction); (c) leave behavior undefined (risk out-of-bounds array access).
+
+Emulator consensus (DuckStation, Mednafen behavioral output) uses clamping to filter 4. No emulator uses option (b) or (c).
+
+**Decision:**
+
+`if (filter > 4) filter = 4;` in `spu94_adpcm_decode_block()`. Out-of-range filter indices are silently clamped to the highest defined filter. The encoder searches only filters 0-4, so it never produces out-of-range values; this clamp protects the decoder against arbitrary input.
+
+**Consequences:**
+
+Array access into `spu94_adpcm_f0[]` and `spu94_adpcm_f1[]` (5-element arrays) is always in-bounds. Decoder behavior is deterministic for any 16-byte input block, including malformed ones. Test coverage: `test_decode_filter_clamp_5to4` verifies filter 5 produces the same output as filter 4 with identical input.
+
+**Sources:**
+
+- psx-spx SPU ADPCM section (defines only 5 coefficient pairs).
+- DuckStation and Mednafen behavioral output (consensus: clamp to 4).
+
+---
+
+## ADR-0048: ADPCM shift 13-15 policy — map to shift 9
+
+**Status:** Accepted (2026-04-26, M2 Phase 1)
+
+**Context:**
+
+The ADPCM block header byte encodes the shift value in 4 bits (values 0-15). The decode formula `nibble << (12 - shift)` is only meaningful for shift 0-12; shift 13, 14, and 15 would produce negative left-shift amounts, which is undefined behavior in C. A real PS1 game should never produce these values (the encoder searches only 0-12), but corrupted or hand-crafted streams could contain them.
+
+Two documented approaches exist: (a) map out-of-range shifts to shift 9 (documented in psx-spx as the hardware behavior), or (b) leave behavior undefined. psx-spx specifically states that shift values 13-15 map to shift 9 on the actual PS1 hardware.
+
+**Decision:**
+
+`if (shift > 12) shift = 9;` in `spu94_adpcm_decode_block()`. All out-of-range shift values (13, 14, 15) are mapped to shift 9, matching the psx-spx documentation of PS1 hardware behavior. The encoder searches only shifts 0-12, so it never produces out-of-range values; this mapping protects the decoder against arbitrary input.
+
+**Consequences:**
+
+The decoder handles any block a PS1 game might have produced, including edge cases that commercial games never exercised. The `12 - shift` expression in the decode loop always produces a non-negative shift amount, avoiding C undefined behavior. Test coverage: `test_decode_shift13_maps_to_9`, `test_decode_shift14_maps_to_9`, `test_decode_shift15_maps_to_9` each verify that the out-of-range shift produces identical output to an equivalent block with shift 9.
+
+**Sources:**
+
+- psx-spx SPU ADPCM section (shift 13-15 map to 9).
+
+---
+
+## ADR-0047: ADPCM prediction rounding — round-to-nearest via +32 bias before ASR
+
+**Status:** Accepted (2026-04-26, M2 Phase 1)
+
+**Relates:** ADR-0050 (division semantics — this ADR adds a rounding bias on top of the ASR that ADR-0050 establishes).
+
+**Context:**
+
+The ADPCM prediction formula computes `(old * f0 + older * f1) >> 6`. The PS1 hardware adds +32 (half of 64) before the right shift, implementing round-to-nearest with 0.5 ULP bias. The alternative is pure truncation (no bias), which rounds toward negative infinity for all values when using ASR.
+
+The difference is 1 LSB in many samples. For example, with filter 1 and old=1000: `(60000 + 32) >> 6 = 938` (with bias) vs `60000 >> 6 = 937` (without bias). This 1-LSB difference accumulates across blocks and causes audible drift on sustained tones, particularly noticeable on bass and pad material where the prediction filter carries most of the signal energy.
+
+The psx-spx documentation includes the +32 bias in its formula. Behavioral witness testing during Phase 1 confirmed that the bias-inclusive formula matches emulator output.
+
+**Decision:**
+
+`int32_t predicted = (old * f0 + older * f1 + 32) >> 6;` in both the decoder (`spu94_adpcm.c`) and the encoder's internal decoder (`spu94_adpcm_encode.c`). The +32 rounding bias is always applied before the arithmetic right shift.
+
+**Consequences:**
+
+Matches every behavioral witness tested (DuckStation, Mednafen output). The bias adds one integer addition per sample (negligible cost). Without the bias, filter 1 predictions on a 1kHz sine wave drift by approximately 4 LSB per block, producing an audible low-frequency warble after several blocks. Test coverage: the existing decode vector tests implicitly depend on the +32 bias (the expected output values were computed with the bias present).
+
+**Sources:**
+
+- psx-spx SPU ADPCM section (formula includes +32 bias).
+- Phase 1 behavioral witness testing (M2 development).
+
+---
+
 ## ADR-0024: Witness-diff per-preset tolerance gate — `config/witness_diff_thresholds.json`
 
 **Status:** Accepted (2026-04-24, M1 close-out)
