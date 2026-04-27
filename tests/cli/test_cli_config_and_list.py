@@ -52,26 +52,40 @@ def test_list_presets_10_lines(spu94_cli_path):
 
 
 def test_help_exits_0(spu94_cli_path):
-    """--help prints the polished usage text and exits 0."""
+    """--help prints the global subcommand list (D-03) and exits 0."""
     result = subprocess.run(
         [spu94_cli_path, "--help"],
         capture_output=True,
         text=True,
         check=True,
     )
-    for expected in ("Render a WAV", "--preset", "--config", "--tail-seconds", "--list-presets"):
-        assert expected in result.stdout, f"missing from --help: {expected!r}"
+    for expected in ("reverb", "adpcm-encode", "adpcm-decode", "adpcm-roundtrip"):
+        assert expected in result.stdout, f"missing from global --help: {expected!r}"
+
+
+def test_reverb_help_shows_options(spu94_cli_path):
+    """spu94 reverb --help shows reverb-specific flags."""
+    result = subprocess.run(
+        [spu94_cli_path, "reverb", "--help"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    for expected in ("Render a WAV", "--preset", "--config", "--tail-seconds",
+                     "--list-presets", "--adpcm"):
+        assert expected in result.stdout, f"missing from reverb --help: {expected!r}"
 
 
 def test_short_h_flag(spu94_cli_path):
-    """-h is an alias for --help."""
+    """-h is an alias for --help (shows global help)."""
     result = subprocess.run(
         [spu94_cli_path, "-h"],
         capture_output=True,
         text=True,
         check=True,
     )
-    assert "Render a WAV" in result.stdout
+    assert "reverb" in result.stdout
+    assert "adpcm-encode" in result.stdout
 
 
 def test_override_with_hex_string(tmp_path, spu94_cli_path, sample_wav_file, tmp_wav_out):
