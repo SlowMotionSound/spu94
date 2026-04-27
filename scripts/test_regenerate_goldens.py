@@ -5,7 +5,7 @@ Two meta-tests for scripts/regenerate_goldens.py:
 
   1. `test_check_passes_on_committed` — positive path. The committed
      tests/golden/ corpus + regenerate_goldens.py --check exit 0 with
-     "PASS: 50/50 goldens match" on stdout.
+     "PASS: 50/50 reverb goldens match" on stdout.
 
   2. `test_check_fails_on_mutated_wav` — negative path. Copy the
      committed tests/golden/ into pytest tmp_path, flip one byte in
@@ -58,8 +58,8 @@ def test_check_passes_on_committed():
         f"--check on committed corpus failed (rc={r.returncode})\n"
         f"stdout: {r.stdout}\nstderr: {r.stderr}"
     )
-    assert "PASS: 50/50 goldens match" in r.stdout, (
-        f"expected 'PASS: 50/50 goldens match' in stdout, got:\n{r.stdout}"
+    assert "PASS: 50/50 reverb goldens match" in r.stdout, (
+        f"expected 'PASS: 50/50 reverb goldens match' in stdout, got:\n{r.stdout}"
     )
 
 
