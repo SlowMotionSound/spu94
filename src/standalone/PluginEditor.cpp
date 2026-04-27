@@ -91,6 +91,17 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     inputLevelLabel.setText("Input", juce::dontSendNotification);
     inputLevelLabel.setJustificationType(juce::Justification::centred);
 
+    // ADPCM toggle button -- amber glow when active (D-05, D-06).
+    addAndMakeVisible(adpcmToggle);
+    adpcmToggle.setClickingTogglesState(true);
+    adpcmToggle.setColour(juce::ToggleButton::tickColourId,
+                          juce::Colour(0xFFD4A017));  // amber
+    adpcmToggle.onClick = [this] {
+        processorRef.getAdpcmEnabled().store(
+            adpcmToggle.getToggleState(),
+            std::memory_order_relaxed);
+    };
+
     // Register panel -- 18 sliders grouped by register class.
     addAndMakeVisible(registerPanel);
 
@@ -101,8 +112,8 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     lastAppliedCount = processorRef.getPresetQueue().getAppliedCount();
     startTimerHz(30);
 
-    setResizeLimits(800, 750, 800, 750);
-    setSize(800, 750);
+    setResizeLimits(850, 750, 850, 750);
+    setSize(850, 750);
 }
 
 SPU94AudioProcessorEditor::~SPU94AudioProcessorEditor()
@@ -137,13 +148,16 @@ void SPU94AudioProcessorEditor::resized()
     presetLabel.setBounds(330, 10, 60, 30);
     presetSelector.setBounds(395, 10, 180, 30);
 
-    // Input Level knob sits to the right of the preset selector.
-    inputLevelLabel.setBounds(590, 2, 80, 16);
-    inputLevelKnob.setBounds(590, 16, 80, 54);
+    // ADPCM toggle sits between preset selector and Input knob (D-05).
+    adpcmToggle.setBounds(585, 10, 70, 30);
 
-    // Wet/Dry rotary knob sits to the right of the Input knob.
-    wetDryLabel.setBounds(680, 2, 80, 16);
-    wetDryKnob.setBounds(680, 16, 80, 54);
+    // Input Level knob -- shifted right to accommodate ADPCM toggle.
+    inputLevelLabel.setBounds(660, 2, 80, 16);
+    inputLevelKnob.setBounds(660, 16, 80, 54);
+
+    // Wet/Dry rotary knob -- shifted right.
+    wetDryLabel.setBounds(750, 2, 80, 16);
+    wetDryKnob.setBounds(750, 16, 80, 54);
 
     // Register panel fills remaining height below the toolbar.
     registerPanel.setBounds(10, 75, getWidth() - 20, getHeight() - 85);

@@ -114,6 +114,11 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // 2. Push any GUI-changed register values to the SPU
     registerBridge.pushPendingRegisterWrites(spu);
 
+    // 3. ADPCM coloration toggle (ADPCM-IO-06, D-06): read GUI atomic,
+    // push to C API. Takes effect on the next spu94_process block.
+    spu94_set_adpcm_enabled(spu,
+        adpcmEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+
     const int n = buffer.getNumSamples();
     const auto numFrames = wavSource.numFrames;
 

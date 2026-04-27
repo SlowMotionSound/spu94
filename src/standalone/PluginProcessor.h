@@ -59,9 +59,13 @@ public:
     // --- Input level (pre-SPU gain staging) ---
     std::atomic<float>& getInputLevel() { return inputLevel; }
 
+    // --- ADPCM coloration toggle (ADPCM-IO-06, D-06) ---
+    std::atomic<bool>& getAdpcmEnabled() { return adpcmEnabled; }
+
 private:
     std::atomic<float> wetDry{0.5f};      // [0.0 = fully dry, 1.0 = fully wet]
     std::atomic<float> inputLevel{0.25f}; // [0.0 = silence, 1.0 = unity gain]
+    std::atomic<bool> adpcmEnabled{false}; // ADPCM coloration toggle (D-06)
     RegisterBridge registerBridge;
     PresetCommandQueue presetQueue;
     // SPU state -- caller-owned buffers per libspu94 API contract
