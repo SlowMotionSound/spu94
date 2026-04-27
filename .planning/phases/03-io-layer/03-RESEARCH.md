@@ -459,7 +459,7 @@ adpcmToggle.onClick = [this] {
 | A4 | JUCE ToggleButton with custom amber colour works via setColour | Code Examples | Might need a custom LookAndFeel instead. LOW risk -- basic JUCE API. |
 | A5 | Python spu94_adpcm_state is 4 bytes with no padding | Pitfall 5 | ctypes struct mismatch would cause memory corruption. LOW risk -- two int16 is naturally packed. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **JUCE toolbar layout space**
    - What we know: Current layout has preset selector ending at ~575px, Input at 590, Wet/Dry at 680. Window is 800x750 fixed.
