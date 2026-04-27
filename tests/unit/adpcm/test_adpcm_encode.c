@@ -7,6 +7,15 @@
  * shift selection, and multi-block state carry.
  */
 
+/* COVERAGE MAP — ADPCM-TEST-02 round-trip checklist
+ *   deterministic encode+decode    : test_encode_decode_roundtrip_deterministic
+ *   decode-of-encode state match   : test_encode_decode_consistency
+ *   reconstructed state correctness: test_encode_state_uses_reconstructed
+ *   multi-block state carry        : test_encode_multi_block_state_carry
+ *   silence round-trip             : test_encode_silence
+ *   nibbles in valid range         : test_encode_nibbles_in_range
+ */
+
 #include "unity.h"
 #include <spu94/spu94_adpcm.h>
 #include <stdint.h>
