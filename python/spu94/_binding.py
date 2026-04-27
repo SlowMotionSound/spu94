@@ -187,6 +187,64 @@ class _Spu94ErrorCounters(ctypes.Structure):
 _lib.spu94_get_error_counters.restype = _Spu94ErrorCounters
 _lib.spu94_get_error_counters.argtypes = [ctypes.c_void_p]
 
+# ADPCM codec state (M2 Phase 3, D-09). Two int16 fields (old, older) = 4 bytes.
+# ctypes.sizeof(_Spu94AdpcmState) MUST equal 4; validated in test suite.
+class _Spu94AdpcmState(ctypes.Structure):
+    _fields_ = [("old", ctypes.c_int16), ("older", ctypes.c_int16)]
+
+# VAG header struct (M2 Phase 3, D-10). Matches spu94_vag_header in spu94_vag.h.
+class _Spu94VagHeader(ctypes.Structure):
+    _fields_ = [
+        ("version", ctypes.c_uint32),
+        ("data_size", ctypes.c_uint32),
+        ("sample_rate", ctypes.c_uint32),
+        ("name", ctypes.c_char * 16),
+    ]
+
+# ADPCM block-level codec (M2 Phase 3, D-09) --------------------------------
+
+_lib.spu94_adpcm_decode_block.restype = ctypes.c_uint8  # flag byte
+_lib.spu94_adpcm_decode_block.argtypes = [
+    ctypes.POINTER(_Spu94AdpcmState),     # state
+    ctypes.POINTER(ctypes.c_uint8),       # block[16]
+    ctypes.POINTER(ctypes.c_int16),       # out[28]
+]
+
+_lib.spu94_adpcm_encode_block.restype = None
+_lib.spu94_adpcm_encode_block.argtypes = [
+    ctypes.POINTER(_Spu94AdpcmState),     # state
+    ctypes.POINTER(ctypes.c_int16),       # in[28]
+    ctypes.c_uint8,                       # flags
+    ctypes.POINTER(ctypes.c_uint8),       # block[16]
+]
+
+# ADPCM pipeline toggle (M2 Phase 3, D-09) ----------------------------------
+
+_lib.spu94_set_adpcm_enabled.restype = None
+_lib.spu94_set_adpcm_enabled.argtypes = [ctypes.c_void_p, ctypes.c_int]
+
+_lib.spu94_get_adpcm_enabled.restype = ctypes.c_int
+_lib.spu94_get_adpcm_enabled.argtypes = [ctypes.c_void_p]
+
+_lib.spu94_get_total_latency_samples.restype = ctypes.c_uint32
+_lib.spu94_get_total_latency_samples.argtypes = [ctypes.c_void_p]
+
+# VAG file format I/O (M2 Phase 3, D-10) ------------------------------------
+
+_lib.spu94_vag_read_header.restype = ctypes.c_int  # 0=ok, -1=bad magic
+_lib.spu94_vag_read_header.argtypes = [
+    ctypes.POINTER(ctypes.c_uint8),       # buf[48]
+    ctypes.POINTER(_Spu94VagHeader),      # out
+]
+
+_lib.spu94_vag_write_header.restype = None
+_lib.spu94_vag_write_header.argtypes = [
+    ctypes.POINTER(ctypes.c_uint8),       # buf[48]
+    ctypes.c_uint32,                      # data_size
+    ctypes.c_uint32,                      # sample_rate
+    ctypes.c_char_p,                      # name (may be NULL)
+]
+
 # Register identity + reflection (used at IMPORT TIME by __init__.py) --
 _lib.spu94_reg_name.restype = ctypes.c_char_p
 _lib.spu94_reg_name.argtypes = [ctypes.c_int]
@@ -254,3 +312,8 @@ SPU94_TYPE_MISMATCH = 3
 SPU94_INVALID_STATE = 4
 SPU94_WORK_BUF_TOO_SMALL = 5
 SPU94_INVALID_ARG = 6
+
+# ADPCM block constants (M2 Phase 3)
+SPU94_ADPCM_BLOCK_SAMPLES = 28
+SPU94_ADPCM_BLOCK_BYTES = 16
+SPU94_VAG_HEADER_BYTES = 48
