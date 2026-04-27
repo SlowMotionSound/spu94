@@ -19,6 +19,7 @@ set(_binding_tests
     test_binding_preset_table
     test_binding_drift_detection
     test_binding_numpy_contract
+    test_binding_adpcm
 )
 
 foreach(test_name IN LISTS _binding_tests)
