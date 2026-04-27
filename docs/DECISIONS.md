@@ -30,6 +30,87 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-0053: ADPCM tail block padding — caller zero-pads to 28 samples
+
+**Status:** Accepted (2026-04-26, M2 Phase 1)
+
+**Context:**
+
+The ADPCM encoder API (`spu94_adpcm_encode_block`) accepts exactly 28 PCM samples per call, matching the fixed block size of the PS1 ADPCM format. The final audio segment in a stream may have fewer than 28 samples remaining. Two design options exist: (a) the encoder handles short blocks internally (accepting a sample count parameter, zero-padding internally), or (b) the caller is responsible for zero-padding the final input array to 28 samples before calling the encoder.
+
+Option (a) adds complexity to the encoder (variable-length input, internal padding logic, potential off-by-one surface). Option (b) keeps the encoder simple (fixed-size I/O) and pushes the padding responsibility to the caller, which already knows the stream length.
+
+**Decision:**
+
+Caller is responsible for zero-padding the input array to 28 samples. The encoder always processes exactly `SPU94_ADPCM_BLOCK_SAMPLES` (28) samples per call. The VAG writer implementation (`spu94_vag_write_mono` in `vag.c`) demonstrates this pattern: it zero-pads the final block before calling the encoder.
+
+**Consequences:**
+
+Simpler encoder API with fixed-size I/O — no variable-length edge cases, no internal buffer management. The VAG end-flag (`block[1]` bit 0) signals the decoder to stop playback; trailing zero-padded samples in the final block are discarded by the reader because the decoder stops processing when the end flag is encountered. This matches PS1 hardware behavior, where the SPU reads fixed-size 16-byte blocks and the end flag terminates voice playback. Callers writing custom stream formats (not VAG) must implement their own zero-padding, but this is a trivial `memset` before the final `encode_block` call.
+
+**Sources:**
+
+- `src/spu94/spu94_adpcm_encode.c` (fixed 28-sample input contract).
+- `src/spu94/vag.c` (`spu94_vag_write_mono` — zero-pads final block).
+- PS1 SPU hardware behavior (fixed-size block reads, end-flag termination).
+
+---
+
+## ADR-0052: ADPCM encoder tiebreaking — strict less-than with iteration order
+
+**Status:** Accepted (2026-04-26, M2 Phase 1)
+
+**Context:**
+
+The brute-force ADPCM encoder evaluates 65 (filter, shift) combinations per block and selects the one with the lowest sum-of-squared-error (see ADR-0051). When two or more combinations produce identical SSE, the encoder must pick one deterministically to ensure the same input always produces the same output.
+
+Two approaches: (a) explicit tiebreak rules (e.g., prefer lower filter, then lower shift), implemented as secondary comparison logic; (b) rely on iteration order combined with strict `<` comparison, where the first combination found with a given error value wins and subsequent ties are rejected because `error < best_error` is false when `error == best_error`.
+
+**Decision:**
+
+`if (error < best_error)` (strict less-than). The outer loop iterates filter 0-4, the inner loop iterates shift 0-12. With strict `<`, the first combination to achieve the minimum error wins. This means: on ties, the lowest filter index wins; within the same filter, the lowest shift wins. No explicit tiebreak logic is needed — iteration order is the tiebreak.
+
+**Consequences:**
+
+Deterministic output across all compilers and platforms, because the result depends only on the comparison operator and loop order, not on floating-point rounding or compiler optimization choices. The implicit bias favors lower filter indices (simpler prediction, fewer ringing artifacts) and lower shifts (coarser quantization steps) on ties. Test coverage: `test_encode_decode_roundtrip_deterministic` verifies identical output across two runs with the same input.
+
+**Sources:**
+
+- `src/spu94/spu94_adpcm_encode.c` (strict `<` with outer=filter, inner=shift loop order).
+
+---
+
+## ADR-0051: ADPCM encoder error metric — sum of squared error (L2) in int64
+
+**Status:** Accepted (2026-04-26, M2 Phase 1)
+
+**Context:**
+
+The brute-force ADPCM encoder evaluates 65 (filter, shift) combinations per block and must choose the combination that best reconstructs the original PCM. The error metric determines this choice. Three standard options exist:
+
+- **L1 (SAD):** Sum of absolute differences. Linear penalty; treats all errors equally.
+- **L2 (SSE):** Sum of squared differences. Quadratic penalty; large deviations are penalized more than small ones, concentrating residual error into many small deviations rather than a few large ones.
+- **Linf (max absolute):** Worst-case single-sample error. Minimizes peak distortion but ignores the distribution of errors across the block.
+
+L2 produces perceptually better results than L1 because human hearing is more sensitive to isolated loud artifacts (which L2 penalizes heavily) than to distributed low-level noise (which L2 tolerates). L2 is also the standard metric used by most ADPCM encoders in practice.
+
+The accumulator must handle worst-case overflow: 28 samples x max error^2 = 28 x 65535^2 = approximately 1.2 x 10^11, which exceeds int32 range (2.1 x 10^9) but fits comfortably in int64.
+
+**Decision:**
+
+`int64_t error += (int64_t)diff * (int64_t)diff;` — sum-of-squared-error accumulated in int64. Integer-only, no floating-point. The int64 cast on both operands before multiplication prevents intermediate overflow.
+
+**Consequences:**
+
+Perceptually good results without psychoacoustic modeling complexity. The int64 accumulator is conservative (a 32-bit accumulator would overflow on pathological blocks with large residuals at high shifts), but the cost is negligible — one widening multiply per sample. No floating-point dependencies in the encoder hot path, consistent with the project-wide integer-only DSP discipline. Test coverage: `test_encode_decode_roundtrip_deterministic` confirms consistent winner selection across runs.
+
+**Sources:**
+
+- `src/spu94/spu94_adpcm_encode.c` (L2 metric with int64 accumulation).
+- Standard ADPCM encoder practice (L2/SSE is the conventional choice).
+
+---
+
 ## ADR-0050: ADPCM division semantics — arithmetic right shift (`>>6`), not division (`/64`)
 
 **Status:** Accepted (2026-04-26, M2 Phase 1)
