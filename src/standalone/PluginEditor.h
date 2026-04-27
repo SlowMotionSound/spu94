@@ -33,6 +33,8 @@ private:
     juce::Slider inputLevelKnob;
     juce::Label inputLevelLabel;
 
+    juce::ToggleButton adpcmToggle{"ADPCM"};
+
     // Track preset-switch completion for slider sync.
     int lastAppliedCount = 0;
 
