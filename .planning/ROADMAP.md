@@ -11,7 +11,7 @@ M2 adds bit-faithful Sony 4-bit ADPCM encode/decode to libspu94 and wires it int
 ## Phases
 
 - [x] **Phase 1: Core Codec** - Standalone ADPCM decode + encode functions: 5 filters, brute-force encoder, caller-allocated state, pure C
-- [ ] **Phase 2: Pipeline Integration** - Wire ADPCM into spu94_process as toggleable upstream stage with latency reporting and state management
+- [x] **Phase 2: Pipeline Integration** - Wire ADPCM into spu94_process as toggleable upstream stage with latency reporting and state management (completed 2026-04-27)
 - [ ] **Phase 3: I/O Layer** - CLI subcommands (encode/decode/roundtrip), VAG file format, Python bindings, JUCE GUI toggle
 - [ ] **Phase 4: Verification + Documentation** - Known-vector tests, round-trip gates, golden files, gray-area ADRs
 
@@ -43,7 +43,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 02-01-PLAN.md — ADPCM state fields, public API, process-loop integration with double-buffer
-- [ ] 02-02-PLAN.md — Integration tests covering toggle, latency, state management, default-off
+- [x] 02-02-PLAN.md — Integration tests covering toggle, latency, state management, default-off
 
 ### Phase 3: I/O Layer
 **Goal**: Users can encode/decode ADPCM via CLI, Python, and JUCE standalone — making the codec accessible through every existing interface
@@ -114,7 +114,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Core Codec | 2/2 | Complete | 2026-04-26 |
-| 2. Pipeline Integration | 1/2 | In Progress|  |
+| 2. Pipeline Integration | 2/2 | Complete   | 2026-04-27 |
 | 3. I/O Layer | 0/TBD | Not started | - |
 | 4. Verification + Documentation | 0/TBD | Not started | - |
 
