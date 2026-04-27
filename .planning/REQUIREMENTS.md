@@ -29,19 +29,19 @@ M2 adds bit-faithful Sony 4-bit ADPCM encode/decode to libspu94, wired into the 
 
 ### ADPCM-IO — CLI + Python + Standalone
 
-- [ ] **ADPCM-IO-01**: CLI gains `spu94 adpcm-encode` (WAV→VAG), `spu94 adpcm-decode` (VAG→WAV), and `spu94 adpcm-roundtrip` (WAV→ADPCM→WAV) subcommands.
-- [ ] **ADPCM-IO-02**: CLI gains `--adpcm` flag for the existing reverb processing mode, enabling the ADPCM coloration stage before reverb.
-- [ ] **ADPCM-IO-03**: VAG file reader parses the 48-byte big-endian header (magic, version, sample rate, data size) using explicit byte-order conversion (no `ntohl`). Accepts any version on read. Handles terminator blocks.
-- [ ] **ADPCM-IO-04**: VAG file writer produces valid VAG v2 files (mono, big-endian header). Zero-pads final block to 28 samples and sets end flag.
-- [ ] **ADPCM-IO-05**: Python ctypes bindings expose `spu94_adpcm_decode_block()`, `spu94_adpcm_encode_block()`, `spu94_set_adpcm_enabled()`, and `spu94_get_adpcm_enabled()`.
-- [ ] **ADPCM-IO-06**: JUCE standalone gains an "ADPCM" toggle in the GUI that enables/disables the coloration stage during playback.
+- [x] **ADPCM-IO-01**: CLI gains `spu94 adpcm-encode` (WAV→VAG), `spu94 adpcm-decode` (VAG→WAV), and `spu94 adpcm-roundtrip` (WAV→ADPCM→WAV) subcommands. *(Plan 03-01)*
+- [x] **ADPCM-IO-02**: CLI gains `--adpcm` flag for the existing reverb processing mode, enabling the ADPCM coloration stage before reverb. *(Plan 03-01)*
+- [x] **ADPCM-IO-03**: VAG file reader parses the 48-byte big-endian header (magic, version, sample rate, data size) using explicit byte-order conversion (no `ntohl`). Accepts any version on read. Handles terminator blocks. *(Plan 03-01)*
+- [x] **ADPCM-IO-04**: VAG file writer produces valid VAG v2 files (mono, big-endian header). Zero-pads final block to 28 samples and sets end flag. *(Plan 03-01)*
+- [x] **ADPCM-IO-05**: Python ctypes bindings expose `spu94_adpcm_decode_block()`, `spu94_adpcm_encode_block()`, `spu94_set_adpcm_enabled()`, and `spu94_get_adpcm_enabled()`. *(Plan 03-03)*
+- [x] **ADPCM-IO-06**: JUCE standalone gains an "ADPCM" toggle in the GUI that enables/disables the coloration stage during playback. *(Plan 03-02)*
 
 ### ADPCM-TEST — Verification
 
-- [ ] **ADPCM-TEST-01**: Known-vector decode tests cover: all-zero block, single-impulse, each filter (0-4) with known state, shift 0/6/12, shift 13/14/15, clamp-triggering overflow, two consecutive blocks verifying state carry.
-- [ ] **ADPCM-TEST-02**: Round-trip test: encode→decode is deterministic and produces bit-identical output across runs. Decode of the encode matches standalone decode sample-for-sample.
-- [ ] **ADPCM-TEST-03**: ADPCM golden files committed (reverb output with ADPCM on vs off, for at least 3 presets × 2 inputs), with SHA-256 sidecars and regression gate.
-- [ ] **ADPCM-TEST-04**: Gray-area resolutions documented in `docs/DECISIONS.md` as numbered ADRs: rounding vs truncation, shift 13-15 policy, filter 5-7 policy, division semantics (>>6 vs /64), encoder error metric, encoder tiebreaking, tail block padding.
+- [x] **ADPCM-TEST-01**: Known-vector decode tests cover: all-zero block, single-impulse, each filter (0-4) with known state, shift 0/6/12, shift 13/14/15, clamp-triggering overflow, two consecutive blocks verifying state carry. *(Plan 04-01)*
+- [x] **ADPCM-TEST-02**: Round-trip test: encode→decode is deterministic and produces bit-identical output across runs. Decode of the encode matches standalone decode sample-for-sample. *(Plan 04-01)*
+- [x] **ADPCM-TEST-03**: ADPCM golden files committed (reverb output with ADPCM on vs off, for at least 3 presets × 2 inputs), with SHA-256 sidecars and regression gate. *(Plan 04-02)*
+- [x] **ADPCM-TEST-04**: Gray-area resolutions documented in `docs/DECISIONS.md` as numbered ADRs: rounding vs truncation, shift 13-15 policy, filter 5-7 policy, division semantics (>>6 vs /64), encoder error metric, encoder tiebreaking, tail block padding. *(Plan 04-03)*
 
 ## Future Scope (documented in research, NOT built in M2)
 
@@ -116,10 +116,10 @@ Categories shipped: CORE-01..10, API-01..09, PYBIND-01..06, CLI-01..04, TEST-01.
 | ADPCM-IO-04 | M2 Phase 3 | Complete |
 | ADPCM-IO-05 | M2 Phase 3 | Complete |
 | ADPCM-IO-06 | M2 Phase 3 | Complete |
-| ADPCM-TEST-01 | M2 Phase 4 | Pending |
-| ADPCM-TEST-02 | M2 Phase 4 | Pending |
-| ADPCM-TEST-03 | M2 Phase 4 | Pending |
-| ADPCM-TEST-04 | M2 Phase 4 | Pending |
+| ADPCM-TEST-01 | M2 Phase 4 | Complete (04-01) |
+| ADPCM-TEST-02 | M2 Phase 4 | Complete (04-01) |
+| ADPCM-TEST-03 | M2 Phase 4 | Complete (04-02) |
+| ADPCM-TEST-04 | M2 Phase 4 | Complete (04-03) |
 
 ---
 *Requirements scoped: 2026-04-26. 23 active requirements across 4 categories. Research basis: 12 documents in `.planning/research/m2-adpcm/`.*
