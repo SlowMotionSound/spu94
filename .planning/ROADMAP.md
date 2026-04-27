@@ -1,6 +1,6 @@
 # Roadmap: SPU-94 — M2 ADPCM Encode/Decode
 
-**Updated:** 2026-04-26
+**Updated:** 2026-04-27
 **Milestone:** M2 — Sony 4-bit ADPCM (version tag v1.1 upon completion)
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
 
@@ -55,9 +55,11 @@ Plans:
   3. Python callers can call `spu94_adpcm_decode_block()`, `spu94_adpcm_encode_block()`, `spu94_set_adpcm_enabled()`, and `spu94_get_adpcm_enabled()` via ctypes bindings
   4. The JUCE standalone shows an "ADPCM" toggle that enables/disables the coloration stage during real-time playback
   5. VAG reader handles big-endian headers with explicit byte-order conversion (no ntohl) and respects terminator blocks
-**Plans**: TBD
+**Plans**: 3 plans
 Plans:
-- [ ] (to be planned)
+- [ ] 03-01-PLAN.md — VAG library module + CLI subcommand dispatch + ADPCM commands + --adpcm flag
+- [ ] 03-02-PLAN.md — JUCE ADPCM toggle in standalone GUI
+- [ ] 03-03-PLAN.md — Python ctypes bindings for ADPCM + VAG functions
 **UI hint**: yes
 
 ### Phase 4: Verification + Documentation
@@ -92,12 +94,12 @@ Plans:
 | ADPCM-INT-04 | Phase 2 | Complete (02-01, 02-02) |
 | ADPCM-INT-05 | Phase 2 | Complete (02-01, 02-02) |
 | ADPCM-INT-06 | Phase 2 | Complete (02-01, 02-02) |
-| ADPCM-IO-01 | Phase 3 | Pending |
-| ADPCM-IO-02 | Phase 3 | Pending |
-| ADPCM-IO-03 | Phase 3 | Pending |
-| ADPCM-IO-04 | Phase 3 | Pending |
-| ADPCM-IO-05 | Phase 3 | Pending |
-| ADPCM-IO-06 | Phase 3 | Pending |
+| ADPCM-IO-01 | Phase 3 | Pending (03-01) |
+| ADPCM-IO-02 | Phase 3 | Pending (03-01) |
+| ADPCM-IO-03 | Phase 3 | Pending (03-01) |
+| ADPCM-IO-04 | Phase 3 | Pending (03-01) |
+| ADPCM-IO-05 | Phase 3 | Pending (03-03) |
+| ADPCM-IO-06 | Phase 3 | Pending (03-02) |
 | ADPCM-TEST-01 | Phase 4 | Pending |
 | ADPCM-TEST-02 | Phase 4 | Pending |
 | ADPCM-TEST-03 | Phase 4 | Pending |
@@ -115,7 +117,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Core Codec | 2/2 | Complete | 2026-04-26 |
 | 2. Pipeline Integration | 2/2 | Complete   | 2026-04-27 |
-| 3. I/O Layer | 0/TBD | Not started | - |
+| 3. I/O Layer | 0/3 | Planning complete | - |
 | 4. Verification + Documentation | 0/TBD | Not started | - |
 
 ---
