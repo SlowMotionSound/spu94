@@ -1,7 +1,7 @@
 /* tests/unit/adpcm/test_adpcm_decode.c
  * M2 Phase 1 Plan 01 Task 2: Known-vector unit tests for ADPCM decoder.
  *
- * Covers all 5 filter coefficient pairs, shift extremes (0, 12, 13, 14, 15),
+ * Covers all 5 filter coefficient pairs, shift extremes (0, 6, 12, 13, 14, 15),
  * positive/negative saturation clamping, nibble ordering (low first),
  * sign extension, state carry across blocks, filter index clamping,
  * and flag byte return value.
@@ -10,6 +10,25 @@
  *   shifted   = sign_extended_nibble << (12 - shift)
  *   predicted = (old * f0 + older * f1 + 32) >> 6   (ASR)
  *   sample    = sat_s16(shifted + predicted)
+ */
+
+/* COVERAGE MAP — ADPCM-TEST-01 known-vector checklist
+ *   all-zero block          : test_decode_all_zero_block
+ *   single-impulse          : test_decode_single_impulse
+ *   filter 0 (known state)  : test_decode_single_impulse (f0=0, trivial)
+ *   filter 1 (known state)  : test_decode_filter1_prediction
+ *   filter 2 (known state)  : test_decode_filter2_prediction
+ *   filter 3 (known state)  : test_decode_filter3
+ *   filter 4 (known state)  : test_decode_filter4
+ *   shift 0                 : test_decode_shift0
+ *   shift 6                 : test_decode_shift6
+ *   shift 12                : test_decode_shift12
+ *   shift 13 (maps to 9)    : test_decode_shift13_maps_to_9
+ *   shift 14 (maps to 9)    : test_decode_shift14_maps_to_9
+ *   shift 15 (maps to 9)    : test_decode_shift15_maps_to_9
+ *   clamp positive overflow : test_decode_clamp_positive
+ *   clamp negative overflow : test_decode_clamp_negative
+ *   state carry (2 blocks)  : test_decode_state_carry
  */
 
 #include "unity.h"
@@ -171,6 +190,24 @@ void test_decode_filter4(void)
     spu94_adpcm_decode_block(&st, block, out);
 
     TEST_ASSERT_EQUAL_INT16(1438, out[0]);
+}
+
+/* ------------------------------------------------------------------ */
+/* Shift 6: nibble=7, shifted = 7 << (12-6) = 7 << 6 = 448            */
+/* ------------------------------------------------------------------ */
+void test_decode_shift6(void)
+{
+    spu94_adpcm_state st = {0, 0};
+    uint8_t block[16];
+    int16_t out[28];
+    int8_t nibbles[28];
+    memset(nibbles, 0, sizeof(nibbles));
+    nibbles[0] = 7;
+
+    build_block(block, 6, 0, 0x00, nibbles);
+    spu94_adpcm_decode_block(&st, block, out);
+
+    TEST_ASSERT_EQUAL_INT16(448, out[0]);
 }
 
 /* ------------------------------------------------------------------ */
@@ -469,8 +506,9 @@ int main(void)
     RUN_TEST(test_decode_filter2_prediction);
     RUN_TEST(test_decode_filter3);
     RUN_TEST(test_decode_filter4);
-    RUN_TEST(test_decode_shift12);
     RUN_TEST(test_decode_shift0);
+    RUN_TEST(test_decode_shift6);
+    RUN_TEST(test_decode_shift12);
     RUN_TEST(test_decode_shift13_maps_to_9);
     RUN_TEST(test_decode_shift14_maps_to_9);
     RUN_TEST(test_decode_shift15_maps_to_9);
