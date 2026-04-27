@@ -86,12 +86,12 @@ Plans:
 | ADPCM-05 | Phase 1 | Complete (01-02) |
 | ADPCM-06 | Phase 1 | Complete (01-02) |
 | ADPCM-07 | Phase 1 | Complete (01-01, 01-02) |
-| ADPCM-INT-01 | Phase 2 | Pending |
-| ADPCM-INT-02 | Phase 2 | Pending |
-| ADPCM-INT-03 | Phase 2 | Pending |
-| ADPCM-INT-04 | Phase 2 | Pending |
-| ADPCM-INT-05 | Phase 2 | Pending |
-| ADPCM-INT-06 | Phase 2 | Pending |
+| ADPCM-INT-01 | Phase 2 | Complete (02-01, 02-02) |
+| ADPCM-INT-02 | Phase 2 | Complete (02-01, 02-02) |
+| ADPCM-INT-03 | Phase 2 | Complete (02-01, 02-02) |
+| ADPCM-INT-04 | Phase 2 | Complete (02-01, 02-02) |
+| ADPCM-INT-05 | Phase 2 | Complete (02-01, 02-02) |
+| ADPCM-INT-06 | Phase 2 | Complete (02-01, 02-02) |
 | ADPCM-IO-01 | Phase 3 | Pending |
 | ADPCM-IO-02 | Phase 3 | Pending |
 | ADPCM-IO-03 | Phase 3 | Pending |

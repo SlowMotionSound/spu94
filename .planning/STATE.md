@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-26)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 2 — Pipeline Integration
+**Current focus:** M2 Phase 3 — I/O Layer (CLI subcommands, VAG format, Python bindings, JUCE toggle)
 
 ## Current Position
 
-Phase: 2 (Pipeline Integration) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 2
-Last activity: 2026-04-26 -- Phase 2 execution started
+Phase: 3 of 4 (I/O Layer)
+Plan: 0 of TBD in current phase
+Status: Ready to plan
+Last activity: 2026-04-27 — Phase 2 verified (13/13 must-haves, ADPCM-INT-01..06 satisfied, 11 integration tests green)
 
-Progress: [██▓░░░░░░░] 25%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 2 (M2)
+- Total plans completed: 4 (M2)
 - Prior milestone: v1.0 product shipped 37 plans across 8 phases
 
 **By Phase:**
@@ -44,6 +44,7 @@ Progress: [██▓░░░░░░░] 25%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-core-codec | 2 | 48min | 24min |
+| 02-pipeline-integration | 2 | 72min | 36min |
 
 ## Accumulated Context
 

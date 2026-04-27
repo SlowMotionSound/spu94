@@ -20,12 +20,12 @@ M2 adds bit-faithful Sony 4-bit ADPCM encode/decode to libspu94, wired into the 
 
 ### ADPCM-INT — Integration with Reverb Pipeline
 
-- [ ] **ADPCM-INT-01**: ADPCM encode+decode is wired into `spu94_process` as an optional stage upstream of the FIR decimator, matching PS1 hardware signal flow. Toggled via `spu94_set_adpcm_enabled()` / `spu94_get_adpcm_enabled()`.
-- [ ] **ADPCM-INT-02**: Block/frame boundary handled via double-buffer (input accumulates in one 28-sample buffer, output emits from the previous decoded block). Fixed 28-sample latency when enabled, zero when disabled.
-- [ ] **ADPCM-INT-03**: `spu94_get_total_latency_samples()` reports 58 (FIR) + 28 (ADPCM) when enabled, 58 when disabled.
-- [ ] **ADPCM-INT-04**: ADPCM state is zeroed by `spu94_init` and `spu94_reset`. Mid-stream toggle discards partial accumulation buffer (silence gap is inaudible at 28 samples).
-- [ ] **ADPCM-INT-05**: ADPCM is off by default. All existing tests pass unchanged. No modification to the reverb network, FIR chain, presets, or registers. `spu94_state` growth stays within `SPU94_STATE_SIZE_MAX` (16384 bytes).
-- [ ] **ADPCM-INT-06**: Existing rt_safety gates (no heap, no locks, no syscalls, bounded latency) pass with ADPCM code linked into `libspu94.so`.
+- [x] **ADPCM-INT-01**: ADPCM encode+decode is wired into `spu94_process` as an optional stage upstream of the FIR decimator, matching PS1 hardware signal flow. Toggled via `spu94_set_adpcm_enabled()` / `spu94_get_adpcm_enabled()`.
+- [x] **ADPCM-INT-02**: Block/frame boundary handled via double-buffer (input accumulates in one 28-sample buffer, output emits from the previous decoded block). Fixed 28-sample latency when enabled, zero when disabled.
+- [x] **ADPCM-INT-03**: `spu94_get_total_latency_samples()` reports 58 (FIR) + 28 (ADPCM) when enabled, 58 when disabled.
+- [x] **ADPCM-INT-04**: ADPCM state is zeroed by `spu94_init` and `spu94_reset`. Mid-stream toggle discards partial accumulation buffer (silence gap is inaudible at 28 samples).
+- [x] **ADPCM-INT-05**: ADPCM is off by default. All existing tests pass unchanged. No modification to the reverb network, FIR chain, presets, or registers. `spu94_state` growth stays within `SPU94_STATE_SIZE_MAX` (16384 bytes).
+- [x] **ADPCM-INT-06**: Existing rt_safety gates (no heap, no locks, no syscalls, bounded latency) pass with ADPCM code linked into `libspu94.so`.
 
 ### ADPCM-IO — CLI + Python + Standalone
 
@@ -104,12 +104,12 @@ Categories shipped: CORE-01..10, API-01..09, PYBIND-01..06, CLI-01..04, TEST-01.
 | ADPCM-05 | M2 Phase 1 | Complete (01-02) |
 | ADPCM-06 | M2 Phase 1 | Complete (01-02) |
 | ADPCM-07 | M2 Phase 1 | Complete (01-01 + 01-02) |
-| ADPCM-INT-01 | M2 Phase 2 | Pending |
-| ADPCM-INT-02 | M2 Phase 2 | Pending |
-| ADPCM-INT-03 | M2 Phase 2 | Pending |
-| ADPCM-INT-04 | M2 Phase 2 | Pending |
-| ADPCM-INT-05 | M2 Phase 2 | Pending |
-| ADPCM-INT-06 | M2 Phase 2 | Pending |
+| ADPCM-INT-01 | M2 Phase 2 | Complete (02-01, 02-02) |
+| ADPCM-INT-02 | M2 Phase 2 | Complete (02-01, 02-02) |
+| ADPCM-INT-03 | M2 Phase 2 | Complete (02-01, 02-02) |
+| ADPCM-INT-04 | M2 Phase 2 | Complete (02-01, 02-02) |
+| ADPCM-INT-05 | M2 Phase 2 | Complete (02-01, 02-02) |
+| ADPCM-INT-06 | M2 Phase 2 | Complete (02-01, 02-02) |
 | ADPCM-IO-01 | M2 Phase 3 | Pending |
 | ADPCM-IO-02 | M2 Phase 3 | Pending |
 | ADPCM-IO-03 | M2 Phase 3 | Pending |
