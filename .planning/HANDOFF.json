@@ -1,37 +1,34 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-26T22:30:00.000Z",
-  "phase": "none",
-  "phase_name": "m2-adpcm-milestone-setup",
-  "phase_dir": ".planning",
+  "timestamp": "2026-04-27T00:38:50.036Z",
+  "phase": "3",
+  "phase_name": "I/O Layer",
+  "phase_dir": ".planning/phases/03-io-layer",
   "plan": 0,
-  "task": "roadmap",
+  "task": 0,
   "total_tasks": 0,
-  "status": "requirements_defined",
+  "status": "ready_to_plan",
   "completed_tasks": [
-    {"id": "research-pass-1", "name": "ADPCM algorithm research (4 agents: stack, features, architecture, pitfalls)", "status": "done"},
-    {"id": "research-pass-2", "name": "Deep dive research (4 agents: decode edges, encoder internals, coloration character, hardware evidence)", "status": "done"},
-    {"id": "research-pass-3", "name": "Digital patina research (4 agents: codec survey, Comrex, creative exploitation, module architecture)", "status": "done"},
-    {"id": "milestone-setup", "name": "PROJECT.md updated for M2, STATE.md reset", "status": "done"},
-    {"id": "requirements", "name": "23 requirements defined across 4 categories (ADPCM, ADPCM-INT, ADPCM-IO, ADPCM-TEST)", "status": "done"}
+    {"id": "phase-1", "name": "Core Codec — standalone ADPCM decode + encode", "status": "done", "commit": "d88433f"},
+    {"id": "phase-2-plan-01", "name": "Wire ADPCM into spu94_process — double-buffer, public API, latency", "status": "done", "commit": "e242188"},
+    {"id": "phase-2-plan-02", "name": "11 integration tests covering all 6 ADPCM-INT requirements", "status": "done", "commit": "9d27a0b"},
+    {"id": "phase-2-verify", "name": "Phase 2 verified — 13/13 must-haves", "status": "done", "commit": "35781eb"}
   ],
   "remaining_tasks": [
-    {"id": "roadmap", "name": "Create ROADMAP.md — decompose 23 requirements into phased execution", "priority": "next"},
-    {"id": "plan-phases", "name": "Plan each phase via /gsd-plan-phase", "priority": "after-roadmap"},
-    {"id": "execute", "name": "Execute phases", "priority": "after-planning"}
+    {"id": "phase-3-discuss", "name": "Discuss Phase 3 (I/O Layer) — CLI, VAG, Python bindings, JUCE toggle", "priority": "next"},
+    {"id": "phase-3-plan", "name": "Plan Phase 3", "priority": "after-discuss"},
+    {"id": "phase-3-execute", "name": "Execute Phase 3", "priority": "after-planning"},
+    {"id": "phase-4", "name": "Phase 4: Verification + Documentation", "priority": "after-phase-3"}
   ],
   "blockers": [],
-  "human_actions_pending": [
-    "Deep listening session with the v1.0 standalone (in progress, not blocking)"
-  ],
+  "human_actions_pending": [],
   "decisions": [
-    {"decision": "v1.1 version tag applied AFTER ADPCM is fully integrated into reverb", "rationale": "Version reflects product capability, not library code", "phase": "M2"},
-    {"decision": "M2 and M3 are separate milestones (not combined)", "rationale": "Anthony's preference — individual scoping for each", "phase": "M2"},
-    {"decision": "ADPCM decode uses rounding (+32 >> 6), different from reverb truncation — both hardware-faithful", "rationale": "Different SPU subsystems, different arithmetic", "phase": "M2"},
-    {"decision": "Filter mask / creative exploitation hooks designed in research but NOT built in M2", "rationale": "Foundation first, exploitation later", "phase": "M2"},
-    {"decision": "Digital patina engine vision documented — codecs as reusable modules under src/patina/<codec>/", "rationale": "Long-term product direction: faithful codecs as creative effects", "phase": "post-M2"}
+    {"decision": "Single adpcm_state per channel (shared encode+decode)", "rationale": "ADPCM-05 guarantees encoder internal decoder matches standalone decoder — simpler, saves 8 bytes", "phase": "2"},
+    {"decision": "New spu94_get_total_latency_samples(state) instead of modifying existing getter", "rationale": "Avoids ABI break on existing spu94_get_latency_samples(void)", "phase": "2"},
+    {"decision": "Hall preset used in differs-from-disabled test", "rationale": "Wet-only output (ADR-Phase-6-G) means zero registers produce silence regardless of ADPCM", "phase": "2"},
+    {"decision": "Mid-stream toggle discards partial buffer, no special flush handling", "rationale": "28 samples = 0.6ms, inaudible; zeros accumulate normally during flush", "phase": "2"}
   ],
   "uncommitted_files": [],
-  "next_action": "Create ROADMAP.md via /gsd-resume-work → roadmapper. Requirements are defined, research is complete. 23 requirements across 4 categories need decomposition into phases.",
-  "context_notes": "Three research passes (12 agents, 12 documents) provide deep technical foundation. Key finding: ADPCM is well-understood, zero new deps, ~250 lines of C. The broader digital patina engine vision (cross-codec processing, filter modulation, Comrex frequency extender) is documented in research but explicitly out of M2 scope. Anthony is doing deep listening sessions with the v1.0 standalone in parallel."
+  "next_action": "Run /gsd-discuss-phase 3 to capture design decisions for the I/O Layer (CLI subcommands, VAG format, Python bindings, JUCE toggle).",
+  "context_notes": "M2 is at 50% — Phase 1 (codec) and Phase 2 (pipeline integration) complete. 13/23 requirements satisfied. Phase 3 adds user-facing access to ADPCM through CLI, Python, and JUCE. Phase 4 is verification/docs. The ADPCM codec is fully wired into spu94_process and tested with 11 integration tests. State budget is generous (796/16384 bytes). Code review found 0 critical issues."
 }
