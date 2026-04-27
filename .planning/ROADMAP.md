@@ -26,54 +26,11 @@ M2 adds bit-faithful Sony 4-bit ADPCM encode/decode to libspu94 and wires it int
   2. A caller can encode 28 int16 samples into a 16-byte ADPCM block where the encoder selects the optimal (filter, shift) pair via brute-force search over all 65 combinations, using reconstructed (not original) samples for prediction state
   3. Both functions use caller-allocated 4-byte state (two int16 for old/older), zero heap, integer-only arithmetic, and have no dependency on spu94_state — they compile and link independently
   4. Existing 82 ctest all pass unchanged; new codec unit tests cover each filter, shift extremes, clamp triggering, and state carry across blocks
-**Plans**: 2 plans
-Plans:
-- [x] 01-01-PLAN.md — ADPCM decoder + filter tables + known-vector tests
-- [x] 01-02-PLAN.md — ADPCM encoder with brute-force search + round-trip tests
-
-### Phase 2: Pipeline Integration
-**Goal**: Users can toggle ADPCM coloration on/off in the reverb pipeline and hear the authentic PS1 signal path character
-**Depends on**: Phase 1
-**Requirements**: ADPCM-INT-01, ADPCM-INT-02, ADPCM-INT-03, ADPCM-INT-04, ADPCM-INT-05, ADPCM-INT-06
-**Success Criteria** (what must be TRUE):
-  1. Calling `spu94_set_adpcm_enabled(state, true)` causes `spu94_process` to run input PCM through encode+decode before the FIR decimator, and `spu94_set_adpcm_enabled(state, false)` restores the original M1 signal path with zero behavioral change
-  2. `spu94_get_total_latency_samples()` reports 86 (58 FIR + 28 ADPCM) when enabled and 58 when disabled
-  3. ADPCM is off by default — all 84 existing tests pass with zero modification to reverb network, FIR, presets, or registers, and spu94_state stays within SPU94_STATE_SIZE_MAX (16384 bytes)
-  4. All 4 rt_safety gates (no heap, no locks, no syscalls, bounded latency) pass with ADPCM code linked into libspu94.so
-**Plans**: 2 plans
-Plans:
-- [x] 02-01-PLAN.md — ADPCM state fields, public API, process-loop integration with double-buffer
-- [x] 02-02-PLAN.md — Integration tests covering toggle, latency, state management, default-off
-
-### Phase 3: I/O Layer
-**Goal**: Users can encode/decode ADPCM via CLI, Python, and JUCE standalone — making the codec accessible through every existing interface
-**Depends on**: Phase 2
-**Requirements**: ADPCM-IO-01, ADPCM-IO-02, ADPCM-IO-03, ADPCM-IO-04, ADPCM-IO-05, ADPCM-IO-06
-**Success Criteria** (what must be TRUE):
-  1. Running `spu94 adpcm-encode input.wav output.vag` produces a valid VAG v2 file, and `spu94 adpcm-decode output.vag roundtrip.wav` produces a WAV that decodes to the same samples as calling the C API directly
-  2. Running `spu94 --adpcm --preset hall input.wav output.wav` processes the input through ADPCM coloration before reverb, producing audibly different (grainier) output than the same command without `--adpcm`
-  3. Python callers can call `spu94_adpcm_decode_block()`, `spu94_adpcm_encode_block()`, `spu94_set_adpcm_enabled()`, and `spu94_get_adpcm_enabled()` via ctypes bindings
-  4. The JUCE standalone shows an "ADPCM" toggle that enables/disables the coloration stage during real-time playback
-  5. VAG reader handles big-endian headers with explicit byte-order conversion (no ntohl) and respects terminator blocks
 **Plans**: 3 plans
 Plans:
-- [x] 03-01-PLAN.md — VAG library module + CLI subcommand dispatch + ADPCM commands + --adpcm flag
-- [x] 03-02-PLAN.md — JUCE ADPCM toggle in standalone GUI
-- [x] 03-03-PLAN.md — Python ctypes bindings for ADPCM + VAG functions
-**UI hint**: yes
-
-### Phase 4: Verification + Documentation
-**Goal**: The ADPCM implementation is provably correct against known vectors, deterministic across runs, regression-gated by golden files, and every gray-area resolution is documented
-**Depends on**: Phase 3
-**Requirements**: ADPCM-TEST-01, ADPCM-TEST-02, ADPCM-TEST-03, ADPCM-TEST-04
-**Success Criteria** (what must be TRUE):
-  1. Known-vector decode tests pass for: all-zero block, single-impulse, each filter 0-4 with known state, shift 0/6/12, shift 13/14/15, clamp-triggering overflow, and two consecutive blocks verifying state carry
-  2. Encode-then-decode produces bit-identical output across runs, and decode of the encode matches standalone decode sample-for-sample
-  3. Golden files exist for reverb output with ADPCM on vs off (at least 3 presets x 2 inputs), with SHA-256 sidecars and a ctest regression gate that fails on any drift
-  4. docs/DECISIONS.md contains numbered ADRs for: rounding vs truncation, shift 13-15 policy, filter 5-7 policy, division semantics (>>6 vs /64), encoder error metric, encoder tiebreaking, tail block padding
-**Plans**: TBD
-Plans:
-- [ ] (to be planned)
+- [ ] 04-01-PLAN.md — Audit TEST-01/TEST-02 coverage, fill gaps, add coverage maps
+- [ ] 04-02-PLAN.md — ADPCM golden files (30 WAV + 30 SHA-256) + regression gate
+- [ ] 04-03-PLAN.md — Write ADR-0047 through ADR-0053 (7 gray-area ADRs)
 
 ---
 
@@ -118,7 +75,7 @@ Plans:
 | 1. Core Codec | 2/2 | Complete | 2026-04-26 |
 | 2. Pipeline Integration | 2/2 | Complete   | 2026-04-27 |
 | 3. I/O Layer | 3/3 | Complete | 2026-04-27 |
-| 4. Verification + Documentation | 0/TBD | Not started | - |
+| 4. Verification + Documentation | 0/3 | Not started | - |
 
 ---
 
