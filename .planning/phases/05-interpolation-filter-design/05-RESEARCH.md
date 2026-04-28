@@ -475,14 +475,14 @@ This is authentic to a cost-optimized mid-90s design (D-03). The 38 non-zero mul
 | A3 | The +/-0.05dB passband ripple spec refers to the digital interpolation filter alone, not the composite output | Pitfall 3 | MEDIUM -- if the spec includes analog stages, the digital filter can be even looser. The conservative reading (digital-only) produces a tighter design that still meets spec either way |
 | A4 | matplotlib needs to be installed separately; the PEP 668 restriction applies | Environment Availability | LOW -- a venv solves this trivially |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Q15 Quantization Impact on Ripple**
+1. **Q15 Quantization Impact on Ripple** — RESOLVED: Plan 05-01 Task 1 verifies Q15-quantized composite cascade meets all three datasheet specs before exiting. Both float and quantized results are printed and asserted.
    - What we know: Floating-point coefficients meet spec. Q15 quantization (divide by 32768, round to integer) introduces rounding error.
    - What's unclear: Whether Q15 quantization pushes the composite ripple above +/-0.05dB.
    - Recommendation: The design script should verify specs AFTER Q15 quantization, not just with float coefficients. This is a Phase 5 task, not deferred to Phase 6.
 
-2. **DC Gain Normalization**
+2. **DC Gain Normalization** — RESOLVED: DC gain documented in ADR-0054, no compensation per project bit-faithful convention (v1.0 FIR does not compensate DC gain).
    - What we know: The cascade has a composite DC gain less than 0dB (each half-band filter has DC gain < 1.0). The 55+11+7 cascade has DC gain approximately -0.027dB.
    - What's unclear: Whether Phase 6's C implementation should compensate for this or accept the slight gain loss (as the existing SPU half-band FIR does -- the v1.0 FIR does NOT compensate DC gain per "bit-faithful -- if PS1 doesn't compensate, we don't").
    - Recommendation: Document the DC gain in the ADR but DO NOT compensate. Matches existing project convention.
