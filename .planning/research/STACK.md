@@ -1,584 +1,345 @@
-# Stack Research — SPU-94 (Milestone 1)
+# Stack Research — SPU-94 v1.2 DAC Modeling
 
-**Domain:** Real-time DSP C library, bit-faithful algorithm reimplementation, multi-target (Linux host + Cortex-M MCU) portability.
-**Researched:** 2026-04-18
-**Overall confidence:** MEDIUM-HIGH — most decisions verified against primary sources; some tradeoffs (Meson vs CMake, cppcheck vs clang-tidy) are judgment calls informed by the project's specific constraints.
+**Domain:** DAC conversion modeling as toggleable coloration stage in an existing C99 fixed-point DSP library.
+**Researched:** 2026-04-28
+**Confidence:** MEDIUM-HIGH — hardware identification is solid; modeling approach is well-grounded in DSP fundamentals; exact AK4309AVM internal filter coefficients are unavailable (datasheet lost to time).
 
-**Scope note:** This document takes the locked-in decisions (plain C, ctypes, Python+numpy+scipy+matplotlib+pytest, JUCE-later, MIT-or-Apache) as given. It fills in concrete versions, flags, plugins, and the surrounding machinery.
-
----
-
-## 1. C Standard and Toolchain
-
-### Recommendation
-
-**C11** (`-std=c11 -pedantic`) for the core library. **Confidence: HIGH.**
-
-### Rationale
-
-- **C99 is too conservative for 2026.** All three toolchains in scope (GCC on Linux, Clang on Linux, `arm-none-eabi-gcc` for Daisy) have supported C11 fully for a decade. No MCU toolchain in active use rejects C11.
-- **C11 buys specific features SPU-94 actually wants:**
-  - `_Static_assert` — compile-time checks on fixed-point widths, struct sizes, endianness. Critical for a bit-accurate library.
-  - `_Alignas` / `alignof` — explicit alignment for SIMD-friendly work buffer, and for Cortex-M DMA alignment later.
-  - `<stdnoreturn.h>`, `<stdatomic.h>` (optional, guarded) — useful even though the hot path is single-threaded; atomics let the future M4 plugin parameter-exchange layer be portable.
-  - Anonymous structs/unions — cleaner register-file representation.
-- **C17 is "C11 with defect reports fixed" and adds no new features** (per WG14). Choosing C17 costs nothing over C11 but gains only bug-report clarity; the practical difference is zero. Using `-std=c11` is the more widely documented, more widely toolchain-supported baseline.
-- **C23 is off the table for M1.** `arm-none-eabi-gcc 13.x` (the version most Daisy users have installed) only partially supports C23. Not worth the portability risk.
-
-**Why not C99:** Static assertions would have to go through `typedef char assert_[cond ? 1 : -1]` hacks, and anonymous structs are a GNU extension. Every line of that noise is a portability liability for FPGA HLS later.
-
-**Why not C++:** Already locked out by project constraints. C++ on MCUs means fighting `-fno-exceptions -fno-rtti` religiously; plain C sidesteps the fight entirely.
-
-### Compiler Flags
-
-**Host baseline (GCC/Clang on Linux):**
-```
--std=c11 -pedantic
--Wall -Wextra -Wshadow -Wconversion -Wsign-conversion
--Wstrict-prototypes -Wmissing-prototypes
--Wcast-align -Wcast-qual -Wpointer-arith
--Wvla                      # VLAs are real-time hostile; forbid them
--Werror                    # CI only; local dev can override
--fno-common                # Catch ODR violations
--fvisibility=hidden        # Export only what the public header declares
-```
-
-**Debug + sanitizers (CI + local dev):**
-```
--O0 -g3 -fno-omit-frame-pointer
--fsanitize=address,undefined
--fsanitize=integer          # Clang only; catches truncation surprises (useful AND ironic for a truncation-faithful library — see Pitfalls)
-```
-
-**Release (host):**
-```
--O2                        # NOT -O3; -O2 is the stable, well-tested point; -O3 can trigger autovectorization surprises
--DNDEBUG
--ffp-contract=off          # CRITICAL for determinism — see question 9
--fno-fast-math             # Never fast-math a library claiming bit accuracy
-```
-
-**Cross-compile (arm-none-eabi-gcc, Daisy Seed = Cortex-M7 + FPU):**
-```
--mcpu=cortex-m7 -mthumb
--mfpu=fpv5-d16 -mfloat-abi=hard
--std=c11 -Os               # MCU prefers size; still compile with full warnings
--ffunction-sections -fdata-sections
-# Link-time: -Wl,--gc-sections -specs=nano.specs -specs=nosys.specs
-```
-
-**M1 cross-compile target is a smoke test** — it just has to *compile and link clean* to prove MCU portability. No audio I/O, no HAL integration. A tiny `main.c` that calls `spu94_init` / `spu94_process` / `spu94_free` and returns 0 is sufficient.
-
-### Confidence: HIGH
-
-Verified against GCC docs ([Floating-point implementation](https://gcc.gnu.org/onlinedocs/gcc/Floating-point-implementation.html), [Optimize Options](https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html)), Daisy Makefile patterns ([libDaisy/core/Makefile](https://github.com/electro-smith/libDaisy/blob/master/core/Makefile)), and the Simon Byrne fast-math writeup ([simonbyrne.github.io/notes/fastmath](https://simonbyrne.github.io/notes/fastmath/)).
+**Scope note:** This document covers only the stack additions/changes needed for v1.2 DAC modeling. The existing v1.0/v1.1 stack (C11, CMake, pytest, ctypes, dr_wav, etc.) is validated and unchanged. See the original `STACK.md` commit history for those decisions.
 
 ---
 
-## 2. Build System
+## 1. PS1 DAC Hardware Identification
 
-### Recommendation
+### The Chip: AKM AK4309AVM
 
-**CMake 3.25+** for the C core library, with a **top-level Makefile** providing the ergonomic developer interface (`make test`, `make clean`, `make mcu-smoke`). **Confidence: MEDIUM-HIGH.**
+**Confidence: HIGH** — multiple independent sources confirm.
 
-### Rationale
+| Attribute | Value | Source |
+|-----------|-------|--------|
+| Manufacturer | Asahi Kasei Microsystems (AKM) | psx-spx pinouts, dogbreath.de, Stereophile |
+| Part number (early boards) | AK4309VM / AK4309AVM | psx-spx, emu-russia/psxrev |
+| Part number (SCPH-55xx) | AK4309AVM | dogbreath.de |
+| Part number (SCPH-700x) | AK4309BM (20-pin, not pin-compatible) | dogbreath.de |
+| Part number (SCPH-75xx+) | Integrated into SPU SoC (CXD2938Q etc.) | psx-spx pinouts |
+| Topology | 1-bit delta-sigma ("bitstream") DAC | AK4309B datasheet, multiple audiophile sources |
+| Resolution | 16-bit input, 1-bit internal conversion | Datasheet, psx-spx |
+| Dynamic range | 90 dB (rated) | AK4309B datasheet |
+| THD+N | -84 dB | AK4309B datasheet |
+| Digital filter | 8x FIR interpolator | AK4309B datasheet |
+| Post-filter | 2nd-order SCF (switched-capacitor filter) + continuous-time filter (CTF) | AK4309B datasheet |
+| Passband response | +/-0.5 dB at 20 kHz | AK4309B datasheet |
+| Sampling rate range | 8 kHz - 50 kHz | AK4309B datasheet |
+| Master clock | 256fs or 384fs | AK4309B datasheet |
+| Output level | 3.4 Vpp (single-ended) | AK4309B datasheet |
+| Power | 5V +/-10%, 80 mW | AK4309B datasheet |
+| Package | AK4309AVM: 24-pin SSOP; AK4309BM: 20-pin SSOP | dogbreath.de, datasheet |
 
-This was the closest call in the whole stack. The honest answer:
+### Interface to SPU
 
-- **Meson is technically nicer** (better error messages, cleaner cross files, cleaner subproject isolation per [mesonbuild.com/Cross-compilation](https://mesonbuild.com/Cross-compilation.html)).
-- **CMake is more ubiquitous** and has the network effect: every IDE knows how to open a CMakeLists.txt, clang-tidy/clangd integrate natively via `compile_commands.json`, and cibuildwheel + scikit-build-core is the mainstream path for shipping C-plus-Python wheels in 2026.
-- **Daisy's official build flow is Makefile-based**, and this is the decisive factor *against* tying the core library's build to either Meson or CMake *too tightly*. The core library must be buildable from a handwritten 30-line Makefile fragment that the Daisy template can `include`.
+The SPU sends audio to the DAC over a 3-wire serial interface:
 
-**The chosen shape:**
-1. **The C core (`libspu94`) has a hand-written Makefile AND a CMakeLists.txt.** Both are short. Both produce bit-identical objects. The source files are enumerated explicitly (no globbing). The Makefile exists specifically so that the Daisy cross-compile target can consume the core with zero friction.
-2. **CMake is the "integrator."** It builds the shared library for ctypes consumption, the CLI (`spu94`), the static library for embedding, and wires up tests. This is what developers run day to day.
-3. **Meson is the also-ran.** Picking it would be correct for a pure-C project; picking it becomes wrong the moment you factor in the Daisy Makefile reality and the Python-wheel reality. Not worth the bet.
+| Signal | Pin | Purpose |
+|--------|-----|---------|
+| LRCK | 10 | Left/Right clock — 44.1 kHz word clock |
+| BICK | 8 | Bit clock — serial data clock |
+| SDATA | 9 | Serial data — 16-bit PCM, MSB first |
+| MCLK | 6 | Master clock — 256fs or 384fs (11.2896 MHz or 16.9344 MHz at 44.1 kHz) |
 
-### Layout
+The SPU outputs **16-bit signed PCM at 44.1 kHz** in serial form. The DAC receives this directly — there is no additional digital processing between the SPU's final mix bus and the DAC input.
 
-```
-libspu94/
-  CMakeLists.txt              # Primary build for host
-  Makefile                    # Thin wrapper: make host / make mcu-smoke / make test
-  core/
-    Makefile.inc              # Drop-in for Daisy template to `include`
-    src/*.c  include/*.h
-  cli/
-    spu94.c                   # dr_wav-based CLI
-  tests/
-    CMakeLists.txt            # ctest + unity-style C unit tests
-  python/
-    spu94/__init__.py         # ctypes wrapper
-    pyproject.toml            # scikit-build-core backend
-  mcu-smoke/
-    main.c  Makefile          # arm-none-eabi-gcc, links libspu94.a, does nothing
-  cmake/
-    toolchain-arm-none-eabi.cmake
-```
+### Datasheet Caveat
 
-### What NOT to do
+The AK4309AVM datasheet is no longer publicly available (AKM has discontinued the part and removed it from their website). The AK4309B datasheet IS available and provides the specs above, but dogbreath.de notes the two are "not exactly compatible" (different pin count, different package). The core converter topology (1-bit delta-sigma with 8x interpolation + SCF) is shared across the AK4309 family. The exact digital filter coefficients for the AK4309AVM are unknown.
 
-- **Don't use plain Make only.** Tests and Python binding packaging need a real build system's dependency tracking.
-- **Don't use autotools.** It's 2026.
-- **Don't use Bazel.** Overkill for a 5kLoC C library, and the Bazel-for-Python story is still awkward.
-- **Don't use Ninja directly.** CMake generates Ninja files; that's the right layer.
-
-### Confidence: MEDIUM-HIGH
-
-The CMake-vs-Meson choice is a judgment call based on ecosystem gravity; either would work. Daisy's Makefile convention pushes hard in the direction of a hand-written core Makefile regardless. Sources: [mesonbuild.com/meson-python](https://mesonbuild.com/meson-python/how-to-guides/shared-libraries.html), [libDaisy Makefile](https://github.com/electro-smith/libDaisy/blob/master/core/Makefile), [discuss.python.org packaging thread](https://discuss.python.org/t/adding-extension-module-examples-to-the-packaging-user-guide/105111).
+**Confidence: HIGH** for topology and architecture. **MEDIUM** for exact filter coefficients and internal analog characteristics. **LOW** for AK4309AVM-specific deviations from AK4309B specs.
 
 ---
 
-## 3. WAV I/O (CLI only)
+## 2. What the DAC Actually Does (Modeling Targets)
 
-### Recommendation
-
-**`dr_wav` v0.14.5** (single-header, MIT-0 / public domain), vendored into `cli/` as `dr_wav.h` + a one-line `#define DR_WAV_IMPLEMENTATION` in `cli/spu94.c`. **Confidence: HIGH.**
-
-### Rationale
-
-- **License.** MIT-0 / public domain dual license is the most permissive possible. Zero licensing concern for redistribution. libsndfile is LGPL-2.1-or-later, which would force either dynamic linking (awkward for a single-binary CLI) or an LGPL-compliance posture on the whole project. Since the user has deferred the MIT-vs-Apache decision specifically to avoid LGPL contamination, dr_wav is the correct choice.
-- **Single-header.** Zero build system complexity. `cli/` has one extra file in it.
-- **WAV-only.** SPU-94 tests on 44.1 kHz / 48 kHz 16-bit and 32-bit-float WAV; FLAC, AIFF, Ogg are irrelevant. libsndfile's breadth is wasted here.
-- **Active maintenance.** Latest release v0.14.5 on 2026-03-03 (recent security fix for malformed `smpl` chunk) — actively patched, not abandoned.
-- **Crucially, dr_wav is linked ONLY into the CLI, not into `libspu94`.** The core library has zero I/O dependencies. This is a hard architectural line.
-
-### Why not roll our own
-
-WAV looks simple until you hit: RIFF chunk ordering, non-PCM format tags, broken headers from other tools, float-vs-int sample formats, LIST/INFO metadata chunks. dr_wav handles all of this. Rolling our own is a known time sink with zero project value.
-
-### Confidence: HIGH
-
-[dr_libs GitHub](https://github.com/mackron/dr_libs), [libsndfile homepage](https://libsndfile.github.io/libsndfile/) (confirmed LGPL-2.1-or-later).
-
----
-
-## 4. Python Binding Layout (ctypes)
-
-### Recommendation
-
-**ctypes + `numpy.ctypeslib.ndpointer`**, packaged as a **binary wheel** via **scikit-build-core + cibuildwheel**. Package layout co-locates the `.so` next to the Python wrapper. **Confidence: MEDIUM-HIGH.**
-
-### Rationale and layout
+The AK4309 signal chain, from input to analog output, contains these stages:
 
 ```
-python/spu94/
-  __init__.py                  # Public Python API (dataclasses, load_preset, etc.)
-  _lib.py                      # ctypes bindings, function signatures, struct definitions
-  _binary/
-    libspu94.so                # Installed here by scikit-build-core; wrapper finds it via __file__
-  presets/
-    room.json  hall.json ...   # Factory preset register configs as data files
-py.typed                       # PEP 561 marker
+16-bit PCM input (44.1 kHz)
+    |
+    v
+[8x Digital Interpolation Filter] -- 8x FIR upsampling to 352.8 kHz
+    |
+    v
+[Delta-Sigma Modulator] -- converts multibit to 1-bit PDM stream
+    |
+    v
+[2nd-order SCF] -- switched-capacitor reconstruction filter
+    |
+    v
+[Continuous-Time Filter (CTF)] -- analog smoothing
+    |
+    v
+Analog output (AOUTL / AOUTR)
 ```
 
-**Binding idioms (the 2026 playbook):**
+### Which stages produce audible artifacts worth modeling?
 
-1. **Resolve the library via `__file__`, not `ctypes.util.find_library`.** `find_library` is unreliable cross-platform; shipping the `.so` inside the package and loading it with `ctypes.CDLL(os.path.join(os.path.dirname(__file__), "_binary", "libspu94.so"))` is the portable idiom (per [joerick/python-ctypes-package-sample](https://github.com/joerick/python-ctypes-package-sample)).
+| Stage | Artifact | Audibility | Model in v1.2? |
+|-------|----------|------------|-----------------|
+| 8x digital interpolation | Passband ripple (+/-0.5 dB), stopband rejection, transition-band rolloff | Subtle high-frequency coloration | YES — this is the primary digital artifact |
+| ZOH sinc droop | sinc(pi*f/fs) rolloff (-3.9 dB at Nyquist) | Compensated by the interpolation filter; residual droop is part of the filter's target response | NO — subsumed by the interpolation filter model |
+| Delta-sigma quantization noise | Shaped to ultrasonic frequencies by noise-shaping loop | Inaudible in-band at 90 dB dynamic range; noise is above 22 kHz | NO — modeling sigma-delta at 1-bit resolution requires massive oversampling for negligible audible effect |
+| SCF clock feedthrough | Artifacts at multiples of the switched-capacitor clock frequency | Above 100 kHz; completely inaudible | NO |
+| CTF analog rolloff | Gentle anti-aliasing above audio band | Above 22 kHz; inaudible in digital domain | NO |
+| DNL/INL nonlinearity | Low-level harmonic distortion, especially at low signal levels | Measurable but very small (-84 dB THD+N); characteristic of the specific DAC silicon | MAYBE — defer to post-measurement |
+| 15-bit effective dynamic range | Noise floor ~6 dB higher than ideal 16-bit | Audible as slightly elevated noise floor vs. modern DACs | YES — simple to model as additive shaped noise if desired |
 
-2. **Declare every `argtypes` and `restype` explicitly.** Silent integer-to-pointer coercions are the #1 ctypes footgun. Every function gets a line.
+### Recommendation: Model the Digital Interpolation Filter
 
-3. **Use `numpy.ctypeslib.ndpointer` for audio buffers:**
-   ```python
-   F32_1D = np.ctypeslib.ndpointer(dtype=np.float32, ndim=1, flags="C_CONTIGUOUS")
-   lib.spu94_process.argtypes = [ctypes.c_void_p, F32_1D, F32_1D, F32_1D, F32_1D, ctypes.c_size_t]
-   ```
-   This gives you shape + dtype + contiguity validation at the boundary, for free.
+**Confidence: HIGH** that this is the right scope.
 
-4. **Struct packing: `ctypes.Structure` with explicit `_fields_` mirroring the C header.** Add `_Static_assert(sizeof(spu94_registers) == EXPECTED, ...)` on the C side to catch drift.
+The 8x digital interpolation filter is the **dominant audible coloration** introduced by the AK4309. It defines:
+- The passband ripple character (+/-0.5 dB)
+- The transition band rolloff (how steeply high frequencies roll off above ~18 kHz)
+- Image rejection in the oversampled domain
 
-5. **Treat the ctypes wrapper as part of the public API.** A Python user should never `import ctypes` themselves; they import `spu94` and get idiomatic Python.
+This is also the only stage that operates entirely in the digital domain and can be modeled deterministically in fixed-point C without requiring analog circuit simulation.
 
-**Packaging (the cibuildwheel path):**
-
-- **`pyproject.toml` with `build-backend = "scikit_build_core.build"`.** scikit-build-core is the 2026 mainstream for CMake-built Python packages; it's the successor to scikit-build and is actively maintained by the same crew that does pybind11.
-- **`cibuildwheel` in GitHub Actions** builds `manylinux2014_x86_64` wheels. macOS and Windows deferred per project constraints.
-- Wheel is tagged `py3-none-manylinux...` (the Python-version-agnostic tag) since ctypes doesn't use the Python C ABI. One wheel works for CPython 3.9 through 3.14+, and PyPy.
-- **sdist contains the full C source** so pip-install-from-source works on systems without a matching wheel.
-
-### What NOT to do
-
-- **Don't try to use pybind11/nanobind.** Locked out by project constraint, and the ctypes choice is specifically to minimize the binding-maintenance surface.
-- **Don't use `cffi`.** Locked out. (cffi is arguably nicer than ctypes for some cases; the decision has been made.)
-- **Don't install the `.so` to system paths.** Keep it inside the package directory. No `LD_LIBRARY_PATH` dance.
-- **Don't over-abstract.** The Python package exists to drive tests and exploration; keep it thin.
-
-### Confidence: MEDIUM-HIGH
-
-Layout pattern verified against [joerick/python-ctypes-package-sample](https://github.com/joerick/python-ctypes-package-sample) and the [cibuildwheel ctypes discussion](https://github.com/pypa/cibuildwheel/issues/837). scikit-build-core version: latest stable is 0.10.x; verify at publish time.
+**The delta-sigma modulator, SCF, and CTF operate in the 1-bit/analog domain.** Modeling them faithfully would require running the signal chain at 352.8 kHz (8x oversampling) or higher, which is:
+1. Computationally expensive (8x the sample count per block)
+2. Unnecessary — the in-band artifacts are below the DAC's rated noise floor
+3. Not reproducible without the actual AK4309AVM silicon measurements
 
 ---
 
-## 5. Test Framework
+## 3. Stack Additions for v1.2
 
-### Recommendation
+### No new external dependencies needed.
 
-**pytest 8.x** plus: **pytest-regressions** (golden files), **pytest-benchmark** (perf tracking), **numpy.testing** (tolerance assertions). **Confidence: HIGH.**
+The DAC model fits entirely within the existing stack. Here is what changes:
 
-### Rationale
+### New C Source Files
 
-| Plugin | Purpose | Why |
-|---|---|---|
-| **pytest-regressions** (≥ 2.5, prefer 3.0+) | Golden-file audio output snapshotting | The `num_regression` and `data_regression` fixtures handle numpy arrays with configurable tolerances; `file_regression` for binary WAV. Mature (ESSS, used in production scientific pipelines). Has a `--force-regen` flag that matches the DECISIONS.md workflow: you sign off an intentional change by regenerating the golden. |
-| **pytest-benchmark** 5.x | Track real-time safety claims empirically | When the C API says "no allocations in the hot path," we want continuous evidence. Benchmarks run in CI; regressions visible on PRs. |
-| **numpy.testing.assert_allclose** (stdlib) | Audio assertions with rtol/atol | The idiomatic way to say "these two audio buffers agree to 1 LSB in Q15." Don't invent a custom matcher. |
-| **pytest-xdist** (optional) | Parallelize slow tests | Not needed for M1 (test suite will be small) but trivial to add. |
+| File | Purpose | Estimated LOC |
+|------|---------|---------------|
+| `spu94_dac.c` | DAC model: interpolation filter + optional noise floor | 150-250 |
+| `spu94_dac.h` | Public API for DAC stage enable/disable/configure | 30-50 |
+| `spu94_dac_filter_coef.c` | Interpolation filter coefficients (like `spu94_fir_coef.c` pattern) | 20-40 |
 
-**Parametrization strategy for register ranges:**
-```python
-@pytest.mark.parametrize("vIIR", [0x0000, 0x4000, 0x7FFF, 0x8000, 0xFFFF])
-@pytest.mark.parametrize("vWALL", [0x0000, 0x4000, 0x7FFF])
-def test_reverb_bounded(vIIR, vWALL, golden_impulse):
-    ...
-```
-pytest's built-in parametrization is sufficient; don't pull in Hypothesis for M1. (Hypothesis-based property testing is a strong candidate for *M2 ADPCM*, where input-space exploration actually pays off. Note it for the M2 research brief.)
+### Mathematical Approach: FIR Interpolation Filter in Fixed-Point
 
-**Witness-diff harness** (diffing SPU-94 output against lv2-psx-reverb output): this is a small custom pytest module, not a plugin. It takes two WAVs, loads them via `scipy.io.wavfile`, and asserts `numpy.testing.assert_allclose(a, b, atol=1)`. The atol=1 threshold (literally 1 LSB in int16) is the bit-accuracy target.
+The 8x interpolation filter is a polyphase FIR — a standard DSP structure. Implementation approach:
 
-### What NOT to do
+**Step 1: Design the interpolation filter.**
 
-- **Don't use pytest-golden.** It's less maintained than pytest-regressions and has no numpy-array support. pytest-regressions wins cleanly.
-- **Don't invent custom fixtures for golden files before trying pytest-regressions.** The wheel already exists.
-- **Don't skip pytest-benchmark** — even a `skip_benchmark` marker that runs locally-only is valuable. It's the only continuous check on real-time safety claims before M4 adds actual audio hardware.
+Since the exact AK4309AVM coefficients are lost, design a period-appropriate 8x interpolation FIR that meets the datasheet specs:
+- Passband: 0 to 20 kHz, +/-0.5 dB ripple
+- Stopband: begins at 24.1 kHz (44.1 kHz - 20 kHz), rejection > 70 dB
+- Operating at 352.8 kHz (8 * 44.1 kHz)
+- Filter length: likely 64-128 taps (typical for mid-90s delta-sigma DAC digital filters)
 
-### Confidence: HIGH
+Use `scipy.signal.remez` (Parks-McClellan equiripple) or `scipy.signal.firwin` to design the prototype, then quantize coefficients to fixed-point.
 
-Sources: [pytest-regressions PyPI](https://pypi.org/project/pytest-regressions/) (2026 3.0+ release with improved numpy diffing), [pytest-benchmark 5.2.3 docs](https://pytest-benchmark.readthedocs.io/), [ESSS/pytest-regressions](https://github.com/ESSS/pytest-regressions).
+**Step 2: Implement as polyphase decomposition.**
 
----
+An 8x interpolation FIR with N taps decomposes into 8 sub-filters of N/8 taps each. At the input rate (44.1 kHz), each input sample produces 8 output samples, but each sub-filter only computes N/8 multiply-accumulates. This is the efficient form.
 
-## 6. Visualization and DSP Analysis
+However — **we do not need the 8 interpolated samples.** The DAC model's job is to reproduce the *audible coloration* of the interpolation filter as seen at the output sample rate. Since the SPU already outputs at 44.1 kHz and our output is 44.1 kHz, the modeling question becomes: **what does the AK4309's interpolation filter do to the signal that is visible at 44.1 kHz?**
 
-### Recommendation
+**Answer: passband droop/ripple.** The interpolation filter's passband response is not perfectly flat — it has the +/-0.5 dB ripple specified in the datasheet. This is the coloration.
 
-**matplotlib 3.9+** as the primary (already locked in). Add **scipy.signal** (already locked in as scipy) for spectrograms/impulse responses. **Do not add librosa or pyloudnorm for M1.** **Confidence: HIGH.**
+**Step 3: Implement as a passband-coloration filter at 44.1 kHz.**
 
-### Rationale
-
-- **matplotlib + scipy.signal covers 100% of M1 needs.** Impulse-response plots, spectrograms, FFT magnitude, zero-pole diagrams, step response — all are one-liners in scipy.signal that render through matplotlib.
-- **librosa** is excellent for *music information retrieval* (onset detection, chroma, MFCC, beat tracking). None of that is relevant to verifying a reverb algorithm. It's a heavyweight dependency (numba, soundfile, audioread) for zero M1 value.
-- **pyloudnorm** measures ITU-R BS.1770 integrated loudness. Relevant *someday* for the M4 plugin ("does my wet signal match input loudness?"), but not for M1 verification. Note for M4 research.
-- **Candidates worth knowing but not adding in M1:**
-  - `soxr` — if resampling becomes relevant (it won't in M1; SPU runs at a fixed sample rate).
-  - `pyroomacoustics` — academic reverb modeling library; potentially interesting for *comparing* SPU-94 output to "correct" Schroeder reverbs as a sanity check. File for M1-late exploration only.
-
-### Confidence: HIGH
-
-This is "don't add what you don't need" applied rigorously. scipy + matplotlib is the universally correct floor for DSP exploration in Python.
-
----
-
-## 7. Daisy / Cortex-M Cross-Compile Smoke Test
-
-### Recommendation
-
-**Bare `arm-none-eabi-gcc` + a ~30-line linker script + a ~20-line `main.c`. Do NOT depend on libDaisy for the M1 smoke test.** **Confidence: MEDIUM-HIGH.**
-
-### Rationale
-
-The M1 smoke-test goal is narrow: **prove the `libspu94.a` static library compiles clean for `cortex-m7` with `arm-none-eabi-gcc`**, using no toolchain features the library doesn't need.
-
-This is deliberately *below* the libDaisy abstraction level. libDaisy is a C++ HAL with HAL startup code, clock configuration, USB, MIDI, audio I/O — *none* of which the smoke test exercises. Pulling libDaisy in for a smoke test means:
-
-- libDaisy requires a specific arm-none-eabi-gcc version (10.3-2021.10 was the historical sweet spot; newer versions have had intermittent issues per Daisy forums).
-- libDaisy's Makefile drags in HAL objects (~2 MB of HAL source).
-- libDaisy is C++ — introduces C++ runtime concerns the C core doesn't need.
-
-**The lean smoke test:**
+Rather than upsampling 8x and downsampling back (wasteful), implement the *equivalent passband effect* as a short FIR or IIR at 44.1 kHz. This is a 5-15 tap filter that reproduces the AK4309's passband ripple character.
 
 ```c
-// mcu-smoke/main.c
-#include "spu94.h"
-int main(void) {
-    static float L[64], R[64], outL[64], outR[64];
-    spu94_t *s = spu94_create_static();  // no heap; hands back pointer to static buffer
-    spu94_load_preset(s, SPU94_PRESET_ROOM);
-    spu94_process(s, L, R, outL, outR, 64);
-    while (1) { __asm__("wfi"); }
+// Conceptual — the DAC coloration filter at native rate
+static inline int16_t spu94_dac_filter(spu94_dac_state_t *s, int16_t sample) {
+    // Short FIR implementing the passband ripple of the AK4309 interpolation filter
+    // Coefficients derived from datasheet specs via scipy.signal design + quantization
+    int32_t acc = 0;
+    for (int i = 0; i < SPU94_DAC_FIR_TAPS; i++) {
+        acc += (int32_t)s->delay[i] * (int32_t)dac_fir_coefs[i];
+    }
+    // Shift state
+    memmove(&s->delay[1], &s->delay[0], (SPU94_DAC_FIR_TAPS - 1) * sizeof(int16_t));
+    s->delay[0] = sample;
+    return sat_s16(acc >> 15);  // Q15 truncation, matching project convention
 }
 ```
 
-Compiled with:
-```
-arm-none-eabi-gcc -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard \
-  -std=c11 -Os -ffunction-sections -fdata-sections -Wall -Werror \
-  -nostartfiles -T minimal.ld main.c libspu94.a -o smoke.elf
-```
+### Fixed-Point Coefficient Quantization
 
-`minimal.ld` is a 30-line stub with a `.text` section at flash origin and a reset vector pointing to `main`. No clocks initialized. No HAL. It just has to **link to a valid ELF** — we're not flashing it.
+Use the same Q15 representation as the existing half-band FIR (`spu94_fir_coef.c`). The project already has infrastructure for this:
+- Q15 multiply with truncation (`q15_mul_truncate`)
+- Saturation (`sat_s16`)
+- Golden-file regression for filter outputs
 
-**CI check:** `arm-none-eabi-size smoke.elf` — assert `.text < 64kB`, assert `.bss` is a known fixed value (catches accidental `static` growth and inadvertent heap usage).
+The new filter coefficients will be designed in Python (scipy), quantized to Q15 in Python, verified against the float reference, then hardcoded in C.
 
-### libDaisy integration is explicitly M4+ work
+### Optional: Noise Floor Model
 
-When the real Daisy firmware project lands (future milestone), the `core/Makefile.inc` drop-in is ready; libDaisy's CMake or Makefile can consume it unchanged. M1 just proves the *library* ports; the *firmware wrapper* is later.
+The AK4309 has approximately 15-bit effective dynamic range (vs. theoretical 16-bit). This manifests as a slightly elevated noise floor. Modeling options:
 
-### 2026 state of `arm-none-eabi-gcc`
+1. **Simple dither:** Add 1-bit TPDF dither to the output. This is technically "wrong" (the real noise is shaped, not white) but captures the subjective warmth.
+2. **Shaped noise injection:** Use a simple first-order noise-shaping loop to push added noise toward higher frequencies, mimicking the delta-sigma's noise shape. Still very cheap computationally.
+3. **Skip it.** The noise difference between 15-bit and 16-bit dynamic range is 6 dB — measurable but potentially not worth the modeling complexity for a creative effect.
 
-The 2026-current Arm GNU Toolchain is **14.x** (`arm-none-eabi-gcc` 14.2.rel1 on [developer.arm.com](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads)). Debian ships 15.x in sid. Daisy-specific users often still use 10.3-2021.10 for libDaisy compatibility reasons, but since we're avoiding libDaisy for M1, we can use whatever the host distro ships (probably 13.x or 14.x on Ubuntu 24.04 / 24.10). **Pin to one version in CI via Docker** — see question 9.
-
-### Confidence: MEDIUM-HIGH
-
-The "lean smoke test, not libDaisy" choice is a judgment call based on the project's "prove portability cheaply, defer integration" philosophy. Fully defensible. [Arm GNU Toolchain Downloads](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads), [Daisy forum toolchain thread](https://forum.electro-smith.com/t/get-started-faster-a-newer-simpler-way-to-install-the-toolchain/1523).
+**Recommendation:** Implement option 1 (TPDF dither) as a toggle, default off. It is 2 lines of code and costs nothing. Defer shaped noise to post-measurement (when Anthony can A/B against his real PS1).
 
 ---
 
-## 8. Fixed-Point Helpers
+## 4. What NOT to Add
 
-### Recommendation
+| Avoid | Why | Impact if Added |
+|-------|-----|-----------------|
+| Full delta-sigma modulator simulation | Requires 8x oversampling (352.8 kHz); all artifacts are ultrasonic; computationally expensive | 8x CPU cost, zero audible benefit, breaks real-time budget on MCU |
+| Analog output stage modeling (op-amps, coupling caps) | Requires actual circuit measurements from PS1 hardware; varies by board revision; explicitly out of scope in PROJECT.md | Scope creep into analog domain; no reference data to validate against |
+| SCF / switched-capacitor filter emulation | Operates in analog domain; artifacts are above audio band | Adds complexity for inaudible results |
+| Generic "tube warmth" or "analog warmth" processing | Not faithful to the actual hardware; no PS1 justification | Breaks the project's "bit-faithful from spec" philosophy |
+| Resampling to 352.8 kHz for "accuracy" | The coloration is fully capturable at 44.1 kHz via equivalent filter | Wastes CPU, memory, and dev time |
+| libsamplerate / libsoxr for upsampling | External dependency for a feature we should not be implementing | Dependency bloat for no benefit |
+| Lookup tables for DNL/INL curves | Would need real measurements from specific AK4309 silicon; no published data exists | Fabricating data ≠ faithfulness |
 
-**Hand-rolled.** **Confidence: HIGH.**
+---
 
-Use `stdint.h` types directly: `int16_t`, `int32_t`, `int64_t`. Define a thin set of inline helpers (`spu94_mul_q15`, `spu94_sat_s16`, `spu94_truncate_q15_from_q30`) in `include/spu94_fixed.h`. No external dependency.
+## 5. Test and Measurement Tools for Verification
 
-### Rationale
+### Python-side (already in stack)
 
-- **The whole project thesis is bit-faithful reproduction of 1994 Sony SPU arithmetic.** Using libfixmath (which does Q16.16 with its own rounding conventions) is *actively harmful* — it does the arithmetic *correctly* by modern standards, which is exactly the behavior SPU-94 must *not* exhibit.
-- **libfixmath and fpm use rounding on multiply.** SPU-94 must use truncation. Wrong library, wrong tool.
-- **CMSIS-DSP Q15/Q31 ops use saturating arithmetic with rounding.** Same problem: it handles overflow *safely*, but the PS1 SPU's hard-clipping/overflow behavior *is the character of the sound*. Using a library that saturates politely destroys the product.
-- **The relevant math is small:** Q15 multiply, Q30 accumulate, truncate-to-Q15, saturate-to-int16. Maybe 6 inline functions. Hand-rolling is ~50 lines, and every line is documented against a specific register's spec.
+| Tool | Purpose | How to Use |
+|------|---------|------------|
+| `scipy.signal.freqz` | Plot frequency response of the designed FIR | Verify passband ripple matches +/-0.5 dB spec |
+| `scipy.signal.remez` or `scipy.signal.firwin` | Design the interpolation filter prototype | Generate float coefficients, then quantize to Q15 |
+| `numpy.fft.rfft` | Spectral analysis of DAC model output | Compare spectrum of processed vs. unprocessed signal |
+| `matplotlib` | All visualization | Frequency response plots, spectrograms, A/B comparisons |
+| `pytest` + golden files | Regression testing | Same pattern as v1.0 FIR and v1.1 ADPCM goldens |
+
+### New Python verification scripts (to write)
+
+| Script | Purpose |
+|--------|---------|
+| `design_dac_filter.py` | Design interpolation filter, quantize to Q15, emit C coefficient array |
+| `verify_dac_response.py` | Measure frequency response of the C DAC model via ctypes, compare to design target |
+| `compare_dac_coloration.py` | A/B spectral comparison: reverb output with and without DAC model enabled |
+
+### Hardware measurement (future, with Anthony's PS1)
+
+| Tool | Purpose | When |
+|------|---------|------|
+| REW (Room EQ Wizard) | Measure real PS1 frequency response, THD, noise floor via loopback | When hardware validation begins (M5 timeframe) |
+| Audio interface with known flat response | Capture PS1 analog output digitally | Requires interface with good enough ADC (> 100 dB dynamic range) |
+| `scipy` analysis of captured audio | Compare measured PS1 response to DAC model response | Post-capture |
+
+### Reference measurements (published)
+
+| Source | What It Provides | Confidence |
+|--------|-----------------|------------|
+| Stereophile SCPH-1001 measurements | Jitter (737 ps p-p), linearity error, noise floor ~15 dB above good CD players | MEDIUM — measured a specific unit, not the DAC in isolation |
+| Archimago SCPH-5501 measurements | ~15-bit dynamic range, frequency response "slight deviance above 3 kHz", THD "respectable" | MEDIUM — blog measurements, not lab-grade |
+
+These published measurements are useful as **sanity checks** (is our model in the right ballpark?) but not as **design targets** (they include the entire analog chain, not just the DAC's digital filter).
+
+---
+
+## 6. Integration with Existing Architecture
+
+### Signal chain placement
+
+The DAC model slots into the same toggleable-stage architecture as ADPCM:
+
+```
+Input samples (44.1 kHz stereo)
+    |
+    v
+[ADPCM encode/decode] (if enabled)  -- v1.1
+    |
+    v
+[Half-band FIR downsample to 22.05 kHz]
+    |
+    v
+[Reverb network at 22.05 kHz]
+    |
+    v
+[Half-band FIR upsample to 44.1 kHz]
+    |
+    v
+[DAC coloration filter] (if enabled)  -- v1.2 NEW
+    |
+    v
+Output samples (44.1 kHz stereo)
+```
+
+The DAC model goes **after** the reverb output, because in the real hardware the SPU's final mix bus feeds the DAC. The DAC does not process individual voices — it processes the final stereo mix.
+
+### State structure addition
 
 ```c
-// Example — the kind of helper we actually want
-static inline int16_t spu94_mul_q15_trunc(int16_t a, int16_t b) {
-    // Explicitly: sign-extended 32-bit product, arithmetic-shift-right-by-15
-    // with truncation toward negative infinity (NOT round-to-nearest).
-    // Matches SPU hardware observation documented in psx-spx.
-    int32_t prod = (int32_t)a * (int32_t)b;
-    return (int16_t)(prod >> 15);
-}
+typedef struct {
+    int16_t delay_l[SPU94_DAC_FIR_TAPS];  // Left channel FIR delay line
+    int16_t delay_r[SPU94_DAC_FIR_TAPS];  // Right channel FIR delay line
+    int     enabled;                        // Toggle (default off)
+} spu94_dac_state_t;
 ```
 
-Every line of this function is a project-specific design decision. Hiding it behind a library call defeats the point.
+Estimated memory: ~64 bytes for a 15-tap stereo FIR. Fits comfortably within the existing static allocation model.
 
-### What NOT to use
+### API additions
 
-| Library | Why not |
-|---|---|
-| libfixmath | Rounds on multiply; wrong arithmetic for SPU emulation |
-| CMSIS-DSP Q15 ops | Saturating + rounding; hides the artifacts we're modeling |
-| fpm (C++ header) | C++ only; also rounds; also: locked out by project constraint |
-| GCC `_Fract` types (ISO/IEC TR 18037) | Patchy compiler support (especially on arm-none-eabi); nonstandard; debugger support weak |
-
-### Confidence: HIGH
-
-This is one of the stronger recommendations in the doc because the reasoning is *project-specific* — the libraries aren't bad, they're just solving a different problem. "Bit-accuracy is not optional — it is the sound" (PROJECT.md) settles this unambiguously.
-
----
-
-## 9. Reproducibility / CI
-
-### Recommendation
-
-**GitHub Actions + pinned Docker image** for CI. **Reproducibility hinges on five discipline points** (listed below), not on Nix. **Confidence: MEDIUM-HIGH.**
-
-### Rationale
-
-The real question: **what does "reproducible" mean here?** For SPU-94, it means *golden-file tests produce byte-identical output across developer machines and CI machines*. That's a narrower goal than NixOS-style "100% reproducible binaries." The narrower goal is achievable with a much lighter toolchain.
-
-### The five discipline points
-
-**1. The core library must be fully integer.** All of the reverb network math is fixed-point by design. If the core library never touches `float` or `double`, floating-point determinism is a non-issue inside the core. Floats may appear at the I/O boundary (WAV loader → `int16_t` conversion, CLI output), and *there* the rules below apply.
-
-**2. Compile every float operation with `-ffp-contract=off` AND `-fno-fast-math`.** GCC defaults to `-ffp-contract=fast`, which allows fused multiply-add substitution — and FMA on x86 (with AVX2) produces different bit-exact results than on a machine without FMA. `-ffp-contract=off` is the single flag most commonly missed. ([GCC FP implementation](https://gcc.gnu.org/onlinedocs/gcc/Floating-point-implementation.html), [krister.github.io fast-math writeup](https://kristerw.github.io/2021/10/19/fast-math/).)
-
-**3. Pin the toolchain version.** CI uses a Docker image `spu94-ci:gcc14.2-clang19-python3.12`. Every developer `docker pull`s the same image. Local Ubuntu developers can run their system toolchain for speed, but **golden-file tests are only blessed against the CI image**.
-
-**4. Pin every Python dependency via `requirements.txt` with hashes** (or use `uv lock` — 2026 is well past the `pip-tools` / `pip-compile` transition to `uv`). numpy major-version changes can shift last-bit float results; scipy.signal changes can shift FFT bin outputs. Don't get surprised.
-
-**5. Normalize source build artifacts.** `SOURCE_DATE_EPOCH=0` when building release tarballs; sorted `ar` input order for the static lib; etc. Matters only at the distribution stage, but set now to avoid a rewrite later.
-
-### Why not Nix
-
-Nix would give you a stronger guarantee than the above — genuine bit-for-bit binary reproducibility. But:
-- The learning curve costs weeks.
-- Anthony is on Ubuntu Studio; Nix-on-Ubuntu adds friction.
-- The golden-file guarantee we need is *output* reproducibility, not *binary* reproducibility. Docker + the five points above get us there with a fraction of the investment.
-
-**Note it for the future:** if SPU-94 ever becomes a commercial release with SBOM / supply-chain attestation requirements, revisit Nix. Not an M1 concern.
-
-### CI shape (GitHub Actions)
-
-```yaml
-jobs:
-  host-linux-gcc:    # Builds host .so + runs all pytest including golden files
-  host-linux-clang:  # Same, with sanitizers (ASan, UBSan) on a subset
-  mcu-smoke:         # Cross-compile to cortex-m7; size-check the ELF
-  static-analysis:   # clang-tidy + cppcheck (see question 10)
-  wheel-build:       # cibuildwheel produces the manylinux2014 wheel
+```c
+void spu94_dac_enable(spu94_t *ctx, int enable);
+int  spu94_dac_is_enabled(const spu94_t *ctx);
+// No other configuration — the filter is fixed to match AK4309 behavior
 ```
 
-All jobs run in the same pinned Docker image (or a matrix of pinned images).
-
-### Confidence: MEDIUM-HIGH
-
-Strategy is standard; the `-ffp-contract=off` point is the one most teams miss. Sources: [reproducible-builds.org](https://reproducible.nixos.org/), [simonbyrne fast-math](https://simonbyrne.github.io/notes/fastmath/).
+Minimal API surface, matching the ADPCM toggle pattern.
 
 ---
 
-## 10. Static Analysis
+## Consolidated Stack Delta for v1.2
 
-### Recommendation
+### New (C core)
 
-Run **three** tools in CI, in tiers of strictness. **Confidence: HIGH.**
+| Addition | Purpose | Why |
+|----------|---------|-----|
+| `spu94_dac.c` + `spu94_dac.h` | DAC coloration filter implementation | Models AK4309 interpolation filter passband ripple |
+| `spu94_dac_filter_coef.c` | Quantized Q15 FIR coefficients | Follows `spu94_fir_coef.c` pattern for traceability |
+| Optional: TPDF dither toggle | Models DAC noise floor elevation | 2 lines of code, toggleable, default off |
 
-| Tool | When | Rigor | Blocking? |
-|---|---|---|---|
-| **Compiler warnings** (GCC `-Wall -Wextra -Werror` AND Clang `-Wall -Wextra -Werror`) | Every build | Highest signal-to-noise | YES — build fails |
-| **clang-tidy** (with `bugprone-*`, `cert-*`, `portability-*`, `readability-*` checks) | Every PR | High SNR; a few false positives | YES — warnings fail CI |
-| **cppcheck** (with `--enable=warning,style,performance,portability --std=c11`) | Every PR | Lower SNR than clang-tidy; catches different class of bugs | YES initially, can be downgraded to advisory if false-positive noise becomes a problem |
-| **`-fsanitize=address,undefined,integer`** (Clang dynamic analysis) | Test suite, not every build | Very high signal when triggered | YES in the sanitizers CI job |
+### New (Python tooling)
 
-### Rationale
+| Addition | Purpose | Why |
+|----------|---------|-----|
+| `design_dac_filter.py` | Filter design + coefficient generation | Reproducible design-to-C pipeline |
+| `verify_dac_response.py` | Frequency response verification | Automated check that C implementation matches design |
+| `compare_dac_coloration.py` | A/B spectral analysis | Qualitative verification of coloration character |
 
-- **clang-tidy is the highest-value tool for this project.** Specific checks that matter for SPU-94:
-  - `bugprone-integer-division` — catches `x / 2` where `x >> 1` was meant (or vice versa) in fixed-point code.
-  - `bugprone-narrowing-conversions` — catches silent `int32_t → int16_t` assignments, the exact class of bug a truncation-faithful library *must* do explicitly, not accidentally.
-  - `cert-flp30-c` — don't use float in loop counters (real-time hygiene).
-  - `portability-restrict-system-includes` — keeps the core library hermetic.
-  - `readability-magic-numbers` — forces every magic constant in the reverb network to have a named `#define` with a spec citation.
-- **cppcheck catches a different class** — specifically, uninitialized reads across function boundaries that clang-tidy sometimes misses, and some array-bounds issues. Free, zero setup, runs fast. Worth the CI minute.
-- **Coverity is overkill for M1.** It's the gold standard for commercial C projects but the open-source Coverity Scan flow is annoying (delayed results, no PR integration) and the licensed version is $$$. Skip.
-- **Infer, CodeChecker, PVS-Studio** — all solid, all more friction than clang-tidy + cppcheck provides in return. Defer.
-- **Sanitizers (ASan/UBSan/MSan) are not static analysis** but belong in the same CI slot because they catch overlapping bug classes. UBSan's integer overflow check (`-fsanitize=integer`) is *especially important* because SPU-94 intentionally overflows — but it must overflow *in specific documented places only*. UBSan catches unintended overflows while your documented-overflow code uses `__attribute__((no_sanitize("integer")))` on the specific functions that simulate SPU saturation.
+### Unchanged
 
-### `.clang-tidy` starter
-
-```yaml
-Checks: >
-  bugprone-*,
-  cert-*,
-  portability-*,
-  readability-*,
-  -readability-identifier-length,
-  -readability-magic-numbers,  # enable later once the constant catalog is mature
-  -cert-err33-c
-WarningsAsErrors: '*'
-HeaderFilterRegex: '^(include|src)/.*\.h$'
-```
-
-### Confidence: HIGH
-
-Sources: [danmar/cppcheck clang-tidy comparison](https://github.com/danmar/cppcheck/blob/main/clang-tidy.md), [clang-tidy integrations](https://clang.llvm.org/extra/clang-tidy/Integrations.html), [developers-heaven.net static + sanitizer writeup](https://developers-heaven.net/blog/static-and-dynamic-analysis-tools-clang-tidy-cppcheck-and-sanitizers/).
+Everything else. No new external C dependencies. No new Python dependencies (scipy already in stack). No build system changes beyond adding new source files to CMakeLists.txt.
 
 ---
 
-## Consolidated Stack Summary
-
-### Core (shipped to users of the library)
-
-| Technology | Version | Purpose | Rationale |
-|---|---|---|---|
-| C11 | `-std=c11 -pedantic` | Core language | Static asserts, alignas, anonymous structs; widely supported on all target toolchains |
-| GCC | 13+ (host), `arm-none-eabi-gcc` 14.x (cross) | Primary compiler | Best MCU toolchain support; pair with Clang for second opinion |
-| Clang | 18+ (host only) | Secondary compiler + sanitizers | ASan/UBSan/integer-sanitizer; diverse-compiler coverage |
-| CMake | 3.25+ | Primary build system | Ecosystem gravity, Python-wheel path, LSP integration |
-| `dr_wav.h` | v0.14.5 (vendored) | CLI WAV I/O | MIT-0/public domain; single header; no impact on core library |
-
-### Development and Test
-
-| Technology | Version | Purpose | Rationale |
-|---|---|---|---|
-| Python | 3.11+ | Test/analysis host | Modern enough for `tomllib`, `typing` improvements; widely available on Ubuntu 24.04+ |
-| numpy | 2.x | Buffer passing, math | Pinned in `requirements.txt`; numpy 2.x ABI stable throughout 2026 |
-| scipy | 1.14+ | `scipy.signal` for DSP analysis | `scipy.signal.freqz`, `scipy.signal.impulse_response` |
-| matplotlib | 3.9+ | Plotting | Locked in |
-| pytest | 8.x | Test runner | Locked in |
-| pytest-regressions | 3.0+ | Golden-file numpy array snapshotting | Mature, numpy-aware, --force-regen matches DECISIONS.md workflow |
-| pytest-benchmark | 5.x | Real-time performance regression tracking | Empirical check on "no hot-path allocations" claim |
-| scikit-build-core | 0.10+ | Python build backend (wraps CMake) | 2026 mainstream for CMake+Python |
-| cibuildwheel | 2.x | Cross-platform wheel builds | GitHub Actions integration; manylinux2014 target |
-| clang-tidy | 18+ | Static analysis | Highest-signal static analysis for C |
-| cppcheck | 2.13+ | Secondary static analysis | Catches complementary bug classes |
-
-### Infrastructure
-
-| Technology | Purpose | Rationale |
-|---|---|---|
-| GitHub Actions | CI | Standard; free for public; already where everyone is |
-| Docker | Pinned build environment | Simpler than Nix for a small-team project; sufficient for output-reproducibility |
-| `uv` | Python dependency resolution | 2026 successor to pip-tools/pip-compile |
-
----
-
-## What NOT to Use (Critical)
+## What NOT to Use (v1.2 specific)
 
 | Avoid | Why | Use Instead |
-|---|---|---|
-| libsndfile in the CLI | LGPL-2.1-or-later contaminates license posture | dr_wav (MIT-0) |
-| libfixmath / fpm / CMSIS-DSP Q15 | Round instead of truncate — wrong arithmetic for PS1 SPU emulation | Hand-rolled fixed-point helpers with documented truncation semantics |
-| `malloc` / `free` in the hot path | Real-time safety violation | Preallocated work buffers; `spu94_create_static()` style API |
-| `printf` / `fprintf` in the core library | Not real-time safe; pulls stdio into MCU binary | Error codes returned to caller; logging only in CLI |
-| `-ffast-math` / default `-ffp-contract=fast` | Breaks golden-file determinism across machines | `-fno-fast-math -ffp-contract=off` |
-| libDaisy for the M1 smoke test | Drags in HAL, C++ runtime, specific compiler version | Bare `arm-none-eabi-gcc` with minimal linker script |
-| pybind11 / nanobind / cffi | Locked out by project constraints; also maintenance-heavier than ctypes | ctypes + `numpy.ctypeslib.ndpointer` |
-| `-O3` on release builds | Autovectorization can shift last-bit results across machines | `-O2` |
-| `std::vector` equivalents (dynamic arrays) | No heap in hot path | Fixed-size static arrays; work buffer sized at compile time or at init |
-| Nix for CI reproducibility | Overkill; weeks of learning curve for output-reproducibility goal | Pinned Docker image + the five discipline points |
-| Coverity / PVS-Studio for M1 | Diminishing returns over clang-tidy+cppcheck; friction-heavy | clang-tidy + cppcheck + sanitizers |
-| C23 features | Partial toolchain support in 2026 `arm-none-eabi-gcc` | Stick to C11 |
-| `-std=gnu11` (GNU extensions enabled) | Hides portability issues | `-std=c11 -pedantic` |
-
----
-
-## Hidden Traps Called Out
-
-1. **`-ffp-contract=fast` is GCC's default even without `-ffast-math`.** Most teams catch `-ffast-math`; few catch this. Will silently break cross-machine golden file tests.
-2. **UBSan `-fsanitize=integer` is a double-edged sword for SPU-94.** The library *intentionally* overflows in documented places. You need `__attribute__((no_sanitize("integer")))` annotations on exactly those functions, not a blanket disable. Otherwise UBSan becomes noise and gets turned off entirely — losing the catch on *unintentional* overflows.
-3. **ctypes struct layout drift between C and Python is silent.** A C-side `_Static_assert(sizeof(spu94_registers) == 48, "...")` plus a Python-side assertion at import time catches this before the first wrong-output surprise.
-4. **dr_wav vendoring means you own security patches.** When dr_wav 0.14.5 fixed the smpl-chunk CVE in March 2026, every vendoring project had to manually update. Set a quarterly reminder; automate if possible.
-5. **numpy 2.x changed some default integer types on Windows.** SPU-94 is Linux-only for M1, but note for M4 plugin cross-platform expansion.
-6. **`arm-none-eabi-gcc` linker scripts default to expecting `_start` — bare-metal M1 smoke test uses `-nostartfiles` and a custom `main`**. Getting this wrong burns an afternoon the first time.
-7. **pytest-regressions' `num_regression` uses pandas by default for floats.** For pure numpy workflows, prefer `data_regression` or `file_regression` with explicit numpy serialization. Otherwise pandas becomes a surprise transitive dependency.
-
----
-
-## Installation (Target State After Phase 1)
-
-```bash
-# System packages (Ubuntu 24.04)
-sudo apt install build-essential cmake ninja-build \
-                 gcc-arm-none-eabi \
-                 clang clang-tidy cppcheck \
-                 python3.12 python3.12-venv python3.12-dev
-
-# Python environment
-uv venv
-uv pip install -r requirements.txt   # pytest, pytest-regressions, pytest-benchmark,
-                                      # numpy, scipy, matplotlib, scikit-build-core
-
-# Build
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
-cmake --build build
-ctest --test-dir build
-
-# Cross-compile smoke test
-cmake -S . -B build-mcu -G Ninja \
-      -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-arm-none-eabi.cmake
-cmake --build build-mcu --target mcu-smoke
-
-# Python wheel
-python -m pip install build
-python -m build --wheel
-```
+|-------|-----|-------------|
+| libsamplerate / libsoxr | No resampling needed; coloration captured at native rate | Short FIR at 44.1 kHz |
+| FFTW | Overkill; filter is a short time-domain FIR | Direct convolution (< 15 taps) |
+| Float arithmetic in the DAC filter | Breaks project convention; non-deterministic across platforms | Q15 fixed-point, same as reverb core |
+| External DSP filter library | Adds dependency for a 15-tap FIR; hides the arithmetic | Hand-rolled, like the rest of the project |
+| Analog circuit simulation (SPICE, etc.) | Wrong domain; we are modeling digital-domain effects only | scipy for filter design, C for implementation |
 
 ---
 
 ## Confidence Summary
 
 | Area | Confidence | Notes |
-|---|---|---|
-| C standard (C11) | HIGH | Widely supported; features directly useful |
-| Compiler flags | HIGH | `-ffp-contract=off` is the critical non-obvious one |
-| Build system (CMake) | MEDIUM-HIGH | Meson is defensible; CMake wins on ecosystem gravity + Daisy Makefile reality |
-| WAV I/O (dr_wav) | HIGH | License dominates the decision |
-| Python binding layout | MEDIUM-HIGH | scikit-build-core path is mainstream but evolving |
-| Test framework (pytest + regressions + benchmark) | HIGH | All three are mature, well-documented |
-| Visualization (matplotlib + scipy) | HIGH | "Don't add what you don't need" applied rigorously |
-| Daisy smoke test (bare-metal) | MEDIUM-HIGH | Judgment call to avoid libDaisy; fully defensible |
-| Fixed-point (hand-rolled) | HIGH | Project-specific reasoning (truncation semantics) settles it |
-| Reproducibility (Docker + discipline) | MEDIUM-HIGH | Nix would be stronger but not worth the cost for output-reproducibility |
-| Static analysis (clang-tidy + cppcheck + sanitizers) | HIGH | Standard recommendation; the UBSan-integer caveat is the non-obvious part |
+|------|------------|-------|
+| DAC chip identification (AK4309AVM) | HIGH | Multiple independent sources agree |
+| Converter topology (1-bit delta-sigma) | HIGH | Datasheet, psx-spx, emu-russia all confirm |
+| 8x interpolation filter architecture | HIGH | Standard for AKM delta-sigma DACs of this era; confirmed by AK4309B datasheet |
+| Exact filter coefficients | LOW | AK4309AVM datasheet unavailable; design from specs is the only option |
+| Passband ripple spec (+/-0.5 dB) | MEDIUM | From AK4309B datasheet; AK4309AVM may differ slightly |
+| Modeling approach (passband-equivalent FIR) | HIGH | Standard DSP technique; avoids unnecessary oversampling |
+| Signal chain placement | HIGH | Matches real hardware topology |
+| What to exclude (sigma-delta, analog) | HIGH | Clear cost/benefit: inaudible artifacts, massive cost |
 
 ---
 
@@ -586,35 +347,27 @@ python -m build --wheel
 
 ### Primary (HIGH confidence)
 
-- [GCC Floating-Point Implementation docs](https://gcc.gnu.org/onlinedocs/gcc/Floating-point-implementation.html) — verified `-ffp-contract` default behavior
-- [GCC Optimize Options](https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html) — optimization flag semantics
-- [dr_libs GitHub (mackron)](https://github.com/mackron/dr_libs) — v0.14.5 release, license verification
-- [libsndfile homepage](https://libsndfile.github.io/libsndfile/) — LGPL-2.1-or-later confirmation
-- [libDaisy Makefile (master)](https://github.com/electro-smith/libDaisy/blob/master/core/Makefile) — Daisy toolchain conventions
-- [Arm GNU Toolchain Downloads](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads) — current `arm-none-eabi-gcc` release info
-- [pytest-regressions (ESSS/GitHub)](https://github.com/ESSS/pytest-regressions) — golden-file plugin with numpy support
-- [pytest-benchmark 5.2.3 docs](https://pytest-benchmark.readthedocs.io/)
-- [danmar/cppcheck clang-tidy comparison](https://github.com/danmar/cppcheck/blob/main/clang-tidy.md)
-- [libfixmath (Wikipedia)](https://en.wikipedia.org/wiki/Libfixmath) — confirmed MIT license and Q16.16 rounding behavior
+- [psx-spx Pinouts](https://psx-spx.consoledev.net/pinouts/) — AK4309VM identification, serial interface signals, board revision chip mapping
+- [psx-spx SPU](https://psx-spx.consoledev.net/soundprocessingunitspu/) — SPU output format, mixer/DAC sample rate
+- [emu-russia/psxrev SPU](https://github.com/emu-russia/psxrev/blob/master/wiki_eng/spu.md) — SPU serial output pins (DATO, LRCO, BCKO), DAC integration in later chips
+- [AK4309B datasheet (AllDatasheet)](https://www.alldatasheet.com/datasheet-pdf/pdf/54932/AKM/AK4309B.html) — specifications for the AK4309 family (90 dB DR, -84 dB THD+N, 8x FIR, SCF, 256fs/384fs MCLK)
 
 ### Secondary (MEDIUM confidence)
 
-- [Simon Byrne: Beware of fast-math](https://simonbyrne.github.io/notes/fastmath/) — determinism writeup
-- [Krister Walfridsson: Optimizations enabled by -ffast-math](https://kristerw.github.io/2021/10/19/fast-math/)
-- [meson-python shared-library guide](https://mesonbuild.com/meson-python/how-to-guides/shared-libraries.html)
-- [joerick/python-ctypes-package-sample](https://github.com/joerick/python-ctypes-package-sample) — ctypes + cibuildwheel pattern
-- [pypa/cibuildwheel discussion #837](https://github.com/pypa/cibuildwheel/issues/837) — ctypes wheel-tagging conventions
-- [CMake vs Meson real-life comparison (Kea Sigma Delta)](https://keasigmadelta.com/blog/cmake-vs-meson-a-real-life-comparison-with-actual-code/)
-- [Embedded Artistry: Meson for cross-platform embedded builds](https://embeddedartistry.com/course/building-a-cross-platform-build-system-for-embedded-projects/)
-- [Reproducible Builds (Wikipedia)](https://en.wikipedia.org/wiki/Reproducible_builds)
+- [dogbreath.de PS1 DAC](https://dogbreath.de/PS1/DAC/DAC.html) — board revision to DAC chip mapping; AK4309AVM vs AK4309BM differences; notes on datasheet unavailability
+- [Archimago SCPH-5501 measurements](http://archimago.blogspot.com/2013/03/measurements-sony-playstation-1-scph.html) — ~15-bit dynamic range, frequency response characterization, jitter measurements
+- [Stereophile PS1 measurements](https://www.stereophile.com/content/sony-playstation-1-cd-player-measurements) — 737 ps jitter, linearity error data, noise floor characterization (SCPH-1001)
+- [DSPRelated: DAC Zero-Order Hold Models](https://www.dsprelated.com/showarticle/1627.php) — ZOH modeling mathematics, sinc droop formula, discrete-time model implementations
+- [DSPRelated: Design a DAC sinx/x Corrector](https://www.dsprelated.com/showarticle/1191.php) — Fixed-point sinc compensation filter design with quantized coefficients
+- [beis.de Delta-Sigma Introduction](https://www.beis.de/Elektronik/DeltaSigma/DeltaSigma.html) — Sigma-delta modulator structure, integrator-feedback pseudocode
 
 ### Tertiary (LOW confidence — verify at implementation time)
 
-- Exact pytest-regressions v3.0 feature set — verify against PyPI release notes at implementation time
-- scikit-build-core version number — pin to latest stable when CI is set up
-- Specific clang-tidy check list — iterate during Phase 1; the starter list is a recommendation, not gospel
+- Exact AK4309AVM vs AK4309B spectral differences — unknown without original datasheet or silicon measurement
+- Filter tap count for passband-equivalent model — will be determined during scipy design phase
+- TPDF dither amplitude calibration — needs A/B testing with real PS1 output to tune
 
 ---
 
-*Stack research for: bit-faithful C reimplementation of PS1 SPU reverb, Linux-primary, MCU-portable.*
-*Researched: 2026-04-18*
+*Stack research for: PS1 DAC conversion modeling as coloration stage in libspu94.*
+*Researched: 2026-04-28*

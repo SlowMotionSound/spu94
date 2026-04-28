@@ -1,536 +1,425 @@
-# Pitfalls Research — ADPCM Encode/Decode for libspu94
+# Pitfalls Research — DAC Modeling for libspu94
 
-**Domain:** Adding Sony 4-bit ADPCM encode/decode to an existing bit-faithful PS1 SPU reverb reimplementation
-**Researched:** 2026-04-26
-**Confidence:** MEDIUM-HIGH (decode algorithm from nocash/psx-spx XA-ADPCM spec is well-documented; shift 13-15 edge case has MEDIUM confidence due to conflicting accounts; encoder design has LOW-MEDIUM confidence as Sony SDK encoder is not publicly documented in detail)
+**Domain:** Adding DAC conversion modeling to an existing bit-faithful PS1 SPU reverb reimplementation (plain C99)
+**Researched:** 2026-04-28
+**Confidence:** MEDIUM (PS1 DAC chip identified as AKM AK4309AVM delta-sigma; datasheet unavailable; specific internal behavior inferred from topology class and measurements, not from manufacturer documentation; integration patterns are HIGH confidence based on shipped ADPCM precedent)
 
 ---
 
 ## Orientation
 
-This document covers pitfalls specific to **adding ADPCM encode/decode to the existing libspu94 reverb library**. It does NOT repeat the M1 reverb pitfalls (those are in the git history of this file). The focus is:
+This document covers pitfalls specific to **adding DAC conversion modeling as a toggleable coloration stage to the existing libspu94 pipeline** (v1.1 shipped, ~6,300 LOC C core). It replaces the previous M2 ADPCM pitfalls document. The focus is:
 
-1. Getting the decode algorithm bit-accurate to PS1 hardware
-2. Building an encoder that produces hardware-compatible output
-3. Integrating ADPCM into the existing libspu94 pipeline without breaking reverb correctness
-4. Maintaining the project's licensing posture while implementing a codec that every GPL emulator has already implemented
+1. Correctly scoping what "DAC modeling" means for a digital emulation (vs. analog output stage modeling)
+2. Inserting the DAC stage at the correct point in the existing signal chain without breaking reverb or ADPCM
+3. Choosing the right artifacts to model based on the actual PS1 converter topology (AKM AK4309AVM, 1-bit delta-sigma)
+4. Avoiding performance regression in the per-sample hot path
+5. Honest verification strategy given that the AK4309AVM datasheet is unavailable
 
-Phase labels below reference the ADPCM milestone's expected structure:
+Phase labels below reference the expected v1.2 DAC milestone structure:
 
-- **P-DECODE** — implement the 4-bit ADPCM decoder (nibble-to-PCM)
-- **P-ENCODE** — implement the ADPCM encoder (PCM-to-nibble)
-- **P-INTEGRATE** — wire ADPCM decode into the reverb pipeline (ADPCM colors audio before reverb)
-- **P-LOOPFLAGS** — implement loop flag handling (loop start, loop end, loop repeat, one-shot)
-- **P-VERIFY** — test infrastructure for ADPCM bit-accuracy
-- **P-DECISIONS** — document gray-area resolutions
+- **P-RESEARCH** — identify PS1 DAC chip, converter topology, relevant artifacts
+- **P-MODEL** — implement the digital DAC model (artifacts selection, fixed-point math)
+- **P-INTEGRATE** — wire DAC model into the existing signal chain as a toggleable stage
+- **P-VERIFY** — test infrastructure, golden files, witness comparison
+- **P-DECISIONS** — document gray-area resolutions in DECISIONS.md
 
 ---
 
 ## Critical Pitfalls
 
-Mistakes that cause rewrites, bit-accuracy failures, or licensing problems.
+Mistakes that cause rewrites, break existing correctness, or produce fundamentally wrong models.
 
-### C1: Shift values 13-15 — the biggest known divergence between emulators
+### C1: Over-modeling — including analog output stage effects in the DAC model
 
-**Severity:** Critical (for bit-accuracy claim)
+**What goes wrong:**
+The PS1 audio signal path after the SPU's digital domain is: DAC (AK4309AVM) -> analog reconstruction filter -> NJM2100 op-amp buffer -> coupling capacitors -> RCA output. A DAC model that includes op-amp coloring, output impedance, coupling-cap high-pass behavior, or power supply noise is modeling the analog output stage, not the DAC conversion.
 
-**What goes wrong:** The ADPCM header byte's low 4 bits encode a shift value (0-15). The nocash decode formula computes the effective shift as `shift = 12 - (header AND 0Fh)`. For header shift values 0-12, this produces left-shifts of 12 down to 0. For values 13-15, the formula produces *negative* shift values (-1, -2, -3). The nocash spec simply states: "reserved shift values 13..15 will act same as shift=9."
-
-Different sources describe different hardware behavior:
-
-- **nocash/psx-spx:** "act same as shift=9" (i.e., treat header value 13-15 as if it were 3, producing `12 - 3 = 9` effective shift, which is equivalent to `nibble << 9`). This is the simplest interpretation.
-- **jsgroth's blog (emulator developer):** States shift 13-15 are "invalid and behave the same as shift=9."
-- **SNES BRR (closely related codec on the SPC700):** For range values 13-15, the SnesLab wiki documents the hardware formula as `sample = (nibble >> 3) << 11`. This is NOT equivalent to shift=9. For a nibble of -8 (0x8 signed), shift=9 gives -4096 while the BRR formula gives -2048. The SNES and PS1 SPU share a codec lineage (both are Sony ADPCM), but the hardware may differ.
-- **No definitive hardware capture exists** in the public domain that disambiguates the PS1 behavior specifically for shift 13-15.
-
-**Why it happens:** Shift 13-15 are never used by any known commercial PS1 game's ADPCM data. The Sony SDK encoder never produces them. Emulator developers implement "whatever makes the spec stop complaining" without hardware verification.
-
-**Consequences:** If SPU-94's decoder picks the wrong behavior, any future ADPCM test data that exercises shift 13-15 will diverge from hardware. More importantly, the ADPCM encoder must never *produce* these shift values, so the decoder behavior is only relevant for round-trip fidelity of adversarial test vectors.
-
-**Prevention:**
-1. The decoder MUST handle shift 13-15 explicitly, not through undefined behavior (negative shift in C is UB).
-2. Pick the nocash interpretation (treat as shift=9) as the default. Document in DECISIONS.md.
-3. Implement via a clamp: `if (shift_from_header > 12) shift_from_header = 9;` — this matches nocash literally and avoids negative-shift UB.
-4. Flag this as a **hardware-verification target for M5** (when Anthony's PS1 is available for capture testing).
-5. Write a dedicated unit test with nibble patterns at shift 13, 14, 15 so the behavior is locked and documented regardless of which interpretation is chosen.
-
-**Detection:** Test vectors with shift=13/14/15 headers compared against at least two emulator witnesses.
-
-**Phase:** P-DECODE, P-DECISIONS, P-VERIFY
-
-**Source:** [psx-spx XA-ADPCM](https://problemkaputt.de/psxspx-cdrom-xa-audio-adpcm-compression.htm); [jsgroth SPU Part 1](https://jsgroth.dev/blog/posts/ps1-spu-part-1/); [SnesLab BRR](https://sneslab.net/wiki/Bit_Rate_Reduction)
-
----
-
-### C2: The +32 rounding bias in the filter — truncation vs rounding inconsistency with reverb core
-
-**Severity:** Critical (for internal consistency)
-
-**What goes wrong:** The nocash ADPCM decode formula explicitly includes a rounding term: `s = (t SHL shift) + ((old*f0 + older*f1 + 32) / 64)`. The `+32` before `/64` is a round-to-nearest bias (adding half the divisor before integer division). This is **rounding**, not truncation.
-
-Meanwhile, the existing libspu94 reverb core uses *truncation* everywhere (ASR >>15, no rounding bias) per ADR-0001. An implementer who internalizes "SPU-94 always truncates" will reflexively omit the +32, producing a decoder that truncates where the hardware rounds.
-
-**Why it happens:** The reverb and ADPCM are different hardware subsystems with different arithmetic conventions. The reverb's Q15 multiplies truncate; the ADPCM filter's division-by-64 rounds. Applying a blanket "no rounding" policy to the entire project is wrong.
-
-**Consequences:** Every decoded sample is potentially off by 1 LSB. Over 28 samples per block with filter feedback, the error compounds through prev1/prev2 state, producing audibly different decode output on any non-trivial audio.
-
-**Prevention:**
-1. Implement the ADPCM decode formula EXACTLY as nocash specifies it, including `+32`.
-2. Document in DECISIONS.md: "ADPCM filter uses rounding (`+32` / 64) per the spec. This differs from the reverb core's truncation convention (ADR-0001). Both are correct for their respective hardware subsystems."
-3. Do NOT refactor `q15_mul_truncate` to serve double duty for ADPCM filter math. The ADPCM filter operates at a different precision (divide-by-64, not divide-by-32768).
-4. Unit test: decode a known ADPCM block with and without the +32 term; verify the +32 version matches witness output.
-
-**Detection:** Witness diff of decoded ADPCM output against Mednafen or DuckStation; the +32 rounding is well-established across emulators.
-
-**Phase:** P-DECODE, P-DECISIONS
-
-**Source:** [psx-spx XA-ADPCM decode formula](https://problemkaputt.de/psxspx-cdrom-xa-audio-adpcm-compression.htm)
-
----
-
-### C3: Clamping to int16 AFTER filter, not before — wrong clamping order
-
-**Severity:** Critical (for bit-accuracy)
-
-**What goes wrong:** The nocash formula specifies: compute the full expression `s = (t SHL shift) + ((old*f0 + older*f1 + 32) / 64)`, THEN clamp: `s = MinMax(s, -8000h, +7FFFh)`. An implementer who clamps the shifted nibble to int16 *before* adding the filter contribution, or who clamps the filter contribution separately, gets different results when the intermediate exceeds int16 range.
-
-The critical detail: `old` and `older` (the feedback samples) are the *clamped* output from the previous iteration. So the pipeline is:
-
-```
-raw = shift_nibble + filter_contribution(old_clamped, older_clamped)
-clamped = MinMax(raw, -0x8000, +0x7FFF)
-older = old;  old = clamped;  // feedback uses CLAMPED value
-```
-
-**Why it happens:** Premature clamping is a natural defensive-programming instinct. An implementer sees a 32-bit intermediate and thinks "clamp early to prevent overflow." But the hardware computes the full sum in wider-than-16-bit arithmetic and only clamps the final result.
-
-**Consequences:** Divergence on any sample where shifted nibble + filter contribution temporarily exceeds int16 range before the final clamp brings it back. This affects loud passages and high-shift-value blocks.
-
-**Prevention:**
-1. Use `int32_t` for ALL intermediates in the decode loop. The maximum possible value is bounded: nibble (-8..+7) shifted left by 12 = -32768..+28672, plus filter contribution bounded by 2 * 32767 * 122 / 64 ~ 124,000. Total fits comfortably in int32.
-2. Clamp only once, at the assignment to the output and to the feedback state.
-3. Explicit unit test: construct a block where shifted nibble is +28672 and filter contribution pushes the intermediate above +32767, verify the output is +32767 (clamped), not some premature-clamp artifact.
-
-**Detection:** Test vectors with deliberately overflowing intermediates.
-
-**Phase:** P-DECODE, P-VERIFY
-
-**Source:** [psx-spx XA-ADPCM formula](https://problemkaputt.de/psxspx-cdrom-xa-audio-adpcm-compression.htm) — clamping follows the full expression
-
----
-
-### C4: Filter coefficient index out of range — SPU has 5 filters, XA has 4
-
-**Severity:** Significant (wrong filter = wrong audio)
-
-**What goes wrong:** The filter index is extracted from bits 4-6 of the header byte (for SPU-ADPCM) or bits 4-5 (for XA-ADPCM). This gives a 3-bit range of 0-7 for SPU-ADPCM. Only indices 0-4 are defined:
-
-| Filter | f0 (pos) | f1 (neg) |
-|--------|----------|----------|
-| 0      | 0        | 0        |
-| 1      | +60      | 0        |
-| 2      | +115     | -52      |
-| 3      | +98      | -55      |
-| 4      | +122     | -60      |
-
-Filter indices 5, 6, 7 are undefined. An implementation that indexes into a 5-element table with index 5-7 reads garbage memory (buffer overrun). An implementation that clamps to 4 or wraps modulo 5 has made an assumption about hardware behavior.
-
-**Why it happens:** The header format allows 3 bits for filter, giving indices 0-7, but only 5 are defined. No commercial game uses filter 5-7. The hardware behavior for these indices is undocumented.
-
-**Prevention:**
-1. Allocate the coefficient table as 8 entries (indices 0-7), with entries 5-7 set to (0, 0) as a safe default.
-2. Document in DECISIONS.md: "Filter indices 5-7 are treated as (0, 0). Hardware behavior for these indices is undocumented. This is a hardware-verification target."
-3. Alternatively, clamp filter index to 0-4 with a note that the clamp value is a guess.
-4. Never let an untrusted ADPCM header index directly into a fixed-size array without bounds checking.
-
-**Detection:** Fuzz test with random header bytes; valgrind/ASAN on decode of adversarial data.
-
-**Phase:** P-DECODE, P-DECISIONS
-
-**Source:** [psx-spx XA-ADPCM](https://problemkaputt.de/psxspx-cdrom-xa-audio-adpcm-compression.htm) — "SPU-ADPCM supports five filters (0..4)"
-
----
-
-### C5: Licensing pitfall — every GPL emulator has an ADPCM decoder you must not copy
-
-**Severity:** Critical (licensing)
-
-**What goes wrong:** The ADPCM decode loop is ~15 lines of C. Every PS1 emulator (Mednafen GPLv2, DuckStation GPLv2, PCSX-Redux GPLv2) has one. The temptation to "just look at how they do it" is enormous because the nocash spec's pseudocode is somewhat ambiguous on edge cases. If the implementer reads any GPL decode loop, the resulting code is arguably derivative even if rewritten — the structure, variable names, and edge-case handling are absorbed unconsciously.
-
-**Why it happens:** The decode algorithm is simple enough that independent implementations look similar. But the project's licensing posture (MIT/Apache, build from spec) requires that the implementation demonstrably derives from the spec, not from GPL sources.
-
-**Consequences:** If derivative-work status is established, the entire libspu94 library inherits GPL, foreclosing MIT/Apache licensing. The blast radius is worse than for the reverb (M1) because ADPCM is simpler and structural similarity is harder to rebut.
-
-**Prevention:**
-1. Implement EXCLUSIVELY from the nocash XA-ADPCM pseudocode (which is a factual specification, not a copyrightable implementation).
-2. Do NOT read Mednafen's `SPU_Decode_ADPCM()`, DuckStation's `DecodeBlock()`, or any GPL source.
-3. Use SPU-94's own naming conventions (already established: `sat_s16`, `q15_mul_truncate`, etc.) — do NOT mirror emulator variable names.
-4. If a gray area arises that the spec doesn't resolve, use audio-level witness comparison (decode the same ADPCM block, diff outputs numerically) rather than reading the witness's source code.
-5. Log every spec consultation in DECISIONS.md per the existing M1 protocol.
-6. The decode loop's simplicity is actually an advantage: there are very few ways to write `shifted_nibble + filter(old, older)` in C. The spec IS the implementation; there is no creative expression to copy.
-
-**Phase:** P-DECODE, P-DECISIONS
-
-**Source:** Project constraint from `.planning/PROJECT.md`; [Clean-room design principles](https://en.wikipedia.org/wiki/Clean_room_design)
-
----
-
-### C6: Feedback state (old/older) initialization and carry across blocks
-
-**Severity:** Significant (audible glitch at block boundaries)
-
-**What goes wrong:** The ADPCM decoder maintains two feedback samples (`old` and `older`, also called `prev1` and `prev2`). These carry across block boundaries — the last two decoded samples of block N become the initial `old`/`older` for block N+1. Getting this wrong produces:
-
-- **Zeroed state at each block:** A click every 28 samples (every block boundary) as the filter "restarts from silence."
-- **Swapped old/older:** Filter coefficients are asymmetric (f0 != f1 for filters 1-4), so swapping the two feedback samples produces wrong predictions.
-- **Unclamped feedback:** If the raw (pre-clamp) value is fed back instead of the clamped value, the filter sees values outside int16 range, producing cascading overflow.
+The temptation is enormous because the audiophile PS1 community (SCPH-1001 vs SCPH-5501 discussions, Stereophile measurements, diyAudio mods) conflates "the DAC" with "the entire analog output path." Archimago's SCPH-5501 measurements show ~15-bit effective dynamic range, but much of that shortfall comes from the analog output stage, not the converter itself. The AK4309AVM's rated dynamic range is 90dB (~15 bits), but that is the chip-level spec including its own analog output, not a measure of digital conversion artifacts alone.
 
 **Why it happens:**
-- "Reset state per block" is a natural assumption from other codecs (e.g., IMA-ADPCM resets predictor state per block).
-- Variable naming confusion: which is `old` (most recent, one sample ago) and which is `older` (two samples ago)? The nocash formula uses `old` for sample[-1] and `older` for sample[-2], but other sources reverse the naming.
+- Web search results about PS1 audio quality overwhelmingly discuss the analog output path (audiophile modders bypassing the NJM2100 op-amps, soldering directly to DAC output pins)
+- The AK4309AVM datasheet is unavailable, so there is no authoritative source separating digital-domain artifacts from analog-domain artifacts
+- "DAC modeling" is colloquially used to mean "everything after the digital domain," not just the conversion step
 
-**Prevention:**
-1. State struct holds `int16_t prev1, prev2;` with clear documentation: `prev1` = most recent decoded sample (nocash's `old`), `prev2` = second most recent (nocash's `older`).
-2. State is initialized to zero at voice key-on (matching hardware behavior — the PS1 zeroes the decode state when a voice is keyed on).
-3. State carries across blocks without reset (unless loop-end flag triggers a jump to loop-start, at which point state carries, it does NOT reset).
-4. Feedback uses the CLAMPED output value, not the pre-clamp intermediate.
-5. Unit test: decode two consecutive blocks where block 2's filter depends on block 1's tail samples. Verify that zeroing state between blocks produces different (wrong) output.
+**How to avoid:**
+1. Scope the v1.2 DAC model to **digital-domain conversion artifacts only**: zero-order hold (ZOH) staircase effect, sinc rolloff from the ZOH, and the chip's internal digital interpolation filter behavior. These are the artifacts that exist in the digital conversion process itself.
+2. Explicitly defer analog output stage modeling to a future milestone (already listed as out-of-scope in PROJECT.md: "DAC analog output stage (op-amps, coupling caps, output impedance) -- deferred; needs real hardware measurement").
+3. Document the boundary in an ADR: "The DAC model covers conversion artifacts. Analog coloring is a separate concern requiring hardware measurement."
+4. If the model "doesn't sound different enough," resist the temptation to smuggle in analog effects. The delta-sigma conversion artifacts of a well-designed 1990s DAC may genuinely be subtle at 16-bit/44.1kHz.
 
-**Detection:** Audible click at block boundaries in decoded audio; witness diff shows periodic 28-sample-interval errors.
+**Warning signs:**
+- The model includes frequency-dependent gain curves that look like op-amp transfer functions
+- Parameters reference ohms, capacitance, or supply voltage
+- The model has more audible effect at low frequencies (coupling-cap behavior) than at high frequencies (ZOH rolloff)
+- Someone says "it should sound warmer" — warmth is analog coloring, not DAC conversion
 
-**Phase:** P-DECODE, P-VERIFY
+**Phase to address:** P-RESEARCH (scope definition), P-DECISIONS (boundary ADR)
 
-**Source:** [psx-spx XA-ADPCM](https://problemkaputt.de/psxspx-cdrom-xa-audio-adpcm-compression.htm) — `older=old, old=s` at end of each sample
+---
+
+### C2: Under-modeling — treating DAC as simple bit-depth reduction ("bitcrusher")
+
+**What goes wrong:**
+The naive DAC model is a bitcrusher: truncate to N bits, add quantization noise. This is how NOS R2R DAC artifacts work (resistor mismatches, monotonicity errors). But the PS1 uses a **1-bit delta-sigma DAC** (AK4309AVM), which has a completely different artifact profile:
+
+- **Delta-sigma DACs do not produce R2R-style DNL/INL nonlinearity.** A 1-bit converter is inherently monotonic (there is only one resistor/current source). The "nonlinearities" of delta-sigma DACs come from noise shaping, idle tones, and the behavior of the internal modulator and analog reconstruction filter.
+- **The dominant artifact of a delta-sigma DAC is its noise-shaping profile.** Quantization noise is pushed to ultrasonic frequencies by the modulator's feedback loop. The in-band noise floor is determined by the modulator order and the oversampling ratio.
+- **Idle tones** (tonal artifacts near DC or at specific frequencies when the input is near zero or a simple fraction of full scale) are a real delta-sigma artifact, but they depend on the modulator order, dither implementation, and internal architecture — all unknown for the AK4309AVM.
+
+A bitcrusher model sounds nothing like a delta-sigma DAC. It produces in-band quantization noise evenly distributed across the spectrum, which is the signature of R2R or NOS conversion, not oversampled delta-sigma.
+
+**Why it happens:**
+- "DAC emulation" plugins (chipcrusher, HoRNet ADDA) typically model NOS/R2R behavior because it is audibly dramatic and easy to implement
+- Delta-sigma artifacts are subtle and hard to model without knowing the modulator architecture
+- The AK4309AVM datasheet is lost, so its oversampling ratio and modulator order are unknown
+
+**How to avoid:**
+1. Start with what IS known and modelable: the ZOH (zero-order hold) staircase effect and its sinc rolloff, which applies to ANY DAC topology. At 44.1kHz, the ZOH sinc rolloff attenuates 20kHz by about 3.9dB — this is a real, measurable, topology-independent effect.
+2. Do NOT implement bit-depth reduction, DNL/INL lookup tables, or R2R resistor mismatch simulation. These are wrong for a 1-bit delta-sigma converter.
+3. If modeling noise shaping is desired, use a conservative generic model (second-order noise shaper, which matches the era — Philips used second-order for their 1-bit DACs in the mid-1990s), with the caveat that the AK4309AVM's actual order is unknown. Flag this as LOW confidence.
+4. Document the topology mismatch risk in DECISIONS.md: "The AK4309AVM is a 1-bit delta-sigma converter. Bitcrusher-style modeling is incorrect for this topology."
+
+**Warning signs:**
+- The model has a "bit depth" parameter
+- Quantization noise is flat-spectrum (characteristic of NOS/R2R, not delta-sigma)
+- The model sounds like a bitcrusher plugin (harsh, obvious, evenly-noisy) instead of like a subtle high-frequency rolloff with possible idle tones near zero
+
+**Phase to address:** P-RESEARCH (topology identification), P-MODEL (artifact selection), P-DECISIONS
+
+---
+
+### C3: Sample rate confusion — modeling DAC effects at the wrong point in the signal chain
+
+**What goes wrong:**
+The existing libspu94 signal chain operates at two rates:
+
+```
+44.1kHz input -> [ADPCM coloration] -> FIR decimation -> 22.05kHz reverb -> FIR interpolation -> 44.1kHz output
+```
+
+The DAC on the real PS1 sees the **final 44.1kHz output** after interpolation. It does NOT see the 22.05kHz internal reverb signal. Placing the DAC model before the FIR interpolator (at 22.05kHz) would apply DAC artifacts at the wrong rate:
+- ZOH sinc rolloff at 22.05kHz has a different profile than at 44.1kHz
+- Any noise-shaping model would operate at the wrong base rate
+- The FIR interpolator would then filter some DAC artifacts, which doesn't happen in hardware
+
+Conversely, placing the DAC model after the FIR interpolator is correct but must be done carefully: the model runs on every 44.1kHz sample in the hot path, doubling the per-sample computation.
+
+**Why it happens:**
+- The ADPCM stage was inserted BEFORE the FIR decimator (upstream), which is correct for ADPCM's place in the PS1 signal path (voice decode happens before reverb). A developer might pattern-match and insert DAC at the same point.
+- The 22.05kHz internal rate is "where the interesting DSP happens," and there is a cognitive pull toward placing new processing there
+- The io_chain.c structure invites adding stages inside chain_step_impl(), where the 22.05kHz reverb runs, rather than outside it
+
+**How to avoid:**
+1. The DAC model MUST be applied at the **44.1kHz output**, AFTER the FIR interpolator. In the current architecture, this means operating on the `lo`/`ro` output samples in `spu94_process()`, after the `spu94_fir_chain_step()` call returns.
+2. Follow the same integration pattern as ADPCM but at the opposite end:
+   ```
+   [ADPCM] -> FIR dec -> reverb -> FIR interp -> [DAC model]
+   ```
+3. The DAC model should be the LAST processing stage before output, because on real hardware the DAC is the last digital-to-analog conversion step.
+4. Document the signal chain position in an ADR with a clear diagram.
+
+**Warning signs:**
+- The DAC model code is inside `chain_step_impl()` alongside the reverb tick
+- DAC-related state is updated on retained-phase (22.05kHz) ticks only
+- ZOH rolloff measurements show -3.9dB at 11kHz instead of at 20kHz (wrong Nyquist reference)
+
+**Phase to address:** P-INTEGRATE (chain position), P-DECISIONS (signal chain ADR)
+
+---
+
+### C4: Breaking existing ADPCM/reverb behavior when inserting a new stage
+
+**What goes wrong:**
+The existing `spu94_process()` loop is tight: ADPCM coloration (if enabled) -> `spu94_fir_chain_step()` -> output. Adding a DAC stage requires modifying this loop. Possible breakage modes:
+
+1. **Latency accounting error:** `spu94_get_total_latency_samples()` currently returns `SPU94_LATENCY_SAMPLES + (adpcm ? 28 : 0)`. Adding DAC latency (if the model has any, e.g., from a reconstruction filter) requires updating this function. If the DAC model adds latency but the function is not updated, golden-file regression tests will fail because audio is shifted.
+
+2. **In-place buffer aliasing:** `spu94_process()` supports `L_out == L_in` (in-place). If the DAC model needs to read the current output and modify it in-place, the read-modify-write must not corrupt unprocessed samples. The current ADPCM stage avoids this because it reads from its internal buffer, not from L_in.
+
+3. **Flush path divergence:** `spu94_flush()` delegates to `spu94_process(NULL, NULL, ...)`. If the DAC model has state that needs draining (e.g., a filter delay line), the flush path must drain it too. The current architecture's "flush = process with silence" works only if all stages are memoryless or correctly drain when fed zeros.
+
+4. **Golden file invalidation:** If the DAC model is always-on (or if its default changes), ALL existing golden files will need regeneration. The existing `regenerate_goldens.py --check` gate will fail.
+
+**Why it happens:**
+- The process loop looks simple and modification-safe, but its simplicity is load-bearing — multiple contracts (in-place, flush, latency) depend on the loop structure
+- The ADPCM integration succeeded without breaking these contracts, creating false confidence that "any new stage is easy"
+
+**How to avoid:**
+1. DAC model is **default-off**, exactly like ADPCM. Toggle with `spu94_set_dac_enabled()`. This preserves all existing golden files when DAC is disabled.
+2. DAC model is **zero-latency** (memoryless) if possible. ZOH and sinc rolloff compensation can be implemented as a per-sample transfer function with no state beyond the current sample. Avoid FIR filters in the DAC model unless they are essential.
+3. If the DAC model does have state (e.g., a short FIR), update `spu94_get_total_latency_samples()` and verify the flush path drains correctly.
+4. Run ALL existing tests (82+ ctest, golden files, witness diffs) with DAC disabled before attempting DAC-enabled tests.
+5. New golden files for DAC-enabled mode are a SEPARATE set, not replacements.
+
+**Warning signs:**
+- Existing ctest failures after DAC code is added (even before DAC is enabled)
+- `spu94_flush()` produces different-length tails with DAC enabled
+- Witness diff thresholds suddenly exceeded with DAC disabled
+
+**Phase to address:** P-INTEGRATE (primary), P-VERIFY (regression)
+
+---
+
+### C5: Historical accuracy trap — using modern AKM datasheets for a discontinued 1990s chip
+
+**What goes wrong:**
+The AK4309AVM datasheet is not publicly available (confirmed by dogbreath.de, the primary PS1 DAC documentation site: "the datasheet of the AK4309 AVM seems not to be available anymore"). The AK4309B datasheet IS available and describes a "1-bit stereo DAC for multimedia" with SCF (switched-capacitor filter) output and 256fs/384fs master clock options. But the AK4309B is a different chip:
+
+- The AK4309B has 24 pins vs. the AK4309AVM's 24 pins (same count but different pinout)
+- dogbreath.de explicitly notes the AK4309B is "incompatible" with the AK4309AVM
+- Mid-1990s manufacturing tolerances, noise floors, and modulator designs differ from the "B" revision
+
+Using the AK4309B datasheet as a proxy for the AK4309AVM is reasonable for high-level topology (both are 1-bit delta-sigma) but dangerous for specifics (oversampling ratio, noise-shaper order, SCF cutoff frequency, idle tone behavior).
+
+Modern AKM chips (AK4490, AK4499) are irrelevant — they use completely different multi-bit delta-sigma architectures with digital post-processing that did not exist in the 1990s.
+
+**Why it happens:**
+- The AK4309AVM datasheet is genuinely lost
+- The AK4309B datasheet appears in search results for "AK4309 datasheet" and looks authoritative
+- Modern AKM datasheets are well-documented and tempting to extrapolate from
+
+**How to avoid:**
+1. Use the AK4309B datasheet ONLY for topology-class identification (1-bit delta-sigma, SCF output, 256fs/384fs clock). Do NOT use it for performance specifications (SNR, THD, noise-shaper order).
+2. Use the Archimago SCPH-5501 measurements (real PS1 hardware) as the primary reference for actual performance: ~90dB dynamic range, "slight deviance from flat above 3kHz," jitter sidebands below -100dB.
+3. Flag ALL AK4309AVM-specific claims as LOW confidence in documentation.
+4. Design the model to be parameterizable so that hardware measurements (M5, Anthony's PS1) can calibrate it later.
+5. Document in DECISIONS.md: "AK4309AVM datasheet unavailable. Model is based on topology-class behavior (1-bit delta-sigma) calibrated against Archimago's SCPH-5501 measurements. Specific parameters are approximate and flagged for hardware validation."
+
+**Warning signs:**
+- An ADR that says "per the AK4309 datasheet" without specifying which variant
+- A noise-shaper implementation tuned to specific dB targets from the B variant's datasheet
+- Anyone claiming to know the exact oversampling ratio of the AK4309AVM
+
+**Phase to address:** P-RESEARCH (data gathering), P-DECISIONS (confidence flagging)
+
+---
+
+### C6: Fixed-point arithmetic pitfalls when modeling DAC nonlinearities in integer math
+
+**What goes wrong:**
+The existing libspu94 core uses Q15 fixed-point (int16_t, multiply-then-shift-15, truncate). A DAC model that introduces new arithmetic — particularly division, non-power-of-two scaling, or small fractional corrections — can introduce subtle precision errors:
+
+1. **ZOH sinc compensation in Q15:** The sinc function `sin(pi*f/fs) / (pi*f/fs)` requires either a lookup table or a polynomial approximation. In Q15, a polynomial approximation of `1/sinc(x)` for compensation needs careful range analysis to avoid overflow in intermediate products. Two Q15 values multiplied produce a Q30 intermediate before the shift-by-15; chaining three multiplications (as in a cubic polynomial) needs Q45, which overflows int32.
+
+2. **Noise-shaper feedback in fixed-point:** A delta-sigma noise-shaper model feeds back quantization error through a filter. The feedback coefficients determine the noise-shaping profile. In floating-point, this is straightforward. In fixed-point, coefficient quantization changes the noise-shaping curve, potentially introducing limit cycles (oscillations at DC or Nyquist that do not decay). This is a well-known problem in fixed-point delta-sigma implementations.
+
+3. **Division operations:** The existing codebase avoids division in the hot path (reverb uses shifts; ADPCM uses `>>6`). A DAC model that introduces divisions (e.g., for polynomial evaluation or normalization) breaks this pattern and may introduce rounding inconsistencies.
+
+**Why it happens:**
+- DAC modeling literature is almost exclusively in floating-point (MATLAB, Python)
+- Converting a floating-point model to fixed-point is a separate engineering task that introduces its own error sources
+- The existing Q15 infrastructure handles simple multiply-and-shift well but does not provide higher-precision helpers
+
+**How to avoid:**
+1. Keep the DAC model as simple as possible in the hot path. ZOH sinc rolloff can be modeled as a single-pole IIR filter (first-order approximation) or a short FIR, both of which are straightforward in Q15.
+2. If polynomial approximation is needed, use Q15 with int64_t intermediates for chained multiplications. The existing `q15_mul_truncate` returns int16_t; a new `q15_mul_wide` returning int32_t may be needed for intermediate precision.
+3. Do NOT attempt to model the full delta-sigma modulator in fixed-point. The modulator operates at a much higher internal rate (256fs = 11.29MHz for 44.1kHz audio) and simulating it sample-by-sample is both computationally prohibitive and unnecessary for the audible effect.
+4. Pre-compute any frequency-dependent coefficients at initialization time (when the model is enabled or parameters change), not in the per-sample path.
+5. Validate fixed-point model output against a floating-point reference implementation (Python/numpy) with a known tolerance budget (e.g., +/-1 LSB per sample).
+
+**Warning signs:**
+- int32_t overflow in intermediate products (ASAN/UBSAN will catch this)
+- Limit cycles: output oscillates at a fixed pattern when input is constant zero
+- Model output diverges from float reference by more than 1 LSB on average
+
+**Phase to address:** P-MODEL (implementation), P-VERIFY (float-vs-fixed comparison)
 
 ---
 
 ## Significant Pitfalls
 
-### S1: Nibble extraction order — high nibble first or low nibble first?
+### S1: Performance regression — DAC model adding too much computation to the hot path
 
-**Severity:** Significant (every other sample is wrong)
+**What goes wrong:**
+The DAC model runs at 44.1kHz on every output sample (not at the 22.05kHz half-rate where the reverb runs). If the model involves a multi-tap FIR, a polynomial evaluation, or — worst case — a full delta-sigma modulator simulation at 256x oversampling, the per-sample cost could dwarf the reverb computation.
 
-**What goes wrong:** Each byte of ADPCM data contains two 4-bit nibbles. The extraction order matters: for SPU-ADPCM, the LOW nibble (bits 0-3) is decoded FIRST, then the HIGH nibble (bits 4-7). Getting this backwards swaps every pair of samples, producing garbled audio that still "kind of sounds like something."
+Current benchmark context: the existing `spu94_process` at the `rt_bench_latency` ctest target shows (p99-median)/median ratio of 0.741 against a threshold of 2.0. There is headroom, but not infinite.
 
-This is the OPPOSITE of some other ADPCM variants (e.g., IMA-ADPCM typically decodes high nibble first).
+**Why it happens:**
+- "Just a few multiplies per sample" compounds: at 44.1kHz stereo, that is 88,200 extra operations per second per multiply
+- Modeling literature suggests complex filter structures that are overkill for the audible effect
+- The temptation to "get it right" leads to over-engineering the model
 
-**Why it happens:** Byte-level data layout is easy to get backwards. The nocash spec for XA-ADPCM describes a different nibble arrangement than SPU-ADPCM (XA interleaves differently due to sector structure), adding confusion.
+**How to avoid:**
+1. Target a DAC model that adds NO MORE than 2-3 multiplications per sample per channel in the hot path. This is achievable with a first-order IIR or a 3-tap FIR for sinc compensation.
+2. Benchmark before and after with `pytest-benchmark` and the existing `rt_bench_latency` target.
+3. If a more complex model is needed, make it optional (a "quality" flag) with a fast default.
+4. The model must NOT simulate the delta-sigma modulator at its native oversampled rate. Model the EFFECT (noise shaping, sinc rolloff), not the MECHANISM.
+5. Profile with `perf` on the hot loop to catch unexpected costs (branch mispredictions from conditional DAC enable, cache misses from new state fields).
 
-**Prevention:**
-1. SPU-ADPCM: low nibble first, high nibble second within each data byte.
-2. Extract with: `nibble_lo = (byte >> 0) & 0xF; nibble_hi = (byte >> 4) & 0xF;` — decode lo first.
-3. Sign-extend 4-bit to int32: `int32_t signed_nibble = (nibble < 8) ? nibble : nibble - 16;` or cast through `int8_t`: `int32_t signed_nibble = ((int8_t)(nibble << 4)) >> 4;`
-4. Unit test: decode a known VAG file (the Sony SDK includes sample VAG files; psxavenc can produce them) and compare against a known-good PCM decode.
+**Warning signs:**
+- `rt_bench_latency` p99/median ratio increases above 1.5
+- Per-block processing time more than doubles with DAC enabled
+- The model has a loop inside the per-sample function
 
-**Detection:** Decoded audio sounds "phasy" or garbled but still recognizably musical — the samples are present but misordered within pairs.
-
-**Phase:** P-DECODE, P-VERIFY
-
-**Source:** [psx-spx SPU ADPCM](https://problemkaputt.de/psxspx-spu-adpcm-samples.htm); [jsgroth SPU Part 1](https://jsgroth.dev/blog/posts/ps1-spu-part-1/)
-
----
-
-### S2: Encoder filter selection — greedy vs brute-force vs Sony SDK behavior
-
-**Severity:** Significant (encoder quality, not decoder correctness)
-
-**What goes wrong:** The ADPCM encoder must choose, for each 28-sample block, which filter (0-4) and which shift (0-12) minimize the quantization error. There are 5 * 13 = 65 possible (filter, shift) combinations per block. Three encoding strategies exist:
-
-- **Sony SDK (vagconv/aiff2vag):** Unknown algorithm, but the output is the "ground truth" that PS1 games shipped with. The SDK tools are not publicly available and their encoding strategy is not documented.
-- **Greedy/heuristic:** Try all 5 filters, pick the one with lowest error, then find the best shift. Fast but may not find the global optimum for a given block.
-- **Brute-force:** Try all 65 combinations, pick the one with lowest total error across all 28 samples. Slow but optimal given the block constraint.
-
-The pitfall: an encoder that picks filter/shift independently (best filter ignoring shift, then best shift for that filter) can produce worse quality than brute-force. And ANY encoder that doesn't simulate the actual decode loop (including clamping and feedback) during encoding will produce output that sounds different after hardware decode than the encoder predicted.
-
-**Why it happens:** Encoder quality is a separate concern from decoder correctness. But if the project ships an encoder that produces poor ADPCM, users will blame the reverb for "sounding bad" when the degradation is actually in the encoding.
-
-**Prevention:**
-1. Encoder evaluates ALL 65 (filter, shift) combinations per block.
-2. For each candidate, the encoder runs the actual decode loop (including clamping and feedback) to compute the true reconstruction error — not a linear approximation.
-3. Error metric: sum of squared differences between original PCM and decoded PCM across the 28-sample block.
-4. The encoder's internal decode loop MUST be identical to the standalone decoder. Factor into a shared function.
-5. Document the encoding strategy in DECISIONS.md, including the quality-vs-speed tradeoff.
-
-**Detection:** Encode a sine wave, decode it, compare SNR against psxavenc output.
-
-**Phase:** P-ENCODE, P-DECISIONS
-
-**Source:** [psxavenc](https://github.com/WonderfulToolchain/psxavenc); general ADPCM encoder design
+**Phase to address:** P-MODEL (design constraint), P-VERIFY (benchmark regression)
 
 ---
 
-### S3: Loop flag handling — the repeat-address-disable quirk
+### S2: Verification traps — what can and cannot be verified without real hardware
 
-**Severity:** Significant (games depend on this; SPU-94's scope may not include it, but it must be documented)
+**What goes wrong:**
+Unlike ADPCM (where the decode algorithm is fully specified by nocash and bit-exact verification is possible against multiple witnesses), DAC modeling has NO authoritative specification to verify against. The AK4309AVM datasheet is lost. Emulator witnesses (Mednafen, DuckStation) do NOT model the DAC at all — they output raw 16-bit PCM from the SPU and rely on the host audio system for D/A conversion. There is no "golden reference" for what the PS1 DAC does to the digital signal.
 
-**What goes wrong:** The ADPCM block's flag byte (byte 1) contains three meaningful bits:
-- Bit 0: Loop End — jump to repeat address, set ENDX flag
-- Bit 1: Loop Repeat — if set with bit 0, voice continues looping; if bit 0 alone, voice enters release/mute
-- Bit 2: Loop Start — copy current block address to repeat address register
+Available verification targets:
+- **Archimago's SCPH-5501 measurements:** Frequency response, THD, jitter — captured AFTER the entire analog output chain (DAC + op-amps + cables + measurement ADC). These measurements include analog output stage effects that are out of scope for the DAC model.
+- **Stereophile measurements:** Similar scope (full chain), similar limitations.
+- **Anthony's PS1 (future M5):** Can produce real hardware output, but capturing the DAC's digital-domain behavior requires isolating the DAC from the analog output stage, which is non-trivial.
 
-The documented quirk (from jsgroth's PS1 emulator blog, confirmed by Valkyrie Profile and Tron Bonne behavior): **if software writes to a voice's repeat address register directly, the Loop Start flag in ADPCM headers is disabled until the voice is keyed on again.** This means the hardware remembers "repeat address was set by software, not by ADPCM flag" and suppresses the flag until key-on.
+What CANNOT be verified without hardware:
+- The exact noise-shaping profile of the AK4309AVM
+- Idle tone frequencies and amplitudes
+- The internal digital filter's frequency response
+- Whether the chip has 8x or some other oversampling ratio
 
-For SPU-94, which implements reverb but not the full voice engine (no ADSR, no pitch, no key-on), the question is: does the ADPCM codec need to handle loop flags at all, or is that the caller's responsibility?
+**Why it happens:**
+- The ADPCM milestone's verification strategy (bit-exact witness comparison) creates expectations that DAC verification will be similarly rigorous
+- The audiophile measurement community provides data, but it measures the wrong thing (the complete analog chain, not the DAC alone)
 
-**Prevention:**
-1. The ADPCM decoder's minimal contract: decode 16-byte blocks to 28 PCM samples. Loop flags are parsed and returned to the caller as metadata, not acted upon by the decoder.
-2. The caller (future voice engine, or test harness) is responsible for acting on loop flags.
-3. Document this boundary in DECISIONS.md: "ADPCM decoder reports loop flags; does not implement loop behavior. Loop behavior is out of scope for the reverb-focused codec."
-4. If SPU-94 later grows a voice engine, the repeat-address-disable quirk must be implemented. Flag it in PITFALLS for that milestone.
+**How to avoid:**
+1. Accept that DAC model verification is inherently **approximate**, not bit-exact. Document this honestly in the ADR.
+2. Verification targets for v1.2:
+   - **Topology correctness:** The model behaves like a delta-sigma converter, not an R2R converter (spectral analysis shows noise shaping, not flat quantization noise)
+   - **ZOH rolloff:** The model's frequency response shows the expected sinc rolloff (-3.9dB at 20kHz for 44.1kHz ZOH)
+   - **Transparency when bypassed:** DAC-disabled output is bit-identical to pre-v1.2 output
+   - **Regression safety:** All existing tests pass with DAC disabled
+3. Defer **calibration** to M5 (hardware validation). The v1.2 model is a structurally correct placeholder that hardware measurements will tune.
+4. Do NOT claim bit-accuracy for the DAC model. The project's bit-accuracy claim applies to the reverb algorithm and ADPCM codec, not to the DAC model.
 
-**Detection:** N/A for the codec milestone (loop behavior is out of scope); relevant for future voice-engine work.
+**Warning signs:**
+- ADR or documentation claims "bit-faithful DAC emulation"
+- Test infrastructure attempts sample-exact comparison against emulator witnesses (which do not model DAC)
+- Hardware validation is described as "confirming" rather than "calibrating" the model
 
-**Phase:** P-LOOPFLAGS, P-DECISIONS
-
-**Source:** [jsgroth SPU Part 4](https://jsgroth.dev/blog/posts/ps1-spu-part-4/); [psx-spx SPU ADPCM](https://problemkaputt.de/psxspx-spu-adpcm-samples.htm)
-
----
-
-### S4: ADPCM as reverb input coloration — integration ordering matters
-
-**Severity:** Significant (architectural)
-
-**What goes wrong:** In the real PS1, the signal path is: ADPCM decode -> Gaussian interpolation -> ADSR envelope -> voice volume -> mix bus -> reverb input. The ADPCM decode step *colors* the audio before it reaches the reverb. Quantization noise from 4-bit compression, the filter's predictive errors, and the codec's frequency response all feed into the reverb and become part of the reverb's character.
-
-If SPU-94's ADPCM module is bolted on as a separate tool (encode file, decode file, then feed PCM to reverb), the pipeline is:
-
-```
-PCM -> ADPCM encode -> ADPCM decode -> [file] -> reverb
-```
-
-This produces the correct coloration. But if the integration skips ADPCM decode (feeding the original PCM directly to the reverb), users will hear "cleaner" reverb that lacks the PS1's characteristic grit. The ADPCM is not optional coloration — it IS part of the sound.
-
-**Why it happens:** The natural inclination is "reverb already works on PCM, why add a lossy step?" But the PS1 never feeds raw PCM to reverb — it always goes through ADPCM first.
-
-**Prevention:**
-1. libspu94's pipeline API should offer both paths: raw PCM in (for DAW use where ADPCM coloration is optional) and ADPCM-colored input (for authentic PS1 reproduction).
-2. The "authentic" path decodes ADPCM on-the-fly, sample by sample, before feeding each sample to the reverb input.
-3. Do NOT decode ADPCM in bulk and then process reverb in bulk — this is functionally equivalent but obscures the per-sample coloration interaction.
-4. The Gaussian interpolation and ADSR envelope are NOT in scope for M2 (they are voice-engine features). ADPCM decode -> reverb is the M2 signal path. Document this simplification.
-
-**Detection:** A/B listening test: reverb on raw PCM vs reverb on ADPCM-decoded PCM. The difference should be audible as added grit/noise floor.
-
-**Phase:** P-INTEGRATE, P-DECISIONS
-
-**Source:** [psx-spx SPU signal path](https://psx-spx.consoledev.net/soundprocessingunitspu/)
+**Phase to address:** P-VERIFY (strategy), P-DECISIONS (confidence documentation)
 
 ---
 
-### S5: The division-by-64 is an arithmetic right shift by 6 — precision matters
+### S3: Scope creep via "while we're at it" effects
 
-**Severity:** Significant (off-by-one in filter output)
+**What goes wrong:**
+Once a DAC modeling stage exists in the pipeline, it becomes a magnet for adjacent effects:
+- "Add a gentle high-shelf to simulate the op-amp coloring"
+- "Add 1-bit dither to model the modulator's quantization"
+- "Add jitter simulation to model clock instability"
+- "Add a low-cut at 20Hz to model the coupling capacitor"
 
-**What goes wrong:** The filter formula `(old*f0 + older*f1 + 32) / 64` involves integer division by 64. In C, integer division truncates toward zero for positive values and is implementation-defined for negative values (C99 specifies truncation toward zero, but C89 left it implementation-defined). The hardware likely performs an arithmetic right shift by 6 (truncation toward negative infinity), which differs from C's `/` operator for negative values.
+Each of these is a separate analog-domain effect masquerading as part of "DAC modeling." Together, they turn the DAC stage into an unverifiable grab-bag of "sounds PS1-ish" processing.
 
-Example: `(-33 + 32) / 64 = -1 / 64 = 0` in C (truncation toward zero), but `(-33 + 32) >> 6 = -1 >> 6 = -1` with arithmetic right shift (truncation toward negative infinity).
+**Why it happens:**
+- The DAC model's audible effect may be subtle (ZOH sinc rolloff is -3.9dB at 20kHz, which is gentle)
+- The desire to "hear a difference when I flip the toggle" drives feature addition
+- The analog output stage is where the PS1's distinctive character lives, and it is tempting to model it under the DAC umbrella
 
-The +32 rounding bias makes this divergence less frequent (it shifts the distribution toward positive intermediates), but it doesn't eliminate it for large negative filter contributions.
+**How to avoid:**
+1. The v1.2 milestone models the CONVERSION STEP ONLY. Analog output stage is a separate future milestone.
+2. Each proposed addition must answer: "Does this effect exist in the digital-to-analog conversion itself, or in the analog circuit after the DAC chip's output pins?" If the latter, defer.
+3. The toggle is `spu94_set_dac_enabled()`. It enables DAC conversion modeling. A future `spu94_set_analog_enabled()` (or similar) enables analog output stage modeling.
+4. If the v1.2 model is too subtle to hear, that is a CORRECT RESULT, not a failure. Document it.
 
-**Why it happens:** Using C's `/` operator for what the hardware implements as a right shift. The libspu94 codebase already has the `_Static_assert` for arithmetic right shift (ADR-0001), so using `>> 6` is safe on the project's target compilers.
+**Warning signs:**
+- The DAC model has more than 3-4 parameters
+- Parameters include frequency values below 100Hz (coupling cap territory) or above 22kHz (analog filter territory)
+- The model "sounds great" but cannot be related back to a specific conversion artifact
 
-**Prevention:**
-1. Implement the filter division as `>> 6`, not `/ 64`, and add a comment explaining why.
-2. The existing `_Static_assert` in `spu94_q15.h` already validates arithmetic shift behavior.
-3. Unit test: verify that the decode of a block with large negative filter contributions matches the `>> 6` interpretation, not the `/ 64` interpretation.
-4. Document in DECISIONS.md: "ADPCM filter division implemented as `>> 6` (arithmetic right shift), matching hardware behavior. This differs from C's `/ 64` for negative values."
-
-**Detection:** Divergence on blocks with strong negative filter feedback; rare in practice but fails bit-accuracy.
-
-**Phase:** P-DECODE, P-DECISIONS
-
-**Source:** Inferred from hardware behavior (Sony's SPU is a hardware shift, not a software divider); consistent with libspu94's existing ASR policy (ADR-0001)
-
----
-
-### S6: Sign extension of 4-bit nibbles — the classic off-by-one
-
-**Severity:** Significant (every sample wrong if botched)
-
-**What goes wrong:** Each ADPCM nibble is a 4-bit signed value in the range -8 to +7 (two's complement). Sign-extending from 4 bits to 32 bits requires recognizing bit 3 as the sign bit. Common mistakes:
-
-- Treating nibbles as unsigned 0-15 (no sign extension) — all "negative" samples become large positive values.
-- Sign-extending from bit 7 instead of bit 3 (treating as int8 instead of int4) — wrong sign for values 8-15.
-- Using `(int8_t)(nibble << 4) >> 4` which works but is subtle and easy to get the shift count wrong.
-
-**Prevention:**
-1. Explicit sign extension: `int32_t signed_nib = (nibble & 0x8) ? (nibble | 0xFFFFFFF0) : nibble;` — or equivalently `int32_t signed_nib = (int32_t)(int16_t)(int8_t)((nibble << 4) & 0xF0) >> 4;`
-2. Simplest correct form: `int32_t signed_nib = (nibble < 8) ? nibble : nibble - 16;`
-3. Unit test: verify sign extension for all 16 possible nibble values (0x0 through 0xF). This is an exhaustive test.
-
-**Detection:** All audio sounds "bright" and "clicky" because negative nibbles become large positive values.
-
-**Phase:** P-DECODE
-
-**Source:** General two's-complement arithmetic; [psx-spx](https://problemkaputt.de/psxspx-cdrom-xa-audio-adpcm-compression.htm) — `signed4bit()` function
+**Phase to address:** P-RESEARCH (scope boundary), P-DECISIONS (scope ADR)
 
 ---
 
-### S7: Encoder must model decode loop exactly — encoder/decoder asymmetry
+### S4: Revision-dependent behavior — which PS1 model is "the" reference?
 
-**Severity:** Significant (encoder produces non-optimal output)
+**What goes wrong:**
+Different PS1 hardware revisions use different DAC chips and output stages:
 
-**What goes wrong:** An ADPCM encoder that evaluates candidate (filter, shift) combinations using a simplified model (e.g., linear prediction without clamping) will select different parameters than one that runs the full decode loop. The difference: the simplified model doesn't account for the nonlinearity of clamping. When a sample clamps, the feedback state diverges from the linear prediction, and subsequent samples in the block are encoded against a wrong prediction.
+| Model | DAC | Notes |
+|-------|-----|-------|
+| SCPH-1001 | AK4309AVM | RCA jacks, NJM2100 op-amp buffer |
+| SCPH-5501 | AK4309AVM | Same DAC, different output path (A/V Multiport) |
+| SCPH-7001+ | AK4309B or integrated | Different chip, potentially different conversion |
+| SCPH-750x+ | DAC integrated in CD/DSP | Completely different architecture |
 
-**Why it happens:** Running the full decode loop for each candidate combination is 65x slower than a linear approximation. The temptation to approximate is strong.
+Anthony owns "an original PSX" but the specific model revision has not been established. The DAC model should target the AK4309AVM (SCPH-1001/5501 era), but if Anthony's unit is a later revision, hardware validation measurements will not match the model.
 
-**Consequences:** Encoder chooses suboptimal filter/shift for blocks where clamping occurs (loud passages, high-energy content). Output has higher distortion than necessary.
+**Why it happens:**
+- "PS1" is treated as a single target, but the audio path changed significantly across revisions
+- The audiophile community focuses on early models (SCPH-1001 specifically) because they sound "better"
 
-**Prevention:**
-1. Factor the decode loop into a function used by BOTH the decoder and the encoder.
-2. Encoder calls `decode_block(candidate_shift, candidate_filter, nibbles, &prev1, &prev2)` for each candidate and measures actual reconstruction error.
-3. For encoder performance: the inner loop is 28 iterations of simple integer math — 65 * 28 = 1820 iterations per block is fast enough for offline encoding.
-4. If real-time encoding is ever needed (unlikely for SPU-94's use case), the brute-force search can be narrowed by heuristic pre-filtering.
+**How to avoid:**
+1. Target the AK4309AVM (SCPH-1001/5501) as the reference. This is the most documented, most measured, and most discussed PS1 DAC.
+2. Document the target revision in the ADR: "DAC model targets AK4309AVM as found in SCPH-1001 and SCPH-5501."
+3. Before M5 hardware validation, confirm which model Anthony has. If it is a later revision, the model cannot be validated against that specific unit for DAC behavior (though reverb and ADPCM can still be validated, since those are in the SPU, not the DAC).
+4. Consider making the model parameterizable enough that a second "profile" could represent the later integrated DAC, if measurements become available.
 
-**Phase:** P-ENCODE
+**Warning signs:**
+- The model is described as "the PS1 DAC" without specifying revision
+- Hardware validation measurements do not match model predictions but the discrepancy is attributed to "the model needs tuning" rather than "this is a different DAC chip"
 
-**Source:** General ADPCM encoder design; [adpcm-xq](https://github.com/dbry/adpcm-xq) demonstrates brute-force search for IMA-ADPCM
+**Phase to address:** P-RESEARCH (reference identification), P-DECISIONS (revision ADR)
+
+---
+
+### S5: Confusing ZOH with sample-rate reduction
+
+**What goes wrong:**
+The ZOH (zero-order hold) effect is the staircase waveform produced by holding each sample constant between clock edges. Its frequency-domain effect is multiplication by a sinc function: `H(f) = sinc(f / fs)`, which rolls off high frequencies. At 44.1kHz, 20kHz is attenuated by about -3.9dB.
+
+This is NOT the same as downsampling to a lower rate and then upsampling. The SPU already handles the 22.05kHz <-> 44.1kHz conversion with its half-band FIR. The ZOH effect operates on the 44.1kHz output signal as it is presented to the DAC chip.
+
+An implementation that "models ZOH" by inserting a sample-and-hold at a lower rate (e.g., holding every other sample to simulate 22.05kHz ZOH) is double-counting: the FIR decimator/interpolator already handles the half-rate processing.
+
+**Why it happens:**
+- ZOH, sample-and-hold, and sample-rate conversion are related concepts that are easy to conflate
+- "The PS1 reverb runs at 22.05kHz" leads to thinking the ZOH should operate at 22.05kHz
+- Bitcrusher plugins model ZOH as "hold every Nth sample," which is a sample-rate reduction, not a true ZOH at the DAC output rate
+
+**How to avoid:**
+1. The ZOH effect at 44.1kHz is a gentle high-frequency rolloff following the sinc envelope. It does NOT involve holding or repeating samples.
+2. Implement as a frequency-domain compensation: either apply the sinc rolloff directly (a mild low-pass curve) or model the ZOH's impulse response (a rectangular pulse of width 1/fs).
+3. In practice, a first-order IIR low-pass at approximately 20kHz cutoff provides a reasonable approximation of the ZOH's audible effect at 44.1kHz.
+4. Do NOT repeat or hold samples. That is sample-rate reduction, which is already handled by the FIR.
+
+**Warning signs:**
+- The model holds or duplicates samples in the output
+- The model has a "hold factor" or "decimation ratio" parameter
+- Frequency response shows a brick-wall notch (sample-rate aliasing) instead of a smooth sinc rolloff
+
+**Phase to address:** P-MODEL
 
 ---
 
 ## Minor Pitfalls
 
-### M1: One-shot samples need a terminator block
+### M1: Forgetting to update the Python binding and CLI for the new toggle
 
-**What goes wrong:** A one-shot ADPCM sample (no loop) must end with a dummy block that has both Loop Start and Loop End flags set, with all nibbles zero. Without this terminator, the SPU voice engine continues reading past the end of the sample data, producing noise from whatever happens to be in SPU RAM.
+**What goes wrong:** v1.1 added `spu94_set_adpcm_enabled()` with Python ctypes binding (`spu94.adpcm_enabled = True`) and CLI flag. v1.2 must add equivalent `spu94_set_dac_enabled()` with matching binding and CLI support. Forgetting the binding means Python test infrastructure cannot exercise the DAC model.
 
-**Prevention:** The encoder must append a terminator block for one-shot samples. The decoder should document that it expects the caller to handle termination (the decoder itself just decodes blocks as given).
+**How to avoid:** Checklist item: for every new C API function, add ctypes wrapper + CLI flag + pytest coverage.
 
-**Phase:** P-ENCODE, P-LOOPFLAGS
-
-**Source:** [psx-spx SPU ADPCM](https://problemkaputt.de/psxspx-spu-adpcm-samples.htm) — "one-shot samples must use a dummy block"
+**Phase to address:** P-INTEGRATE
 
 ---
 
-### M2: VAG file header parsing — big-endian fields in a little-endian ecosystem
+### M2: State struct bloat from DAC model fields
 
-**What goes wrong:** The VAG file format (standard PS1 ADPCM container) uses big-endian fields in its header (version, data size, sample rate) despite the PS1 being a little-endian MIPS machine. Parsing VAG headers with native-endian reads produces wrong values on little-endian hosts.
+**What goes wrong:** The `spu94_state` struct currently contains ADPCM buffers (28-sample input + output per channel = 112 int16_t). If the DAC model adds filter delay lines, noise-shaper state, or lookup tables to the struct, it grows the per-instance memory footprint. On MCU targets (future Daisy/Cortex-M port), every byte of state matters.
 
-**Prevention:**
-1. Read VAG header fields through explicit `read_u32_be()` helpers.
-2. The raw ADPCM block data (after the header) is byte-oriented and endian-neutral.
-3. Unit test: parse a known VAG file and verify header fields match expected values.
+**How to avoid:**
+1. Keep DAC model state minimal. A memoryless sinc-rolloff model needs zero additional state. A first-order IIR needs 2 int16_t (one per channel).
+2. If lookup tables are needed (e.g., pre-computed sinc compensation coefficients), store them as `const` arrays outside the state struct.
+3. Document the state struct size delta in the ADR.
 
-**Phase:** P-ENCODE (VAG output), P-DECODE (VAG input), P-VERIFY
-
-**Source:** [VAG format](http://justsolve.archiveteam.org/wiki/VAG_(PlayStation))
+**Phase to address:** P-MODEL, P-INTEGRATE
 
 ---
 
-### M3: Keyed-off voices still decode ADPCM (SPU IRQ interaction)
+### M3: JUCE toggle checkbox wiring (future dependency)
 
-**What goes wrong:** On real PS1 hardware, voices with volume=0 (keyed off) continue to decode ADPCM data. This matters because ADPCM decoding can trigger SPU IRQs when the decode address matches the IRQ address. Games like Casper depend on this for lip-sync animation timing.
+**What goes wrong:** v1.1 shipped with a JUCE toggle for ADPCM coloration (confirmed in PROJECT.md: "JUCE toggle confirmed by user"). The JUCE plugin (future milestone) will need a matching DAC toggle. If the C API toggle semantics differ from ADPCM's (e.g., DAC enable requires re-initialization while ADPCM enable is instant), the JUCE integration will need special handling.
 
-For SPU-94 (reverb-only, no voice engine), this is out of scope. But if the ADPCM decoder is designed with an "early-exit if voice is muted" optimization, it will break this behavior when a voice engine is added later.
+**How to avoid:** Match ADPCM toggle semantics exactly: `spu94_set_dac_enabled(state, 1)` enables immediately, `spu94_set_dac_enabled(state, 0)` disables and clears any model state. No re-initialization required.
 
-**Prevention:** The ADPCM decoder should not have any "skip decode if muted" logic. It always decodes when called. The caller decides whether to call it.
-
-**Phase:** P-DECODE (design), P-DECISIONS
-
-**Source:** [jsgroth SPU Part 4](https://jsgroth.dev/blog/posts/ps1-spu-part-4/) — "keyed off voices can still trigger SPU IRQs"
-
----
-
-## Integration Pitfalls (ADPCM + existing libspu94)
-
-### I1: ADPCM module must not break existing RT-safety guarantees
-
-**What goes wrong:** The existing libspu94 core passes 4 rt_safety ctest targets (no heap, no locks, no syscalls, bounded latency). Adding ADPCM decode/encode code that calls `malloc`, uses `printf` for debug, or has unbounded loops would fail these gates.
-
-**Prevention:**
-1. ADPCM decode: pure function, no allocations, no state beyond the caller-provided struct. Follows the same pattern as `spu94_process()`.
-2. ADPCM encode: may be offline-only (not RT-safe), but if included in libspu94.so, it must still pass the rt_safety gates. If encode is slow (brute-force search), it should be a separate compilation unit excluded from the RT binary, or clearly documented as non-RT.
-3. Run all 4 existing rt_safety tests after ADPCM integration. They must still pass.
-
-**Phase:** P-INTEGRATE, P-VERIFY
-
-**Source:** Existing libspu94 constraints; `rt_safety` ctest targets
-
----
-
-### I2: ADPCM state is per-voice, not per-reverb-instance
-
-**What goes wrong:** The reverb has one state object (`spu94_state`). ADPCM decode state (prev1, prev2, current block address, loop address) is per-voice — the PS1 has 24 voices. If ADPCM state is crammed into the reverb state struct, the API becomes confused: reverb is a shared resource, ADPCM is per-voice.
-
-**Prevention:**
-1. ADPCM state is a separate struct: `spu94_adpcm_state` (or `spu94_voice_state` if it grows to include pitch/envelope later).
-2. Caller allocates one per voice (or one per ADPCM stream in the non-voice use case).
-3. The reverb API accepts PCM input — the caller is responsible for running ADPCM decode and feeding PCM to the reverb.
-4. Integration helper (convenience function): `spu94_adpcm_decode_to_reverb()` that decodes one block and feeds the output to the reverb input — but this is a composition of two independent APIs, not a merged one.
-
-**Phase:** P-INTEGRATE, P-DECODE (API design)
-
-**Source:** PS1 architecture — 24 voices share one reverb unit
-
----
-
-### I3: Float-free ADPCM — no floating point creep from encoder optimization
-
-**What goes wrong:** The encoder's brute-force search involves computing error metrics. A natural implementation computes MSE as `float mse = (float)total_sq_error / 28.0f;`. If this float code ends up in `libspu94.so`, it breaks the float-free CI gate (`grep -E '\b(float|double)\b'` in core sources).
-
-**Prevention:**
-1. Encoder error metric: use integer sum-of-squared-errors (`int64_t`), compared as raw sums without division. Division by 28 is unnecessary for comparison (same divisor for all candidates).
-2. If the encoder must live in a separate compilation unit that allows float (for analysis/reporting), ensure it is NOT linked into `libspu94.so`.
-3. The decoder is trivially float-free (all integer arithmetic).
-
-**Phase:** P-ENCODE
-
-**Source:** Existing libspu94 CI gate; ADR-0001
-
----
-
-## Verification Strategies for ADPCM Bit-Accuracy
-
-### V1: Known-answer test vectors
-
-Generate ADPCM blocks with hand-computed expected output:
-- All-zero nibbles with each filter (0-4) — verifies filter coefficients
-- Maximum positive nibble (+7) at each shift (0-12) — verifies shift range
-- Maximum negative nibble (-8) at each shift — verifies sign extension + shift
-- Shift 13, 14, 15 — verifies the edge-case policy
-- Block that causes intermediate overflow — verifies clamping order
-- Two consecutive blocks — verifies state carry
-
-### V2: Round-trip test (encode then decode)
-
-Encode a known PCM signal (sine wave, impulse, white noise), decode it, measure SNR. Compare SNR against psxavenc + a known-good decoder.
-
-### V3: Witness comparison (audio-level, not source-level)
-
-Decode the same ADPCM data with SPU-94 and with a witness (psxavenc's decoder, or audio captured from a PS1 emulator). Compare decoded PCM sample-by-sample. Acceptable divergence: 0 (bit-exact) for the main decode path; document any divergence on shift 13-15 edge cases.
-
-### V4: Hardware capture (M5 target)
-
-Use Anthony's PS1 to:
-1. Upload known ADPCM data to SPU RAM via homebrew
-2. Key on a voice with volume=max, no ADSR modulation, pitch=1:1 (sample rate = native)
-3. Capture the digital output (SPU capture buffers or DAC output)
-4. Compare captured samples against SPU-94's decode output
-
-This is the gold standard for resolving the shift 13-15 question and any other undocumented edge cases.
-
-### V5: Encoder quality regression test
-
-Encode a reference WAV file, store the resulting ADPCM as a golden file. On each commit, re-encode and verify bit-identical ADPCM output. This catches accidental changes to filter/shift selection.
-
----
-
-## Phase-Specific Warnings
-
-| Phase Topic | Likely Pitfall | Mitigation |
-|-------------|---------------|------------|
-| P-DECODE | Shift 13-15 UB in C (negative shift) | Clamp shift, document choice, test edge cases |
-| P-DECODE | Wrong nibble order (hi/lo swap) | Test against known VAG decode |
-| P-DECODE | Omit +32 rounding bias | Implement formula verbatim from nocash |
-| P-DECODE | Premature clamping | Single clamp point after full expression |
-| P-DECODE | `/64` vs `>>6` for negative values | Use `>>6`, validated by existing _Static_assert |
-| P-ENCODE | Simplified error model (no clamping in eval) | Shared decode function for encoder and decoder |
-| P-ENCODE | Float creep in error metric | int64_t sum-of-squares, no division |
-| P-ENCODE | Missing terminator block for one-shot | Append dummy block with loop start+end flags |
-| P-INTEGRATE | ADPCM state in reverb struct | Separate struct, per-voice not per-reverb |
-| P-INTEGRATE | Breaking rt_safety gates | Run existing 4 rt_safety tests after integration |
-| P-LOOPFLAGS | Acting on loop flags in decoder | Report only; caller acts |
-| P-VERIFY | Testing against only one witness | Use at least 2 independent witnesses |
-| P-DECISIONS | Not logging the +32 rounding policy | DECISIONS.md entry for ADPCM arithmetic |
+**Phase to address:** P-INTEGRATE (API design)
 
 ---
 
@@ -538,12 +427,49 @@ Encode a reference WAV file, store the resulting ADPCM as a golden file. On each
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Omit shift 13-15 handling | Fewer branches | UB on adversarial input; untested code path | Never — must handle, even if behavior is guessed |
-| Skip the +32 rounding | "Consistent with reverb truncation" | Every sample off by up to 1 LSB; compounds through feedback | Never — spec says +32, implement +32 |
-| Encode with float error metric | Cleaner code | Float creep into libspu94; CI gate failure | Only in a separate tool binary, never in libspu94 |
-| Merge ADPCM state into reverb state | One struct to manage | Wrong abstraction; blocks future voice-engine work | Never — separate structs |
-| Read a GPL decoder "just to check" | Fast resolution of ambiguity | Derivative-work risk; license contamination | Never — use audio-level witness comparison |
-| Approximate encoder (skip decode simulation) | Faster encoding | Suboptimal quality on clamping-heavy blocks | Acceptable for draft/preview; not for final encode |
+| Implement bitcrusher instead of delta-sigma model | Easy to code, audibly dramatic | Wrong artifact profile for the actual PS1 DAC; misleads users | Never for "DAC model" label; acceptable as separate "lo-fi" effect |
+| Use float in the DAC model hot path | Simpler math, no overflow risk | Breaks float-free CI gate; not RT-safe on all targets; inconsistent with core | Never in libspu94.so; acceptable in offline analysis tools |
+| Model full delta-sigma modulator at 256fs | Most faithful to hardware | ~256x computation increase; unknowable without datasheet | Never in real-time path; acceptable as offline reference |
+| Skip ZOH modeling ("too subtle to hear") | Less code | Misses the one topology-independent artifact that IS modelable | Acceptable for v1.2 MVP if documented as deferred |
+| Use AK4309B datasheet specs directly | Concrete numbers to implement | Wrong chip; different revision | Only as starting hypothesis, flagged as LOW confidence |
+| Include analog output stage in DAC model | More audible effect | Wrong scope boundary; unverifiable without hardware | Never in v1.2; separate future milestone |
+
+---
+
+## Integration Gotchas (DAC + existing libspu94 pipeline)
+
+| Integration Point | Common Mistake | Correct Approach |
+|-------------------|----------------|------------------|
+| Signal chain position | Insert inside chain_step_impl at 22.05kHz | Insert AFTER spu94_fir_chain_step at 44.1kHz in spu94_process |
+| Toggle API | Require re-init on enable/disable | Match ADPCM pattern: instant enable/disable with state cleanup |
+| Latency accounting | Forget to update spu94_get_total_latency_samples | Add DAC model latency (ideally 0) to the accumulator |
+| Flush path | DAC model state not drained during spu94_flush | Ensure flush feeds silence through DAC model too (automatic if model is in spu94_process loop) |
+| Golden files | Replace existing goldens with DAC-enabled versions | Keep existing goldens (DAC-off); add new DAC-on golden set |
+| RT safety gates | New state fields or operations violate rt_safety | Run all 4 rt_safety targets after integration; no heap, no locks, no syscalls |
+| In-place processing | DAC model reads output buffer that is aliased to input | Read from chain_step output before modifying; or use temp variable |
+
+---
+
+## Performance Traps
+
+| Trap | Symptoms | Prevention | When It Breaks |
+|------|----------|------------|----------------|
+| Per-sample branching on dac_enabled flag | Branch predictor trains on one path; toggling mid-stream causes mispredictions | Place branch outside tight loop (process DAC-on block or DAC-off block, not per-sample decision) | Rapid toggle during automation |
+| Lookup table cache misses | Large coefficient tables evict hot cache lines from reverb work buffer | Keep tables under 64 bytes; prefer computed-on-init coefficients | Always, if tables are >L1 line |
+| Full modulator simulation | Per-sample cost 256x expected | Model the EFFECT not the MECHANISM; use IIR/FIR approximation | Immediately; 256x oversampling at 44.1kHz = 11.3M ops/sec |
+| Unnecessary per-sample division | Division is 10-40x slower than multiply on ARM | Pre-compute reciprocals at init; use shifts where possible | MCU targets (Cortex-M has no hardware divide) |
+
+---
+
+## "Looks Done But Isn't" Checklist
+
+- [ ] **DAC model:** Often missing ZOH sinc rolloff (the one universal DAC artifact) while over-implementing topology-specific effects -- verify frequency response shows sinc shape
+- [ ] **Toggle:** Often missing state cleanup on disable -- verify toggling on/off/on produces same output as always-on for the second segment
+- [ ] **Latency:** Often missing from `spu94_get_total_latency_samples()` -- verify function returns correct value with DAC on and off
+- [ ] **Flush:** Often not tested with DAC enabled -- verify `spu94_flush()` drains DAC model state
+- [ ] **Python binding:** Often missing for new C API functions -- verify `spu94.dac_enabled = True` works from Python
+- [ ] **CLI flag:** Often missing for new features -- verify `spu94 process --dac input.wav output.wav` works
+- [ ] **ADR:** Often missing for scope boundary decisions -- verify DECISIONS.md has ADR for DAC model scope, topology choice, confidence level
 
 ---
 
@@ -551,41 +477,62 @@ Encode a reference WAV file, store the resulting ADPCM as a golden file. On each
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Shift 13-15 wrong | LOW | Change one conditional; re-run tests; update DECISIONS.md |
-| +32 rounding omitted | MEDIUM | Add +32; regenerate all ADPCM golden files; re-audit witness diffs |
-| Wrong nibble order | MEDIUM | Swap extraction; all decoded audio changes; regenerate goldens |
-| Wrong clamping order | MEDIUM | Restructure decode loop; regenerate goldens |
-| GPL contamination discovered | HIGH-CATASTROPHIC | Rewrite decode loop clean-room with a second reviewer; document provenance; may require relicensing |
-| Encoder selects wrong filters | LOW | Improve search; re-encode test vectors; no decoder change needed |
+| Over-modeled (analog stage in DAC model) | MEDIUM | Extract analog effects to separate stage; may need new ADRs; no data loss |
+| Under-modeled (bitcrusher instead of delta-sigma) | MEDIUM | Replace model core; regenerate DAC-on goldens; existing DAC-off goldens unaffected |
+| Wrong chain position (22.05kHz instead of 44.1kHz) | HIGH | Restructure integration point; all DAC-on goldens invalid; reverb behavior may have been subtly affected |
+| Broke existing tests | LOW-MEDIUM | Revert DAC integration; fix; re-apply; existing goldens serve as regression gate |
+| Performance regression | LOW | Simplify model (fewer taps, lower-order filter); profile and optimize hot path |
+| Fixed-point overflow | LOW | Add int64_t intermediates; existing UBSAN/ASAN infrastructure catches these |
+
+---
+
+## Pitfall-to-Phase Mapping
+
+| Pitfall | Prevention Phase | Verification |
+|---------|------------------|--------------|
+| C1: Over-modeling | P-RESEARCH, P-DECISIONS | ADR defines scope boundary; no analog parameters in model |
+| C2: Under-modeling | P-RESEARCH, P-MODEL | Spectral analysis shows noise shaping, not flat noise |
+| C3: Wrong chain position | P-INTEGRATE | ZOH rolloff at correct frequency; 44.1kHz output path |
+| C4: Breaking existing behavior | P-INTEGRATE, P-VERIFY | All pre-v1.2 tests pass with DAC disabled |
+| C5: Historical accuracy | P-RESEARCH, P-DECISIONS | ADR documents AK4309AVM datasheet unavailability; LOW confidence flags |
+| C6: Fixed-point pitfalls | P-MODEL, P-VERIFY | Float reference comparison; UBSAN clean |
+| S1: Performance regression | P-MODEL, P-VERIFY | rt_bench_latency still under threshold |
+| S2: Verification limits | P-VERIFY, P-DECISIONS | ADR documents what CAN and CANNOT be verified |
+| S3: Scope creep | P-RESEARCH, P-DECISIONS | Feature additions require "digital conversion or analog?" test |
+| S4: Revision-dependent | P-RESEARCH | ADR names target revision; Anthony's PS1 model identified |
+| S5: ZOH confusion | P-MODEL | Frequency response measured; no sample holding/repeating |
 
 ---
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [psx-spx XA-ADPCM Compression](https://problemkaputt.de/psxspx-cdrom-xa-audio-adpcm-compression.htm) — decode formula, filter coefficients, shift handling
-- [psx-spx SPU ADPCM Samples](https://problemkaputt.de/psxspx-spu-adpcm-samples.htm) — block format, flag bytes, loop handling
-- [psx-spx SPU documentation](https://psx-spx.consoledev.net/soundprocessingunitspu/) — signal path, capture buffers, SPU architecture
+- [psx-spx SPU documentation](https://psx-spx.consoledev.net/soundprocessingunitspu/) -- PS1 SPU signal path, 44.1kHz output rate
+- [dogbreath.de PS1 DAC page](https://dogbreath.de/PS1/DAC/DAC.html) -- AK4309AVM identification, pin configuration, revision history
+- Existing libspu94 codebase: `spu94_process.c`, `spu94_io_chain.c` -- current signal chain architecture
 
-### Emulator developer blogs (MEDIUM-HIGH confidence)
-- [jsgroth SPU Part 1 — ADPCM](https://jsgroth.dev/blog/posts/ps1-spu-part-1/) — decode implementation details, shift edge cases
-- [jsgroth SPU Part 4 — Everything Else](https://jsgroth.dev/blog/posts/ps1-spu-part-4/) — loop quirks, repeat address disable, capture buffers, IRQ interaction
+### PS1 DAC measurements (MEDIUM confidence — measure full analog chain, not DAC alone)
+- [Archimago SCPH-5501 measurements](http://archimago.blogspot.com/2013/03/measurements-sony-playstation-1-scph.html) -- ~90dB dynamic range, frequency response, jitter
+- [Stereophile PS1 measurements](https://www.stereophile.com/content/sony-playstation-1-cd-player-measurements) -- THD, dynamic range (measured through full output chain)
 
-### Related codec documentation (MEDIUM confidence)
-- [SnesLab BRR (Bit Rate Reduction)](https://sneslab.net/wiki/Bit_Rate_Reduction) — SNES cousin of PS1 ADPCM, shift 13-15 hardware behavior documented
-- [SNESdev BRR samples](https://snes.nesdev.org/wiki/BRR_samples) — filter coefficients and edge cases for the related SNES codec
+### AK4309 datasheet fragments (LOW-MEDIUM confidence — AK4309B, not AK4309AVM)
+- [AK4309 datasheet on AllDatasheet](https://www.alldatasheet.com/datasheet-pdf/pdf/54935/AKM/AK4309.html) -- 1-bit delta-sigma, SCF output, 256fs/384fs clock
+- [AK4309B description on datasheetq](https://www.datasheetq.com/en/AK4309-AKM) -- "16BIT SCF DAC FOR MULTIMEDIA"
 
-### Tools and test infrastructure (MEDIUM confidence)
-- [psxavenc](https://github.com/WonderfulToolchain/psxavenc) — open-source PS1 ADPCM encoder
-- [ps1-tests](https://github.com/JaCzekanski/ps1-tests) — PS1 hardware test suite (limited SPU coverage)
-- [VAG format spec](http://justsolve.archiveteam.org/wiki/VAG_(PlayStation)) — file format details
+### PS1 hardware revision info (MEDIUM-HIGH confidence)
+- [ConsoleMods PS1 Model Differences](https://consolemods.org/wiki/PS1:PS1_Model_Differences) -- DAC chip per revision
+- [RetroGameTalk PS1 audio](https://retrogametalk.com/threads/why-early-playstation-1-models-are-valued-in-the-audio-world.3598/) -- SCPH-1001 vs later models
 
-### Existing libspu94 architecture (HIGH confidence — project-internal)
-- `include/spu94/spu94_q15.h` — existing ASR policy, _Static_assert for arithmetic shift
-- `docs/DECISIONS.md` — ADR-0001 (truncation policy), ADR-0004 (error observation)
-- `.planning/PROJECT.md` — licensing constraints, witness-only policy
+### DAC modeling theory (HIGH confidence for theory, LOW for PS1-specific application)
+- [DSP Related: DAC Zero-Order Hold Models](https://www.dsprelated.com/showarticle/1627.php) -- ZOH theory, sinc rolloff, MATLAB models
+- [All About Circuits: DNL and INL](https://www.allaboutcircuits.com/technical-articles/understanding-dnl-and-inl-specifications-of-a-digital-to-analog-converter/) -- DAC nonlinearity (applies to R2R, NOT to 1-bit delta-sigma)
+- [Analog Devices AN-283: Sigma-Delta ADCs and DACs](https://www.analog.com/media/en/technical-documentation/application-notes/292524291525717245054923680458171an283.pdf) -- Delta-sigma noise shaping theory
+
+### Retro audio emulation plugins (MEDIUM confidence — commercial references)
+- [Plogue Chipcrusher](https://www.plogue.com/products/chipcrusher.html) -- retro DAC emulation approach (ZOH, PWM, filtering)
+- [TAL-Sampler](https://gearspace.com/board/electronic-music-instruments-and-electronic-music-production/1016253-new-tal-sampler-emulator-ii-am6070-sample-hold-dac-emulation.html) -- DAC emulation in signal chain context
 
 ---
 
-*Pitfalls research for: ADPCM encode/decode milestone for libspu94*
-*Researched: 2026-04-26*
+*Pitfalls research for: DAC modeling milestone (v1.2) for libspu94*
+*Researched: 2026-04-28*
