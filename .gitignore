@@ -37,3 +37,4 @@ wheelhouse/
 # scripts/ci/witness_diff.py writes witness_report.json here. Both are
 # regenerated per-run; nothing under .artifacts/ is version-controlled.
 .artifacts/
+.venv/
