@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: DAC Modeling
 status: planning
-last_updated: "2026-04-28T16:17:30.417Z"
+last_updated: "2026-04-28T17:00:00.000Z"
 last_activity: 2026-04-28
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,26 +17,28 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-26)
+See: .planning/PROJECT.md (updated 2026-04-28)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Between milestones — v1.1 shipped, next milestone TBD
+**Current focus:** v1.2 DAC Modeling — Phase 5 (Interpolation Filter Design)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 5 of 9 (Interpolation Filter Design)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-04-28 — Milestone v1.2 started
+Status: Ready to plan
+Last activity: 2026-04-28 — Roadmap created for v1.2 DAC Modeling (5 phases, 14 requirements)
+
+Progress: [..........] 0%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 4 (M2)
-- Prior milestone: v1.0 product shipped 37 plans across 8 phases
+- Total plans completed: 10 (v1.1), 37 (v1.0)
+- Prior milestone: v1.1 shipped 10 plans across 4 phases
 
-**By Phase:**
+**By Phase (v1.1):**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
@@ -50,13 +52,12 @@ Last activity: 2026-04-28 — Milestone v1.2 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- M2 roadmap: 4 phases derived from 4 requirement categories (codec, integration, I/O, verification)
-- ADPCM codec is a peer module — independent state, independent functions, no spu94_state dependency for core encode/decode
-- Decoder first, encoder embeds internal decoder copy (critical: use reconstructed samples, not original PCM, for prediction state)
-- Arithmetic: `>> 6` ASR (not `/64`) per existing ADR-0001 discipline; `+32` rounding bias is hardware-faithful
-- Shift 13-15 mapped to 9 per psx-spx; filter 5-7 clamped to 4 per emulator consensus
-- Filter 1 prediction (old=1000): (60000+32)>>6 = 938 exactly (plan said 937, corrected during test authoring)
-- Encoder tiebreak: strict < with iteration order (outer=filter, inner=shift) selects lowest filter then lowest shift
+- v1.2 targets the AKM AK4309AVM 1-bit delta-sigma DAC (SCPH-1001/5501 era — Anthony's PS1)
+- Three modelable artifacts: interpolation filter passband ripple, delta-sigma noise shaping, reconstruction rolloff
+- DAC model goes AFTER spu94_fir_chain_step output at 44.1kHz (matches hardware: SPU serial output feeds DAC)
+- Filter design in scipy BEFORE C implementation (Phase 5 then Phase 6)
+- Noise model: LFSR + 2nd-order HP shaping, calibrated to ~90dB DR
+- Out of scope: full delta-sigma simulation at 352.8kHz, analog output stage, ZOH, idle tones
 
 ### Blockers/Concerns
 
@@ -76,6 +77,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-26
-Stopped at: Phase 1 (Core Codec) shipped. Verification passed 9/9. Ready to plan Phase 2 (Pipeline Integration).
-Resume file: .planning/phases/01-core-codec/01-VERIFICATION.md
+Last session: 2026-04-28
+Stopped at: v1.2 roadmap created. Ready to plan Phase 5 (Interpolation Filter Design).
+Resume file: None

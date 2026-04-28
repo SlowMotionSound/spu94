@@ -64,26 +64,26 @@ Requirements for the DAC modeling milestone. The PS1 uses an AKM AK4309AVM 1-bit
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DAC-FILT-01 | — | Pending |
-| DAC-FILT-02 | — | Pending |
-| DAC-FILT-03 | — | Pending |
-| DAC-NOISE-01 | — | Pending |
-| DAC-INT-01 | — | Pending |
-| DAC-INT-02 | — | Pending |
-| DAC-INT-03 | — | Pending |
-| DAC-IO-01 | — | Pending |
-| DAC-IO-02 | — | Pending |
-| DAC-IO-03 | — | Pending |
-| DAC-TEST-01 | — | Pending |
-| DAC-TEST-02 | — | Pending |
-| DAC-TEST-03 | — | Pending |
-| DAC-TEST-04 | — | Pending |
+| DAC-FILT-01 | Phase 5 | Pending |
+| DAC-FILT-02 | Phase 6 | Pending |
+| DAC-FILT-03 | Phase 5 | Pending |
+| DAC-NOISE-01 | Phase 6 | Pending |
+| DAC-INT-01 | Phase 7 | Pending |
+| DAC-INT-02 | Phase 7 | Pending |
+| DAC-INT-03 | Phase 7 | Pending |
+| DAC-IO-01 | Phase 8 | Pending |
+| DAC-IO-02 | Phase 8 | Pending |
+| DAC-IO-03 | Phase 8 | Pending |
+| DAC-TEST-01 | Phase 9 | Pending |
+| DAC-TEST-02 | Phase 9 | Pending |
+| DAC-TEST-03 | Phase 9 | Pending |
+| DAC-TEST-04 | Phase 9 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 14 total
-- Mapped to phases: 0
-- Unmapped: 14 (awaiting roadmap)
+- Mapped to phases: 14
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-28*
-*Last updated: 2026-04-28 after initial definition*
+*Last updated: 2026-04-28 -- phase mappings added after roadmap creation*
