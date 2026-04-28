@@ -9,9 +9,9 @@ Requirements for the DAC modeling milestone. The PS1 uses an AKM AK4309AVM 1-bit
 
 ### DAC Interpolation Filter (DAC-FILT)
 
-- [ ] **DAC-FILT-01**: Scipy script designs interpolation filter matching AK4309 8x FIR specs (cascaded half-band stages, +/-0.05dB passband ripple per datasheet, 41dB stopband attenuation), plots frequency response, and overlays against Stereophile PS1 measurements as sanity check
+- [x] **DAC-FILT-01**: Scipy script designs interpolation filter matching AK4309 8x FIR specs (cascaded half-band stages, +/-0.05dB passband ripple per datasheet, 41dB stopband attenuation), plots frequency response (no Stereophile overlay per D-02)
 - [ ] **DAC-FILT-02**: Interpolation filter implemented in C as Q15 fixed-point FIR or biquad approximation operating at 44.1kHz after the output FIR, faithfully reproducing the top-octave passband ripple character of the AK4309's cascaded half-band interpolator
-- [ ] **DAC-FILT-03**: ADR documenting passband ripple gray area — datasheet spec (+/-0.05dB) vs Stereophile measured ripple (described as audible), with reasoned resolution and confidence assessment
+- [x] **DAC-FILT-03**: ADR documenting passband ripple gray area — datasheet spec (+/-0.05dB) vs Stereophile measured ripple (described as audible), with reasoned resolution and confidence assessment
 
 ### DAC Noise Shaping (DAC-NOISE)
 
@@ -64,9 +64,9 @@ Requirements for the DAC modeling milestone. The PS1 uses an AKM AK4309AVM 1-bit
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DAC-FILT-01 | Phase 5 | Pending |
+| DAC-FILT-01 | Phase 5 | Complete (05-01) |
 | DAC-FILT-02 | Phase 6 | Pending |
-| DAC-FILT-03 | Phase 5 | Pending |
+| DAC-FILT-03 | Phase 5 | Complete (05-01) |
 | DAC-NOISE-01 | Phase 6 | Pending |
 | DAC-INT-01 | Phase 7 | Pending |
 | DAC-INT-02 | Phase 7 | Pending |

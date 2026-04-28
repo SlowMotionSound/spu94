@@ -38,7 +38,7 @@
   3. An ADR documents the passband ripple gray area (datasheet spec vs Stereophile composite-chain measurements) with a reasoned resolution and confidence assessment
 **Plans:** 1 plan
 Plans:
-- [ ] 05-01-PLAN.md — Filter design script + verification + plot + ADR
+- [x] 05-01-PLAN.md — Filter design script + verification + plot + ADR (completed 2026-04-28)
 
 ### Phase 6: DAC Core Implementation
 **Goal**: The interpolation filter and delta-sigma noise model exist as tested C modules operating at 44.1kHz in Q15 fixed-point
@@ -90,7 +90,7 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 9
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 5. Interpolation Filter Design | 0/1 | Not started | - |
+| 5. Interpolation Filter Design | 1/1 | Complete | 2026-04-28 |
 | 6. DAC Core Implementation | 0/TBD | Not started | - |
 | 7. Pipeline Integration | 0/TBD | Not started | - |
 | 8. I/O Surface | 0/TBD | Not started | - |
@@ -135,4 +135,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 - `.planning/milestones/v1.0-REQUIREMENTS.md` -- M1 requirements
 
 ---
-*Last updated: 2026-04-28 -- Phase 5 planned (1 plan)*
+*Last updated: 2026-04-28 -- Phase 5 complete (1/1 plans)*
