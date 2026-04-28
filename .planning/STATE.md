@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: milestone
-status: idle
-stopped_at: M2 ADPCM milestone shipped and archived as v1.1. Next milestone TBD.
-last_updated: "2026-04-27"
-last_activity: 2026-04-27 -- v1.1 milestone archived (4 phases, 10 plans, 23/23 reqs)
+milestone: v1.2
+milestone_name: DAC Modeling
+status: planning
+last_updated: "2026-04-28T16:17:30.417Z"
+last_activity: 2026-04-28
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 10
-  completed_plans: 10
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,11 +24,10 @@ See: .planning/PROJECT.md (updated 2026-04-26)
 
 ## Current Position
 
-Milestone: v1.1 shipped (M2 ADPCM)
-Status: Idle — awaiting next milestone
-Last activity: 2026-04-27 — v1.1 archived
-
-Progress: [██████████] 100% (M2 complete)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-28 — Milestone v1.2 started
 
 ## Performance Metrics
 

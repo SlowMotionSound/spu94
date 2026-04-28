@@ -4,13 +4,11 @@
 
 **Shipped:** M1 — Reverb Core foundation (2026-04-25). 7 phases, 33 plans, 58 tasks complete. The bit-faithful PS1 SPU reverb network is implemented end-to-end as `libspu94`, with Python bindings, a native CLI, the 10 PS1 factory presets, full spec-conformance + golden-file + witness-diff + modulation test infrastructure, and a polished README. 82/82 ctest green. M1 close-out remediation cycle (Steps 1-15 from `ARCHITECTURAL-AUDIT.md`) hardened the test surface and closed every audit-flagged correctness gap; see `.planning/milestones/v1.0-MILESTONE-AUDIT.md` for the post-remediation re-audit (filename uses GSD's internal milestone numbering) and `.planning/MILESTONES.md` for the shipped accomplishments list.
 
-**Important framing distinction (2026-04-25 redefinition):** GSD's internal "milestone v1.0" tracks the first batch of shipped phases (the library core). Anthony's user-facing **v1.0 = M4 JUCE plugin shippable to a DAW** — when a user can install the plugin, open it in Reaper / Ableton / Logic, and play with the PS1 reverb. Until M4 ships, the project version is **pre-1.0** (`m1-reverb-core` is the current tag).
-
-**Tagged:** `m1-reverb-core` (annotated, local). The `v1.0` tag is intentionally NOT used for this milestone — per Anthony's redefinition, **v1.0 = M4 plugin shippable to a DAW**, not just the library + CLI. What shipped here is M1 (reverb core foundation), tagged accordingly.
+**Tagged:** `m1-reverb-core` (M1 reverb core foundation), `v1.0` (standalone GUI product), `v1.1` (ADPCM codec).
 
 **Shipped:** M2 — Sony 4-bit ADPCM Encode/Decode (2026-04-27, tag `v1.1`). Bit-faithful ADPCM codec added to libspu94 as toggleable coloration stage. 4 phases, 10 plans, 23/23 requirements verified. 380 LOC C core + 841 LOC tests + 30 golden files + 7 ADRs.
 
-**Current milestone:** None active. Next milestone TBD (candidates: M3 DAC modeling, M4 JUCE plugin product, Digital Patina Engine).
+**Current milestone:** v1.2 — DAC Modeling (started 2026-04-28).
 
 ## What This Is
 
@@ -56,16 +54,26 @@ Rigor governs the algorithm; musicality governs everything that surrounds it. Th
 
 See `.planning/milestones/v1.1-REQUIREMENTS.md` for full 23-requirement traceability.
 
-### Active — Next Milestone: TBD
+### Active — v1.2 DAC Modeling
 
-No active requirements. Run `/gsd-new-milestone` to scope the next body of work.
+## Current Milestone: v1.2 DAC Modeling
 
-### Out of Scope (for v1.0; most deferred, not abandoned)
+**Goal:** Research and model the PS1's DAC conversion stage — identify the actual converter topology Sony used and implement a digital model of its conversion artifacts as a toggleable coloration stage in libspu94.
+
+**Target features:**
+- Identify PS1 DAC chip and converter topology (R2R, sigma-delta, etc.)
+- Model converter-specific artifacts (quantization behavior, ZOH, reconstruction filtering, DNL/INL nonlinearities)
+- Implement as toggleable stage in the signal chain (like ADPCM)
+- Verify against available references and documentation
+
+Requirements defined after research completes.
+
+### Out of Scope (shipped or deferred, not abandoned)
 
 - **4-bit Sony ADPCM encode/decode** — SHIPPED as M2 / v1.1 (2026-04-27)
-- **DAC reconstruction modeling** — deferred to AFTER M4 plugin per the 2026-04-25 sequencing change; layers in as a switchable flag without changing the plugin's user-facing surface
-- **JUCE / VST3 / AU / LV2 plugin** — pulled forward as M4 = the next milestone (no longer deferred per 2026-04-25 redefinition; M4 completion is product v1.0)
-- **Named musical levers ("Room Size", "Pre Delay", etc.), parameter smoothing, CV mappings, plugin UI** — Milestone 4 work atop the v1.0 register API. v1.0 contributed: glitch-free mid-stream register API + `LEVERS-CATALOG.md` candidate-lever catalog. Lever abstraction itself is M4.
+- **DAC analog output stage** (op-amps, coupling caps, output impedance) — deferred; needs real hardware measurement
+- **JUCE DAW plugin (VST3 / AU / LV2)** — next milestone candidate; wraps the existing C core for use in Reaper / Ableton / Logic
+- **Named musical levers ("Room Size", "Pre Delay", etc.), parameter smoothing, CV mappings, plugin UI** — DAW plugin milestone work atop the register API. v1.0 contributed: glitch-free mid-stream register API + `LEVERS-CATALOG.md` candidate-lever catalog.
 - **Hardware validation via PSX homebrew + digital capture** — deferred to Milestone 5; Anthony has an original PSX
 - **Eurorack module** — explicitly future direction, separately documented in `ps1-reverb-eurorack.md`
 - **FPGA implementation** — future direction; C core chosen specifically to keep FPGA HLS path open
@@ -98,7 +106,7 @@ Tech stack realities at v1.0 close: plain C99 core (zero heap in hot path verifi
 
 - **Tech stack (core):** Plain C99/C11, no heap allocations in the hot path, no dynamic dispatch, no exceptions, no STL. Self-contained except for a WAV I/O dep (CLI only, not the library). Verified at v1.0 by `nm -u libspu94.so` + grep-guard + 4 `rt_safety` ctest targets.
 - **Tech stack (tooling):** Python 3.10+ + numpy + scipy + matplotlib + pytest for test harness and exploration. ctypes (not cffi/pybind11) for the binding layer to minimize maintenance surface.
-- **Licensing posture:** Pragmatic original work. nocash + Sony SDK docs + Claude-authored code from spec are the source material. GPL sources (Mednafen, lv2-psx-reverb, DuckStation, MiSTer) are not read as a primary activity; if consulted to resolve a specific ambiguity, the consultation is logged in DECISIONS.md. No copy-paste, no line-by-line translation, no mirroring of source file structure. Final license pick (MIT vs Apache-2.0) deferred to end of M1 — **landing this pick is part of the v1.0-tag-to-public-release window** (see Active residuals).
+- **Licensing posture:** Pragmatic original work. nocash + Sony SDK docs + Claude-authored code from spec are the source material. GPL sources (Mednafen, lv2-psx-reverb, DuckStation, MiSTer) are not read as a primary activity; if consulted to resolve a specific ambiguity, the consultation is logged in DECISIONS.md. No copy-paste, no line-by-line translation, no mirroring of source file structure. Final license pick (MIT vs Apache-2.0) deferred — decide before public release.
 - **Trademark:** "PlayStation", "PS1", "PSX", and the Sony logo are Sony marks. Not used in product names or marketing. Working directory name "PSX Reverb" is internal only; product name is SPU-94.
 - **Algorithmic fidelity:** Where the spec is explicit, SPU-94 follows spec. Where the spec is ambiguous and witnesses disagree, the chosen behavior is documented in DECISIONS.md. No silent divergences. The witness-diff threshold gate (Step 12 / ADR-0024) is the runtime regression gate for this constraint.
 - **Real-time safety:** The DSP core must be real-time safe — no allocations, no locks, no syscalls, no variable-latency operations — verified at v1.0 by 4 `rt_safety` ctest targets (`rt_no_heap`, `rt_no_locks`, `rt_no_syscalls`, `rt_bench_latency`) all green; observed (p99-median)/median ratio 0.741 against threshold 2.0.
@@ -116,7 +124,7 @@ Tech stack realities at v1.0 close: plain C99 core (zero heap in hot path verifi
 | LEVERS-CATALOG.md annotated during M1 implementation | Lever abstraction is M4 work, but cataloging which registers are musical candidates costs nothing during M1. | ✓ Good — 35-register catalog AUTO columns done at v1.0 (12 free / 6 sample-quantized / 17 catastrophic); HAND columns seeded for M4 |
 | Ship PS1 factory presets (all 10) as M1 fixtures | Presets are register-config files; free to include; give witness diffs concrete targets. | ✓ Good — 10 presets shipped with three-source audit (BIB-011/012/013 priority chain) |
 | Linux primary, Daisy/Cortex-M cross-compile smoke test | Linux matches Anthony's workstation. | ⚠ Revisit — Linux primary good; Cortex-M smoke test (Phase 8) parked per 2026-04-24 decision, moves to between M4 and M5 |
-| License pick deferred to end of M1 | MIT vs Apache-2.0 is a minor decision with low blast radius. | ⚠ Revisit — pick is now overdue; add to v1.0-tag-to-public-release window |
+| License pick deferred | MIT vs Apache-2.0 is a minor decision with low blast radius. | ⚠ Revisit — pick outstanding; decide before public release |
 | SPU-94 is a living instrument, not a preset engine | Anthony's framing: presets are test fixtures, not the product. | ✓ Good — Phase 7 modulation harness empirically proved every register but vAPF1 clean through 11 kHz under modulation, validating the M4 lever direction |
 | Implement 22.05kHz half-rate processing with nocash's 39-tap half-band FIR | The SPU reverb hardware runs internally at 22.05kHz; the FIR is what makes SPU-94 bit-faithful at the I/O boundary. | ✓ Good — Phase 4 shipped FIR with bit-identity to a hand-audited integer reference; Phase 7 witness-diff confirms the high-band brightness gap closes vs lv2 |
 | lv2-psx-reverb explicitly excluded as a witness for frequency-response | lv2-psx-reverb's README acknowledges it skips the half-band FIR. | ✓ Good — ADR-Phase-4-I documents the high-band exclusion; Step 12's witness-diff threshold gate respects it |
@@ -142,4 +150,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-27 after v1.1 ADPCM milestone shipped (4 phases, 10 plans, 23/23 requirements; tagged `v1.1`). Next milestone TBD.*
+*Last updated: 2026-04-28 — v1.2 DAC Modeling milestone started.*
