@@ -30,6 +30,42 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-0054: AK4309 interpolation filter passband ripple -- datasheet is authoritative
+
+**Status:** Accepted (2026-04-28, v1.2 Phase 5)
+
+**Context:**
+
+The AK4309B datasheet specifies +/-0.05 dB passband ripple for the digital interpolation filter. Stereophile's 1995 PS1 review measured "ripple in the top three octaves" which they attributed to an "underspecified digital filter." This raised a question: does the AK4309's digital filter have more ripple than the datasheet claims, or was Stereophile measuring the composite output of the entire analog chain (digital filter + switched-capacitor filter + continuous-time filter + op-amps + cabling)?
+
+The AK4309 output path is: 8x FIR interpolator -> switched-capacitor filter (SCF) -> continuous-time filter (CTF) -> analog output. The datasheet's +/-0.05 dB spec applies to the digital FIR stage. The SCF and CTF contribute their own passband ripple and rolloff. The -0.2 dB at 20 kHz composite spec covers all stages combined.
+
+Investigation per D-13: no AKM-specific documentation (application notes, AK43xx family datasheets, academic papers) was found confirming the internal architecture of the AK4309's digital interpolation filter. The cascaded half-band architecture used in this implementation is an era-typical engineering assumption supported by universal industry practice for 8x interpolation in 1990s consumer audio silicon, the AK4309's cost-optimized positioning (80mW, 20-pin SSOP), and the implausibility of a single-stage 8x FIR (would require 400+ taps) in mid-90s gate budgets.
+
+**Decision:**
+
+The AK4309B datasheet is authoritative for the digital interpolation filter's passband ripple specification (+/-0.05 dB). Stereophile's measured ripple is attributed to the composite analog output chain, not the digital filter alone. The SPU-94 DAC model reproduces the digital interpolation stage only and makes no claim about reproducing the full PS1 analog output "sound."
+
+The filter is implemented as three cascaded 2x half-band FIR stages (55+11+7 taps = 73 total, 41 non-zero coefficients) designed with the Parks-McClellan (remez) algorithm. The composite cascade achieves 0.078 dB peak-to-peak passband ripple, 49.3 dB stopband attenuation, and -0.016 dB at 20 kHz -- all within datasheet limits with margin.
+
+**Confidence:**
+- Digital filter specs (passband ripple, stopband attenuation): HIGH -- the datasheet is explicit and the design meets it
+- Cascaded half-band architecture: MEDIUM-HIGH -- industry-standard assumption, not confirmed by AKM documentation
+- Full-chain PS1 output reproduction: LOW -- the analog stages (SCF, CTF, op-amps) are not modeled in v1.2
+
+**Consequences:**
+
+The v1.2 DAC model adds the digital interpolation filter's passband ripple character as a toggleable coloration. Users should understand this reproduces the DAC's digital conversion artifacts, not the full PS1 output chain. Hardware calibration (deferred to M5 / DAC-HW-01 through DAC-HW-03) may later refine the model against captures from real PS1 hardware, which would include the analog stages.
+
+The Q15 fixed-point port in Phase 6 must verify that coefficient quantization does not push the composite ripple outside the +/-0.05 dB datasheet spec. The scipy design script verifies this for the designed coefficients; Phase 6 must re-verify after any implementation-specific coefficient adjustments.
+
+**Sources:**
+- AK4309B datasheet (AllDatasheet): +/-0.05 dB passband ripple, 41 dB stopband attenuation, -0.2 dB at 20 kHz, "8 times FIR Interpolator"
+- Stereophile PS1 review (1995): "ripple in the top three octaves" -- composite measurement, not isolated digital filter
+- DSPRelated (Neil Robertson): cascaded half-band as standard 8x interpolation architecture
+- Analog Devices MT-017 (Walt Kester): cascaded interpolation as standard for oversampling DACs
+- Phase 5 scipy design exploration: empirical verification of 55+11+7 minimum-order cascade
+
 ## ADR-0053: ADPCM tail block padding — caller zero-pads to 28 samples
 
 **Status:** Accepted (2026-04-26, M2 Phase 1)
