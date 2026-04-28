@@ -20,7 +20,7 @@
 - [x] **Phase 2: Pipeline Integration** - ADPCM wired into reverb chain (v1.1, shipped)
 - [x] **Phase 3: I/O Layer** - CLI, Python, JUCE for ADPCM (v1.1, shipped)
 - [x] **Phase 4: Verification + Documentation** - ADPCM goldens, coverage, ADRs (v1.1, shipped)
-- [ ] **Phase 5: Interpolation Filter Design** - Scipy prototype of AK4309 8x cascaded half-band FIR, validated against Stereophile measurements
+- [ ] **Phase 5: Interpolation Filter Design** - Scipy prototype of AK4309 8x cascaded half-band FIR, verified against datasheet specs
 - [ ] **Phase 6: DAC Core Implementation** - Q15 fixed-point interpolation filter and shaped noise model in C
 - [ ] **Phase 7: Pipeline Integration** - DAC model wired into spu94_process as toggleable post-FIR stage
 - [ ] **Phase 8: I/O Surface** - CLI --dac flag, Python ctypes toggle, JUCE DAC checkbox
@@ -29,14 +29,16 @@
 ## Phase Details
 
 ### Phase 5: Interpolation Filter Design
-**Goal**: The AK4309's digital interpolation filter is characterized as a scipy prototype with frequency response validated against published PS1 measurements
+**Goal**: The AK4309's digital interpolation filter is characterized as a scipy prototype with automated pass/fail verification against AK4309B datasheet specs
 **Depends on**: Nothing (v1.2 entry point; builds on shipped v1.1 codebase)
 **Requirements**: DAC-FILT-01, DAC-FILT-03
 **Success Criteria** (what must be TRUE):
-  1. A Python/scipy script produces FIR or biquad coefficients matching the AK4309's 8x cascaded half-band interpolator spec (+/-0.05dB passband ripple, 41dB stopband attenuation)
-  2. The script plots the designed filter's frequency response overlaid against Stereophile PS1 measurements as a sanity check
-  3. An ADR documents the passband ripple gray area (datasheet spec vs measured behavior) with a reasoned resolution and confidence assessment
-**Plans**: TBD
+  1. A Python/scipy script produces FIR coefficients matching the AK4309's 8x cascaded half-band interpolator spec (+/-0.05dB passband ripple, 41dB stopband attenuation) with automated pass/fail assertions
+  2. The script plots the designed filter's frequency response with datasheet spec limits as reference lines
+  3. An ADR documents the passband ripple gray area (datasheet spec vs Stereophile composite-chain measurements) with a reasoned resolution and confidence assessment
+**Plans:** 1 plan
+Plans:
+- [ ] 05-01-PLAN.md — Filter design script + verification + plot + ADR
 
 ### Phase 6: DAC Core Implementation
 **Goal**: The interpolation filter and delta-sigma noise model exist as tested C modules operating at 44.1kHz in Q15 fixed-point
@@ -88,7 +90,7 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 9
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 5. Interpolation Filter Design | 0/TBD | Not started | - |
+| 5. Interpolation Filter Design | 0/1 | Not started | - |
 | 6. DAC Core Implementation | 0/TBD | Not started | - |
 | 7. Pipeline Integration | 0/TBD | Not started | - |
 | 8. I/O Surface | 0/TBD | Not started | - |
@@ -133,4 +135,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 - `.planning/milestones/v1.0-REQUIREMENTS.md` -- M1 requirements
 
 ---
-*Last updated: 2026-04-28 -- v1.2 DAC Modeling roadmap created*
+*Last updated: 2026-04-28 -- Phase 5 planned (1 plan)*
