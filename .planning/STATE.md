@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: in_progress
-stopped_at: Phase 7 Plan 01 complete, Plan 02 next
-last_updated: "2026-04-29T21:10:00Z"
-last_activity: 2026-04-29 -- Phase 7 Plan 01 complete (state expansion + API declarations)
+stopped_at: Phase 7 Plan 02 complete, Plan 03 next
+last_updated: "2026-04-29T22:07:00Z"
+last_activity: 2026-04-29 -- Phase 7 Plan 02 complete (mixer architecture + JUCE passthrough)
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 3
-  completed_plans: 1
-  percent: 67
+  completed_plans: 2
+  percent: 83
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-28)
 ## Current Position
 
 Phase: 7 of 9 (Pipeline Integration) -- IN PROGRESS
-Plan: 1 of 3 complete; Plan 02 (mixer rewrite) next
-Status: Plan 01 shipped state expansion + API declarations + init/reset fixup
-Last activity: 2026-04-29 -- Plan 01 complete (2 tasks, 19min)
+Plan: 2 of 3 complete; Plan 03 (integration tests) next
+Status: Plan 02 shipped mixer architecture rewrite + JUCE passthrough + all fader/toggle implementations
+Last activity: 2026-04-29 -- Plan 02 complete (2 tasks, 54min)
 
-Progress: [######*...] 67%
+Progress: [########..] 83%
 
 ## Performance Metrics
 
@@ -52,7 +52,7 @@ Progress: [######*...] 67%
 |-------|-------|-------|----------|
 | 05-interpolation-filter-design | 1 | -- | -- |
 | 06-dac-core-implementation | 2/2 | 55min | 28min |
-| 07-pipeline-integration | 1/3 | 19min | 19min |
+| 07-pipeline-integration | 2/3 | 73min | 37min |
 
 ## Accumulated Context
 
@@ -79,6 +79,9 @@ Recent decisions affecting current work:
 - ADPCM position may become movable in future — avoid hardwiring it
 - WR-02 fix: spu94_dac_noise_init now accepts per-channel seed parameter (L=0xACE1u, R=0x1ECAu)
 - latency_comp defaults ON (set explicitly in init/reset after zero-fill, per D-07)
+- Off preset stays silent: CLI/tests do NOT set mixer faders for Off, preserving Off=silence contract
+- Golden files regenerated and witness thresholds widened after mixer architecture Q15 truncation changes
+- Python binding gets minimum mixer fader declarations; full API exposure is Plan 03
 
 ### Blockers/Concerns
 
@@ -99,5 +102,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-29
-Stopped at: Completed 07-01-PLAN.md (state expansion + API declarations)
-Resume file: .planning/phases/07-pipeline-integration/07-02-PLAN.md
+Stopped at: Completed 07-02-PLAN.md (mixer architecture + JUCE passthrough)
+Resume file: .planning/phases/07-pipeline-integration/07-03-PLAN.md

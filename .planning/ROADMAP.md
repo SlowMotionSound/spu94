@@ -65,7 +65,7 @@ Plans:
 **Plans:** 3 plans
 Plans:
 - [x] 07-01-PLAN.md — State struct expansion + public API + init/reset fixup + WR-02 noise seed fix (completed 2026-04-29)
-- [ ] 07-02-PLAN.md — Mixer architecture rewrite + toggle/fader implementations + JUCE passthrough
+- [x] 07-02-PLAN.md — Mixer architecture rewrite + toggle/fader implementations + JUCE passthrough (completed 2026-04-29)
 - [ ] 07-03-PLAN.md — Integration tests for mixer, DAC section, and latency compensation
 
 ### Phase 8: I/O Surface
@@ -99,7 +99,7 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 9
 |-------|----------------|--------|-----------|
 | 5. Interpolation Filter Design | 1/1 | Complete | 2026-04-28 |
 | 6. DAC Core Implementation | 2/2 | Complete | 2026-04-29 |
-| 7. Pipeline Integration | 1/3 | In progress | - |
+| 7. Pipeline Integration | 2/3 | In progress | - |
 | 8. I/O Surface | 0/TBD | Not started | - |
 | 9. Verification + Documentation | 0/TBD | Not started | - |
 

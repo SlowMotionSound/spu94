@@ -19,9 +19,9 @@ Requirements for the DAC modeling milestone. The PS1 uses an AKM AK4309AVM 1-bit
 
 ### Pipeline Integration (DAC-INT)
 
-- [ ] **DAC-INT-01**: DAC model inserted at 44.1kHz after spu94_fir_chain_step output, toggleable via spu94_set_dac_enabled(), default-off, following the ADPCM toggle pattern
-- [ ] **DAC-INT-02**: DAC state contained within spu94_state budget, disable resets filter/noise state cleanly, zero regression on all existing tests with DAC disabled
-- [ ] **DAC-INT-03**: All rt_safety gates (rt_no_heap, rt_no_locks, rt_no_syscalls, rt_bench_latency) pass with DAC enabled
+- [x] **DAC-INT-01**: DAC model inserted at 44.1kHz after spu94_fir_chain_step output, toggleable via spu94_set_dac_enabled(), default-off, following the ADPCM toggle pattern (07-01 + 07-02)
+- [x] **DAC-INT-02**: DAC state contained within spu94_state budget, disable resets filter/noise state cleanly, zero regression on all existing tests with DAC disabled (07-01 + 07-02)
+- [x] **DAC-INT-03**: All rt_safety gates (rt_no_heap, rt_no_locks, rt_no_syscalls, rt_bench_latency) pass with DAC enabled (07-02)
 
 ### I/O Surface (DAC-IO)
 
@@ -68,9 +68,9 @@ Requirements for the DAC modeling milestone. The PS1 uses an AKM AK4309AVM 1-bit
 | DAC-FILT-02 | Phase 6 Plan 01 | Complete (2026-04-29) |
 | DAC-FILT-03 | Phase 5 | Complete (05-01) |
 | DAC-NOISE-01 | Phase 6 Plan 02 | Complete (2026-04-29) |
-| DAC-INT-01 | Phase 7 | Pending |
-| DAC-INT-02 | Phase 7 | Pending |
-| DAC-INT-03 | Phase 7 | Pending |
+| DAC-INT-01 | Phase 7 (07-01 + 07-02) | Complete |
+| DAC-INT-02 | Phase 7 (07-01 + 07-02) | Complete |
+| DAC-INT-03 | Phase 7 (07-02) | Complete |
 | DAC-IO-01 | Phase 8 | Pending |
 | DAC-IO-02 | Phase 8 | Pending |
 | DAC-IO-03 | Phase 8 | Pending |
