@@ -72,6 +72,10 @@ Recent decisions affecting current work:
 - Coefficient hex notation: signed form (-0x005C not 0xFFA4) for -Werror compliance; bit patterns identical
 - Folded-form + zero-skip: 22 multiplies per sample (not 41 unoptimized); int32 accumulators proven safe
 - DAC_NOISE_SHIFT tuned from 9 (research estimate) to 14 for correct -90 dB amplitude calibration
+- All DSP signal flow lives in C core — JUCE/CLI/Python are thin wrappers with no DSP logic
+- Send/return mixer architecture: input gain → dry bus + patina (ADPCM) bus → two reverb sends (dry + patina) → reverb (100% wet) → three-fader master mixer (dry/patina/reverb) → DAC model (on/off) → output
+- Six controls: input gain, dry fader, patina fader, dry reverb send, patina reverb send, reverb fader, plus DAC toggle
+- ADPCM position may become movable in future — avoid hardwiring it
 
 ### Blockers/Concerns
 
