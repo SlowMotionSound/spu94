@@ -62,10 +62,7 @@ Plans:
   2. The DAC model processes samples at 44.1kHz after `spu94_fir_chain_step` output, matching the hardware signal path (SPU serial output feeds DAC)
   3. All existing tests pass with DAC disabled (zero regression), and DAC state fits within the existing `spu94_state` budget
   4. All four rt_safety gates (rt_no_heap, rt_no_locks, rt_no_syscalls, rt_bench_latency) pass with DAC enabled
-**Plans:** 2 plans
-Plans:
-- [ ] 06-01-PLAN.md — DAC interpolation filter (3-stage cascaded half-band FIR in Q15)
-- [ ] 06-02-PLAN.md — DAC noise model (LFSR + 2nd-order HP shaping)
+**Plans**: TBD
 
 ### Phase 8: I/O Surface
 **Goal**: DAC coloration is accessible through all three I/O layers (CLI, Python, JUCE) matching the ADPCM toggle pattern
@@ -75,10 +72,7 @@ Plans:
   1. `spu94 process --dac` enables DAC coloration on CLI WAV processing (same pattern as `--adpcm`)
   2. Python ctypes bindings expose `spu94_set_dac_enabled`/`spu94_get_dac_enabled` with the same calling convention as the ADPCM toggle
   3. The JUCE standalone GUI includes a DAC toggle checkbox alongside the existing ADPCM toggle
-**Plans:** 2 plans
-Plans:
-- [ ] 06-01-PLAN.md — DAC interpolation filter (3-stage cascaded half-band FIR in Q15)
-- [ ] 06-02-PLAN.md — DAC noise model (LFSR + 2nd-order HP shaping)
+**Plans**: TBD
 **UI hint**: yes
 
 ### Phase 9: Verification + Documentation
@@ -90,10 +84,7 @@ Plans:
   2. A Python frequency response script measures the DAC model output, plots against the Phase 5 design target, and verifies passband ripple falls within documented tolerance
   3. C unit tests verify filter coefficient correctness, noise shaping spectral slope (+12dB/octave), toggle state transitions, and filter state reset on disable
   4. `docs/COVERAGE.md` is updated with DAC model test mappings showing every DAC requirement covered
-**Plans:** 2 plans
-Plans:
-- [ ] 06-01-PLAN.md — DAC interpolation filter (3-stage cascaded half-band FIR in Q15)
-- [ ] 06-02-PLAN.md — DAC noise model (LFSR + 2nd-order HP shaping)
+**Plans**: TBD
 
 ## Progress
 
@@ -103,7 +94,7 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 9
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 5. Interpolation Filter Design | 1/1 | Complete | 2026-04-28 |
-| 6. DAC Core Implementation | 0/TBD | Not started | - |
+| 6. DAC Core Implementation | 0/2 | Planned | - |
 | 7. Pipeline Integration | 0/TBD | Not started | - |
 | 8. I/O Surface | 0/TBD | Not started | - |
 | 9. Verification + Documentation | 0/TBD | Not started | - |
