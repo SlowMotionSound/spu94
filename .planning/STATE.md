@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: executing
-stopped_at: Phase 6 Plan 01 complete
-last_updated: "2026-04-29T01:07:00Z"
-last_activity: 2026-04-29 -- Phase 6 Plan 01 complete (DAC interpolation filter C port)
+stopped_at: Phase 6 complete
+last_updated: "2026-04-29T01:29:00Z"
+last_activity: 2026-04-29 -- Phase 6 Plan 02 complete (DAC noise model)
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 40
+  completed_phases: 2
+  total_plans: 3
+  completed_plans: 3
+  percent: 60
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-28)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.2 DAC Modeling — Phase 6 (DAC Core Implementation) in progress
+**Current focus:** v1.2 DAC Modeling — Phase 6 complete, Phase 7 (Pipeline Integration) next
 
 ## Current Position
 
-Phase: 6 of 9 (DAC Core Implementation)
-Plan: 1 of 2 complete; Plan 02 next (DAC noise model)
-Status: Phase 6 Plan 01 complete (DAC interpolation filter)
-Last activity: 2026-04-29 -- Phase 6 Plan 01 complete (3 tasks, 22-multiply cascade FIR)
+Phase: 6 of 9 (DAC Core Implementation) -- COMPLETE
+Plan: 2 of 2 complete; Phase 7 next (Pipeline Integration)
+Status: Phase 6 complete (DAC interpolation filter + noise model)
+Last activity: 2026-04-29 -- Phase 6 Plan 02 complete (2 tasks, LFSR + 2nd-order HP noise shaping)
 
-Progress: [####......] 40%
+Progress: [######....] 60%
 
 ## Performance Metrics
 
@@ -51,7 +51,7 @@ Progress: [####......] 40%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 05-interpolation-filter-design | 1 | -- | -- |
-| 06-dac-core-implementation | 1/2 | 37min | 37min |
+| 06-dac-core-implementation | 2/2 | 55min | 28min |
 
 ## Accumulated Context
 
@@ -71,6 +71,7 @@ Recent decisions affecting current work:
 - Minimum-order cascade 55+11+7 taps (41 non-zero multiplies) meets all specs with margin
 - Coefficient hex notation: signed form (-0x005C not 0xFFA4) for -Werror compliance; bit patterns identical
 - Folded-form + zero-skip: 22 multiplies per sample (not 41 unoptimized); int32 accumulators proven safe
+- DAC_NOISE_SHIFT tuned from 9 (research estimate) to 14 for correct -90 dB amplitude calibration
 
 ### Blockers/Concerns
 
@@ -90,6 +91,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-29T01:07:00Z
-Stopped at: Phase 6 Plan 01 complete
-Resume file: .planning/phases/06-dac-core-implementation/06-01-SUMMARY.md
+Last session: 2026-04-29T01:29:00Z
+Stopped at: Phase 6 complete
+Resume file: .planning/phases/06-dac-core-implementation/06-02-SUMMARY.md

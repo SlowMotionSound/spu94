@@ -15,7 +15,7 @@ Requirements for the DAC modeling milestone. The PS1 uses an AKM AK4309AVM 1-bit
 
 ### DAC Noise Shaping (DAC-NOISE)
 
-- [ ] **DAC-NOISE-01**: 2nd-order shaped noise model matching the AK4309's delta-sigma modulator characteristics — LFSR source with 2nd-order highpass shaping producing +12dB/octave spectral slope, calibrated to ~90dB dynamic range at 384x OSR
+- [x] **DAC-NOISE-01**: 2nd-order shaped noise model matching the AK4309's delta-sigma modulator characteristics — LFSR source with 2nd-order highpass shaping producing +12dB/octave spectral slope, calibrated to ~90dB dynamic range at 384x OSR
 
 ### Pipeline Integration (DAC-INT)
 
@@ -67,7 +67,7 @@ Requirements for the DAC modeling milestone. The PS1 uses an AKM AK4309AVM 1-bit
 | DAC-FILT-01 | Phase 5 | Complete (05-01) |
 | DAC-FILT-02 | Phase 6 Plan 01 | Complete (2026-04-29) |
 | DAC-FILT-03 | Phase 5 | Complete (05-01) |
-| DAC-NOISE-01 | Phase 6 | Pending |
+| DAC-NOISE-01 | Phase 6 Plan 02 | Complete (2026-04-29) |
 | DAC-INT-01 | Phase 7 | Pending |
 | DAC-INT-02 | Phase 7 | Pending |
 | DAC-INT-03 | Phase 7 | Pending |
