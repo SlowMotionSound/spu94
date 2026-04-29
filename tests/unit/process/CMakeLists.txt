@@ -110,3 +110,30 @@ target_include_directories(test_process_adpcm PRIVATE
     ${CMAKE_SOURCE_DIR}/src/spu94)
 add_test(NAME test_process_adpcm COMMAND test_process_adpcm)
 set_tests_properties(test_process_adpcm PROPERTIES LABELS "process;adpcm_integration")
+
+# Phase 7: mixer bus routing and fader math integration tests.
+add_executable(test_process_mixer test_process_mixer.c)
+target_link_libraries(test_process_mixer PRIVATE unity spu94_static spu94_warnings)
+target_include_directories(test_process_mixer PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src/spu94)
+add_test(NAME test_process_mixer COMMAND test_process_mixer)
+set_tests_properties(test_process_mixer PROPERTIES LABELS "process;mixer")
+
+# Phase 7: DAC toggle hierarchy and processing integration tests.
+add_executable(test_process_dac_integration test_process_dac_integration.c)
+target_link_libraries(test_process_dac_integration PRIVATE unity spu94_static spu94_warnings)
+target_include_directories(test_process_dac_integration PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src/spu94)
+add_test(NAME test_process_dac_integration COMMAND test_process_dac_integration)
+set_tests_properties(test_process_dac_integration PROPERTIES LABELS "process;dac_integration")
+
+# Phase 7: latency compensation delay buffer integration tests.
+add_executable(test_process_latency_comp test_process_latency_comp.c)
+target_link_libraries(test_process_latency_comp PRIVATE unity spu94_static spu94_warnings)
+target_include_directories(test_process_latency_comp PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src/spu94)
+add_test(NAME test_process_latency_comp COMMAND test_process_latency_comp)
+set_tests_properties(test_process_latency_comp PROPERTIES LABELS "process;mixer")
