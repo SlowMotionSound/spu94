@@ -64,7 +64,7 @@ Plans:
   4. All four rt_safety gates (rt_no_heap, rt_no_locks, rt_no_syscalls, rt_bench_latency) pass with DAC enabled
 **Plans:** 3 plans
 Plans:
-- [ ] 07-01-PLAN.md — State struct expansion + public API + init/reset fixup + WR-02 noise seed fix
+- [x] 07-01-PLAN.md — State struct expansion + public API + init/reset fixup + WR-02 noise seed fix (completed 2026-04-29)
 - [ ] 07-02-PLAN.md — Mixer architecture rewrite + toggle/fader implementations + JUCE passthrough
 - [ ] 07-03-PLAN.md — Integration tests for mixer, DAC section, and latency compensation
 
@@ -99,7 +99,7 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 9
 |-------|----------------|--------|-----------|
 | 5. Interpolation Filter Design | 1/1 | Complete | 2026-04-28 |
 | 6. DAC Core Implementation | 2/2 | Complete | 2026-04-29 |
-| 7. Pipeline Integration | 0/3 | In progress | - |
+| 7. Pipeline Integration | 1/3 | In progress | - |
 | 8. I/O Surface | 0/TBD | Not started | - |
 | 9. Verification + Documentation | 0/TBD | Not started | - |
 

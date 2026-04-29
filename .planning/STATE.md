@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: phase_complete
-stopped_at: Phase 6 complete, verified, ready for Phase 7
-last_updated: "2026-04-29T01:45:00Z"
-last_activity: 2026-04-29 -- Phase 6 complete (verification passed 10/10)
+status: in_progress
+stopped_at: Phase 7 Plan 01 complete, Plan 02 next
+last_updated: "2026-04-29T21:10:00Z"
+last_activity: 2026-04-29 -- Phase 7 Plan 01 complete (state expansion + API declarations)
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 3
-  completed_plans: 3
-  percent: 60
+  completed_plans: 1
+  percent: 67
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-04-28)
 
 ## Current Position
 
-Phase: 7 of 9 (Pipeline Integration) -- PLANNED
-Plan: 0 of 3 complete; ready to execute
-Status: Phase 7 planned (3 plans, 3 waves — mixer architecture + DAC integration + tests)
-Last activity: 2026-04-29 -- Phase 7 planned (research + patterns + verification passed)
+Phase: 7 of 9 (Pipeline Integration) -- IN PROGRESS
+Plan: 1 of 3 complete; Plan 02 (mixer rewrite) next
+Status: Plan 01 shipped state expansion + API declarations + init/reset fixup
+Last activity: 2026-04-29 -- Plan 01 complete (2 tasks, 19min)
 
-Progress: [######....] 60%
+Progress: [######*...] 67%
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Progress: [######....] 60%
 |-------|-------|-------|----------|
 | 05-interpolation-filter-design | 1 | -- | -- |
 | 06-dac-core-implementation | 2/2 | 55min | 28min |
+| 07-pipeline-integration | 1/3 | 19min | 19min |
 
 ## Accumulated Context
 
@@ -76,6 +77,8 @@ Recent decisions affecting current work:
 - Send/return mixer architecture: input gain → dry bus + patina (ADPCM) bus → two reverb sends (dry + patina) → reverb (100% wet) → three-fader master mixer (dry/patina/reverb) → DAC model (on/off) → output
 - Six controls: input gain, dry fader, patina fader, dry reverb send, patina reverb send, reverb fader, plus DAC toggle
 - ADPCM position may become movable in future — avoid hardwiring it
+- WR-02 fix: spu94_dac_noise_init now accepts per-channel seed parameter (L=0xACE1u, R=0x1ECAu)
+- latency_comp defaults ON (set explicitly in init/reset after zero-fill, per D-07)
 
 ### Blockers/Concerns
 
@@ -96,5 +99,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-29
-Stopped at: Phase 7 planned, ready to execute
-Resume file: .planning/phases/07-pipeline-integration/07-01-PLAN.md
+Stopped at: Completed 07-01-PLAN.md (state expansion + API declarations)
+Resume file: .planning/phases/07-pipeline-integration/07-02-PLAN.md
