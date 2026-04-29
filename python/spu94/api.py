@@ -486,6 +486,13 @@ def self_test() -> None:
         # hear any reverb output.
         set_reg_i16(state, "vLOUT", 0x7FFF)
         set_reg_i16(state, "vROUT", 0x7FFF)
+        # Phase 7: mixer faders default to 0 (silence). Set unity gains
+        # so the audibility arm actually hears the reverb output.
+        from spu94._binding import _lib as _selftest_lib
+        _selftest_lib.spu94_set_input_gain(state, 0x7FFF)
+        _selftest_lib.spu94_set_dry_fader(state, 0x7FFF)
+        _selftest_lib.spu94_set_reverb_fader(state, 0x7FFF)
+        _selftest_lib.spu94_set_dry_send(state, 0x7FFF)
         tick(state)
 
         # HI-03 audibility arm: deterministic non-silent input, check

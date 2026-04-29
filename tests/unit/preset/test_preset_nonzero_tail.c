@@ -98,6 +98,11 @@ static void test_nonzero_tail_per_non_off_preset(void) {
          * at 0, CLI/tests set them to 0x7FFF. */
         spu94_set_vLOUT(state, (int16_t)0x7FFF);
         spu94_set_vROUT(state, (int16_t)0x7FFF);
+        /* Phase 7: mixer faders default to 0 (silence). Set unity gains. */
+        spu94_set_input_gain(state, 0x7FFF);
+        spu94_set_dry_fader(state, 0x7FFF);
+        spu94_set_reverb_fader(state, 0x7FFF);
+        spu94_set_dry_send(state, 0x7FFF);
         /* Commit pending d-prefix/m-prefix values via one tick before
          * audio begins (per D-08 split-policy documentation). */
         spu94_tick(state);

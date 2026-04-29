@@ -290,6 +290,12 @@ def op_load_preset(rng):
     # so the "non-Off preset -> non-zero output within 256 calls" invariant
     # is deterministic on preset load alone — no post-load master-send
     # writes needed here. (Supersedes HI-04 workaround against ADR-Phase-6-G.)
+    # Phase 7: mixer faders default to 0 (silence). Set unity gains after
+    # every preset load so the non-zero-output invariant is testable.
+    lib.spu94_set_input_gain(state, 0x7FFF)
+    lib.spu94_set_dry_fader(state, 0x7FFF)
+    lib.spu94_set_reverb_fader(state, 0x7FFF)
+    lib.spu94_set_dry_send(state, 0x7FFF)
     _last_preset[0] = id_
     _last_preset[1] = 0
     _last_preset[2] = 0

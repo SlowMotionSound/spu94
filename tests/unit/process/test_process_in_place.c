@@ -53,6 +53,11 @@ static spu94_state *fresh_state(unsigned char *sbuf, unsigned char *wbuf,
      * proves 0 == 0 (see CR-02). */
     spu94_set_vLOUT(s, (int16_t)0x7FFF);
     spu94_set_vROUT(s, (int16_t)0x7FFF);
+    /* Phase 7: mixer faders default to 0 (silence). Set unity gains. */
+    spu94_set_input_gain(s, 0x7FFF);
+    spu94_set_dry_fader(s, 0x7FFF);
+    spu94_set_reverb_fader(s, 0x7FFF);
+    spu94_set_dry_send(s, 0x7FFF);
     spu94_tick(s);
     return s;
 }

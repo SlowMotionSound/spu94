@@ -145,6 +145,12 @@ static void test_adpcm_enabled_differs_from_disabled(void) {
     spu94_result_t rc = spu94_load_preset(state, SPU94_PRESET_HALL);
     TEST_ASSERT_EQUAL(SPU94_OK, rc);
 
+    /* Phase 7: mixer faders default to 0 (silence). Set unity gains. */
+    spu94_set_input_gain(state, 0x7FFF);
+    spu94_set_dry_fader(state, 0x7FFF);
+    spu94_set_reverb_fader(state, 0x7FFF);
+    spu94_set_dry_send(state, 0x7FFF);
+
     /* Prime the state with one tick to commit TICK_LATCHED registers */
     {
         int16_t z = 0;
@@ -169,6 +175,12 @@ static void test_adpcm_enabled_differs_from_disabled(void) {
     TEST_ASSERT_NOT_NULL(state_on);
     rc = spu94_load_preset(state_on, SPU94_PRESET_HALL);
     TEST_ASSERT_EQUAL(SPU94_OK, rc);
+
+    /* Phase 7: mixer faders default to 0 (silence). Set unity gains. */
+    spu94_set_input_gain(state_on, 0x7FFF);
+    spu94_set_dry_fader(state_on, 0x7FFF);
+    spu94_set_reverb_fader(state_on, 0x7FFF);
+    spu94_set_dry_send(state_on, 0x7FFF);
 
     /* Prime */
     {
@@ -228,6 +240,8 @@ static void test_adpcm_latency_28_samples(void) {
      * samples with ADPCM enabled, adpcm_out_buf should still be zeros
      * (initial state) while adpcm_in_buf has accumulated the input.
      */
+    /* Phase 7: set input_gain so ADPCM receives non-zero samples */
+    spu94_set_input_gain(state, 0x7FFF);
     spu94_set_adpcm_enabled(state, 1);
 
     /* Feed a steady tone of 10000 for 56 samples (exactly 2 ADPCM blocks) */
@@ -262,6 +276,8 @@ static void test_adpcm_latency_28_samples(void) {
     spu94_state *fresh = spu94_init(state_buf_b, sizeof state_buf_b,
                                      work_buf_b, sizeof work_buf_b);
     TEST_ASSERT_NOT_NULL(fresh);
+    /* Phase 7: set input_gain so ADPCM receives non-zero samples */
+    spu94_set_input_gain(fresh, 0x7FFF);
     spu94_set_adpcm_enabled(fresh, 1);
 
     /* Before processing: output buffer is all zeros */

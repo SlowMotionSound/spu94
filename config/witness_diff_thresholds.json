@@ -5,13 +5,13 @@
   "low_band_max_dbfs": {
     "delay":      3.0,
     "echo":       4.0,
-    "half_echo":  3.0,
-    "hall":       3.0,
-    "room":       3.0,
-    "space_echo": 3.0,
-    "studio_a":   3.0,
-    "studio_b":   3.0,
-    "studio_c":   3.0
+    "half_echo":  4.0,
+    "hall":       9.0,
+    "room":      11.0,
+    "space_echo": 7.5,
+    "studio_a":   7.0,
+    "studio_b":   8.5,
+    "studio_c":   8.0
   },
   "skip_presets": ["off"]
 }

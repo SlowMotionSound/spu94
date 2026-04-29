@@ -211,8 +211,14 @@ int cmd_reverb(int argc, char **argv) {
     /* Enable ADPCM coloration if requested (D-02/ADPCM-IO-02). */
     if (adpcm_enabled) {
         spu94_set_adpcm_enabled(state, 1);
+        /* Phase 7: with the mixer architecture, ADPCM output goes to the
+         * patina bus. Set patina fader and send so the ADPCM coloration
+         * is audible. Without this, patina_fader=0 silences ADPCM. */
+        spu94_set_patina_fader(state, 0x7FFF);
+        spu94_set_patina_send(state, 0x7FFF);
     }
 
+    int loaded_pid = -1;  /* -1 = JSON config, >= 0 = preset ID */
     if (preset_name) {
         int pid = spu94_cli_preset_id_by_name(preset_name);
         if (pid < 0) {
@@ -238,6 +244,7 @@ int cmd_reverb(int argc, char **argv) {
             SPU94_ERROR("failed to load preset '%s': %s", preset_name, reason);
             return 2;
         }
+        loaded_pid = pid;
     } else {
         if (spu94_cli_json_apply(config_path, state, err_buf, sizeof err_buf) != 0) {
             spu94_destroy(state);
@@ -248,6 +255,17 @@ int cmd_reverb(int argc, char **argv) {
     }
 
     spu94_tick(state);
+
+    /* Phase 7: mixer faders default to 0 (silence). Set unity gains so the
+     * CLI produces audible output without requiring JSON config entries.
+     * Off preset (pid=0) stays silent -- no faders, matching the historic
+     * "Off = silence" contract. JSON configs manage their own faders. */
+    if (loaded_pid != 0) {
+        spu94_set_input_gain(state, 0x7FFF);
+        spu94_set_dry_fader(state, 0x7FFF);
+        spu94_set_reverb_fader(state, 0x7FFF);
+        spu94_set_dry_send(state, 0x7FFF);
+    }
 
     uint64_t tail_frames = 0u;
     if (tail_ms > 0u) {

@@ -53,6 +53,11 @@ static spu94_state *fresh_state(void) {
     /* ADR-Phase-6-H: non-Off factory preset tables carry vLOUT=vROUT=0x7FFF
      * so spu94_load_preset alone yields audible output. No explicit
      * post-load master-send write needed here. */
+    /* Phase 7: mixer faders default to 0 (silence). Set unity gains. */
+    spu94_set_input_gain(s, 0x7FFF);
+    spu94_set_dry_fader(s, 0x7FFF);
+    spu94_set_reverb_fader(s, 0x7FFF);
+    spu94_set_dry_send(s, 0x7FFF);
     spu94_tick(s);
     return s;
 }

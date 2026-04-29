@@ -95,6 +95,13 @@ static void run_preset(spu94_preset_id_t id,
     if (id != SPU94_PRESET_OFF) {
         spu94_set_vLOUT(state, (int16_t)0x7FFF);
         spu94_set_vROUT(state, (int16_t)0x7FFF);
+        /* Phase 7: mixer faders default to 0 (silence). Set unity gains
+         * so audio passes through the mixer to the reverb and output.
+         * Off preset stays at zero faders to preserve its silence contract. */
+        spu94_set_input_gain(state, 0x7FFF);
+        spu94_set_dry_fader(state, 0x7FFF);
+        spu94_set_reverb_fader(state, 0x7FFF);
+        spu94_set_dry_send(state, 0x7FFF);
     }
     spu94_tick(state);  /* commit d-prefix/m-prefix pending -> active */
     spu94_process(state, noise_l, noise_r, out_l, out_r, (uint32_t)n);
@@ -190,6 +197,11 @@ static void test_hall_preset_tail_decays(void) {
         (int)spu94_load_preset(state, SPU94_PRESET_HALL));
     spu94_set_vLOUT(state, (int16_t)0x7FFF);
     spu94_set_vROUT(state, (int16_t)0x7FFF);
+    /* Phase 7: mixer faders default to 0 (silence). Set unity gains. */
+    spu94_set_input_gain(state, 0x7FFF);
+    spu94_set_dry_fader(state, 0x7FFF);
+    spu94_set_reverb_fader(state, 0x7FFF);
+    spu94_set_dry_send(state, 0x7FFF);
     spu94_tick(state);
 
     spu94_process(state, noise_l, noise_r, out_l_buf, out_r_buf, N_FEED);

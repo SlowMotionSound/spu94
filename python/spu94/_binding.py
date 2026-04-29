@@ -229,6 +229,19 @@ _lib.spu94_get_adpcm_enabled.argtypes = [ctypes.c_void_p]
 _lib.spu94_get_total_latency_samples.restype = ctypes.c_uint32
 _lib.spu94_get_total_latency_samples.argtypes = [ctypes.c_void_p]
 
+# Phase 7: Mixer fader setters (minimum for self_test audibility) -----------
+_lib.spu94_set_input_gain.restype = None
+_lib.spu94_set_input_gain.argtypes = [ctypes.c_void_p, ctypes.c_int16]
+
+_lib.spu94_set_dry_fader.restype = None
+_lib.spu94_set_dry_fader.argtypes = [ctypes.c_void_p, ctypes.c_int16]
+
+_lib.spu94_set_reverb_fader.restype = None
+_lib.spu94_set_reverb_fader.argtypes = [ctypes.c_void_p, ctypes.c_int16]
+
+_lib.spu94_set_dry_send.restype = None
+_lib.spu94_set_dry_send.argtypes = [ctypes.c_void_p, ctypes.c_int16]
+
 # VAG file format I/O (M2 Phase 3, D-10) ------------------------------------
 
 _lib.spu94_vag_read_header.restype = ctypes.c_int  # 0=ok, -1=bad magic

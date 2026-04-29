@@ -1,7 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "WavLoader.h"
-#include <cmath>
 #include <cstring>
 #include <memory>
 
@@ -65,6 +64,14 @@ void SPU94AudioProcessor::prepareToPlay(double /*sampleRate*/, int /*samplesPerB
 
     spu94_load_preset(spu, SPU94_PRESET_HALL);
     registerBridge.syncShadowsFromSPU(spu);
+
+    // Phase 7 (D-05): C core now owns mixing. Set sensible defaults
+    // so audio is audible immediately (faders default to 0x0000 = silence).
+    spu94_set_input_gain(spu,   0x7FFF);  // full input level
+    spu94_set_dry_fader(spu,    0x7FFF);  // dry bus at unity
+    spu94_set_reverb_fader(spu, 0x7FFF);  // reverb at unity
+    spu94_set_dry_send(spu,     0x7FFF);  // dry bus feeds reverb at unity
+    // patina_fader and patina_send stay at 0 until ADPCM is enabled
 }
 
 void SPU94AudioProcessor::releaseResources()
@@ -139,43 +146,30 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     int16_t tmpL_out[kMaxBlock];
     int16_t tmpR_out[kMaxBlock];
 
-    // Fill input from the loaded WAV data, wrapping for continuous loop.
-    // Apply input level attenuation before the SPU to avoid driving
-    // the fixed-point feedback loops into saturation with hot sources.
-    const float inGain = inputLevel.load(std::memory_order_relaxed);
+    // Push host input level to C core mixer (D-05: float -> Q15 at boundary).
+    // The C core's input_gain handles attenuation; host passes full-scale samples.
+    spu94_set_input_gain(spu, static_cast<int16_t>(
+        inputLevel.load(std::memory_order_relaxed) * 0x7FFF));
+
     auto playPos = wavSource.playPos.load(std::memory_order_relaxed);
     for (int i = 0; i < samplesToProcess; ++i)
     {
         const auto idx = static_cast<size_t>((playPos + static_cast<uint64_t>(i)) % numFrames);
-        tmpL_in[i] = static_cast<int16_t>(wavSource.L[idx] * inGain);
-        tmpR_in[i] = static_cast<int16_t>(wavSource.R[idx] * inGain);
+        tmpL_in[i] = wavSource.L[idx];
+        tmpR_in[i] = wavSource.R[idx];
     }
 
     // Feed through the SPU reverb.
     spu94_process(spu, tmpL_in, tmpR_in, tmpL_out, tmpR_out,
                   static_cast<uint32_t>(samplesToProcess));
 
-    // Equal-power crossfade: dry input vs SPU wet output (D-02, STANDALONE-06).
-    // sqrt pan law preserves perceived loudness across the sweep:
-    //   wet=0.0 → dryGain=1.0, wetGain=0.0 (unprocessed input only)
-    //   wet=0.5 → dryGain=0.707, wetGain=0.707 (constant-power midpoint)
-    //   wet=1.0 → dryGain=0.0, wetGain=1.0 (SPU reverb output only)
-    const float wet = wetDry.load(std::memory_order_relaxed);
-    const float wetGain = std::sqrt(wet);
-    const float dryGain = std::sqrt(1.0f - wet);
-
+    // C core mixer owns all mixing (D-02). Straight passthrough.
     auto* outL = buffer.getWritePointer(0);
     auto* outR = (buffer.getNumChannels() > 1) ? buffer.getWritePointer(1) : nullptr;
-
     for (int i = 0; i < samplesToProcess; ++i)
     {
-        const float dryL = tmpL_in[i] / 32768.0f;
-        const float dryR = tmpR_in[i] / 32768.0f;
-        const float spuL = tmpL_out[i] / 32768.0f;
-        const float spuR = tmpR_out[i] / 32768.0f;
-
-        outL[i] = dryL * dryGain + spuL * wetGain;
-        if (outR) outR[i] = dryR * dryGain + spuR * wetGain;
+        outL[i] = tmpL_out[i] / 32768.0f;
+        if (outR) outR[i] = tmpR_out[i] / 32768.0f;
     }
 
     // Advance play position (continuous loop).
