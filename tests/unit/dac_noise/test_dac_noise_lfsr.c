@@ -13,7 +13,7 @@ void tearDown(void) {}
  * Zero is an absorbing state for Galois LFSRs. */
 static void test_init_sets_nonzero_lfsr(void) {
     spu94_dac_noise_state st;
-    spu94_dac_noise_init(&st);
+    spu94_dac_noise_init(&st, 0xACE1u);
     TEST_ASSERT_NOT_EQUAL_UINT32(0u, st.lfsr);
 }
 
@@ -21,7 +21,7 @@ static void test_init_sets_nonzero_lfsr(void) {
  * If the LFSR is working, this is a near-certainty. */
 static void test_step_produces_nonzero_output(void) {
     spu94_dac_noise_state st;
-    spu94_dac_noise_init(&st);
+    spu94_dac_noise_init(&st, 0xACE1u);
 
     int any_nonzero = 0;
     for (int i = 0; i < 1000; i++) {
@@ -67,7 +67,7 @@ static void test_zero_lfsr_produces_silence(void) {
  * running the full 2^32 cycle. */
 static void test_lfsr_no_short_period(void) {
     spu94_dac_noise_state st;
-    spu94_dac_noise_init(&st);
+    spu94_dac_noise_init(&st, 0xACE1u);
 
     uint32_t seed = st.lfsr;
 
@@ -85,8 +85,8 @@ static void test_lfsr_no_short_period(void) {
  * sequences for 100 steps. */
 static void test_deterministic(void) {
     spu94_dac_noise_state st_a, st_b;
-    spu94_dac_noise_init(&st_a);
-    spu94_dac_noise_init(&st_b);
+    spu94_dac_noise_init(&st_a, 0xACE1u);
+    spu94_dac_noise_init(&st_b, 0xACE1u);
 
     for (int i = 0; i < 100; i++) {
         int16_t a = spu94_dac_noise_step(&st_a);

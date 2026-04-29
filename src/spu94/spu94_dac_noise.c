@@ -44,9 +44,9 @@
  * Validated by tests/unit/dac_noise/test_dac_noise_amplitude.c. */
 #define DAC_NOISE_SHIFT  14
 
-void spu94_dac_noise_init(spu94_dac_noise_state *state) {
+void spu94_dac_noise_init(spu94_dac_noise_state *state, uint32_t seed) {
     memset(state, 0, sizeof(*state));
-    state->lfsr = DAC_NOISE_LFSR_SEED;
+    state->lfsr = seed ? seed : DAC_NOISE_LFSR_SEED;
 }
 
 int16_t spu94_dac_noise_step(spu94_dac_noise_state *state) {

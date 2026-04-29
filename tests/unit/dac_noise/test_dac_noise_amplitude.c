@@ -23,7 +23,7 @@ static void test_noise_rms_near_minus_90dB(void) {
     #define FULL_SCALE 32768.0
 
     spu94_dac_noise_state st;
-    spu94_dac_noise_init(&st);
+    spu94_dac_noise_init(&st, 0xACE1u);
 
     int64_t sum_sq = 0;
     for (int i = 0; i < N_SAMPLES; i++) {

@@ -40,9 +40,12 @@ typedef struct {
  * is correct. */
 int16_t spu94_dac_noise_step(spu94_dac_noise_state *state);
 
-/* Initialize noise state with a non-zero LFSR seed.
- * MUST be called instead of memset for this module (see warning above). */
-void spu94_dac_noise_init(spu94_dac_noise_state *state);
+/* Initialize noise state with a caller-provided LFSR seed.
+ * MUST be called instead of memset for this module (see warning above).
+ * seed MUST be non-zero -- zero is an absorbing state (silence forever).
+ * If seed is zero, falls back to default 0xACE1u.
+ * Use different seeds per channel to decorrelate L/R noise (WR-02). */
+void spu94_dac_noise_init(spu94_dac_noise_state *state, uint32_t seed);
 
 #ifdef __cplusplus
 }

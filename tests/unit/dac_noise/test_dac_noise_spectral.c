@@ -54,7 +54,7 @@ static void test_spectral_slope_12db_per_octave(void) {
     int16_t samples[N_SAMPLES];
 
     spu94_dac_noise_state st;
-    spu94_dac_noise_init(&st);
+    spu94_dac_noise_init(&st, 0xACE1u);
 
     for (int run = 0; run < N_RUNS; run++) {
         for (int i = 0; i < N_SAMPLES; i++) {
