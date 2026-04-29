@@ -42,7 +42,7 @@
  * constant, tunable per D-06 ("treat the level as tunable later").
  * Derivation: RESEARCH.md Noise Amplitude Derivation section.
  * Validated by tests/unit/dac_noise/test_dac_noise_amplitude.c. */
-#define DAC_NOISE_SHIFT  9
+#define DAC_NOISE_SHIFT  14
 
 void spu94_dac_noise_init(spu94_dac_noise_state *state) {
     memset(state, 0, sizeof(*state));
