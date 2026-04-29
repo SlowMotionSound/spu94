@@ -1,6 +1,6 @@
 # Roadmap: SPU-94
 
-**Updated:** 2026-04-28
+**Updated:** 2026-04-29
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
 
 ## Milestones
@@ -22,7 +22,7 @@
 - [x] **Phase 4: Verification + Documentation** - ADPCM goldens, coverage, ADRs (v1.1, shipped)
 - [x] **Phase 5: Interpolation Filter Design** - Scipy prototype of AK4309 8x cascaded half-band FIR, verified against datasheet specs (completed 2026-04-28)
 - [x] **Phase 6: DAC Core Implementation** - Q15 fixed-point interpolation filter and shaped noise model in C (completed 2026-04-29)
-- [ ] **Phase 7: Pipeline Integration** - DAC model wired into spu94_process as toggleable post-FIR stage
+- [ ] **Phase 7: Pipeline Integration** - Send/return mixer architecture with DAC coloration section
 - [ ] **Phase 8: I/O Surface** - CLI --dac flag, Python ctypes toggle, JUCE DAC checkbox
 - [ ] **Phase 9: Verification + Documentation** - Golden files, frequency response plots, unit tests, coverage map
 
@@ -54,7 +54,7 @@ Plans:
 - [x] 06-02-PLAN.md — DAC noise model (LFSR + 2nd-order HP shaping) -- completed 2026-04-29
 
 ### Phase 7: Pipeline Integration
-**Goal**: The DAC model is a toggleable coloration stage in the spu94_process signal chain, following the ADPCM precedent exactly
+**Goal**: spu94_process is a send/return mixer with three buses (dry, patina, reverb), independent faders and sends, latency compensation, and a toggleable DAC coloration section
 **Depends on**: Phase 6 (filter and noise modules exist)
 **Requirements**: DAC-INT-01, DAC-INT-02, DAC-INT-03
 **Success Criteria** (what must be TRUE):
@@ -62,7 +62,11 @@ Plans:
   2. The DAC model processes samples at 44.1kHz after `spu94_fir_chain_step` output, matching the hardware signal path (SPU serial output feeds DAC)
   3. All existing tests pass with DAC disabled (zero regression), and DAC state fits within the existing `spu94_state` budget
   4. All four rt_safety gates (rt_no_heap, rt_no_locks, rt_no_syscalls, rt_bench_latency) pass with DAC enabled
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 07-01-PLAN.md — State struct expansion + public API + init/reset fixup + WR-02 noise seed fix
+- [ ] 07-02-PLAN.md — Mixer architecture rewrite + toggle/fader implementations + JUCE passthrough
+- [ ] 07-03-PLAN.md — Integration tests for mixer, DAC section, and latency compensation
 
 ### Phase 8: I/O Surface
 **Goal**: DAC coloration is accessible through all three I/O layers (CLI, Python, JUCE) matching the ADPCM toggle pattern
@@ -95,7 +99,7 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 9
 |-------|----------------|--------|-----------|
 | 5. Interpolation Filter Design | 1/1 | Complete | 2026-04-28 |
 | 6. DAC Core Implementation | 2/2 | Complete | 2026-04-29 |
-| 7. Pipeline Integration | 0/TBD | Not started | - |
+| 7. Pipeline Integration | 0/3 | In progress | - |
 | 8. I/O Surface | 0/TBD | Not started | - |
 | 9. Verification + Documentation | 0/TBD | Not started | - |
 
@@ -138,4 +142,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 - `.planning/milestones/v1.0-REQUIREMENTS.md` -- M1 requirements
 
 ---
-*Last updated: 2026-04-29 -- Phase 6 complete (2/2 plans)*
+*Last updated: 2026-04-29 -- Phase 7 planned (3 plans)*
