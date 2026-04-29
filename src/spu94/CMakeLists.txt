@@ -21,6 +21,7 @@ add_library(spu94_obj OBJECT
     vag.c
     spu94_dac_fir.c
     spu94_dac_fir_coef.c
+    spu94_dac_noise.c
 )
 
 # PUBLIC include dirs: downstream consumers of spu94_shared/static see them too.
