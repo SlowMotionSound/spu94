@@ -22,7 +22,7 @@
 - [x] **Phase 4: Verification + Documentation** - ADPCM goldens, coverage, ADRs (v1.1, shipped)
 - [x] **Phase 5: Interpolation Filter Design** - Scipy prototype of AK4309 8x cascaded half-band FIR, verified against datasheet specs (completed 2026-04-28)
 - [x] **Phase 6: DAC Core Implementation** - Q15 fixed-point interpolation filter and shaped noise model in C (completed 2026-04-29)
-- [ ] **Phase 7: Pipeline Integration** - Send/return mixer architecture with DAC coloration section
+- [x] **Phase 7: Pipeline Integration** - Send/return mixer architecture with DAC coloration section (completed 2026-04-29)
 - [ ] **Phase 8: I/O Surface** - CLI --dac flag, Python ctypes toggle, JUCE DAC checkbox
 - [ ] **Phase 9: Verification + Documentation** - Golden files, frequency response plots, unit tests, coverage map
 
@@ -66,7 +66,7 @@ Plans:
 Plans:
 - [x] 07-01-PLAN.md — State struct expansion + public API + init/reset fixup + WR-02 noise seed fix (completed 2026-04-29)
 - [x] 07-02-PLAN.md — Mixer architecture rewrite + toggle/fader implementations + JUCE passthrough (completed 2026-04-29)
-- [ ] 07-03-PLAN.md — Integration tests for mixer, DAC section, and latency compensation
+- [x] 07-03-PLAN.md — Integration tests for mixer, DAC section, and latency compensation (completed 2026-04-29)
 
 ### Phase 8: I/O Surface
 **Goal**: DAC coloration is accessible through all three I/O layers (CLI, Python, JUCE) matching the ADPCM toggle pattern

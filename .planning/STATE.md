@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: in_progress
-stopped_at: Phase 7 Plan 02 complete, Plan 03 next
-last_updated: "2026-04-29T22:07:00Z"
-last_activity: 2026-04-29 -- Phase 7 Plan 02 complete (mixer architecture + JUCE passthrough)
+stopped_at: Phase 7 complete (all 3 plans shipped), Phase 8 next
+last_updated: "2026-04-29T23:28:00Z"
+last_activity: 2026-04-29 -- Phase 7 Plan 03 complete (integration tests)
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 3
-  completed_plans: 2
-  percent: 83
+  completed_plans: 3
+  percent: 100
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-28)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.2 DAC Modeling — Phase 6 complete, Phase 7 (Pipeline Integration) next
+**Current focus:** v1.2 DAC Modeling — Phase 7 (Pipeline Integration) complete, Phase 8 next
 
 ## Current Position
 
-Phase: 7 of 9 (Pipeline Integration) -- IN PROGRESS
-Plan: 2 of 3 complete; Plan 03 (integration tests) next
-Status: Plan 02 shipped mixer architecture rewrite + JUCE passthrough + all fader/toggle implementations
-Last activity: 2026-04-29 -- Plan 02 complete (2 tasks, 54min)
+Phase: 7 of 9 (Pipeline Integration) -- COMPLETE
+Plan: 3 of 3 complete
+Status: All 3 plans shipped: state expansion, mixer architecture, integration tests
+Last activity: 2026-04-29 -- Plan 03 complete (1 task, 9min)
 
-Progress: [########..] 83%
+Progress: [##########] 100%
 
 ## Performance Metrics
 
@@ -52,7 +52,7 @@ Progress: [########..] 83%
 |-------|-------|-------|----------|
 | 05-interpolation-filter-design | 1 | -- | -- |
 | 06-dac-core-implementation | 2/2 | 55min | 28min |
-| 07-pipeline-integration | 2/3 | 73min | 37min |
+| 07-pipeline-integration | 3/3 | 82min | 27min |
 
 ## Accumulated Context
 
@@ -82,6 +82,7 @@ Recent decisions affecting current work:
 - Off preset stays silent: CLI/tests do NOT set mixer faders for Off, preserving Off=silence contract
 - Golden files regenerated and witness thresholds widened after mixer architecture Q15 truncation changes
 - Python binding gets minimum mixer fader declarations; full API exposure is Plan 03
+- 24 integration tests cover mixer bus routing, DAC toggle hierarchy, and latency compensation
 
 ### Blockers/Concerns
 
@@ -102,5 +103,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-29
-Stopped at: Completed 07-02-PLAN.md (mixer architecture + JUCE passthrough)
-Resume file: .planning/phases/07-pipeline-integration/07-03-PLAN.md
+Stopped at: Completed 07-03-PLAN.md (integration tests) -- Phase 7 complete
+Resume file: None (phase complete)
