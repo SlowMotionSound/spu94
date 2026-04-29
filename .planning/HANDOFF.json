@@ -1,28 +1,32 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-29T01:45:00Z",
-  "phase": "6",
-  "phase_name": "DAC Core Implementation",
-  "phase_dir": ".planning/phases/06-dac-core-implementation",
-  "plan": 2,
-  "task": 2,
-  "total_tasks": 5,
-  "status": "phase_complete",
+  "timestamp": "2026-04-29T22:16:01Z",
+  "phase": "7",
+  "phase_name": "Pipeline Integration",
+  "phase_dir": ".planning/phases/07-pipeline-integration",
+  "plan": 3,
+  "task": 0,
+  "total_tasks": 1,
+  "status": "paused",
   "completed_tasks": [
-    {"id": 1, "plan": "06-01", "name": "Public header + internal header + coefficient tables", "status": "done", "commit": "3dea4a9"},
-    {"id": 2, "plan": "06-01", "name": "Three-stage cascaded FIR implementation", "status": "done", "commit": "5c48da6"},
-    {"id": 3, "plan": "06-01", "name": "DAC FIR unit tests", "status": "done", "commit": "3fbe26b"},
-    {"id": 4, "plan": "06-02", "name": "Noise module implementation", "status": "done", "commit": "df018cb"},
-    {"id": 5, "plan": "06-02", "name": "Noise unit tests", "status": "done", "commit": "7a3af33"}
+    {"id": 1, "plan": "07-01", "name": "Add seed parameter to spu94_dac_noise_init", "status": "done", "commit": "5284bf3"},
+    {"id": 2, "plan": "07-01", "name": "State expansion + API declarations + init/reset fixup", "status": "done", "commit": "55227b0"},
+    {"id": 3, "plan": "07-02", "name": "Implement all 22 mixer/DAC setter/getter functions", "status": "done", "commit": "615adb6"},
+    {"id": 4, "plan": "07-02", "name": "Mixer architecture rewrite + JUCE passthrough", "status": "done", "commit": "33c25a1"}
   ],
-  "remaining_tasks": [],
+  "remaining_tasks": [
+    {"id": 5, "plan": "07-03", "name": "Integration tests (mixer, DAC, latency comp)", "status": "not_started"}
+  ],
   "blockers": [],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "Coefficient hex notation: signed form for -Werror compliance", "rationale": "Unsigned hex for negative int16_t is implementation-defined", "phase": "6"},
-    {"decision": "NOISE_SHIFT=14 (not 9)", "rationale": "Research estimate was ~35dB off; empirical calibration landed at -85dB RMS", "phase": "6"}
+    {"decision": "Send/return mixer architecture with 3 buses, 2 reverb sends, master mixer, DAC section", "rationale": "User-designed signal flow for maximum flexibility", "phase": "7"},
+    {"decision": "Q15 int16 for all fader/send values, no smoothing in C core", "rationale": "Pure fixed-point discipline, raw register writes preserve digital character", "phase": "7"},
+    {"decision": "DAC section: master toggle + FIR sub-toggle + noise sub-toggle", "rationale": "Independent control of each DAC component; all on = faithful PS1", "phase": "7"},
+    {"decision": "Latency comp toggle (default ON) with 28-sample dry bus delay", "rationale": "Compensates ADPCM block delay; OFF enables creative comb filtering", "phase": "7"},
+    {"decision": "WR-02 fix: per-channel noise seeds (L=0xACE1u, R=0x1ECAu)", "rationale": "Independent noise streams per channel", "phase": "7"}
   ],
-  "uncommitted_files": [],
-  "next_action": "Run /gsd-discuss-phase 7 to discuss Pipeline Integration before planning",
-  "context_notes": "Phase 5 (scipy filter design) and Phase 6 (C implementation) both complete and verified. Code review found 3 issues (1 blocker: int32 multiply width in FIR, 2 warnings: noise quantization granularity, deterministic seed). These are logged in 06-REVIEW.md but not yet fixed. Phase 7 wires both modules into spu94_process as a toggleable DAC stage."
+  "uncommitted_files": ["docs/LEVERS-CATALOG.md", "tests/unit/process/test_process_dac_integration.c", "tests/unit/process/test_process_mixer.c"],
+  "next_action": "Execute plan 07-03: integration tests. Two test files already exist as untracked (test_process_mixer.c, test_process_dac_integration.c). Run /gsd-execute-phase 7 to resume from plan 07-03.",
+  "context_notes": "Plans 07-01 and 07-02 complete. The full mixer architecture is live — spu94_process implements the 7-stage signal flow. All 94 existing tests pass. Plan 07-03 (integration tests) was about to spawn when the user paused. Two test files appear to already exist as untracked files from the 07-02 executor's deviation handling."
 }
