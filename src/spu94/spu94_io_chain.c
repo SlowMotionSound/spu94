@@ -33,6 +33,8 @@
 #include "spu94_state_internal.h"
 #include <spu94/spu94.h>
 #include <spu94/spu94_adpcm.h>
+#include <spu94/spu94_dac_fir.h>
+#include <spu94/spu94_dac_noise.h>
 #include <stdint.h>
 
 /* Forward decl: spu94_tick lives in spu94_tick.c. Phase 4 calls it as the
@@ -175,4 +177,150 @@ uint32_t spu94_get_total_latency_samples(const spu94_state *state) {
     if (state == NULL) return SPU94_LATENCY_SAMPLES;
     return SPU94_LATENCY_SAMPLES +
            (state->adpcm_enabled ? SPU94_ADPCM_BLOCK_SAMPLES : 0u);
+}
+
+/* -----------------------------------------------------------------------
+ * Send/return mixer faders (Phase 7, D-01 through D-06)
+ *
+ * Six Q15 fader/send values control the mixer architecture. All values
+ * are Q15 int16 in range [0x0000, 0x7FFF]. No parameter smoothing --
+ * values land immediately as raw register writes (D-06).
+ * ----------------------------------------------------------------------- */
+
+void spu94_set_input_gain(spu94_state *state, int16_t gain) {
+    if (state == NULL) return;
+    state->input_gain = gain;
+}
+int16_t spu94_get_input_gain(const spu94_state *state) {
+    if (state == NULL) return 0;
+    return state->input_gain;
+}
+
+void spu94_set_dry_fader(spu94_state *state, int16_t level) {
+    if (state == NULL) return;
+    state->dry_fader = level;
+}
+int16_t spu94_get_dry_fader(const spu94_state *state) {
+    if (state == NULL) return 0;
+    return state->dry_fader;
+}
+
+void spu94_set_patina_fader(spu94_state *state, int16_t level) {
+    if (state == NULL) return;
+    state->patina_fader = level;
+}
+int16_t spu94_get_patina_fader(const spu94_state *state) {
+    if (state == NULL) return 0;
+    return state->patina_fader;
+}
+
+void spu94_set_dry_send(spu94_state *state, int16_t level) {
+    if (state == NULL) return;
+    state->dry_send = level;
+}
+int16_t spu94_get_dry_send(const spu94_state *state) {
+    if (state == NULL) return 0;
+    return state->dry_send;
+}
+
+void spu94_set_patina_send(spu94_state *state, int16_t level) {
+    if (state == NULL) return;
+    state->patina_send = level;
+}
+int16_t spu94_get_patina_send(const spu94_state *state) {
+    if (state == NULL) return 0;
+    return state->patina_send;
+}
+
+void spu94_set_reverb_fader(spu94_state *state, int16_t level) {
+    if (state == NULL) return;
+    state->reverb_fader = level;
+}
+int16_t spu94_get_reverb_fader(const spu94_state *state) {
+    if (state == NULL) return 0;
+    return state->reverb_fader;
+}
+
+/* -----------------------------------------------------------------------
+ * Latency compensation (Phase 7, D-07, D-08)
+ *
+ * When ADPCM is enabled, it introduces a 28-sample block delay.
+ * Latency compensation adds a matching 28-sample delay to the dry bus
+ * so both arrive at the master mixer time-aligned.
+ * Default: ON (set in spu94_init/reset after zero-fill).
+ * OFF creates intentional comb filtering (creative effect).
+ * ----------------------------------------------------------------------- */
+
+void spu94_set_latency_comp(spu94_state *state, int enabled) {
+    if (state == NULL) return;
+    if (!enabled && state->latency_comp) {
+        /* Zero delay buffer and reset position on disable */
+        state->delay_pos = 0;
+        for (int j = 0; j < 28; j++) {
+            state->delay_buf_l[j] = 0;
+            state->delay_buf_r[j] = 0;
+        }
+    }
+    state->latency_comp = enabled ? 1 : 0;
+}
+
+int spu94_get_latency_comp(const spu94_state *state) {
+    if (state == NULL) return 0;
+    return state->latency_comp;
+}
+
+/* -----------------------------------------------------------------------
+ * DAC coloration section (Phase 7, D-09 through D-12)
+ *
+ * Master toggle + two independent sub-toggles.
+ * When master is off, no DAC processing runs.
+ * When master is on, FIR and noise each have independent sub-toggles.
+ * All three on = faithful PS1 DAC behavior.
+ * Default: all off.
+ * ----------------------------------------------------------------------- */
+
+void spu94_set_dac_enabled(spu94_state *state, int enabled) {
+    if (state == NULL) return;
+    if (!enabled && state->dac_enabled) {
+        /* Reset both FIR channels on disable */
+        spu94_dac_fir_init(&state->dac_fir_l);
+        spu94_dac_fir_init(&state->dac_fir_r);
+        /* Reset noise state -- must use init, not zero-fill (LFSR absorbing-state) */
+        spu94_dac_noise_init(&state->dac_noise_l, 0xACE1u);
+        spu94_dac_noise_init(&state->dac_noise_r, 0x1ECAu);
+    }
+    state->dac_enabled = enabled ? 1 : 0;
+}
+
+int spu94_get_dac_enabled(const spu94_state *state) {
+    if (state == NULL) return 0;
+    return state->dac_enabled;
+}
+
+void spu94_set_dac_fir_enabled(spu94_state *state, int enabled) {
+    if (state == NULL) return;
+    if (!enabled && state->dac_fir_enabled) {
+        spu94_dac_fir_init(&state->dac_fir_l);
+        spu94_dac_fir_init(&state->dac_fir_r);
+    }
+    state->dac_fir_enabled = enabled ? 1 : 0;
+}
+
+int spu94_get_dac_fir_enabled(const spu94_state *state) {
+    if (state == NULL) return 0;
+    return state->dac_fir_enabled;
+}
+
+void spu94_set_dac_noise_enabled(spu94_state *state, int enabled) {
+    if (state == NULL) return;
+    if (!enabled && state->dac_noise_enabled) {
+        spu94_dac_noise_init(&state->dac_noise_l, 0xACE1u);
+        spu94_dac_noise_init(&state->dac_noise_r, 0x1ECAu);
+    }
+    state->dac_noise_enabled = enabled ? 1 : 0;
+}
+
+int spu94_get_dac_noise_enabled(const spu94_state *state) {
+    if (state == NULL) return 0;
+    return state->dac_noise_enabled;
 }
