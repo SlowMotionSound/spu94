@@ -232,6 +232,72 @@ int      spu94_get_adpcm_enabled(const spu94_state *state);
  *  ADPCM is off, 86 (58 + 28) when on. NULL state returns 58. */
 uint32_t spu94_get_total_latency_samples(const spu94_state *state);
 
+/* -----------------------------------------------------------------------
+ * Send/return mixer controls (Phase 7, D-01 through D-06)
+ *
+ * Six Q15 fader/send values control the mixer architecture:
+ *   input_gain:    scales input before bus split
+ *   dry_fader:     dry bus level at master mixer
+ *   patina_fader:  patina (ADPCM) bus level at master mixer
+ *   dry_send:      dry bus contribution to reverb input
+ *   patina_send:   patina bus contribution to reverb input
+ *   reverb_fader:  reverb return level at master mixer
+ *
+ * All values are Q15 int16 in range [0x0000, 0x7FFF].
+ * Default: all zero (silence). Hosts must set before expecting audio.
+ * No parameter smoothing -- values land immediately (D-06).
+ * ----------------------------------------------------------------------- */
+
+void     spu94_set_input_gain(spu94_state *state, int16_t gain);
+int16_t  spu94_get_input_gain(const spu94_state *state);
+
+void     spu94_set_dry_fader(spu94_state *state, int16_t level);
+int16_t  spu94_get_dry_fader(const spu94_state *state);
+
+void     spu94_set_patina_fader(spu94_state *state, int16_t level);
+int16_t  spu94_get_patina_fader(const spu94_state *state);
+
+void     spu94_set_dry_send(spu94_state *state, int16_t level);
+int16_t  spu94_get_dry_send(const spu94_state *state);
+
+void     spu94_set_patina_send(spu94_state *state, int16_t level);
+int16_t  spu94_get_patina_send(const spu94_state *state);
+
+void     spu94_set_reverb_fader(spu94_state *state, int16_t level);
+int16_t  spu94_get_reverb_fader(const spu94_state *state);
+
+/* -----------------------------------------------------------------------
+ * Latency compensation (Phase 7, D-07, D-08)
+ *
+ * When ADPCM is enabled, it introduces a 28-sample block delay.
+ * Latency compensation adds a matching 28-sample delay to the dry bus
+ * so both arrive at the master mixer time-aligned.
+ * ON by default (D-07). OFF creates intentional comb filtering (creative use).
+ * Only active when ADPCM is also enabled.
+ * ----------------------------------------------------------------------- */
+
+void     spu94_set_latency_comp(spu94_state *state, int enabled);
+int      spu94_get_latency_comp(const spu94_state *state);
+
+/* -----------------------------------------------------------------------
+ * DAC coloration section (Phase 7, D-09 through D-12)
+ *
+ * Master toggle + two independent sub-toggles.
+ * When master is off, no DAC processing runs.
+ * When master is on, FIR and noise each have independent sub-toggles.
+ * All three on = faithful PS1 DAC behavior (D-11).
+ * Default: all off.
+ * ----------------------------------------------------------------------- */
+
+void     spu94_set_dac_enabled(spu94_state *state, int enabled);
+int      spu94_get_dac_enabled(const spu94_state *state);
+
+void     spu94_set_dac_fir_enabled(spu94_state *state, int enabled);
+int      spu94_get_dac_fir_enabled(const spu94_state *state);
+
+void     spu94_set_dac_noise_enabled(spu94_state *state, int enabled);
+int      spu94_get_dac_noise_enabled(const spu94_state *state);
+
 /* ------------------------------------------------------------------------- */
 /* Public block-based audio entry point (Phase 5, D-01, D-02, D-03, D-04)    */
 /* ------------------------------------------------------------------------- */

@@ -19,6 +19,8 @@
 #include <spu94/spu94.h>
 #include <spu94/spu94_registers.h>
 #include <spu94/spu94_adpcm.h>
+#include <spu94/spu94_dac_fir.h>
+#include <spu94/spu94_dac_noise.h>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -154,6 +156,43 @@ struct spu94_state {
     int16_t            adpcm_out_buf_r[28]; /* decoded output, R */
     spu94_adpcm_state  adpcm_state_l;       /* encode+decode state, L (4 bytes) */
     spu94_adpcm_state  adpcm_state_r;       /* encode+decode state, R (4 bytes) */
+
+    /* -----------------------------------------------------------------
+     * Phase 7 (DAC-INT / Mixer): send/return mixer state.
+     * Six Q15 faders/sends, latency compensation delay buffer,
+     * DAC section toggles and module state.
+     *
+     * Signal flow (D-01): input_gain -> bus split -> dry/patina buses
+     * -> reverb sends -> reverb -> three-fader master mixer -> DAC
+     * section -> output.
+     *
+     * All Q15 int16 faders/sends default to 0x0000 (silence) per
+     * zero-init convention. Hosts MUST set fader values before
+     * expecting audio output (mixer console metaphor).
+     * ----------------------------------------------------------------- */
+
+    /* Mixer controls -- Q15 int16, range [0x0000, 0x7FFF] (D-05) */
+    int16_t        input_gain;        /* applied before bus split */
+    int16_t        dry_fader;         /* dry bus level at master mixer */
+    int16_t        patina_fader;      /* patina (ADPCM) bus level at master mixer */
+    int16_t        dry_send;          /* dry bus -> reverb send level */
+    int16_t        patina_send;       /* patina bus -> reverb send level */
+    int16_t        reverb_fader;      /* reverb return level at master mixer */
+
+    /* Latency compensation (D-07, D-08) */
+    uint8_t        latency_comp;      /* 1=on (D-07 default), 0=off */
+    uint8_t        delay_pos;         /* ring buffer write position, 0..27 */
+    int16_t        delay_buf_l[28];   /* 28-sample delay, L channel */
+    int16_t        delay_buf_r[28];   /* 28-sample delay, R channel */
+
+    /* DAC section (D-09 through D-12) */
+    uint8_t        dac_enabled;       /* master toggle, 0=off (default) */
+    uint8_t        dac_fir_enabled;   /* FIR sub-toggle, 0=off (default) */
+    uint8_t        dac_noise_enabled; /* noise sub-toggle, 0=off (default) */
+    spu94_dac_fir_state   dac_fir_l;  /* FIR state, L channel */
+    spu94_dac_fir_state   dac_fir_r;  /* FIR state, R channel */
+    spu94_dac_noise_state dac_noise_l;/* noise state, L channel */
+    spu94_dac_noise_state dac_noise_r;/* noise state, R channel */
 
     /* -----------------------------------------------------------------
      * ADR-0023 (Step 4 of M1 close-out): observable error counters.

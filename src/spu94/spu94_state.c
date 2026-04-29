@@ -23,6 +23,7 @@
 
 #include "spu94_state_internal.h"
 #include <spu94/spu94.h>
+#include <spu94/spu94_dac_noise.h>
 #include <stdalign.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -83,6 +84,15 @@ spu94_state *spu94_init(void *state_buf, size_t state_buf_size,
      * into post-init state). Followed by invariant setup. */
     spu94_zero_bytes(s, sizeof(*s));
 
+    /* D-07: latency_comp defaults ON (zero-init gives 0; explicit set needed). */
+    s->latency_comp = 1;
+
+    /* DAC noise LFSR cannot be zero-initialized: lfsr=0 is an absorbing
+     * state (silence forever). Plant non-zero seeds after zero-fill.
+     * Different seeds per channel to decorrelate L/R noise (WR-02). */
+    spu94_dac_noise_init(&s->dac_noise_l, 0xACE1u);
+    spu94_dac_noise_init(&s->dac_noise_r, 0x1ECAu);
+
     s->work_buf       = (unsigned char *)work_buf;
     s->work_buf_size  = work_buf_size;
     s->buffer_address = 0u; /* invariant from D-14: BufferAddress = mBASE = 0
@@ -115,6 +125,12 @@ void spu94_reset(spu94_state *state) {
 
     /* Zero every internal field, then restore the invariants. */
     spu94_zero_bytes(state, sizeof(*state));
+
+    /* Same post-zero fixups as spu94_init (DAC noise seeds, latency_comp). */
+    state->latency_comp = 1;
+    spu94_dac_noise_init(&state->dac_noise_l, 0xACE1u);
+    spu94_dac_noise_init(&state->dac_noise_r, 0x1ECAu);
+
     state->work_buf       = saved_work;
     state->work_buf_size  = saved_work_size;
     state->buffer_address = 0u;
