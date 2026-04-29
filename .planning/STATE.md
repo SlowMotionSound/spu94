@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
-status: discussing
-stopped_at: Phase 6 context gathered
-last_updated: "2026-04-29T00:10:00Z"
-last_activity: 2026-04-28 -- Phase 6 context gathered (3 decisions captured)
+status: executing
+stopped_at: Phase 6 Plan 01 complete
+last_updated: "2026-04-29T01:07:00Z"
+last_activity: 2026-04-29 -- Phase 6 Plan 01 complete (DAC interpolation filter C port)
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
-  percent: 20
+  total_plans: 2
+  completed_plans: 2
+  percent: 40
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-28)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.2 DAC Modeling — Phase 6 (DAC Core Implementation) next
+**Current focus:** v1.2 DAC Modeling — Phase 6 (DAC Core Implementation) in progress
 
 ## Current Position
 
-Phase: 5 of 9 complete; Phase 6 next (DAC Core Implementation)
-Plan: —
-Status: Phase 5 verified, ready for Phase 6
-Last activity: 2026-04-28 -- Phase 5 complete (verification passed 5/5)
+Phase: 6 of 9 (DAC Core Implementation)
+Plan: 1 of 2 complete; Plan 02 next (DAC noise model)
+Status: Phase 6 Plan 01 complete (DAC interpolation filter)
+Last activity: 2026-04-29 -- Phase 6 Plan 01 complete (3 tasks, 22-multiply cascade FIR)
 
-Progress: [##........] 20%
+Progress: [####......] 40%
 
 ## Performance Metrics
 
@@ -45,6 +45,13 @@ Progress: [##........] 20%
 |-------|-------|-------|----------|
 | 01-core-codec | 2 | 48min | 24min |
 | 02-pipeline-integration | 2 | 72min | 36min |
+
+**By Phase (v1.2):**
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| 05-interpolation-filter-design | 1 | -- | -- |
+| 06-dac-core-implementation | 1/2 | 37min | 37min |
 
 ## Accumulated Context
 
@@ -62,6 +69,8 @@ Recent decisions affecting current work:
 - ADR-0054: AK4309B datasheet is authoritative for digital filter passband ripple; Stereophile's ripple attributed to composite analog chain
 - Stopband measurement at Stage 1 stopband edge (24100 Hz), not Nyquist (22050 Hz)
 - Minimum-order cascade 55+11+7 taps (41 non-zero multiplies) meets all specs with margin
+- Coefficient hex notation: signed form (-0x005C not 0xFFA4) for -Werror compliance; bit patterns identical
+- Folded-form + zero-skip: 22 multiplies per sample (not 41 unoptimized); int32 accumulators proven safe
 
 ### Blockers/Concerns
 
@@ -81,6 +90,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-29T00:10:00Z
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-dac-core-implementation/06-CONTEXT.md
+Last session: 2026-04-29T01:07:00Z
+Stopped at: Phase 6 Plan 01 complete
+Resume file: .planning/phases/06-dac-core-implementation/06-01-SUMMARY.md

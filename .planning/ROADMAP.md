@@ -50,7 +50,7 @@ Plans:
   3. Both modules compile clean under the existing -Werror/-pedantic flags and pass standalone unit tests before integration
 **Plans:** 2 plans
 Plans:
-- [ ] 06-01-PLAN.md — DAC interpolation filter (3-stage cascaded half-band FIR in Q15)
+- [x] 06-01-PLAN.md — DAC interpolation filter (3-stage cascaded half-band FIR in Q15) -- completed 2026-04-29
 - [ ] 06-02-PLAN.md — DAC noise model (LFSR + 2nd-order HP shaping)
 
 ### Phase 7: Pipeline Integration
@@ -94,7 +94,7 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 9
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 5. Interpolation Filter Design | 1/1 | Complete | 2026-04-28 |
-| 6. DAC Core Implementation | 0/2 | Planned | - |
+| 6. DAC Core Implementation | 1/2 | In progress | - |
 | 7. Pipeline Integration | 0/TBD | Not started | - |
 | 8. I/O Surface | 0/TBD | Not started | - |
 | 9. Verification + Documentation | 0/TBD | Not started | - |
@@ -138,4 +138,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 - `.planning/milestones/v1.0-REQUIREMENTS.md` -- M1 requirements
 
 ---
-*Last updated: 2026-04-28 -- Phase 5 complete (1/1 plans)*
+*Last updated: 2026-04-29 -- Phase 6 Plan 01 complete (1/2 plans)*
