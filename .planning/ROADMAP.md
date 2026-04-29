@@ -21,7 +21,7 @@
 - [x] **Phase 3: I/O Layer** - CLI, Python, JUCE for ADPCM (v1.1, shipped)
 - [x] **Phase 4: Verification + Documentation** - ADPCM goldens, coverage, ADRs (v1.1, shipped)
 - [x] **Phase 5: Interpolation Filter Design** - Scipy prototype of AK4309 8x cascaded half-band FIR, verified against datasheet specs (completed 2026-04-28)
-- [ ] **Phase 6: DAC Core Implementation** - Q15 fixed-point interpolation filter and shaped noise model in C
+- [x] **Phase 6: DAC Core Implementation** - Q15 fixed-point interpolation filter and shaped noise model in C (completed 2026-04-29)
 - [ ] **Phase 7: Pipeline Integration** - DAC model wired into spu94_process as toggleable post-FIR stage
 - [ ] **Phase 8: I/O Surface** - CLI --dac flag, Python ctypes toggle, JUCE DAC checkbox
 - [ ] **Phase 9: Verification + Documentation** - Golden files, frequency response plots, unit tests, coverage map
