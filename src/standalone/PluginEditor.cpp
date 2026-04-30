@@ -56,25 +56,9 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
                 static_cast<spu94_preset_id_t>(id));
     };
 
-    // Wet/Dry rotary knob -- equal-power crossfade (D-02, STANDALONE-06).
-    addAndMakeVisible(wetDryKnob);
-    wetDryKnob.setSliderStyle(juce::Slider::Rotary);
-    wetDryKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-    wetDryKnob.setRange(0.0, 1.0, 0.01);
-    wetDryKnob.setValue(0.5, juce::dontSendNotification);  // default 50/50
-    wetDryKnob.setName("Wet/Dry");
+    // ---- ZONE 1: Toolbar controls ----
 
-    wetDryKnob.onValueChange = [this] {
-        processorRef.getWetDry().store(
-            static_cast<float>(wetDryKnob.getValue()),
-            std::memory_order_relaxed);
-    };
-
-    addAndMakeVisible(wetDryLabel);
-    wetDryLabel.setText("Wet/Dry", juce::dontSendNotification);
-    wetDryLabel.setJustificationType(juce::Justification::centred);
-
-    // Input Level rotary knob -- pre-SPU attenuation for hot sources.
+    // Input Gain rotary knob (renamed from "Input").
     addAndMakeVisible(inputLevelKnob);
     inputLevelKnob.setSliderStyle(juce::Slider::Rotary);
     inputLevelKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
@@ -88,17 +72,126 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     };
 
     addAndMakeVisible(inputLevelLabel);
-    inputLevelLabel.setText("Input", juce::dontSendNotification);
+    inputLevelLabel.setText("Input Gain", juce::dontSendNotification);
     inputLevelLabel.setJustificationType(juce::Justification::centred);
 
-    // ADPCM toggle button -- amber glow when active (D-05, D-06).
-    addAndMakeVisible(adpcmToggle);
-    adpcmToggle.setClickingTogglesState(true);
-    adpcmToggle.setColour(juce::ToggleButton::tickColourId,
-                          juce::Colour(0xFFD4A017));  // amber
-    adpcmToggle.onClick = [this] {
-        processorRef.getAdpcmEnabled().store(
-            adpcmToggle.getToggleState(),
+    // Reverb Sends: ADPCM Send knob
+    addAndMakeVisible(adpcmSendKnob);
+    adpcmSendKnob.setSliderStyle(juce::Slider::Rotary);
+    adpcmSendKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+    adpcmSendKnob.setRange(0.0, 1.0, 0.01);
+    adpcmSendKnob.setValue(0.0, juce::dontSendNotification);
+    adpcmSendKnob.onValueChange = [this] {
+        processorRef.getAdpcmSend().store(
+            static_cast<float>(adpcmSendKnob.getValue()),
+            std::memory_order_relaxed);
+    };
+    addAndMakeVisible(adpcmSendLabel);
+    adpcmSendLabel.setText("ADPCM Send", juce::dontSendNotification);
+    adpcmSendLabel.setJustificationType(juce::Justification::centred);
+
+    // Reverb Sends: Dry Input Send knob
+    addAndMakeVisible(drySendKnob);
+    drySendKnob.setSliderStyle(juce::Slider::Rotary);
+    drySendKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+    drySendKnob.setRange(0.0, 1.0, 0.01);
+    drySendKnob.setValue(1.0, juce::dontSendNotification);
+    drySendKnob.onValueChange = [this] {
+        processorRef.getDrySend().store(
+            static_cast<float>(drySendKnob.getValue()),
+            std::memory_order_relaxed);
+    };
+    addAndMakeVisible(drySendLabel);
+    drySendLabel.setText("Dry Send", juce::dontSendNotification);
+    drySendLabel.setJustificationType(juce::Justification::centred);
+
+    // ---- ZONE 3: Mixer strip ----
+
+    // Dry level knob
+    addAndMakeVisible(dryKnob);
+    dryKnob.setSliderStyle(juce::Slider::Rotary);
+    dryKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+    dryKnob.setRange(0.0, 1.0, 0.01);
+    dryKnob.setValue(1.0, juce::dontSendNotification);
+    dryKnob.onValueChange = [this] {
+        processorRef.getDryLevel().store(
+            static_cast<float>(dryKnob.getValue()),
+            std::memory_order_relaxed);
+    };
+    addAndMakeVisible(dryKnobLabel);
+    dryKnobLabel.setText("Dry", juce::dontSendNotification);
+    dryKnobLabel.setJustificationType(juce::Justification::centred);
+
+    // ADPCM (Patina) level knob
+    addAndMakeVisible(patinaKnob);
+    patinaKnob.setSliderStyle(juce::Slider::Rotary);
+    patinaKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+    patinaKnob.setRange(0.0, 1.0, 0.01);
+    patinaKnob.setValue(0.0, juce::dontSendNotification);
+    patinaKnob.onValueChange = [this] {
+        processorRef.getPatinaLevel().store(
+            static_cast<float>(patinaKnob.getValue()),
+            std::memory_order_relaxed);
+    };
+    addAndMakeVisible(patinaKnobLabel);
+    patinaKnobLabel.setText("ADPCM", juce::dontSendNotification);
+    patinaKnobLabel.setJustificationType(juce::Justification::centred);
+
+    // Reverb level knob
+    addAndMakeVisible(reverbKnob);
+    reverbKnob.setSliderStyle(juce::Slider::Rotary);
+    reverbKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+    reverbKnob.setRange(0.0, 1.0, 0.01);
+    reverbKnob.setValue(1.0, juce::dontSendNotification);
+    reverbKnob.onValueChange = [this] {
+        processorRef.getReverbLevel().store(
+            static_cast<float>(reverbKnob.getValue()),
+            std::memory_order_relaxed);
+    };
+    addAndMakeVisible(reverbKnobLabel);
+    reverbKnobLabel.setText("Reverb", juce::dontSendNotification);
+    reverbKnobLabel.setJustificationType(juce::Justification::centred);
+
+    // Latency Comp toggle (D-11)
+    addAndMakeVisible(latencyCompToggle);
+    latencyCompToggle.setClickingTogglesState(true);
+    latencyCompToggle.setToggleState(true, juce::dontSendNotification);  // ON by default
+    latencyCompToggle.onClick = [this] {
+        processorRef.getLatencyCompEnabled().store(
+            latencyCompToggle.getToggleState(),
+            std::memory_order_relaxed);
+    };
+
+    // ---- ZONE 4: DAC section ----
+
+    // DAC master toggle
+    addAndMakeVisible(dacToggle);
+    dacToggle.setClickingTogglesState(true);
+    dacToggle.setColour(juce::ToggleButton::tickColourId,
+                        juce::Colour(0xFFD4A017));  // amber
+    dacToggle.onClick = [this] {
+        processorRef.getDacEnabled().store(
+            dacToggle.getToggleState(),
+            std::memory_order_relaxed);
+    };
+
+    // DAC FIR sub-toggle
+    addAndMakeVisible(dacFirToggle);
+    dacFirToggle.setClickingTogglesState(true);
+    dacFirToggle.setToggleState(true, juce::dontSendNotification);  // ON by default
+    dacFirToggle.onClick = [this] {
+        processorRef.getDacFirEnabled().store(
+            dacFirToggle.getToggleState(),
+            std::memory_order_relaxed);
+    };
+
+    // DAC Noise sub-toggle
+    addAndMakeVisible(dacNoiseToggle);
+    dacNoiseToggle.setClickingTogglesState(true);
+    dacNoiseToggle.setToggleState(true, juce::dontSendNotification);  // ON by default
+    dacNoiseToggle.onClick = [this] {
+        processorRef.getDacNoiseEnabled().store(
+            dacNoiseToggle.getToggleState(),
             std::memory_order_relaxed);
     };
 
@@ -112,8 +205,8 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     lastAppliedCount = processorRef.getPresetQueue().getAppliedCount();
     startTimerHz(30);
 
-    setResizeLimits(850, 750, 850, 750);
-    setSize(850, 750);
+    setResizeLimits(900, 800, 900, 800);
+    setSize(900, 800);
 }
 
 SPU94AudioProcessorEditor::~SPU94AudioProcessorEditor()
@@ -137,28 +230,75 @@ void SPU94AudioProcessorEditor::timerCallback()
 void SPU94AudioProcessorEditor::paint(juce::Graphics& g)
 {
     g.fillAll(juce::Colours::darkgrey);
+
+    // Reverb Sends outlined section (D-10)
+    g.setColour(juce::Colours::lightgrey);
+    auto sendsArea = juce::Rectangle<int>(590, 2, 190, 68);
+    g.drawRoundedRectangle(sendsArea.toFloat(), 4.0f, 1.0f);
+    g.setFont(11.0f);
+    g.drawText("Reverb Sends", sendsArea.removeFromTop(14),
+               juce::Justification::centred, false);
+
+    // Mixer strip zone label
+    auto mixerLabelArea = juce::Rectangle<int>(10, getHeight() - 170, 100, 16);
+    g.setFont(12.0f);
+    g.setColour(juce::Colours::white);
+    g.drawText("Mixer", mixerLabelArea, juce::Justification::left, false);
+
+    // DAC section zone label
+    auto dacLabelArea = juce::Rectangle<int>(10, getHeight() - 55, 100, 16);
+    g.drawText("DAC Model", dacLabelArea, juce::Justification::left, false);
+
+    // Horizontal separator lines between zones
+    g.setColour(juce::Colours::grey);
+    g.drawHorizontalLine(getHeight() - 175, 10.0f, static_cast<float>(getWidth() - 10));  // above mixer
+    g.drawHorizontalLine(getHeight() - 60, 10.0f, static_cast<float>(getWidth() - 10));   // above DAC
 }
 
 void SPU94AudioProcessorEditor::resized()
 {
-    // Top row (y=10, h=30): buttons + preset selector + Wet/Dry knob.
+    const int w = getWidth();
+
+    // ---- ZONE 1: Toolbar (y=10, h=60) ----
     loadButton.setBounds(10, 10, 120, 30);
     playButton.setBounds(140, 10, 80, 30);
     stopButton.setBounds(230, 10, 80, 30);
     presetLabel.setBounds(330, 10, 60, 30);
     presetSelector.setBounds(395, 10, 180, 30);
 
-    // ADPCM toggle sits between preset selector and Input knob (D-05).
-    adpcmToggle.setBounds(585, 10, 70, 30);
+    // Input Gain knob (renamed from "Input")
+    inputLevelLabel.setBounds(790, 2, 80, 16);
+    inputLevelKnob.setBounds(790, 16, 80, 54);
 
-    // Input Level knob -- shifted right to accommodate ADPCM toggle.
-    inputLevelLabel.setBounds(660, 2, 80, 16);
-    inputLevelKnob.setBounds(660, 16, 80, 54);
+    // Reverb Sends outlined section (D-10)
+    // ADPCM Send and Dry Send knobs inside the outlined area
+    adpcmSendLabel.setBounds(600, 14, 80, 14);
+    adpcmSendKnob.setBounds(600, 28, 80, 42);
+    drySendLabel.setBounds(690, 14, 80, 14);
+    drySendKnob.setBounds(690, 28, 80, 42);
 
-    // Wet/Dry rotary knob -- shifted right.
-    wetDryLabel.setBounds(750, 2, 80, 16);
-    wetDryKnob.setBounds(750, 16, 80, 54);
+    // ---- ZONE 2: Register panel (fills middle) ----
+    const int mixerZoneHeight = 90;
+    const int dacZoneHeight = 50;
+    const int registerTop = 75;
+    const int registerBottom = getHeight() - mixerZoneHeight - dacZoneHeight - 10;
+    registerPanel.setBounds(10, registerTop, w - 20, registerBottom - registerTop);
 
-    // Register panel fills remaining height below the toolbar.
-    registerPanel.setBounds(10, 75, getWidth() - 20, getHeight() - 85);
+    // ---- ZONE 3: Mixer strip (below registers) ----
+    const int mixerY = registerBottom + 10;
+    // Three level knobs
+    dryKnobLabel.setBounds(120, mixerY, 80, 16);
+    dryKnob.setBounds(120, mixerY + 14, 80, 54);
+    patinaKnobLabel.setBounds(220, mixerY, 80, 16);
+    patinaKnob.setBounds(220, mixerY + 14, 80, 54);
+    reverbKnobLabel.setBounds(320, mixerY, 80, 16);
+    reverbKnob.setBounds(320, mixerY + 14, 80, 54);
+    // Latency Comp toggle (D-11)
+    latencyCompToggle.setBounds(430, mixerY + 20, 130, 30);
+
+    // ---- ZONE 4: DAC section (bottom row) ----
+    const int dacY = mixerY + mixerZoneHeight;
+    dacToggle.setBounds(120, dacY + 5, 60, 30);
+    dacFirToggle.setBounds(200, dacY + 5, 60, 30);
+    dacNoiseToggle.setBounds(280, dacY + 5, 70, 30);
 }

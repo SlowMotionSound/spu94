@@ -27,13 +27,28 @@ private:
     juce::ComboBox presetSelector;
     juce::Label presetLabel{"", "Preset:"};
 
-    juce::Slider wetDryKnob;
-    juce::Label wetDryLabel;
-
     juce::Slider inputLevelKnob;
     juce::Label inputLevelLabel;
 
-    juce::ToggleButton adpcmToggle{"ADPCM"};
+    // Zone 1: Toolbar -- Reverb Sends section
+    juce::Slider adpcmSendKnob;
+    juce::Label adpcmSendLabel;
+    juce::Slider drySendKnob;
+    juce::Label drySendLabel;
+
+    // Zone 3: Mixer strip
+    juce::Slider dryKnob;
+    juce::Label dryKnobLabel;
+    juce::Slider patinaKnob;
+    juce::Label patinaKnobLabel;
+    juce::Slider reverbKnob;
+    juce::Label reverbKnobLabel;
+    juce::ToggleButton latencyCompToggle{"Latency Comp"};
+
+    // Zone 4: DAC section
+    juce::ToggleButton dacToggle{"DAC"};
+    juce::ToggleButton dacFirToggle{"FIR"};
+    juce::ToggleButton dacNoiseToggle{"Noise"};
 
     // Track preset-switch completion for slider sync.
     int lastAppliedCount = 0;
