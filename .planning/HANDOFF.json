@@ -1,32 +1,33 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-29T22:16:01Z",
-  "phase": "7",
-  "phase_name": "Pipeline Integration",
-  "phase_dir": ".planning/phases/07-pipeline-integration",
-  "plan": 3,
+  "timestamp": "2026-04-30T23:30:00Z",
+  "phase": "10",
+  "phase_name": "Core Polyphase FIR Cascade",
+  "phase_dir": ".planning/phases/10-core-polyphase-fir-cascade",
+  "plan": 0,
   "task": 0,
-  "total_tasks": 1,
-  "status": "paused",
-  "completed_tasks": [
-    {"id": 1, "plan": "07-01", "name": "Add seed parameter to spu94_dac_noise_init", "status": "done", "commit": "5284bf3"},
-    {"id": 2, "plan": "07-01", "name": "State expansion + API declarations + init/reset fixup", "status": "done", "commit": "55227b0"},
-    {"id": 3, "plan": "07-02", "name": "Implement all 22 mixer/DAC setter/getter functions", "status": "done", "commit": "615adb6"},
-    {"id": 4, "plan": "07-02", "name": "Mixer architecture rewrite + JUCE passthrough", "status": "done", "commit": "33c25a1"}
-  ],
+  "total_tasks": 8,
+  "status": "planned",
+  "completed_tasks": [],
   "remaining_tasks": [
-    {"id": 5, "plan": "07-03", "name": "Integration tests (mixer, DAC, latency comp)", "status": "not_started"}
+    {"id": "10-01-T1", "name": "Archive v1.2 DAC golden files", "status": "not_started"},
+    {"id": "10-01-T2", "name": "Scipy 8x prototype in dac_filter_design.py", "status": "not_started"},
+    {"id": "10-02-T1", "name": "Implement spu94_dac_fir_step_8x in C", "status": "not_started"},
+    {"id": "10-02-T2", "name": "DAC FIR 8x unit tests", "status": "not_started"},
+    {"id": "10-03-T1", "name": "Wire 8x into spu94_process.c", "status": "not_started"},
+    {"id": "10-03-T2", "name": "Prove DAC-off golden identity (zero blast radius)", "status": "not_started"},
+    {"id": "10-04-T1", "name": "Regenerate DAC golden files for 8x path", "status": "not_started"},
+    {"id": "10-04-T2", "name": "Passband conformance gate (v1.2 vs v1.3 within 0.01dB)", "status": "not_started"}
   ],
   "blockers": [],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "Send/return mixer architecture with 3 buses, 2 reverb sends, master mixer, DAC section", "rationale": "User-designed signal flow for maximum flexibility", "phase": "7"},
-    {"decision": "Q15 int16 for all fader/send values, no smoothing in C core", "rationale": "Pure fixed-point discipline, raw register writes preserve digital character", "phase": "7"},
-    {"decision": "DAC section: master toggle + FIR sub-toggle + noise sub-toggle", "rationale": "Independent control of each DAC component; all on = faithful PS1", "phase": "7"},
-    {"decision": "Latency comp toggle (default ON) with 28-sample dry bus delay", "rationale": "Compensates ADPCM block delay; OFF enables creative comb filtering", "phase": "7"},
-    {"decision": "WR-02 fix: per-channel noise seeds (L=0xACE1u, R=0x1ECAu)", "rationale": "Independent noise streams per channel", "phase": "7"}
+    {"decision": "Naive 8x zero-stuff (not polyphase)", "rationale": "Faithful to AK4309 hardware, simpler, fast enough on desktop", "phase": "10"},
+    {"decision": "Keep v1.2 spu94_dac_fir_step, add _8x alongside", "rationale": "Phase 11 A/B toggle needs both paths", "phase": "10"},
+    {"decision": "Scipy prototype first, then port to C", "rationale": "Catch inter-stage bugs before C implementation", "phase": "10"},
+    {"decision": "Milestone sequence: v1.3 → v1.4 → v1.5", "rationale": "Oversampling → presets → DAW plugin (VST3/AU/AAX)", "phase": "milestone"}
   ],
-  "uncommitted_files": ["docs/LEVERS-CATALOG.md", "tests/unit/process/test_process_dac_integration.c", "tests/unit/process/test_process_mixer.c"],
-  "next_action": "Execute plan 07-03: integration tests. Two test files already exist as untracked (test_process_mixer.c, test_process_dac_integration.c). Run /gsd-execute-phase 7 to resume from plan 07-03.",
-  "context_notes": "Plans 07-01 and 07-02 complete. The full mixer architecture is live — spu94_process implements the 7-stage signal flow. All 94 existing tests pass. Plan 07-03 (integration tests) was about to spawn when the user paused. Two test files appear to already exist as untracked files from the 07-02 executor's deviation handling."
+  "uncommitted_files": ["docs/LEVERS-CATALOG.md"],
+  "next_action": "/gsd-execute-phase 10",
+  "context_notes": "Full new-milestone workflow complete. Phase 10 planned and verified. Ready to execute."
 }
