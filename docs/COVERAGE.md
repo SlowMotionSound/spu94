@@ -107,6 +107,43 @@ Plan 07-03 (golden files) and Plan 07-05 (modulation harness).
 | FIR chain fuzz | `#reverb-buffer-resampling` | `tests/python/fuzz_fir.py::fuzz_fir` | Bit-exact vs Python reference |
 | RT-safety: no heap in hot path | N/A (project invariant) | `tests/rt_safety/test_no_syscalls.sh::rt_no_syscalls` | Phase 5 strace harness |
 
+## ADPCM Coverage
+
+Rows map the v1.1 ADPCM codec behaviors to their existing tests. Backfilled
+in Phase 9 for completeness — no new tests created.
+
+| Behavior | Spec reference | test: | Notes |
+|----------|----------------|-------|-------|
+| ADPCM 4-bit decode | Sony SPU ADPCM | `tests/unit/adpcm/test_adpcm_decode.c::adpcm_decode_unit` | All 5 filter pairs |
+| ADPCM 4-bit encode | Sony SPU ADPCM | `tests/unit/adpcm/test_adpcm_encode.c::adpcm_encode_unit` | Round-trip encode/decode |
+| ADPCM Python binding | N/A (API) | `tests/python/binding/test_binding_adpcm.py::test_binding_adpcm` | ctypes toggle |
+| ADPCM golden corpus (30 WAVs) | N/A (regression) | `tests/conformance/test_goldens_present.py::goldens_present` | 10 presets x 3 inputs |
+| ADPCM + reverb interaction | N/A (integration) | `tests/unit/process/test_process_adpcm.c::test_process_adpcm` | ADPCM in mixer chain |
+
+## DAC Model Coverage
+
+Rows map the v1.2 DAC model behaviors to their tests. Added Phase 9.
+
+| Behavior | Spec reference | test: | Notes |
+|----------|----------------|-------|-------|
+| FIR coefficient correctness | AK4309B datasheet | `tests/unit/dac_fir/test_dac_fir_coef_table.c::dac_fir_coef_table` | 55+11+7 tap values |
+| FIR DC gain unity | AK4309B datasheet | `tests/unit/dac_fir/test_dac_fir_dc_gain.c::dac_fir_dc_gain` | Sum of Q15 coefficients |
+| FIR impulse response | AK4309B datasheet | `tests/unit/dac_fir/test_dac_fir_impulse.c::dac_fir_impulse` | Cascade output shape |
+| FIR overflow proof | N/A (safety) | `tests/unit/dac_fir/test_dac_fir_overflow_proof.c::dac_fir_overflow_proof` | int32 accumulator headroom |
+| FIR frequency response | AK4309B datasheet | `tools/dac_measure.py::dac_measure` | Passband ripple <=0.15dB |
+| Noise LFSR sequence | AK4309B 1-bit DSM | `tests/unit/dac_noise/test_dac_noise_lfsr.c::dac_noise_lfsr` | Galois LFSR period |
+| Noise amplitude calibration | AK4309B ~90dB DR | `tests/unit/dac_noise/test_dac_noise_amplitude.c::dac_noise_amplitude` | DAC_NOISE_SHIFT=14 |
+| Noise spectral slope (+12dB/oct) | AK4309B 2nd-order | `tests/unit/dac_noise/test_dac_noise_spectral.c::dac_noise_spectral` | HP shaping verification |
+| Noise spectral (measured) | AK4309B 2nd-order | `tools/dac_measure.py::dac_measure` | Full-pipeline slope check |
+| DAC toggle transitions | N/A (integration) | `tests/unit/process/test_process_dac_toggle_transitions.c::test_process_dac_toggle_transitions` | on/off/on bit-identity |
+| DAC + reverb interaction | N/A (integration) | `tests/unit/process/test_process_dac_toggle_transitions.c::test_process_dac_toggle_transitions` | Output differs with DAC on |
+| DAC + ADPCM composition | N/A (integration) | `tests/unit/process/test_process_dac_toggle_transitions.c::test_process_dac_toggle_transitions` | Both stages compose |
+| DAC master gate / sub-toggles | N/A (integration) | `tests/unit/process/test_process_dac_integration.c::test_process_dac_integration` | Master off bypasses all |
+| DAC state reset on disable | N/A (integration) | `tests/unit/process/test_process_dac_integration.c::test_process_dac_integration` | FIR zeroed, noise reseeded |
+| DAC L/R noise decorrelation | WR-02 | `tests/unit/process/test_process_dac_integration.c::test_process_dac_integration` | Different LFSR seeds |
+| DAC Python binding | N/A (API) | `tests/python/binding/test_binding_mixer_dac.py::test_binding_mixer_dac` | ctypes DAC toggle |
+| DAC golden regression (55 WAVs) | N/A (regression) | `tests/conformance/test_goldens_present.py::goldens_present` | 50 full-pipeline + 5 isolated |
+
 ## Per-Spec-Paragraph Coverage
 
 Rows map each anchor in the pinned wayback snapshot

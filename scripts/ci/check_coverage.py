@@ -72,8 +72,10 @@ def _reject_if_metachars(test_name: str) -> str | None:
 _BACKTICK_CELL_RE = re.compile(r"`([^`]*)`")
 
 # Cells of interest: contain `::` and the path starts with `tests/`
-# (project convention — all coverage sources live under tests/).
-_TEST_REF_RE = re.compile(r"^(tests/[^\s`]+)::([^\s`]+)$")
+# or `tools/` (project convention — coverage sources live under tests/
+# or tools/; tools/ entries are validated for file existence only, not
+# via ctest, since they are standalone measurement scripts).
+_TEST_REF_RE = re.compile(r"^((?:tests|tools)/[^\s`]+)::([^\s`]+)$")
 
 # Row starts with a pipe and contains at least three pipes (header separator
 # rows are filtered by requiring at least one backtick in the row).
@@ -104,6 +106,8 @@ def parse_coverage_md(path: Path):
         "## Per-Register Coverage",
         "## Per-Behavior Coverage",
         "## Per-Spec-Paragraph Coverage",
+        "## ADPCM Coverage",
+        "## DAC Model Coverage",
     }
     in_recognized = False
 
@@ -289,8 +293,10 @@ def main() -> int:
                 f"FAIL: {args.file.name}:{line_no}: {meta_err}"
             )
             continue
-        # 3. ctest pass.
-        if args.skip_ctest:
+        # 3. ctest pass.  tools/ paths are standalone measurement scripts
+        #    that are not registered as ctest targets — file-existence is
+        #    sufficient for them.
+        if args.skip_ctest or path.startswith("tools/"):
             continue
         rc, combined = run_ctest(name, args.build_dir)
         if rc != 0:
