@@ -10,6 +10,16 @@
 
 **Shipped:** v1.2 — DAC Modeling (2026-04-30, tag `v1.2`). AK4309 interpolation filter + delta-sigma noise model as toggleable DAC coloration stage. Send/return mixer architecture with 3 buses, 6 faders, latency compensation. 5 phases, 12 plans, 14/14 requirements verified. 55 DAC golden files, frequency response characterization script, 99-row coverage map.
 
+## Current Milestone: v1.3 True Oversampled DAC
+
+**Goal:** Replace the 44.1kHz FIR approximation with genuine 8x oversampling — zero-stuff to 352.8kHz, run the AK4309 interpolation cascade at the real rate, decimate back to 44.1kHz.
+
+**Target features:**
+- True 8x zero-stuff + interpolation at 352.8kHz
+- Faithful AK4309 cascade behavior at elevated rate
+- Decimation back to 44.1kHz for output
+- CLI/Python/JUCE surfaces updated for new DAC mode
+
 ## What This Is
 
 SPU-94 is a bit-faithful software reimplementation of the Sony PlayStation 1 SPU reverb algorithm, built from the spec (nocash psx-spx) rather than ported from any existing emulator. It ships as a plain C library with Python bindings for development, and is designed to be wrapped later as a desktop audio plugin (JUCE) and eventually as hardware (Eurorack module, MCU firmware, or FPGA). SPU-94 is designed as a *living instrument*, not a static bank of presets — every parameter that moves in the original algorithm is designed to be controllable at runtime, smoothly and glitch-free, in service of performance, modulation, and CV control. The immediate audience is the author and a small circle of musicians who want the recognizable character of the PS1 reverb available as a modern, playable tool.
@@ -68,7 +78,7 @@ See `.planning/milestones/v1.2-REQUIREMENTS.md` for full 14-requirement traceabi
 
 - **4-bit Sony ADPCM encode/decode** — SHIPPED as M2 / v1.1 (2026-04-27)
 - **AK4309 DAC digital modeling** — SHIPPED as v1.2 (2026-04-30)
-- **Real oversampling engine** — deferred; current DAC FIR approximates at 44.1kHz, real impl would zero-stuff and run cascade at elevated rate
+- **Real oversampling engine** — ACTIVE as v1.3 (True Oversampled DAC)
 - **DAC analog output stage** (op-amps, coupling caps, output impedance) — deferred; needs real hardware measurement
 - **JUCE DAW plugin (VST3 / AU / LV2)** — next milestone candidate; wraps the existing C core for use in Reaper / Ableton / Logic
 - **Named musical levers ("Room Size", "Pre Delay", etc.), parameter smoothing, CV mappings, plugin UI** — DAW plugin milestone work atop the register API. v1.0 contributed: glitch-free mid-stream register API + `LEVERS-CATALOG.md` candidate-lever catalog.
@@ -153,4 +163,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-28 — v1.2 DAC Modeling milestone started.*
+*Last updated: 2026-04-30 — v1.3 True Oversampled DAC milestone started.*
