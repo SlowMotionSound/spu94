@@ -126,8 +126,15 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
     // 3. ADPCM coloration toggle (ADPCM-IO-06, D-06): read GUI atomic,
     // push to C API. Takes effect on the next spu94_process block.
-    spu94_set_adpcm_enabled(spu,
-        adpcmEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    // ADPCM auto-enables when patina fader or ADPCM send is non-zero.
+    // The old dedicated toggle was removed (D-08); the mixer controls
+    // now implicitly drive ADPCM on/off.
+    {
+        const bool patina_active =
+            patinaLevel.load(std::memory_order_relaxed) > 0.0f ||
+            adpcmSend.load(std::memory_order_relaxed) > 0.0f;
+        spu94_set_adpcm_enabled(spu, patina_active ? 1 : 0);
+    }
 
     const int n = buffer.getNumSamples();
     const auto numFrames = wavSource.numFrames;

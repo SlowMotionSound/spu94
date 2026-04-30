@@ -231,28 +231,15 @@ void SPU94AudioProcessorEditor::paint(juce::Graphics& g)
 {
     g.fillAll(juce::Colours::darkgrey);
 
-    // Reverb Sends outlined section (D-10)
-    g.setColour(juce::Colours::lightgrey);
-    auto sendsArea = juce::Rectangle<int>(590, 2, 190, 68);
-    g.drawRoundedRectangle(sendsArea.toFloat(), 4.0f, 1.0f);
-    g.setFont(11.0f);
-    g.drawText("Reverb Sends", sendsArea.removeFromTop(14),
-               juce::Justification::centred, false);
-
-    // Mixer strip zone label
-    auto mixerLabelArea = juce::Rectangle<int>(10, getHeight() - 170, 100, 16);
+    // Combined mixer + DAC zone label
+    auto mixerLabelArea = juce::Rectangle<int>(10, getHeight() - 85, 100, 16);
     g.setFont(12.0f);
     g.setColour(juce::Colours::white);
-    g.drawText("Mixer", mixerLabelArea, juce::Justification::left, false);
+    g.drawText("Mixer / DAC", mixerLabelArea, juce::Justification::left, false);
 
-    // DAC section zone label
-    auto dacLabelArea = juce::Rectangle<int>(10, getHeight() - 55, 100, 16);
-    g.drawText("DAC Model", dacLabelArea, juce::Justification::left, false);
-
-    // Horizontal separator lines between zones
+    // Horizontal separator line above combined zone
     g.setColour(juce::Colours::grey);
-    g.drawHorizontalLine(getHeight() - 175, 10.0f, static_cast<float>(getWidth() - 10));  // above mixer
-    g.drawHorizontalLine(getHeight() - 60, 10.0f, static_cast<float>(getWidth() - 10));   // above DAC
+    g.drawHorizontalLine(getHeight() - 90, 10.0f, static_cast<float>(getWidth() - 10));
 }
 
 void SPU94AudioProcessorEditor::resized()
@@ -266,39 +253,32 @@ void SPU94AudioProcessorEditor::resized()
     presetLabel.setBounds(330, 10, 60, 30);
     presetSelector.setBounds(395, 10, 180, 30);
 
-    // Input Gain knob (renamed from "Input")
-    inputLevelLabel.setBounds(790, 2, 80, 16);
-    inputLevelKnob.setBounds(790, 16, 80, 54);
-
-    // Reverb Sends outlined section (D-10)
-    // ADPCM Send and Dry Send knobs inside the outlined area
-    adpcmSendLabel.setBounds(600, 14, 80, 14);
-    adpcmSendKnob.setBounds(600, 28, 80, 42);
-    drySendLabel.setBounds(690, 14, 80, 14);
-    drySendKnob.setBounds(690, 28, 80, 42);
+    // Three equal-sized knobs: Input Gain, ADPCM Send, Dry Send
+    inputLevelLabel.setBounds(590, 2, 90, 16);
+    inputLevelKnob.setBounds(590, 16, 90, 54);
+    adpcmSendLabel.setBounds(690, 2, 90, 16);
+    adpcmSendKnob.setBounds(690, 16, 90, 54);
+    drySendLabel.setBounds(790, 2, 90, 16);
+    drySendKnob.setBounds(790, 16, 90, 54);
 
     // ---- ZONE 2: Register panel (fills middle) ----
-    const int mixerZoneHeight = 90;
-    const int dacZoneHeight = 50;
+    const int bottomZoneHeight = 80;
     const int registerTop = 75;
-    const int registerBottom = getHeight() - mixerZoneHeight - dacZoneHeight - 10;
+    const int registerBottom = getHeight() - bottomZoneHeight - 5;
     registerPanel.setBounds(10, registerTop, w - 20, registerBottom - registerTop);
 
-    // ---- ZONE 3: Mixer strip (below registers) ----
-    const int mixerY = registerBottom + 10;
+    // ---- ZONE 3+4: Combined mixer + DAC (single bottom row) ----
+    const int bottomY = registerBottom + 5;
     // Three level knobs
-    dryKnobLabel.setBounds(120, mixerY, 80, 16);
-    dryKnob.setBounds(120, mixerY + 14, 80, 54);
-    patinaKnobLabel.setBounds(220, mixerY, 80, 16);
-    patinaKnob.setBounds(220, mixerY + 14, 80, 54);
-    reverbKnobLabel.setBounds(320, mixerY, 80, 16);
-    reverbKnob.setBounds(320, mixerY + 14, 80, 54);
-    // Latency Comp toggle (D-11)
-    latencyCompToggle.setBounds(430, mixerY + 20, 130, 30);
-
-    // ---- ZONE 4: DAC section (bottom row) ----
-    const int dacY = mixerY + mixerZoneHeight;
-    dacToggle.setBounds(120, dacY + 5, 60, 30);
-    dacFirToggle.setBounds(200, dacY + 5, 60, 30);
-    dacNoiseToggle.setBounds(280, dacY + 5, 70, 30);
+    dryKnobLabel.setBounds(120, bottomY, 80, 16);
+    dryKnob.setBounds(120, bottomY + 14, 80, 54);
+    patinaKnobLabel.setBounds(220, bottomY, 80, 16);
+    patinaKnob.setBounds(220, bottomY + 14, 80, 54);
+    reverbKnobLabel.setBounds(320, bottomY, 80, 16);
+    reverbKnob.setBounds(320, bottomY + 14, 80, 54);
+    // Toggles: Latency Comp + DAC section
+    latencyCompToggle.setBounds(430, bottomY + 15, 120, 30);
+    dacToggle.setBounds(560, bottomY + 15, 60, 30);
+    dacFirToggle.setBounds(630, bottomY + 15, 60, 30);
+    dacNoiseToggle.setBounds(700, bottomY + 15, 70, 30);
 }
