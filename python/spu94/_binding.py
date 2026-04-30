@@ -229,18 +229,70 @@ _lib.spu94_get_adpcm_enabled.argtypes = [ctypes.c_void_p]
 _lib.spu94_get_total_latency_samples.restype = ctypes.c_uint32
 _lib.spu94_get_total_latency_samples.argtypes = [ctypes.c_void_p]
 
-# Phase 7: Mixer fader setters (minimum for self_test audibility) -----------
+# Phase 8: Full mixer/DAC control surface (DAC-IO-02) -------------------------
+
+# Fader setters (4 declared in Phase 7, getters + 2 missing pairs added here)
 _lib.spu94_set_input_gain.restype = None
 _lib.spu94_set_input_gain.argtypes = [ctypes.c_void_p, ctypes.c_int16]
+
+_lib.spu94_get_input_gain.restype = ctypes.c_int16
+_lib.spu94_get_input_gain.argtypes = [ctypes.c_void_p]
 
 _lib.spu94_set_dry_fader.restype = None
 _lib.spu94_set_dry_fader.argtypes = [ctypes.c_void_p, ctypes.c_int16]
 
+_lib.spu94_get_dry_fader.restype = ctypes.c_int16
+_lib.spu94_get_dry_fader.argtypes = [ctypes.c_void_p]
+
 _lib.spu94_set_reverb_fader.restype = None
 _lib.spu94_set_reverb_fader.argtypes = [ctypes.c_void_p, ctypes.c_int16]
 
+_lib.spu94_get_reverb_fader.restype = ctypes.c_int16
+_lib.spu94_get_reverb_fader.argtypes = [ctypes.c_void_p]
+
 _lib.spu94_set_dry_send.restype = None
 _lib.spu94_set_dry_send.argtypes = [ctypes.c_void_p, ctypes.c_int16]
+
+_lib.spu94_get_dry_send.restype = ctypes.c_int16
+_lib.spu94_get_dry_send.argtypes = [ctypes.c_void_p]
+
+_lib.spu94_set_patina_fader.restype = None
+_lib.spu94_set_patina_fader.argtypes = [ctypes.c_void_p, ctypes.c_int16]
+
+_lib.spu94_get_patina_fader.restype = ctypes.c_int16
+_lib.spu94_get_patina_fader.argtypes = [ctypes.c_void_p]
+
+_lib.spu94_set_patina_send.restype = None
+_lib.spu94_set_patina_send.argtypes = [ctypes.c_void_p, ctypes.c_int16]
+
+_lib.spu94_get_patina_send.restype = ctypes.c_int16
+_lib.spu94_get_patina_send.argtypes = [ctypes.c_void_p]
+
+# Latency compensation (Phase 7, D-07/D-08)
+_lib.spu94_set_latency_comp.restype = None
+_lib.spu94_set_latency_comp.argtypes = [ctypes.c_void_p, ctypes.c_int]
+
+_lib.spu94_get_latency_comp.restype = ctypes.c_int
+_lib.spu94_get_latency_comp.argtypes = [ctypes.c_void_p]
+
+# DAC coloration section (Phase 7, D-09 through D-12)
+_lib.spu94_set_dac_enabled.restype = None
+_lib.spu94_set_dac_enabled.argtypes = [ctypes.c_void_p, ctypes.c_int]
+
+_lib.spu94_get_dac_enabled.restype = ctypes.c_int
+_lib.spu94_get_dac_enabled.argtypes = [ctypes.c_void_p]
+
+_lib.spu94_set_dac_fir_enabled.restype = None
+_lib.spu94_set_dac_fir_enabled.argtypes = [ctypes.c_void_p, ctypes.c_int]
+
+_lib.spu94_get_dac_fir_enabled.restype = ctypes.c_int
+_lib.spu94_get_dac_fir_enabled.argtypes = [ctypes.c_void_p]
+
+_lib.spu94_set_dac_noise_enabled.restype = None
+_lib.spu94_set_dac_noise_enabled.argtypes = [ctypes.c_void_p, ctypes.c_int]
+
+_lib.spu94_get_dac_noise_enabled.restype = ctypes.c_int
+_lib.spu94_get_dac_noise_enabled.argtypes = [ctypes.c_void_p]
 
 # VAG file format I/O (M2 Phase 3, D-10) ------------------------------------
 
