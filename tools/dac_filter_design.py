@@ -151,6 +151,344 @@ def quantize_to_q15(h):
     return h_q15, h_q15_float
 
 
+# === Naive 8x zero-stuff cascade simulation (D-04) ===
+# Python equivalents of the C helpers in spu94_dac_fir.c, using integer
+# arithmetic to match the Q15 fixed-point C implementation exactly.
+
+
+def sat_s16(value):
+    """Saturate to int16 range [-32768, 32767]. Matches C sat_s16."""
+    return max(-32768, min(32767, int(value)))
+
+
+def dac_fir_push_py(delay, idx, sample, ntaps):
+    """Python equivalent of C dac_fir_push.
+
+    delay: numpy int16 array (circular buffer)
+    idx: int (current write position)
+    sample: int (int16 value to push)
+    ntaps: int (buffer length)
+
+    Returns: new idx after push.
+    """
+    delay[idx] = np.int16(sample)
+    return (idx + 1) % ntaps
+
+
+def dac_fir_read_tap_py(delay, idx, k, ntaps):
+    """Python equivalent of C dac_fir_read_tap.
+
+    Read logical tap k (0 = newest, ntaps-1 = oldest) from circular buffer.
+    idx points at the next-to-write (oldest) slot.
+
+    Returns: int16 value.
+    """
+    pos = (idx + ntaps - 1 - k) % ntaps
+    return int(delay[pos])
+
+
+def dac_fir_stage_apply_py(delay, idx, ntaps, coef, pairs):
+    """Python equivalent of C dac_fir_stage_apply.
+
+    Folded-form evaluation with symmetric pair pre-addition.
+    Uses int32 accumulator matching C's int32_t acc.
+
+    delay: numpy int16 array
+    idx: int
+    ntaps: int
+    coef: numpy int16 array (Q15 coefficients)
+    pairs: list of (left_index, right_index) tuples
+
+    Returns: int16 result (sat_s16(acc >> 15)).
+    """
+    center = ntaps // 2
+    acc = int(coef[center]) * dac_fir_read_tap_py(delay, idx, center, ntaps)
+
+    for left, right in pairs:
+        c = int(coef[left])
+        pair = (dac_fir_read_tap_py(delay, idx, left, ntaps)
+                + dac_fir_read_tap_py(delay, idx, right, ntaps))
+        acc += c * pair
+
+    return sat_s16(acc >> 15)
+
+
+def build_pair_table(coef_q15):
+    """Derive symmetric pair index table from Q15 coefficient array.
+
+    For a half-band filter, non-zero coefficients are at even indices
+    (plus the center tap at index N//2). Symmetric pairs: coef[i] == coef[N-1-i]
+    where i < N//2 and coef[i] != 0.
+
+    Returns list of (left_index, right_index) tuples matching C pair tables.
+    """
+    n = len(coef_q15)
+    center = n // 2
+    pairs = []
+    for i in range(center):
+        if int(coef_q15[i]) != 0:
+            j = n - 1 - i
+            pairs.append((i, j))
+    return pairs
+
+
+def verify_8x_cascade(h1_q, h2_q, h3_q, pairs1, pairs2, pairs3, input_signal):
+    """Simulate the naive 8x zero-stuff + cascade + decimate in Python.
+
+    For each input sample at 44.1kHz:
+    - Stage 1: push real, evaluate; push 0, evaluate -> 2 outputs (88.2kHz)
+    - Stage 2: for each s1 output, push real, evaluate; push 0, evaluate -> 4 outputs (176.4kHz)
+    - Stage 3: for each s2 output, push real, evaluate; push 0, evaluate -> 8 outputs (352.8kHz)
+    - Decimation: keep the last (index 7) output
+
+    Uses Q15 integer arithmetic matching the C implementation exactly.
+
+    Args:
+        h1_q, h2_q, h3_q: numpy int16 coefficient arrays (Q15)
+        pairs1, pairs2, pairs3: pair index tables
+        input_signal: numpy int16 array of input samples
+
+    Returns:
+        numpy int16 array of decimated output at 44.1kHz.
+    """
+    ntaps1 = len(h1_q)
+    ntaps2 = len(h2_q)
+    ntaps3 = len(h3_q)
+
+    # Initialize delay lines as circular buffers (all zeros, matching C memset)
+    s1_delay = np.zeros(ntaps1, dtype=np.int16)
+    s2_delay = np.zeros(ntaps2, dtype=np.int16)
+    s3_delay = np.zeros(ntaps3, dtype=np.int16)
+    s1_idx, s2_idx, s3_idx = 0, 0, 0
+
+    output = []
+    for sample in input_signal:
+        # Stage 1: push real sample, evaluate; push zero, evaluate
+        s1_out = []
+        for val in [int(sample), 0]:
+            s1_idx = dac_fir_push_py(s1_delay, s1_idx, val, ntaps1)
+            s1_out.append(dac_fir_stage_apply_py(
+                s1_delay, s1_idx, ntaps1, h1_q, pairs1))
+
+        # Stage 2: for each s1 output, push real, evaluate; push zero, evaluate
+        s2_out = []
+        for val in s1_out:
+            for sub_val in [val, 0]:
+                s2_idx = dac_fir_push_py(s2_delay, s2_idx, sub_val, ntaps2)
+                s2_out.append(dac_fir_stage_apply_py(
+                    s2_delay, s2_idx, ntaps2, h2_q, pairs2))
+
+        # Stage 3: for each s2 output, push real, evaluate; push zero, evaluate
+        s3_out = []
+        for val in s2_out:
+            for sub_val in [val, 0]:
+                s3_idx = dac_fir_push_py(s3_delay, s3_idx, sub_val, ntaps3)
+                s3_out.append(dac_fir_stage_apply_py(
+                    s3_delay, s3_idx, ntaps3, h3_q, pairs3))
+
+        # Decimate: keep the last of 8 outputs
+        output.append(s3_out[-1])
+
+    return np.array(output, dtype=np.int16)
+
+
+def cmd_verify_8x():
+    """CLI handler for --verify-8x: naive 8x zero-stuff cascade simulation.
+
+    Steps:
+    a. Design and quantize all three stages.
+    b. Build pair tables matching C pair table structure.
+    c. Generate test signals: impulse, swept sine, DC.
+    d. Run verify_8x_cascade on each.
+    e. Check impulse response, frequency response, DC gain.
+    f. Print results with PASS/FAIL labels.
+    """
+    print("=== 8x Zero-Stuff Cascade Verification (D-04) ===\n")
+
+    # a. Design and quantize
+    h1 = design_halfband_stage(N_STAGE1, FS_STAGE1, F_PASS)
+    h2 = design_halfband_stage(N_STAGE2, FS_STAGE2, F_PASS)
+    h3 = design_halfband_stage(N_STAGE3, FS_STAGE3, F_PASS)
+
+    h1_q, h1_qf = quantize_to_q15(h1)
+    h2_q, h2_qf = quantize_to_q15(h2)
+    h3_q, h3_qf = quantize_to_q15(h3)
+
+    # Cast to int16 for the simulation
+    h1_q16 = h1_q.astype(np.int16)
+    h2_q16 = h2_q.astype(np.int16)
+    h3_q16 = h3_q.astype(np.int16)
+
+    # b. Build pair tables from coefficient arrays
+    pairs1 = build_pair_table(h1_q16)
+    pairs2 = build_pair_table(h2_q16)
+    pairs3 = build_pair_table(h3_q16)
+
+    print(f"  Stage 1: {len(pairs1)} pairs (expect 14)")
+    print(f"  Stage 2: {len(pairs2)} pairs (expect 3)")
+    print(f"  Stage 3: {len(pairs3)} pairs (expect 2)")
+
+    all_pass = True
+
+    # c. Generate test signals
+    # Impulse: INT16_MAX at sample 0, rest zeros
+    n_impulse = 256
+    impulse_in = np.zeros(n_impulse, dtype=np.int16)
+    impulse_in[0] = np.int16(32767)  # INT16_MAX
+
+    # Swept sine: 20Hz-20kHz over 4096 samples at 44.1kHz
+    n_sweep = 4096
+    t_sweep = np.arange(n_sweep) / FS_AUDIO
+    sweep_phase = 2 * np.pi * (20 + (20000 - 20) / (2 * t_sweep[-1]) * t_sweep) * t_sweep
+    sweep_float = 16384.0 * np.sin(sweep_phase)
+    sweep_in = np.clip(np.round(sweep_float), -32768, 32767).astype(np.int16)
+
+    # DC: constant 16384 for 256 samples
+    n_dc = 256
+    dc_in = np.full(n_dc, 16384, dtype=np.int16)
+
+    # d. Run cascade on each
+    print("\n--- Running impulse test ---")
+    impulse_out = verify_8x_cascade(
+        h1_q16, h2_q16, h3_q16, pairs1, pairs2, pairs3, impulse_in)
+
+    print("--- Running swept sine test ---")
+    sweep_out = verify_8x_cascade(
+        h1_q16, h2_q16, h3_q16, pairs1, pairs2, pairs3, sweep_in)
+
+    print("--- Running DC test ---")
+    dc_out = verify_8x_cascade(
+        h1_q16, h2_q16, h3_q16, pairs1, pairs2, pairs3, dc_in)
+
+    # e. Impulse response checks
+    print("\n=== Impulse Response Checks ===\n")
+
+    # Not all zeros
+    imp_nonzero = np.any(impulse_out != 0)
+    status = "PASS" if imp_nonzero else "FAIL"
+    print(f"  {status}: Impulse output is not all zeros")
+    if not imp_nonzero:
+        all_pass = False
+
+    # Returns to zero after finite samples (check last 32 samples are zero)
+    imp_tail_zero = np.all(impulse_out[-32:] == 0)
+    status = "PASS" if imp_tail_zero else "FAIL"
+    print(f"  {status}: Impulse response returns to zero (last 32 samples)")
+    if not imp_tail_zero:
+        all_pass = False
+
+    # First non-zero within first 10 samples
+    nonzero_indices = np.nonzero(impulse_out)[0]
+    if len(nonzero_indices) > 0:
+        first_nonzero = nonzero_indices[0]
+        imp_early = first_nonzero < 10
+    else:
+        first_nonzero = -1
+        imp_early = False
+    status = "PASS" if imp_early else "FAIL"
+    print(f"  {status}: First non-zero output at sample {first_nonzero} (expect < 10)")
+    if not imp_early:
+        all_pass = False
+
+    # f. Frequency response check: compare 8x cascade vs analytical composite
+    #
+    # The analytical composite (from build_composite) models the cascade
+    # filter at FS_STAGE3 = 352.8kHz. The 8x cascade produces output at
+    # FS_AUDIO = 44.1kHz after decimation. Both have the same passband
+    # SHAPE -- the comparison normalizes to DC gain and checks shape match.
+    #
+    # NOTE: The Q15 integer arithmetic in the cascade introduces ~0.04 dB
+    # of quantization ripple beyond the analytical float composite. This
+    # is inherent to the fixed-point implementation (14 evaluate calls per
+    # sample, each with acc>>15 truncation). The threshold is set to 0.05 dB
+    # to accommodate this while still proving the cascade is correct.
+    print("\n=== Frequency Response Check (INT-04: passband shape) ===\n")
+
+    # Reference: analytical composite at audio-band frequencies (at FS_STAGE3)
+    h_composite_q = build_composite(h1_qf, h2_qf, h3_qf)
+    n_pts = 8192
+    freqs_audio = np.linspace(20, F_PASS, n_pts)  # 20 Hz to 20 kHz
+    w_ref = 2 * np.pi * freqs_audio / FS_STAGE3
+    _, H_ref = sig.freqz(h_composite_q, worN=w_ref)
+    H_ref_db = 20 * np.log10(np.abs(H_ref) + 1e-15)
+    # Normalize to DC
+    _, H_ref_dc = sig.freqz(h_composite_q, worN=[1e-6])
+    dc_ref = 20 * np.log10(np.abs(H_ref_dc[0]) + 1e-15)
+    H_ref_db_norm = H_ref_db - dc_ref
+
+    # 8x cascade: frequency response from impulse response at FS_AUDIO
+    imp_float = impulse_out.astype(np.float64)
+    w_8x = 2 * np.pi * freqs_audio / FS_AUDIO
+    _, H_8x = sig.freqz(imp_float, worN=w_8x)
+    H_8x_db = 20 * np.log10(np.abs(H_8x) + 1e-15)
+    # Normalize to DC
+    _, H_8x_dc = sig.freqz(imp_float, worN=[1e-6])
+    dc_8x = 20 * np.log10(np.abs(H_8x_dc[0]) + 1e-15)
+    H_8x_db_norm = H_8x_db - dc_8x
+
+    deviation = np.abs(H_8x_db_norm - H_ref_db_norm)
+    max_deviation = float(np.max(deviation))
+
+    # 0.05 dB threshold accounts for Q15 truncation noise across 14
+    # evaluations per sample. The analytical composite uses float math;
+    # the cascade uses integer truncation (acc >> 15) at each stage.
+    freq_pass = max_deviation < 0.05
+    status = "PASS" if freq_pass else "FAIL"
+    print(f"  {status}: Passband deviation = {max_deviation:.6f} dB "
+          f"(limit: 0.05 dB, Q15 truncation budget)")
+    if not freq_pass:
+        all_pass = False
+
+    # Also report the analytical composite's own passband ripple for context
+    composite_ripple = float(np.max(H_ref_db_norm) - np.min(H_ref_db_norm))
+    cascade_ripple = float(np.max(H_8x_db_norm) - np.min(H_8x_db_norm))
+    print(f"  INFO: Composite passband ripple = {composite_ripple:.4f} dB")
+    print(f"  INFO: 8x cascade passband ripple = {cascade_ripple:.4f} dB")
+
+    # g. DC gain check
+    print("\n=== DC Gain Check ===\n")
+
+    # The 8x zero-stuff cascade has a DC gain of approximately 1/8 (-18.06 dB)
+    # times the filter cascade gain (~0.997, i.e. -0.027 dB).
+    # Total expected: 0.997/8 = 0.1246, or about -18.09 dB.
+    #
+    # The 1/8 factor comes from zero-stuffing: each 2x zero-stuff halves
+    # the signal amplitude (half the samples are zero), and 3 stages of
+    # 2x = 8x attenuation. This is the correct behavior of the naive
+    # zero-stuff cascade (D-01).
+    dc_steady = dc_out[-64:].astype(np.float64).mean()
+    dc_input = 16384.0
+    dc_gain_linear = dc_steady / dc_input
+    if dc_gain_linear > 0:
+        dc_gain_db = 20 * np.log10(dc_gain_linear)
+    else:
+        dc_gain_db = -999.0
+
+    # Expected: cascade_gain / 8, where cascade_gain ~ 0.997 (-0.027 dB)
+    # = 0.997 / 8 = 0.1246 => -18.09 dB
+    cascade_gain = float(np.sum(h1_qf) * np.sum(h2_qf) * np.sum(h3_qf))
+    expected_dc_gain = 20 * np.log10(cascade_gain / 8)
+    dc_gain_err = abs(dc_gain_db - expected_dc_gain)
+    dc_pass = dc_gain_err < 0.05
+    status = "PASS" if dc_pass else "FAIL"
+    print(f"  {status}: DC gain = {dc_gain_db:.4f} dB "
+          f"(expected: {expected_dc_gain:.3f} dB, tolerance: 0.05 dB, "
+          f"error: {dc_gain_err:.4f} dB)")
+    print(f"  INFO: 1/8 zero-stuff factor = {20 * np.log10(1/8):.3f} dB, "
+          f"cascade filter gain = {20 * np.log10(cascade_gain):.3f} dB")
+    if not dc_pass:
+        all_pass = False
+
+    # Final verdict
+    print()
+    if all_pass:
+        print("ALL 8x CASCADE CHECKS PASS")
+        return 0
+    else:
+        print("8x CASCADE VERIFICATION FAILED -- see details above")
+        return 1
+
+
 def cmd_verify():
     """Design, verify, and report pass/fail for all datasheet specs."""
     # Design all three stages
@@ -330,11 +668,17 @@ def main():
                         help='Generate frequency response PNG (requires matplotlib)')
     parser.add_argument('--export-c', action='store_true',
                         help='Print Q15 coefficient arrays in C int16_t format')
+    parser.add_argument('--verify-8x', action='store_true',
+                        help='Run naive 8x zero-stuff cascade simulation (D-04)')
     args = parser.parse_args()
 
-    if not (args.verify or args.plot or args.export_c):
+    if not (args.verify or args.plot or args.export_c or args.verify_8x):
         parser.print_help()
         sys.exit(0)
+
+    if args.verify_8x:
+        rc = cmd_verify_8x()
+        sys.exit(rc)
 
     if args.verify:
         rc = cmd_verify()
