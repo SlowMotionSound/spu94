@@ -137,3 +137,12 @@ target_include_directories(test_process_latency_comp PRIVATE
     ${CMAKE_SOURCE_DIR}/src/spu94)
 add_test(NAME test_process_latency_comp COMMAND test_process_latency_comp)
 set_tests_properties(test_process_latency_comp PROPERTIES LABELS "process;mixer")
+
+# Phase 9: DAC toggle transitions, reverb interaction, ADPCM composition.
+add_executable(test_process_dac_toggle_transitions test_process_dac_toggle_transitions.c)
+target_link_libraries(test_process_dac_toggle_transitions PRIVATE unity spu94_static spu94_warnings)
+target_include_directories(test_process_dac_toggle_transitions PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src/spu94)
+add_test(NAME test_process_dac_toggle_transitions COMMAND test_process_dac_toggle_transitions)
+set_tests_properties(test_process_dac_toggle_transitions PROPERTIES LABELS "process;dac_integration")

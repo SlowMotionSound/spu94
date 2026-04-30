@@ -38,3 +38,6 @@ wheelhouse/
 # regenerated per-run; nothing under .artifacts/ is version-controlled.
 .artifacts/
 .venv/
+
+# Phase 9: generated measurement plots (tools/dac_measure.py --plot)
+tools/dac_measure.png
