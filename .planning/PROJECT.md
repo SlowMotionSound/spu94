@@ -8,7 +8,7 @@
 
 **Shipped:** M2 — Sony 4-bit ADPCM Encode/Decode (2026-04-27, tag `v1.1`). Bit-faithful ADPCM codec added to libspu94 as toggleable coloration stage. 4 phases, 10 plans, 23/23 requirements verified. 380 LOC C core + 841 LOC tests + 30 golden files + 7 ADRs.
 
-**Current milestone:** v1.2 — DAC Modeling (started 2026-04-28).
+**Shipped:** v1.2 — DAC Modeling (2026-04-30, tag `v1.2`). AK4309 interpolation filter + delta-sigma noise model as toggleable DAC coloration stage. Send/return mixer architecture with 3 buses, 6 faders, latency compensation. 5 phases, 12 plans, 14/14 requirements verified. 55 DAC golden files, frequency response characterization script, 99-row coverage map.
 
 ## What This Is
 
@@ -54,23 +54,21 @@ Rigor governs the algorithm; musicality governs everything that surrounds it. Th
 
 See `.planning/milestones/v1.1-REQUIREMENTS.md` for full 23-requirement traceability.
 
-### Active — v1.2 DAC Modeling
+### Validated — v1.2 DAC Modeling (Shipped 2026-04-30, tag `v1.2`)
 
-## Current Milestone: v1.2 DAC Modeling
+- ✓ AK4309 8x cascaded half-band FIR designed in scipy, ported to Q15 C — v1.2 (Phase 5-6)
+- ✓ Delta-sigma noise model: LFSR + 2nd-order HP shaping, +12dB/octave slope — v1.2 (Phase 6)
+- ✓ Send/return mixer: 3 buses, 6 faders, latency compensation, DAC coloration section — v1.2 (Phase 7)
+- ✓ I/O surface: CLI --dac, Python ctypes, JUCE 4-zone GUI with mixer/DAC controls — v1.2 (Phase 8)
+- ✓ Verification: 55 DAC goldens, frequency response characterization, 4 integration C tests, 99-row coverage map — v1.2 (Phase 9)
 
-**Goal:** Research and model the PS1's DAC conversion stage — identify the actual converter topology Sony used and implement a digital model of its conversion artifacts as a toggleable coloration stage in libspu94.
-
-**Target features:**
-- Identify PS1 DAC chip and converter topology (R2R, sigma-delta, etc.)
-- Model converter-specific artifacts (quantization behavior, ZOH, reconstruction filtering, DNL/INL nonlinearities)
-- Implement as toggleable stage in the signal chain (like ADPCM)
-- Verify against available references and documentation
-
-Requirements defined after research completes.
+See `.planning/milestones/v1.2-REQUIREMENTS.md` for full 14-requirement traceability.
 
 ### Out of Scope (shipped or deferred, not abandoned)
 
 - **4-bit Sony ADPCM encode/decode** — SHIPPED as M2 / v1.1 (2026-04-27)
+- **AK4309 DAC digital modeling** — SHIPPED as v1.2 (2026-04-30)
+- **Real oversampling engine** — deferred; current DAC FIR approximates at 44.1kHz, real impl would zero-stuff and run cascade at elevated rate
 - **DAC analog output stage** (op-amps, coupling caps, output impedance) — deferred; needs real hardware measurement
 - **JUCE DAW plugin (VST3 / AU / LV2)** — next milestone candidate; wraps the existing C core for use in Reaper / Ableton / Logic
 - **Named musical levers ("Room Size", "Pre Delay", etc.), parameter smoothing, CV mappings, plugin UI** — DAW plugin milestone work atop the register API. v1.0 contributed: glitch-free mid-stream register API + `LEVERS-CATALOG.md` candidate-lever catalog.
@@ -84,7 +82,9 @@ Requirements defined after research completes.
 
 ## Context
 
-Shipped v1.1 additions: 380 LOC ADPCM C core (`spu94_adpcm.c`, `spu94_adpcm_encode.c`, `vag.c`), 841 LOC unit tests, 30 ADPCM golden WAV files with SHA-256 sidecars, 7 numbered ADRs (ADR-0047 through ADR-0053). Total project C LOC: ~6,300. Total ctest: ~100.
+Shipped v1.2 additions: DAC FIR filter (`spu94_dac_fir.c`), noise model (`spu94_dac_noise.c`), send/return mixer rewrite of `spu94_process.c`, JUCE 4-zone GUI redesign. 55 DAC golden WAVs, frequency response characterization script (`tools/dac_measure.py`), 99-row coverage map. Total project C LOC: ~7,300. Total ctest: ~50 (282 pytest conformance tests, ~100 pytest integration tests).
+
+Shipped v1.1 additions: 380 LOC ADPCM C core (`spu94_adpcm.c`, `spu94_adpcm_encode.c`, `vag.c`), 841 LOC unit tests, 30 ADPCM golden WAV files with SHA-256 sidecars, 7 numbered ADRs (ADR-0047 through ADR-0053).
 
 Shipped v1.0 totals: ~33,000 LOC across `src/spu94/` (C core), `src/cli/` (CLI), `python/spu94/` (binding), `tests/` (35 directories of test code), `docs/` (5 first-class deliverables — DECISIONS, BIBLIOGRAPHY, COVERAGE, LEVERS-CATALOG, plus README).
 
