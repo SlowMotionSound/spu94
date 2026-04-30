@@ -167,6 +167,88 @@ int16_t spu94_dac_fir_step(spu94_dac_fir_state *state, int16_t input) {
     return s3;
 }
 
+/* ========================================================================
+ * Accumulator Width Proof -- 8x Zero-Stuffed Path
+ *
+ * With naive zero-stuffing (D-01), every other delay line entry pushed
+ * is 0. This strictly reduces the accumulator worst case because the
+ * folded-pair additions include zero-valued taps. For each stage, the
+ * 8x worst-case accumulator sum is bounded by the v1.2 worst case:
+ *
+ *   Stage 1: <= 1,904,643,762 (0x71868EB2) -- same or fewer non-zero entries
+ *   Stage 2: <= 1,336,455,240 (0x4FA8B048) -- same reasoning
+ *   Stage 3: <= 1,221,048,126 (0x48C7B73E) -- same reasoning
+ *
+ * int32 accumulators remain sufficient. See v1.2 proofs above for
+ * full derivation methodology.
+ * ========================================================================
+ */
+
+int16_t spu94_dac_fir_step_8x(spu94_dac_fir_state *state, int16_t input) {
+    /* Stage 1: 2 evaluations at 88.2kHz (push real, evaluate; push 0, evaluate) */
+    int16_t s1[2];
+
+    dac_fir_push(state->stage1_delay, &state->stage1_idx,
+                 input, DAC_FIR_STAGE1_NTAPS);
+    s1[0] = dac_fir_stage_apply(state->stage1_delay, state->stage1_idx,
+                                DAC_FIR_STAGE1_NTAPS,
+                                dac_interp_stage1,
+                                dac_fir_stage1_pairs,
+                                DAC_FIR_STAGE1_NPAIRS);
+
+    dac_fir_push(state->stage1_delay, &state->stage1_idx,
+                 0, DAC_FIR_STAGE1_NTAPS);
+    s1[1] = dac_fir_stage_apply(state->stage1_delay, state->stage1_idx,
+                                DAC_FIR_STAGE1_NTAPS,
+                                dac_interp_stage1,
+                                dac_fir_stage1_pairs,
+                                DAC_FIR_STAGE1_NPAIRS);
+
+    /* Stage 2: 4 evaluations at 176.4kHz */
+    int16_t s2[4];
+    for (int i = 0; i < 2; i++) {
+        dac_fir_push(state->stage2_delay, &state->stage2_idx,
+                     s1[i], DAC_FIR_STAGE2_NTAPS);
+        s2[2 * i] = dac_fir_stage_apply(state->stage2_delay, state->stage2_idx,
+                                        DAC_FIR_STAGE2_NTAPS,
+                                        dac_interp_stage2,
+                                        dac_fir_stage2_pairs,
+                                        DAC_FIR_STAGE2_NPAIRS);
+
+        dac_fir_push(state->stage2_delay, &state->stage2_idx,
+                     0, DAC_FIR_STAGE2_NTAPS);
+        s2[2 * i + 1] = dac_fir_stage_apply(state->stage2_delay, state->stage2_idx,
+                                            DAC_FIR_STAGE2_NTAPS,
+                                            dac_interp_stage2,
+                                            dac_fir_stage2_pairs,
+                                            DAC_FIR_STAGE2_NPAIRS);
+    }
+
+    /* Stage 3: 8 evaluations at 352.8kHz. All 8 must execute because each
+     * push advances the delay line state affecting future calls. Only the
+     * last output survives decimation (DSP-06). */
+    int16_t s3_last = 0;
+    for (int j = 0; j < 4; j++) {
+        dac_fir_push(state->stage3_delay, &state->stage3_idx,
+                     s2[j], DAC_FIR_STAGE3_NTAPS);
+        (void)dac_fir_stage_apply(state->stage3_delay, state->stage3_idx,
+                                  DAC_FIR_STAGE3_NTAPS,
+                                  dac_interp_stage3,
+                                  dac_fir_stage3_pairs,
+                                  DAC_FIR_STAGE3_NPAIRS);
+
+        dac_fir_push(state->stage3_delay, &state->stage3_idx,
+                     0, DAC_FIR_STAGE3_NTAPS);
+        s3_last = dac_fir_stage_apply(state->stage3_delay, state->stage3_idx,
+                                      DAC_FIR_STAGE3_NTAPS,
+                                      dac_interp_stage3,
+                                      dac_fir_stage3_pairs,
+                                      DAC_FIR_STAGE3_NPAIRS);
+    }
+
+    return s3_last;
+}
+
 /* -------------------------------------------------------------------- */
 /* Test-visible per-stage apply wrapper (Option B from plan).            */
 /* Takes a stage number (1, 2, or 3) and a delay line with the same     */
