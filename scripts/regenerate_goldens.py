@@ -14,6 +14,14 @@ Modes:
   --check           — verify each committed reverb sidecar by re-rendering; exit 1 on mismatch.
   --adpcm           — regenerate all 30 ADPCM goldens + sidecars, overwriting.
   --check-adpcm     — verify each committed ADPCM sidecar by re-rendering; exit 1 on mismatch.
+  --dac             — regenerate all 50 full-pipeline DAC goldens + sidecars.
+  --check-dac       — verify committed DAC sidecars by re-rendering; exit 1 on mismatch.
+  --dac-isolated    — regenerate 5 isolated DAC-only goldens + sidecars.
+  --check-dac-isolated — verify committed isolated DAC sidecars; exit 1 on mismatch.
+
+Phase 9 D-01..D-05: DAC goldens — 55 total:
+  50 full-pipeline in tests/golden/<preset>/dac/<input>.wav (10 presets x 5 inputs)
+  5 isolated in tests/golden/dac_isolated/<input>.wav (Off preset, DAC-only)
 
 Flags can be combined: `--adpcm` with no other flags generates only ADPCM goldens.
 Running with no flags generates only the original 50 reverb goldens.
@@ -72,6 +80,9 @@ INPUTS = ["impulse", "white_noise", "sine_1khz", "silence", "sweep"]
 
 # Phase 4 D-04: 3 ADPCM inputs (subset + chirp). Closed allowlist.
 ADPCM_INPUTS = ["impulse", "sine_1khz", "chirp"]
+
+# Phase 9 D-02: DAC inputs — same 5 as the reverb corpus. Closed allowlist.
+DAC_INPUTS = ["impulse", "white_noise", "sine_1khz", "silence", "sweep"]
 
 # ----------------------------------------------------------------------------
 # Standard input set parameters (D-11 lock).
@@ -193,6 +204,66 @@ def render_adpcm_golden(preset: str, input_name: str, out_path: Path,
         )
 
 
+def render_dac_golden(preset: str, input_name: str, out_path: Path,
+                      tmp_in_path: Path, spu94_bin: str) -> None:
+    """Write the input WAV, run spu94 reverb with --dac, capture to out_path.
+
+    Phase 9 D-03: DAC golden = reverb + DAC coloration enabled (full pipeline).
+    """
+    x = generate_input(input_name)
+    wavfile.write(str(tmp_in_path), FS, x)
+
+    env = dict(os.environ)
+    env["LC_ALL"] = "C"
+    env["TZ"] = "UTC"
+    env["SOURCE_DATE_EPOCH"] = "1704067200"
+
+    r = subprocess.run(
+        [spu94_bin, "reverb", "--dac", "--preset", preset,
+         str(tmp_in_path), str(out_path)],
+        check=False,
+        capture_output=True,
+        env=env,
+    )
+    if r.returncode != 0:
+        stderr_snip = r.stderr.decode("utf-8", errors="replace")[:200].strip()
+        raise RuntimeError(
+            f"{spu94_bin} (dac) failed on {preset}/{input_name} "
+            f"(rc={r.returncode}): {stderr_snip}"
+        )
+
+
+def render_dac_isolated(input_name: str, out_path: Path,
+                        tmp_in_path: Path, spu94_bin: str) -> None:
+    """Write the input WAV, run spu94 reverb with --dac --preset off, capture.
+
+    Phase 9 D-04: Isolated DAC-only golden — Off preset (no reverb) with DAC
+    enabled, capturing the pure DAC model fingerprint. Uses --preset off
+    explicitly (CLI requires a preset flag).
+    """
+    x = generate_input(input_name)
+    wavfile.write(str(tmp_in_path), FS, x)
+
+    env = dict(os.environ)
+    env["LC_ALL"] = "C"
+    env["TZ"] = "UTC"
+    env["SOURCE_DATE_EPOCH"] = "1704067200"
+
+    r = subprocess.run(
+        [spu94_bin, "reverb", "--dac", "--preset", "off",
+         str(tmp_in_path), str(out_path)],
+        check=False,
+        capture_output=True,
+        env=env,
+    )
+    if r.returncode != 0:
+        stderr_snip = r.stderr.decode("utf-8", errors="replace")[:200].strip()
+        raise RuntimeError(
+            f"{spu94_bin} (dac-isolated) failed on {input_name} "
+            f"(rc={r.returncode}): {stderr_snip}"
+        )
+
+
 def sha256_of(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -282,6 +353,26 @@ def main() -> int:
         help="verify each committed ADPCM sidecar by re-rendering with "
              "--adpcm and comparing SHA-256; exit 1 on mismatch.",
     )
+    ap.add_argument(
+        "--dac", action="store_true",
+        help="regenerate all 50 full-pipeline DAC goldens + sidecars "
+             "(10 presets x 5 inputs).",
+    )
+    ap.add_argument(
+        "--check-dac", action="store_true",
+        help="verify each committed DAC sidecar by re-rendering with "
+             "--dac and comparing SHA-256; exit 1 on mismatch.",
+    )
+    ap.add_argument(
+        "--dac-isolated", action="store_true",
+        help="regenerate 5 isolated DAC-only goldens + sidecars "
+             "(Off preset, no reverb, DAC only).",
+    )
+    ap.add_argument(
+        "--check-dac-isolated", action="store_true",
+        help="verify each committed isolated DAC sidecar by re-rendering "
+             "and comparing SHA-256; exit 1 on mismatch.",
+    )
     args = ap.parse_args()
 
     spu94_bin = locate_cli()
@@ -291,13 +382,26 @@ def main() -> int:
     # --adpcm alone: ADPCM generation only.
     # --check alone: reverb check only.
     # --check-adpcm alone: ADPCM check only.
-    do_reverb_gen = not args.check and not args.adpcm and not args.check_adpcm
+    # --dac alone: DAC full-pipeline generation only.
+    # --check-dac alone: DAC full-pipeline check only.
+    # --dac-isolated alone: DAC isolated generation only.
+    # --check-dac-isolated alone: DAC isolated check only.
+    any_explicit = (args.check or args.adpcm or args.check_adpcm
+                    or args.dac or args.check_dac
+                    or args.dac_isolated or args.check_dac_isolated)
+    do_reverb_gen = not any_explicit
     do_reverb_check = args.check
     do_adpcm_gen = args.adpcm and not args.check_adpcm
     do_adpcm_check = args.check_adpcm
+    do_dac_gen = args.dac and not args.check_dac
+    do_dac_check = args.check_dac
+    do_dac_isolated_gen = args.dac_isolated and not args.check_dac_isolated
+    do_dac_isolated_check = args.check_dac_isolated
 
     reverb_total = len(PRESETS) * len(INPUTS)
     adpcm_total = len(PRESETS) * len(ADPCM_INPUTS)
+    dac_total = len(PRESETS) * len(DAC_INPUTS)
+    dac_isolated_total = len(DAC_INPUTS)
 
     with tempfile.TemporaryDirectory(prefix="spu94_goldens_") as tmpd:
         tmp_in = Path(tmpd) / "input.wav"
@@ -320,6 +424,64 @@ def main() -> int:
                            render_adpcm_golden, tmp_in, spu94_bin,
                            label="adpcm")
 
+        # --- DAC full-pipeline goldens (50) ---
+        if do_dac_check:
+            _check_loop(PRESETS, DAC_INPUTS, GOLDEN_ROOT,
+                        render_dac_golden, tmpd, tmp_in, spu94_bin,
+                        failures, label="dac")
+        elif do_dac_gen:
+            _generate_loop(PRESETS, DAC_INPUTS, GOLDEN_ROOT,
+                           render_dac_golden, tmp_in, spu94_bin,
+                           label="dac")
+
+        # --- DAC isolated goldens (5) ---
+        if do_dac_isolated_check:
+            iso_dir = GOLDEN_ROOT / "dac_isolated"
+            for input_name in DAC_INPUTS:
+                tag = f"dac_isolated/{input_name}"
+                out_wav = iso_dir / f"{input_name}.wav"
+                out_sha = iso_dir / f"{input_name}.wav.sha256"
+
+                # Read committed sidecar digest.
+                if out_sha.exists():
+                    committed_line = out_sha.read_text().strip()
+                    committed = committed_line.split()[0] if committed_line else ""
+                else:
+                    committed = ""
+
+                # (a) Committed .wav bytes must match the sidecar.
+                if out_wav.exists():
+                    wav_digest = sha256_of(out_wav)
+                else:
+                    wav_digest = ""
+                if wav_digest != committed:
+                    failures.append(
+                        f"{tag}: committed-wav mismatches sidecar -- "
+                        f"sidecar={committed[:16] if committed else '<missing>'}... "
+                        f"wav={wav_digest[:16] if wav_digest else '<missing>'}..."
+                    )
+
+                # (b) Fresh re-render must match the sidecar.
+                scratch = Path(tmpd) / f"dac_isolated_{input_name}.wav"
+                render_dac_isolated(input_name, scratch, tmp_in, spu94_bin)
+                fresh_digest = sha256_of(scratch)
+                if fresh_digest != committed:
+                    failures.append(
+                        f"{tag}: fresh render mismatches sidecar -- "
+                        f"committed={committed[:16] if committed else '<missing>'}... "
+                        f"fresh={fresh_digest[:16]}..."
+                    )
+
+        elif do_dac_isolated_gen:
+            iso_dir = GOLDEN_ROOT / "dac_isolated"
+            iso_dir.mkdir(parents=True, exist_ok=True)
+            for input_name in DAC_INPUTS:
+                out_wav = iso_dir / f"{input_name}.wav"
+                out_sha = iso_dir / f"{input_name}.wav.sha256"
+                render_dac_isolated(input_name, out_wav, tmp_in, spu94_bin)
+                digest = sha256_of(out_wav)
+                out_sha.write_text(f"{digest}  {input_name}.wav\n")
+
     if failures:
         for f in failures:
             print(f"FAIL: {f}", file=sys.stderr)
@@ -335,6 +497,14 @@ def main() -> int:
         parts.append(f"PASS: {adpcm_total}/{adpcm_total} ADPCM goldens match")
     elif do_adpcm_gen:
         parts.append(f"Regenerated {adpcm_total} ADPCM goldens under {GOLDEN_ROOT}")
+    if do_dac_check:
+        parts.append(f"PASS: {dac_total}/{dac_total} DAC goldens match")
+    elif do_dac_gen:
+        parts.append(f"Regenerated {dac_total} DAC goldens under {GOLDEN_ROOT}")
+    if do_dac_isolated_check:
+        parts.append(f"PASS: {dac_isolated_total}/{dac_isolated_total} DAC isolated goldens match")
+    elif do_dac_isolated_gen:
+        parts.append(f"Regenerated {dac_isolated_total} DAC isolated goldens under {GOLDEN_ROOT}")
     for p in parts:
         print(p)
     return 0
