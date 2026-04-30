@@ -1,373 +1,295 @@
-# Stack Research — SPU-94 v1.2 DAC Modeling
+# Stack Research — SPU-94 v1.3 True 8x Oversampled DAC
 
-**Domain:** DAC conversion modeling as toggleable coloration stage in an existing C99 fixed-point DSP library.
-**Researched:** 2026-04-28
-**Confidence:** MEDIUM-HIGH — hardware identification is solid; modeling approach is well-grounded in DSP fundamentals; exact AK4309AVM internal filter coefficients are unavailable (datasheet lost to time).
+**Domain:** True 8x oversampling of existing AK4309 interpolation filter model in a C99 fixed-point DSP library.
+**Researched:** 2026-04-30
+**Confidence:** HIGH -- this is internal restructuring of existing validated code, not new algorithm design.
 
-**Scope note:** This document covers only the stack additions/changes needed for v1.2 DAC modeling. The existing v1.0/v1.1 stack (C11, CMake, pytest, ctypes, dr_wav, etc.) is validated and unchanged. See the original `STACK.md` commit history for those decisions.
-
----
-
-## 1. PS1 DAC Hardware Identification
-
-### The Chip: AKM AK4309AVM
-
-**Confidence: HIGH** — multiple independent sources confirm.
-
-| Attribute | Value | Source |
-|-----------|-------|--------|
-| Manufacturer | Asahi Kasei Microsystems (AKM) | psx-spx pinouts, dogbreath.de, Stereophile |
-| Part number (early boards) | AK4309VM / AK4309AVM | psx-spx, emu-russia/psxrev |
-| Part number (SCPH-55xx) | AK4309AVM | dogbreath.de |
-| Part number (SCPH-700x) | AK4309BM (20-pin, not pin-compatible) | dogbreath.de |
-| Part number (SCPH-75xx+) | Integrated into SPU SoC (CXD2938Q etc.) | psx-spx pinouts |
-| Topology | 1-bit delta-sigma ("bitstream") DAC | AK4309B datasheet, multiple audiophile sources |
-| Resolution | 16-bit input, 1-bit internal conversion | Datasheet, psx-spx |
-| Dynamic range | 90 dB (rated) | AK4309B datasheet |
-| THD+N | -84 dB | AK4309B datasheet |
-| Digital filter | 8x FIR interpolator | AK4309B datasheet |
-| Post-filter | 2nd-order SCF (switched-capacitor filter) + continuous-time filter (CTF) | AK4309B datasheet |
-| Passband response | +/-0.5 dB at 20 kHz | AK4309B datasheet |
-| Sampling rate range | 8 kHz - 50 kHz | AK4309B datasheet |
-| Master clock | 256fs or 384fs | AK4309B datasheet |
-| Output level | 3.4 Vpp (single-ended) | AK4309B datasheet |
-| Power | 5V +/-10%, 80 mW | AK4309B datasheet |
-| Package | AK4309AVM: 24-pin SSOP; AK4309BM: 20-pin SSOP | dogbreath.de, datasheet |
-
-### Interface to SPU
-
-The SPU sends audio to the DAC over a 3-wire serial interface:
-
-| Signal | Pin | Purpose |
-|--------|-----|---------|
-| LRCK | 10 | Left/Right clock — 44.1 kHz word clock |
-| BICK | 8 | Bit clock — serial data clock |
-| SDATA | 9 | Serial data — 16-bit PCM, MSB first |
-| MCLK | 6 | Master clock — 256fs or 384fs (11.2896 MHz or 16.9344 MHz at 44.1 kHz) |
-
-The SPU outputs **16-bit signed PCM at 44.1 kHz** in serial form. The DAC receives this directly — there is no additional digital processing between the SPU's final mix bus and the DAC input.
-
-### Datasheet Caveat
-
-The AK4309AVM datasheet is no longer publicly available (AKM has discontinued the part and removed it from their website). The AK4309B datasheet IS available and provides the specs above, but dogbreath.de notes the two are "not exactly compatible" (different pin count, different package). The core converter topology (1-bit delta-sigma with 8x interpolation + SCF) is shared across the AK4309 family. The exact digital filter coefficients for the AK4309AVM are unknown.
-
-**Confidence: HIGH** for topology and architecture. **MEDIUM** for exact filter coefficients and internal analog characteristics. **LOW** for AK4309AVM-specific deviations from AK4309B specs.
+**Scope note:** This document covers only what changes for v1.3 true oversampling. The existing v1.2 stack (C11, CMake, pytest, ctypes, scipy, same filter coefficients) is validated and unchanged. See STACK.md commit history for prior decisions.
 
 ---
 
-## 2. What the DAC Actually Does (Modeling Targets)
+## 1. What v1.2 Does vs. What v1.3 Must Do
 
-The AK4309 signal chain, from input to analog output, contains these stages:
+### v1.2 (current, shipped)
+
+All three cascade stages run at 44.1kHz. One input sample produces one output sample through the cascade. The frequency response matches the AK4309 passband ripple character *as seen at 44.1kHz*, but does not actually perform interpolation -- it is a "passband-equivalent" coloration filter.
 
 ```
-16-bit PCM input (44.1 kHz)
-    |
-    v
-[8x Digital Interpolation Filter] -- 8x FIR upsampling to 352.8 kHz
-    |
-    v
-[Delta-Sigma Modulator] -- converts multibit to 1-bit PDM stream
-    |
-    v
-[2nd-order SCF] -- switched-capacitor reconstruction filter
-    |
-    v
-[Continuous-Time Filter (CTF)] -- analog smoothing
-    |
-    v
-Analog output (AOUTL / AOUTR)
+Input (44.1kHz) -> Stage1 (44.1kHz) -> Stage2 (44.1kHz) -> Stage3 (44.1kHz) -> Output (44.1kHz)
 ```
 
-### Which stages produce audible artifacts worth modeling?
+22 multiplies per sample. Delay lines hold 44.1kHz samples.
 
-| Stage | Artifact | Audibility | Model in v1.2? |
-|-------|----------|------------|-----------------|
-| 8x digital interpolation | Passband ripple (+/-0.5 dB), stopband rejection, transition-band rolloff | Subtle high-frequency coloration | YES — this is the primary digital artifact |
-| ZOH sinc droop | sinc(pi*f/fs) rolloff (-3.9 dB at Nyquist) | Compensated by the interpolation filter; residual droop is part of the filter's target response | NO — subsumed by the interpolation filter model |
-| Delta-sigma quantization noise | Shaped to ultrasonic frequencies by noise-shaping loop | Inaudible in-band at 90 dB dynamic range; noise is above 22 kHz | NO — modeling sigma-delta at 1-bit resolution requires massive oversampling for negligible audible effect |
-| SCF clock feedthrough | Artifacts at multiples of the switched-capacitor clock frequency | Above 100 kHz; completely inaudible | NO |
-| CTF analog rolloff | Gentle anti-aliasing above audio band | Above 22 kHz; inaudible in digital domain | NO |
-| DNL/INL nonlinearity | Low-level harmonic distortion, especially at low signal levels | Measurable but very small (-84 dB THD+N); characteristic of the specific DAC silicon | MAYBE — defer to post-measurement |
-| 15-bit effective dynamic range | Noise floor ~6 dB higher than ideal 16-bit | Audible as slightly elevated noise floor vs. modern DACs | YES — simple to model as additive shaped noise if desired |
+### v1.3 (target)
 
-### Recommendation: Model the Digital Interpolation Filter
+Zero-stuff between each stage. Each stage runs at its true operating rate. The cascade performs genuine 8x interpolation to 352.8kHz, then decimates back to 44.1kHz.
 
-**Confidence: HIGH** that this is the right scope.
+```
+Input (44.1kHz)
+  -> zero-stuff -> Stage1 (88.2kHz, 2 evals)
+    -> zero-stuff -> Stage2 (176.4kHz, 4 evals)
+      -> zero-stuff -> Stage3 (352.8kHz, 8 evals)
+        -> decimate (pick 1 of 8) -> Output (44.1kHz)
+```
 
-The 8x digital interpolation filter is the **dominant audible coloration** introduced by the AK4309. It defines:
-- The passband ripple character (+/-0.5 dB)
-- The transition band rolloff (how steeply high frequencies roll off above ~18 kHz)
-- Image rejection in the oversampled domain
-
-This is also the only stage that operates entirely in the digital domain and can be modeled deterministically in fixed-point C without requiring analog circuit simulation.
-
-**The delta-sigma modulator, SCF, and CTF operate in the 1-bit/analog domain.** Modeling them faithfully would require running the signal chain at 352.8 kHz (8x oversampling) or higher, which is:
-1. Computationally expensive (8x the sample count per block)
-2. Unnecessary — the in-band artifacts are below the DAC's rated noise floor
-3. Not reproducible without the actual AK4309AVM silicon measurements
+70 multiplies per sample. Delay lines hold rate-appropriate samples (mix of real + zero-stuffed).
 
 ---
 
-## 3. Stack Additions for v1.2
+## 2. Stack Delta: Nothing New
 
-### No new external dependencies needed.
+### No New Dependencies
 
-The DAC model fits entirely within the existing stack. Here is what changes:
+| Candidate | Why Not Needed |
+|-----------|----------------|
+| libsamplerate / libsoxr | We are modeling a specific DAC's fixed FIR cascade, not doing generic SRC |
+| FFTW / KissFFT | FIR lengths (55/11/7 taps) are too short for FFT convolution; direct form wins |
+| int64_t accumulators | Existing int32 overflow proofs still hold with zero-stuffed input (demonstrated below) |
+| New filter coefficients | Same AK4309 half-band coefficients from v1.2; the math is identical |
+| New scipy features | scipy 1.17.1's `remez` and `freqz` are sufficient; no new APIs needed |
+| Intermediate heap buffers | Sample-by-sample cascade uses only stack locals (28 bytes max) |
 
-### New C Source Files
+### No Changed Dependencies
 
-| File | Purpose | Estimated LOC |
-|------|---------|---------------|
-| `spu94_dac.c` | DAC model: interpolation filter + optional noise floor | 150-250 |
-| `spu94_dac.h` | Public API for DAC stage enable/disable/configure | 30-50 |
-| `spu94_dac_filter_coef.c` | Interpolation filter coefficients (like `spu94_fir_coef.c` pattern) | 20-40 |
+| Component | Version | Status |
+|-----------|---------|--------|
+| C99/C11 (gcc 14+) | unchanged | Same compiler, same flags |
+| scipy | 1.17.1 | No new features needed |
+| numpy | 2.2.4 | No new features needed |
+| pytest | existing | New goldens use same harness |
+| Unity | existing | New overflow proofs use same framework |
+| matplotlib | existing | Comparison plots (v1.2 vs v1.3 response) |
+| CMake | existing | No new source files beyond modifying existing ones |
 
-### Mathematical Approach: FIR Interpolation Filter in Fixed-Point
+---
 
-The 8x interpolation filter is a polyphase FIR — a standard DSP structure. Implementation approach:
+## 3. Key Technical Decisions
 
-**Step 1: Design the interpolation filter.**
+### 3.1 Processing Architecture: Explicit Zero-Stuff (Not Polyphase)
 
-Since the exact AK4309AVM coefficients are lost, design a period-appropriate 8x interpolation FIR that meets the datasheet specs:
-- Passband: 0 to 20 kHz, +/-0.5 dB ripple
-- Stopband: begins at 24.1 kHz (44.1 kHz - 20 kHz), rejection > 70 dB
-- Operating at 352.8 kHz (8 * 44.1 kHz)
-- Filter length: likely 64-128 taps (typical for mid-90s delta-sigma DAC digital filters)
+**Use explicit zero-stuff-and-filter. Do not use polyphase decomposition.**
 
-Use `scipy.signal.remez` (Parks-McClellan equiripple) or `scipy.signal.firwin` to design the prototype, then quantize coefficients to fixed-point.
+Polyphase decomposition would reduce multiplies from 70 to 35 per input sample (50% savings) by exploiting the half-band zero structure. But:
 
-**Step 2: Implement as polyphase decomposition.**
+- The existing `dac_fir_stage_apply` folded-form function works unchanged with zero-stuffed input. Just push (sample, 0) pairs and call the same function twice per stage-transition.
+- 70 multiplies at 44.1kHz takes ~160ns on modern x86 (the per-sample budget is 22,676ns). Over 100x headroom.
+- Polyphase requires rewriting the filter evaluation into two separate branch functions per stage, doubling the code surface for no audible benefit.
+- The explicit zero-stuff form directly corresponds to what the AK4309 hardware does: it literally inserts zeros and filters.
 
-An 8x interpolation FIR with N taps decomposes into 8 sub-filters of N/8 taps each. At the input rate (44.1 kHz), each input sample produces 8 output samples, but each sub-filter only computes N/8 multiply-accumulates. This is the efficient form.
+**State struct impact:** None. The delay lines (`stage1_delay[55]`, `stage2_delay[11]`, `stage3_delay[7]`) hold 88.2kHz / 176.4kHz / 352.8kHz samples respectively -- a mix of real values and zeros. Same array sizes, same circular buffer indices.
 
-However — **we do not need the 8 interpolated samples.** The DAC model's job is to reproduce the *audible coloration* of the interpolation filter as seen at the output sample rate. Since the SPU already outputs at 44.1 kHz and our output is 44.1 kHz, the modeling question becomes: **what does the AK4309's interpolation filter do to the signal that is visible at 44.1 kHz?**
+### 3.2 Accumulator Width: int32 Remains Sufficient
 
-**Answer: passband droop/ripple.** The interpolation filter's passband response is not perfectly flat — it has the +/-0.5 dB ripple specified in the datasheet. This is the coloration.
+**No promotion to int64 needed.**
 
-**Step 3: Implement as a passband-coloration filter at 44.1 kHz.**
+The existing overflow proofs in `spu94_dac_fir.c` bound worst-case accumulator values:
 
-Rather than upsampling 8x and downsampling back (wasteful), implement the *equivalent passband effect* as a short FIR or IIR at 44.1 kHz. This is a 5-15 tap filter that reproduces the AK4309's passband ripple character.
+| Stage | v1.2 Worst Case | v1.3 Worst Case | INT32_MAX |
+|-------|-----------------|-----------------|-----------|
+| Stage 1 | 1,904,643,762 | Lower (half the delay entries are zero) | 2,147,483,647 |
+| Stage 2 | 1,336,455,240 | Lower | 2,147,483,647 |
+| Stage 3 | 1,221,048,126 | Lower | 2,147,483,647 |
+
+Zero-stuffing guarantees that every other delay-line entry is 0. The folded-form pairs where one partner is 0 contribute nothing to the accumulator. The worst case is strictly less than v1.2's proof, which already fits in int32 with >1dB headroom.
+
+**Validation plan:** Extend `test_dac_fir_overflow_proof.c` to exercise the alternating (INT16_MIN, 0) pattern in delay lines. This is a new test case, not a new test file.
+
+### 3.3 Decimation: Trivial, No Additional Filter
+
+**Decimate by retaining the last of 8 output samples. No decimation filter.**
+
+Why no filter:
+1. The input signal arrives at 44.1kHz -- it has no energy above 22.05kHz.
+2. The interpolation cascade suppresses interpolation images by >41dB (verified by `dac_filter_design.py --verify`).
+3. When decimating 8:1, the images that would alias back are already suppressed.
+4. The worst-case alias level is below -41dB, which is below the AK4309's own noise floor.
+
+Which of the 8 samples to keep: the last one (index 7). This corresponds to the "most recently computed" sample and maintains proper time alignment. The exact choice affects only the group delay by a fraction of a 352.8kHz sample period (2.8us), which is inaudible.
+
+### 3.4 API: New Function Alongside Existing
+
+**Add `spu94_dac_fir_step_8x` alongside the existing `spu94_dac_fir_step`.**
 
 ```c
-// Conceptual — the DAC coloration filter at native rate
-static inline int16_t spu94_dac_filter(spu94_dac_state_t *s, int16_t sample) {
-    // Short FIR implementing the passband ripple of the AK4309 interpolation filter
-    // Coefficients derived from datasheet specs via scipy.signal design + quantization
-    int32_t acc = 0;
-    for (int i = 0; i < SPU94_DAC_FIR_TAPS; i++) {
-        acc += (int32_t)s->delay[i] * (int32_t)dac_fir_coefs[i];
-    }
-    // Shift state
-    memmove(&s->delay[1], &s->delay[0], (SPU94_DAC_FIR_TAPS - 1) * sizeof(int16_t));
-    s->delay[0] = sample;
-    return sat_s16(acc >> 15);  // Q15 truncation, matching project convention
+/* v1.2: runs cascade at 44.1kHz (passband-equivalent coloration) */
+int16_t spu94_dac_fir_step(spu94_dac_fir_state *state, int16_t input);
+
+/* v1.3: true 8x zero-stuff + cascade + decimate */
+int16_t spu94_dac_fir_step_8x(spu94_dac_fir_state *state, int16_t input);
+```
+
+Same return type, same state struct, same signature. The `_step_8x` function internally:
+1. Pushes `input` then `0` into stage 1 delay line, evaluates stage 1 twice -> 2 outputs
+2. For each stage 1 output: pushes it then `0` into stage 2, evaluates twice -> 4 outputs total
+3. For each stage 2 output: pushes it then `0` into stage 3, evaluates twice -> 8 outputs total
+4. Returns the 8th output (decimated)
+
+The v1.2 `_step` function is kept for A/B comparison and backward compatibility.
+
+### 3.5 Noise Model: Clock at 352.8kHz When Oversampled
+
+**The delta-sigma noise model must clock at 8x rate when true oversampling is active.**
+
+In the real AK4309, delta-sigma quantization noise is generated at the oversampled rate and shaped by the noise transfer function (1 - z^-1)^2. When the signal is reconstructed (analog filtering), the in-band noise is determined by the noise shaping at 352.8kHz, not at 44.1kHz.
+
+v1.3 approach:
+- Call `spu94_dac_noise_step` 8 times per 44.1kHz input sample (once per 352.8kHz output)
+- Add noise to each interpolated sample before decimation
+- The LFSR and HP shaping coefficients are unchanged
+- The in-band noise spectrum will be different from v1.2 because 8x more noise bandwidth folds into 0-22.05kHz during decimation
+
+**Recalibration needed:** The amplitude constant in `spu94_dac_noise_step` may need adjustment. At 8x rate, 8x more noise bandwidth aliases into the audio band during decimation, raising the in-band noise floor by approximately 9dB (10*log10(8)). The target is still the AK4309's rated 90dB dynamic range. This is a scipy prototyping task (simulate 352.8kHz noise, decimate, measure in-band RMS, adjust amplitude).
+
+**State struct impact on noise:** None. `spu94_dac_noise_state` (LFSR + two int16 history samples) is unchanged. It just gets called more often.
+
+### 3.6 State Struct: One New Toggle
+
+**Add `uint8_t dac_oversampled` to `spu94_state`.**
+
+```c
+/* In spu94_state_internal.h, DAC section (after dac_noise_enabled) */
+uint8_t        dac_oversampled;    /* 0=v1.2 at-rate (default), 1=true 8x */
+```
+
+One byte. Current `sizeof(spu94_state)` is well under the 16,384-byte `SPU94_STATE_SIZE_MAX` ceiling. No bump needed.
+
+`spu94_process.c` dispatch:
+```c
+if (state->dac_oversampled) {
+    // True 8x path: FIR + noise interleaved at 352.8kHz
+    out_l = spu94_dac_step_8x_with_noise(state, out_l, /*channel=*/0);
+    out_r = spu94_dac_step_8x_with_noise(state, out_r, /*channel=*/1);
+} else {
+    // v1.2 path: at-rate FIR then noise (existing code)
+    if (state->dac_fir_enabled) { ... }
+    if (state->dac_noise_enabled) { ... }
 }
 ```
 
-### Fixed-Point Coefficient Quantization
-
-Use the same Q15 representation as the existing half-band FIR (`spu94_fir_coef.c`). The project already has infrastructure for this:
-- Q15 multiply with truncation (`q15_mul_truncate`)
-- Saturation (`sat_s16`)
-- Golden-file regression for filter outputs
-
-The new filter coefficients will be designed in Python (scipy), quantized to Q15 in Python, verified against the float reference, then hardcoded in C.
-
-### Optional: Noise Floor Model
-
-The AK4309 has approximately 15-bit effective dynamic range (vs. theoretical 16-bit). This manifests as a slightly elevated noise floor. Modeling options:
-
-1. **Simple dither:** Add 1-bit TPDF dither to the output. This is technically "wrong" (the real noise is shaped, not white) but captures the subjective warmth.
-2. **Shaped noise injection:** Use a simple first-order noise-shaping loop to push added noise toward higher frequencies, mimicking the delta-sigma's noise shape. Still very cheap computationally.
-3. **Skip it.** The noise difference between 15-bit and 16-bit dynamic range is 6 dB — measurable but potentially not worth the modeling complexity for a creative effect.
-
-**Recommendation:** Implement option 1 (TPDF dither) as a toggle, default off. It is 2 lines of code and costs nothing. Defer shaped noise to post-measurement (when Anthony can A/B against his real PS1).
-
 ---
 
-## 4. What NOT to Add
+## 4. Buffer and Memory Analysis
 
-| Avoid | Why | Impact if Added |
-|-------|-----|-----------------|
-| Full delta-sigma modulator simulation | Requires 8x oversampling (352.8 kHz); all artifacts are ultrasonic; computationally expensive | 8x CPU cost, zero audible benefit, breaks real-time budget on MCU |
-| Analog output stage modeling (op-amps, coupling caps) | Requires actual circuit measurements from PS1 hardware; varies by board revision; explicitly out of scope in PROJECT.md | Scope creep into analog domain; no reference data to validate against |
-| SCF / switched-capacitor filter emulation | Operates in analog domain; artifacts are above audio band | Adds complexity for inaudible results |
-| Generic "tube warmth" or "analog warmth" processing | Not faithful to the actual hardware; no PS1 justification | Breaks the project's "bit-faithful from spec" philosophy |
-| Resampling to 352.8 kHz for "accuracy" | The coloration is fully capturable at 44.1 kHz via equivalent filter | Wastes CPU, memory, and dev time |
-| libsamplerate / libsoxr for upsampling | External dependency for a feature we should not be implementing | Dependency bloat for no benefit |
-| Lookup tables for DNL/INL curves | Would need real measurements from specific AK4309 silicon; no published data exists | Fabricating data ≠ faithfulness |
+### No Intermediate Buffers Needed
 
----
-
-## 5. Test and Measurement Tools for Verification
-
-### Python-side (already in stack)
-
-| Tool | Purpose | How to Use |
-|------|---------|------------|
-| `scipy.signal.freqz` | Plot frequency response of the designed FIR | Verify passband ripple matches +/-0.5 dB spec |
-| `scipy.signal.remez` or `scipy.signal.firwin` | Design the interpolation filter prototype | Generate float coefficients, then quantize to Q15 |
-| `numpy.fft.rfft` | Spectral analysis of DAC model output | Compare spectrum of processed vs. unprocessed signal |
-| `matplotlib` | All visualization | Frequency response plots, spectrograms, A/B comparisons |
-| `pytest` + golden files | Regression testing | Same pattern as v1.0 FIR and v1.1 ADPCM goldens |
-
-### New Python verification scripts (to write)
-
-| Script | Purpose |
-|--------|---------|
-| `design_dac_filter.py` | Design interpolation filter, quantize to Q15, emit C coefficient array |
-| `verify_dac_response.py` | Measure frequency response of the C DAC model via ctypes, compare to design target |
-| `compare_dac_coloration.py` | A/B spectral comparison: reverb output with and without DAC model enabled |
-
-### Hardware measurement (future, with Anthony's PS1)
-
-| Tool | Purpose | When |
-|------|---------|------|
-| REW (Room EQ Wizard) | Measure real PS1 frequency response, THD, noise floor via loopback | When hardware validation begins (M5 timeframe) |
-| Audio interface with known flat response | Capture PS1 analog output digitally | Requires interface with good enough ADC (> 100 dB dynamic range) |
-| `scipy` analysis of captured audio | Compare measured PS1 response to DAC model response | Post-capture |
-
-### Reference measurements (published)
-
-| Source | What It Provides | Confidence |
-|--------|-----------------|------------|
-| Stereophile SCPH-1001 measurements | Jitter (737 ps p-p), linearity error, noise floor ~15 dB above good CD players | MEDIUM — measured a specific unit, not the DAC in isolation |
-| Archimago SCPH-5501 measurements | ~15-bit dynamic range, frequency response "slight deviance above 3 kHz", THD "respectable" | MEDIUM — blog measurements, not lab-grade |
-
-These published measurements are useful as **sanity checks** (is our model in the right ballpark?) but not as **design targets** (they include the entire analog chain, not just the DAC's digital filter).
-
----
-
-## 6. Integration with Existing Architecture
-
-### Signal chain placement
-
-The DAC model slots into the same toggleable-stage architecture as ADPCM:
+The sample-by-sample cascade uses only stack-local variables:
 
 ```
-Input samples (44.1 kHz stereo)
-    |
-    v
-[ADPCM encode/decode] (if enabled)  -- v1.1
-    |
-    v
-[Half-band FIR downsample to 22.05 kHz]
-    |
-    v
-[Reverb network at 22.05 kHz]
-    |
-    v
-[Half-band FIR upsample to 44.1 kHz]
-    |
-    v
-[DAC coloration filter] (if enabled)  -- v1.2 NEW
-    |
-    v
-Output samples (44.1 kHz stereo)
+Stack frame for spu94_dac_fir_step_8x:
+  2 stage-1 outputs:  int16_t s1[2]     =  4 bytes
+  4 stage-2 outputs:  int16_t s2[4]     =  8 bytes
+  8 stage-3 outputs:  int16_t s3[8]     = 16 bytes  (or just 1 if only keeping last)
+  Loop indices:       3 x uint8_t       =  3 bytes
+  Total:              ~31 bytes on stack (or ~7 bytes with scalar decimation)
 ```
 
-The DAC model goes **after** the reverb output, because in the real hardware the SPU's final mix bus feeds the DAC. The DAC does not process individual voices — it processes the final stereo mix.
+No heap allocation. No block-level intermediate buffers. The function processes one 44.1kHz input sample completely before returning.
 
-### State structure addition
+### State Struct Size Impact
 
-```c
-typedef struct {
-    int16_t delay_l[SPU94_DAC_FIR_TAPS];  // Left channel FIR delay line
-    int16_t delay_r[SPU94_DAC_FIR_TAPS];  // Right channel FIR delay line
-    int     enabled;                        // Toggle (default off)
-} spu94_dac_state_t;
-```
+| Component | v1.2 Size | v1.3 Size | Delta |
+|-----------|-----------|-----------|-------|
+| `spu94_dac_fir_state` (x2 channels) | 2 x 149 bytes | 2 x 149 bytes | 0 |
+| `spu94_dac_noise_state` (x2 channels) | 2 x 8 bytes | 2 x 8 bytes | 0 |
+| `dac_oversampled` toggle | 0 | 1 byte | +1 byte |
+| **Total DAC section delta** | | | **+1 byte** |
 
-Estimated memory: ~64 bytes for a 15-tap stereo FIR. Fits comfortably within the existing static allocation model.
+### Compute Budget
 
-### API additions
+| Metric | v1.2 | v1.3 (8x) | Budget (44.1kHz) |
+|--------|------|-----------|------------------|
+| FIR multiplies per sample | 22 | 70 | n/a |
+| FIR evaluations per sample | 3 | 14 | n/a |
+| Noise steps per sample | 1 | 8 | n/a |
+| Estimated time per sample | ~50ns | ~200ns | 22,676ns |
+| CPU headroom | ~450x | ~113x | real-time safe |
 
-```c
-void spu94_dac_enable(spu94_t *ctx, int enable);
-int  spu94_dac_is_enabled(const spu94_t *ctx);
-// No other configuration — the filter is fixed to match AK4309 behavior
-```
-
-Minimal API surface, matching the ADPCM toggle pattern.
+Even on a Cortex-M4 at 168MHz (future MCU target), 70 Q15 MAC operations take ~2us -- well within the 22.7us per-sample budget.
 
 ---
 
-## Consolidated Stack Delta for v1.2
+## 5. Design Tool Changes (tools/dac_filter_design.py)
 
-### New (C core)
+### Keep Everything, Add One Mode
 
-| Addition | Purpose | Why |
-|----------|---------|-----|
-| `spu94_dac.c` + `spu94_dac.h` | DAC coloration filter implementation | Models AK4309 interpolation filter passband ripple |
-| `spu94_dac_filter_coef.c` | Quantized Q15 FIR coefficients | Follows `spu94_fir_coef.c` pattern for traceability |
-| Optional: TPDF dither toggle | Models DAC noise floor elevation | 2 lines of code, toggleable, default off |
+**Existing functionality (unchanged):**
+- `design_halfband_stage` -- same coefficients, same design
+- `quantize_to_q15` -- same quantization
+- `build_composite` -- already models the 8x composite response correctly
+- `verify_cascade` -- already verifies at 352.8kHz
+- `--export-c` -- same coefficient output
+- `--verify` -- same pass/fail checks
 
-### New (Python tooling)
+**New functionality (add):**
+- `--verify-8x` mode: simulate the actual zero-stuff + cascade + decimate processing in Python (sample-by-sample, matching the C implementation), measure frequency response, compare against the analytical composite. This validates that zero-stuffing + existing FIR + decimation produces the expected response.
+- Noise recalibration helper: generate noise at 352.8kHz using the existing LFSR + HP shaping model, decimate to 44.1kHz, measure in-band RMS, report amplitude adjustment factor.
 
-| Addition | Purpose | Why |
-|----------|---------|-----|
-| `design_dac_filter.py` | Filter design + coefficient generation | Reproducible design-to-C pipeline |
-| `verify_dac_response.py` | Frequency response verification | Automated check that C implementation matches design |
-| `compare_dac_coloration.py` | A/B spectral analysis | Qualitative verification of coloration character |
-
-### Unchanged
-
-Everything else. No new external C dependencies. No new Python dependencies (scipy already in stack). No build system changes beyond adding new source files to CMakeLists.txt.
+**No scipy version upgrade needed.** scipy 1.17.1's `remez` and `freqz` handle everything. The `upfirdn` function could simplify the verification script but is not required.
 
 ---
 
-## What NOT to Use (v1.2 specific)
+## 6. What NOT to Change
 
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| libsamplerate / libsoxr | No resampling needed; coloration captured at native rate | Short FIR at 44.1 kHz |
-| FFTW | Overkill; filter is a short time-domain FIR | Direct convolution (< 15 taps) |
-| Float arithmetic in the DAC filter | Breaks project convention; non-deterministic across platforms | Q15 fixed-point, same as reverb core |
-| External DSP filter library | Adds dependency for a 15-tap FIR; hides the arithmetic | Hand-rolled, like the rest of the project |
-| Analog circuit simulation (SPICE, etc.) | Wrong domain; we are modeling digital-domain effects only | scipy for filter design, C for implementation |
+| Component | Why Leave Alone |
+|-----------|-----------------|
+| Filter coefficient values | Same AK4309 half-band design; filters are correct |
+| `spu94_fir.c` (39-tap reverb FIR) | Unrelated to DAC; different filter at different point in signal chain |
+| `spu94_dac_fir_state` struct layout | Same delay lines, same indices, same sizeof |
+| `spu94_dac_noise_state` struct layout | Same LFSR, same HP shaping; called more often, not differently |
+| `spu94_dac_fir_coef.c` | Verbatim reuse of v1.2 coefficients |
+| `dac_fir_stage_apply` static function | Reused as-is for the zero-stuffed evaluation |
+| `dac_fir_push` / `dac_fir_read_tap` helpers | Reused as-is |
+| `SPU94_STATE_SIZE_MAX` | 1-byte addition is negligible |
+| `spu94_dac_fir_step` (v1.2 function) | Keep for A/B comparison; do not remove or modify |
+| Python ctypes binding structure | Add one toggle accessor; no structural change |
+| JUCE GUI layout | Add toggle/radio for oversampled mode; fits existing DAC control zone |
 
 ---
 
-## Confidence Summary
+## 7. Files That Change
 
-| Area | Confidence | Notes |
-|------|------------|-------|
-| DAC chip identification (AK4309AVM) | HIGH | Multiple independent sources agree |
-| Converter topology (1-bit delta-sigma) | HIGH | Datasheet, psx-spx, emu-russia all confirm |
-| 8x interpolation filter architecture | HIGH | Standard for AKM delta-sigma DACs of this era; confirmed by AK4309B datasheet |
-| Exact filter coefficients | LOW | AK4309AVM datasheet unavailable; design from specs is the only option |
-| Passband ripple spec (+/-0.5 dB) | MEDIUM | From AK4309B datasheet; AK4309AVM may differ slightly |
-| Modeling approach (passband-equivalent FIR) | HIGH | Standard DSP technique; avoids unnecessary oversampling |
-| Signal chain placement | HIGH | Matches real hardware topology |
-| What to exclude (sigma-delta, analog) | HIGH | Clear cost/benefit: inaudible artifacts, massive cost |
+| File | Change | Scope |
+|------|--------|-------|
+| `src/spu94/spu94_dac_fir.c` | Add `spu94_dac_fir_step_8x` function | ~30-40 new LOC |
+| `include/spu94/spu94_dac_fir.h` | Declare `spu94_dac_fir_step_8x` | 3 lines |
+| `src/spu94/spu94_state_internal.h` | Add `dac_oversampled` field | 1 line |
+| `src/spu94/spu94_process.c` | Branch on `dac_oversampled` in DAC section | ~15 LOC |
+| `tools/dac_filter_design.py` | Add `--verify-8x` mode | ~60 LOC |
+| `tools/dac_measure.py` | Add 8x measurement path | ~40 LOC |
+| `tests/unit/dac_fir/test_dac_fir_overflow_proof.c` | Add zero-stuffed overflow proof cases | ~30 LOC |
+| `python/spu94/*.py` | Add `dac_oversampled` toggle accessor | ~5 LOC |
+| `src/standalone/*.cpp` | Add toggle in DAC GUI zone | ~10 LOC |
+| **Total estimated new/changed LOC** | | **~200 LOC** |
+
+---
+
+## 8. Confidence Summary
+
+| Claim | Confidence | Basis |
+|-------|------------|-------|
+| No new dependencies | HIGH | All operations are existing Q15 MAC + existing LFSR |
+| int32 accumulator sufficient | HIGH | Zero-stuffing reduces worst case below existing proof bounds |
+| Same coefficients work at elevated rate | HIGH | `dac_filter_design.py --verify` already validates composite at 352.8kHz |
+| Naive zero-stuff over polyphase | HIGH | Correctness-equivalent; 70 muls is trivially fast; code reuse |
+| No decimation filter needed | HIGH | Input bandlimited; cascade provides >41dB image rejection |
+| Noise recalibration needed | MEDIUM | Math is straightforward but exact amplitude needs measurement |
+| ~200 LOC total delta | MEDIUM | Depends on test depth and how much A/B tooling is added |
 
 ---
 
 ## Sources
 
-### Primary (HIGH confidence)
-
-- [psx-spx Pinouts](https://psx-spx.consoledev.net/pinouts/) — AK4309VM identification, serial interface signals, board revision chip mapping
-- [psx-spx SPU](https://psx-spx.consoledev.net/soundprocessingunitspu/) — SPU output format, mixer/DAC sample rate
-- [emu-russia/psxrev SPU](https://github.com/emu-russia/psxrev/blob/master/wiki_eng/spu.md) — SPU serial output pins (DATO, LRCO, BCKO), DAC integration in later chips
-- [AK4309B datasheet (AllDatasheet)](https://www.alldatasheet.com/datasheet-pdf/pdf/54932/AKM/AK4309B.html) — specifications for the AK4309 family (90 dB DR, -84 dB THD+N, 8x FIR, SCF, 256fs/384fs MCLK)
-
-### Secondary (MEDIUM confidence)
-
-- [dogbreath.de PS1 DAC](https://dogbreath.de/PS1/DAC/DAC.html) — board revision to DAC chip mapping; AK4309AVM vs AK4309BM differences; notes on datasheet unavailability
-- [Archimago SCPH-5501 measurements](http://archimago.blogspot.com/2013/03/measurements-sony-playstation-1-scph.html) — ~15-bit dynamic range, frequency response characterization, jitter measurements
-- [Stereophile PS1 measurements](https://www.stereophile.com/content/sony-playstation-1-cd-player-measurements) — 737 ps jitter, linearity error data, noise floor characterization (SCPH-1001)
-- [DSPRelated: DAC Zero-Order Hold Models](https://www.dsprelated.com/showarticle/1627.php) — ZOH modeling mathematics, sinc droop formula, discrete-time model implementations
-- [DSPRelated: Design a DAC sinx/x Corrector](https://www.dsprelated.com/showarticle/1191.php) — Fixed-point sinc compensation filter design with quantized coefficients
-- [beis.de Delta-Sigma Introduction](https://www.beis.de/Elektronik/DeltaSigma/DeltaSigma.html) — Sigma-delta modulator structure, integrator-feedback pseudocode
-
-### Tertiary (LOW confidence — verify at implementation time)
-
-- Exact AK4309AVM vs AK4309B spectral differences — unknown without original datasheet or silicon measurement
-- Filter tap count for passband-equivalent model — will be determined during scipy design phase
-- TPDF dither amplitude calibration — needs A/B testing with real PS1 output to tune
+- `src/spu94/spu94_dac_fir.c` -- existing implementation, accumulator width proofs (lines 30-80)
+- `src/spu94/spu94_dac_fir_internal.h` -- stage dimensions, pair tables
+- `src/spu94/spu94_dac_fir_coef.c` -- Q15 coefficients, symmetric pair indices
+- `src/spu94/spu94_process.c` -- DAC section integration point (lines 115-128)
+- `src/spu94/spu94_state_internal.h` -- state struct layout, size ceiling
+- `tools/dac_filter_design.py` -- filter design, composite verification at 352.8kHz
+- `tools/dac_measure.py` -- frequency response characterization
+- `include/spu94/spu94_dac_noise.h` -- noise model state, API
+- AK4309B datasheet specs embedded in `dac_filter_design.py` (passband ripple, stopband rejection)
 
 ---
 
-*Stack research for: PS1 DAC conversion modeling as coloration stage in libspu94.*
-*Researched: 2026-04-28*
+*Stack research for: true 8x oversampling of AK4309 interpolation filter in libspu94.*
+*Researched: 2026-04-30*
