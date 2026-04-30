@@ -119,6 +119,8 @@ None yet.
 | Distribution | Static linking for standalone (done — single 7.6MB executable, no .so dependency) | 2026-04-29 |
 | Distribution | Cross-platform build guides (Mac + Windows) — audience TBD, waiting on Anthony | 2026-04-29 |
 | Distribution | Visual signal flow diagram as GUI — Ensoniq/ASM Hydrasynth style panel layout. Future UI overhaul. | 2026-04-29 |
+| Feature | Preset save/load system — spu94_preset_save/load in C core, plain text key=value format, .spu94 files, JUCE Save/Load buttons, CLI preset-dump/preset-load. Principled foundation needed before custom presets accumulate. | 2026-04-29 |
+| Feature | Anthony has a screenshot of preset #1 to capture once save system exists | 2026-04-29 |
 
 ## Session Continuity
 
