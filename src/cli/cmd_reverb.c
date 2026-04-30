@@ -78,6 +78,13 @@ static int spu94_cli_parse_tail_ms(const char *s, uint64_t *out_ms) {
     return 0;
 }
 
+/* Convert a [0.0, 1.0] float to Q15 int16, with rounding. */
+static int16_t spu94_cli_float_to_q15(double val) {
+    if (val <= 0.0) return 0;
+    if (val >= 1.0) return 0x7FFF;
+    return (int16_t)(val * 0x7FFF + 0.5);
+}
+
 static void print_reverb_help(void) {
     fputs(
         "Usage: spu94 reverb [OPTIONS] INPUT.wav OUTPUT.wav\n"
@@ -93,6 +100,23 @@ static void print_reverb_help(void) {
         "  --adpcm                Enable ADPCM coloration (PS1 codec artifacts).\n"
         "  --tail-seconds <N>     Append N seconds of reverb tail after input ends.\n"
         "\n"
+        "Mixer controls:\n"
+        "  --input-gain <0.0-1.0>   Input gain (default: 1.0 = unity)\n"
+        "  --dry <0.0-1.0>          Dry bus level (default: 1.0)\n"
+        "  --patina <0.0-1.0>       ADPCM bus level (default: 0.0, set to 1.0 with --adpcm)\n"
+        "  --dry-send <0.0-1.0>     Dry bus reverb send (default: 1.0)\n"
+        "  --patina-send <0.0-1.0>  ADPCM bus reverb send (default: 0.0, set to 1.0 with --adpcm)\n"
+        "  --reverb <0.0-1.0>       Reverb return level (default: 1.0)\n"
+        "\n"
+        "DAC coloration:\n"
+        "  --dac                    Enable DAC model (FIR + noise shaping)\n"
+        "  --no-dac-fir             Disable DAC interpolation filter (use with --dac)\n"
+        "  --no-dac-noise           Disable DAC noise shaping (use with --dac)\n"
+        "\n"
+        "Latency:\n"
+        "  --latency-comp           Enable ADPCM latency compensation (default: on)\n"
+        "  --no-latency-comp        Disable ADPCM latency compensation\n"
+        "\n"
         "Utility:\n"
         "  --list-presets         Print the 10 factory preset names and exit.\n"
         "  -h, --help             Show this message and exit.\n"
@@ -101,6 +125,7 @@ static void print_reverb_help(void) {
         "  spu94 reverb --preset hall input.wav output.wav\n"
         "  spu94 --preset hall --tail-seconds 2 input.wav output.wav\n"
         "  spu94 reverb --adpcm --preset hall input.wav output.wav\n"
+        "  spu94 reverb --preset hall --dac input.wav output.wav\n"
         "  spu94 --config my_override.json input.wav output.wav\n"
         "\n"
         "Input must be 16-bit PCM stereo at 44.1 kHz. Output is the same format.\n",
@@ -109,12 +134,23 @@ static void print_reverb_help(void) {
 
 int cmd_reverb(int argc, char **argv) {
     static const struct option long_opts[] = {
-        {"preset",       required_argument, NULL, 'p'},
-        {"config",       required_argument, NULL, 'c'},
-        {"tail-seconds", required_argument, NULL, 't'},
-        {"adpcm",        no_argument,       NULL, 'a'},
-        {"list-presets", no_argument,       NULL, 'l'},
-        {"help",         no_argument,       NULL, 'h'},
+        {"preset",          required_argument, NULL, 'p'},
+        {"config",          required_argument, NULL, 'c'},
+        {"tail-seconds",    required_argument, NULL, 't'},
+        {"adpcm",           no_argument,       NULL, 'a'},
+        {"dac",             no_argument,       NULL, 'd'},
+        {"no-dac-fir",      no_argument,       NULL, 1001},
+        {"no-dac-noise",    no_argument,       NULL, 1002},
+        {"latency-comp",    no_argument,       NULL, 1003},
+        {"no-latency-comp", no_argument,       NULL, 1004},
+        {"input-gain",      required_argument, NULL, 1005},
+        {"dry",             required_argument, NULL, 1006},
+        {"patina",          required_argument, NULL, 1007},
+        {"dry-send",        required_argument, NULL, 1008},
+        {"patina-send",     required_argument, NULL, 1009},
+        {"reverb",          required_argument, NULL, 1010},
+        {"list-presets",    no_argument,       NULL, 'l'},
+        {"help",            no_argument,       NULL, 'h'},
         {NULL, 0, NULL, 0}
     };
 
@@ -122,13 +158,24 @@ int cmd_reverb(int argc, char **argv) {
     const char *config_path = NULL;
     uint64_t tail_ms = 0u;
     bool adpcm_enabled = false;
+    bool dac_enabled = false;
+    bool no_dac_fir = false;
+    bool no_dac_noise = false;
+    bool latency_comp_off = false;
+    /* Fader overrides: -1.0 means "not set by user" (use defaults). */
+    double fader_input_gain = -1.0;
+    double fader_dry = -1.0;
+    double fader_patina = -1.0;
+    double fader_dry_send = -1.0;
+    double fader_patina_send = -1.0;
+    double fader_reverb = -1.0;
     int opt;
 
     /* Reset getopt state for subcommand dispatch (POSIX requires this). */
     optind = 1;
     opterr = 0;
 
-    while ((opt = getopt_long(argc, argv, "p:c:t:alh", long_opts, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "p:c:t:adlh", long_opts, NULL)) != -1) {
         switch (opt) {
             case 'p':
                 preset_name = optarg;
@@ -147,6 +194,82 @@ int cmd_reverb(int argc, char **argv) {
             case 'a':
                 adpcm_enabled = true;
                 break;
+            case 'd':
+                dac_enabled = true;
+                break;
+            case 1001:
+                no_dac_fir = true;
+                break;
+            case 1002:
+                no_dac_noise = true;
+                break;
+            case 1003:
+                /* --latency-comp: already ON by default (D-07). Accepted for
+                 * explicit intent but no action needed. */
+                break;
+            case 1004:
+                latency_comp_off = true;
+                break;
+            case 1005: {  /* --input-gain */
+                char *endptr;
+                double val = strtod(optarg, &endptr);
+                if (endptr == optarg || *endptr != '\0' || val < 0.0 || val > 1.0) {
+                    SPU94_ERROR("invalid value for --input-gain: '%s' (accepts 0.0 to 1.0)", optarg);
+                    return 2;
+                }
+                fader_input_gain = val;
+                break;
+            }
+            case 1006: {  /* --dry */
+                char *endptr;
+                double val = strtod(optarg, &endptr);
+                if (endptr == optarg || *endptr != '\0' || val < 0.0 || val > 1.0) {
+                    SPU94_ERROR("invalid value for --dry: '%s' (accepts 0.0 to 1.0)", optarg);
+                    return 2;
+                }
+                fader_dry = val;
+                break;
+            }
+            case 1007: {  /* --patina */
+                char *endptr;
+                double val = strtod(optarg, &endptr);
+                if (endptr == optarg || *endptr != '\0' || val < 0.0 || val > 1.0) {
+                    SPU94_ERROR("invalid value for --patina: '%s' (accepts 0.0 to 1.0)", optarg);
+                    return 2;
+                }
+                fader_patina = val;
+                break;
+            }
+            case 1008: {  /* --dry-send */
+                char *endptr;
+                double val = strtod(optarg, &endptr);
+                if (endptr == optarg || *endptr != '\0' || val < 0.0 || val > 1.0) {
+                    SPU94_ERROR("invalid value for --dry-send: '%s' (accepts 0.0 to 1.0)", optarg);
+                    return 2;
+                }
+                fader_dry_send = val;
+                break;
+            }
+            case 1009: {  /* --patina-send */
+                char *endptr;
+                double val = strtod(optarg, &endptr);
+                if (endptr == optarg || *endptr != '\0' || val < 0.0 || val > 1.0) {
+                    SPU94_ERROR("invalid value for --patina-send: '%s' (accepts 0.0 to 1.0)", optarg);
+                    return 2;
+                }
+                fader_patina_send = val;
+                break;
+            }
+            case 1010: {  /* --reverb */
+                char *endptr;
+                double val = strtod(optarg, &endptr);
+                if (endptr == optarg || *endptr != '\0' || val < 0.0 || val > 1.0) {
+                    SPU94_ERROR("invalid value for --reverb: '%s' (accepts 0.0 to 1.0)", optarg);
+                    return 2;
+                }
+                fader_reverb = val;
+                break;
+            }
             case 'l':
                 spu94_cli_list_presets(stdout);
                 return 0;
@@ -266,6 +389,34 @@ int cmd_reverb(int argc, char **argv) {
         spu94_set_reverb_fader(state, 0x7FFF);
         spu94_set_dry_send(state, 0x7FFF);
     }
+
+    /* DAC section (D-04): --dac enables master + both sub-toggles.
+     * --no-dac-fir / --no-dac-noise selectively disable sub-components. */
+    if (dac_enabled) {
+        spu94_set_dac_enabled(state, 1);
+        spu94_set_dac_fir_enabled(state, no_dac_fir ? 0 : 1);
+        spu94_set_dac_noise_enabled(state, no_dac_noise ? 0 : 1);
+    }
+
+    /* Latency compensation (D-05): ON by default. --no-latency-comp disables. */
+    if (latency_comp_off) {
+        spu94_set_latency_comp(state, 0);
+    }
+
+    /* User fader overrides (D-03): float -> Q15 at CLI boundary.
+     * Applied even for Off preset -- the user explicitly asked for them. */
+    if (fader_input_gain >= 0.0)
+        spu94_set_input_gain(state, spu94_cli_float_to_q15(fader_input_gain));
+    if (fader_dry >= 0.0)
+        spu94_set_dry_fader(state, spu94_cli_float_to_q15(fader_dry));
+    if (fader_patina >= 0.0)
+        spu94_set_patina_fader(state, spu94_cli_float_to_q15(fader_patina));
+    if (fader_dry_send >= 0.0)
+        spu94_set_dry_send(state, spu94_cli_float_to_q15(fader_dry_send));
+    if (fader_patina_send >= 0.0)
+        spu94_set_patina_send(state, spu94_cli_float_to_q15(fader_patina_send));
+    if (fader_reverb >= 0.0)
+        spu94_set_reverb_fader(state, spu94_cli_float_to_q15(fader_reverb));
 
     uint64_t tail_frames = 0u;
     if (tail_ms > 0u) {
