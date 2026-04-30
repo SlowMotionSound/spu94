@@ -72,6 +72,9 @@ void SPU94AudioProcessor::prepareToPlay(double /*sampleRate*/, int /*samplesPerB
     spu94_set_reverb_fader(spu, 0x7FFF);  // reverb at unity
     spu94_set_dry_send(spu,     0x7FFF);  // dry bus feeds reverb at unity
     // patina_fader and patina_send stay at 0 until ADPCM is enabled
+
+    // Latency comp ON by default (D-07)
+    spu94_set_latency_comp(spu, 1);
 }
 
 void SPU94AudioProcessor::releaseResources()
@@ -150,6 +153,30 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // The C core's input_gain handles attenuation; host passes full-scale samples.
     spu94_set_input_gain(spu, static_cast<int16_t>(
         inputLevel.load(std::memory_order_relaxed) * 0x7FFF));
+
+    // Mixer faders: float -> Q15 at host boundary (D-05)
+    spu94_set_dry_fader(spu, static_cast<int16_t>(
+        dryLevel.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_patina_fader(spu, static_cast<int16_t>(
+        patinaLevel.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_reverb_fader(spu, static_cast<int16_t>(
+        reverbLevel.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_dry_send(spu, static_cast<int16_t>(
+        drySend.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_patina_send(spu, static_cast<int16_t>(
+        adpcmSend.load(std::memory_order_relaxed) * 0x7FFF));
+
+    // Latency compensation
+    spu94_set_latency_comp(spu,
+        latencyCompEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+
+    // DAC coloration section
+    spu94_set_dac_enabled(spu,
+        dacEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_dac_fir_enabled(spu,
+        dacFirEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_dac_noise_enabled(spu,
+        dacNoiseEnabled.load(std::memory_order_relaxed) ? 1 : 0);
 
     auto playPos = wavSource.playPos.load(std::memory_order_relaxed);
     for (int i = 0; i < samplesToProcess; ++i)
