@@ -76,7 +76,11 @@ Plans:
   1. `spu94 process --dac` enables DAC coloration on CLI WAV processing (same pattern as `--adpcm`)
   2. Python ctypes bindings expose `spu94_set_dac_enabled`/`spu94_get_dac_enabled` with the same calling convention as the ADPCM toggle
   3. The JUCE standalone GUI includes a DAC toggle checkbox alongside the existing ADPCM toggle
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 08-01-PLAN.md — CLI flags for mixer faders and DAC toggles
+- [ ] 08-02-PLAN.md — Python ctypes bindings for mixer/DAC controls
+- [ ] 08-03-PLAN.md — JUCE 4-zone GUI redesign with all new controls
 **UI hint**: yes
 
 ### Phase 9: Verification + Documentation
@@ -99,8 +103,8 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 9
 |-------|----------------|--------|-----------|
 | 5. Interpolation Filter Design | 1/1 | Complete | 2026-04-28 |
 | 6. DAC Core Implementation | 2/2 | Complete | 2026-04-29 |
-| 7. Pipeline Integration | 2/3 | In progress | - |
-| 8. I/O Surface | 0/TBD | Not started | - |
+| 7. Pipeline Integration | 3/3 | Complete | 2026-04-29 |
+| 8. I/O Surface | 0/3 | Not started | - |
 | 9. Verification + Documentation | 0/TBD | Not started | - |
 
 ## Completed Milestones
