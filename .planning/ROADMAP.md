@@ -52,7 +52,7 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 
 </details>
 
-### 🚧 v1.3 True Oversampled DAC (In Progress)
+### v1.3 True Oversampled DAC (In Progress)
 
 **Milestone Goal:** Replace the v1.2 44.1kHz FIR approximation with genuine 8x oversampling -- zero-stuff to 352.8kHz, run the AK4309 interpolation cascade at the real rate, decimate back to 44.1kHz.
 
@@ -72,11 +72,13 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
   3. Each FIR stage runs at its designed rate (Stage 1 at 88.2kHz, Stage 2 at 176.4kHz, Stage 3 at 352.8kHz) with inter-stage Q15 truncation preserved
   4. Real-time safety gates pass -- no heap, no locks, no syscalls in the 8x processing path
   5. v1.2 DAC golden files are archived before any code changes
-**Plans**: TBD
+**Plans:** 4 plans
 
 Plans:
-- [ ] 10-01: TBD
-- [ ] 10-02: TBD
+- [ ] 10-01-PLAN.md — Scipy 8x prototype + archive v1.2 DAC goldens
+- [ ] 10-02-PLAN.md — Implement spu94_dac_fir_step_8x in C + unit tests
+- [ ] 10-03-PLAN.md — Wire 8x into pipeline + prove zero blast radius (INT-03)
+- [ ] 10-04-PLAN.md — Regenerate DAC goldens + passband conformance (INT-04)
 
 ### Phase 11: Noise Recalibration + Integration
 **Goal**: The complete DAC pipeline works end-to-end with noise at the correct rate and amplitude, with a mode toggle for v1.2/v1.3 comparison
@@ -114,7 +116,7 @@ Phases execute in numeric order: 10 -> 11 -> 12
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 10. Core Polyphase FIR Cascade | v1.3 | 0/TBD | Not started | - |
+| 10. Core Polyphase FIR Cascade | v1.3 | 0/4 | Planned | - |
 | 11. Noise Recalibration + Integration | v1.3 | 0/TBD | Not started | - |
 | 12. Verification + Characterization | v1.3 | 0/TBD | Not started | - |
 
@@ -131,4 +133,4 @@ Phases execute in numeric order: 10 -> 11 -> 12
 - `.planning/milestones/v1.0-REQUIREMENTS.md` -- M1 requirements
 
 ---
-*Last updated: 2026-04-30 -- v1.3 True Oversampled DAC roadmap created*
+*Last updated: 2026-04-30 -- Phase 10 planned (4 plans)*
