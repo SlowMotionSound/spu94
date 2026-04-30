@@ -68,27 +68,27 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DSP-01 | — | Pending |
-| DSP-02 | — | Pending |
-| DSP-03 | — | Pending |
-| DSP-04 | — | Pending |
-| DSP-05 | — | Pending |
-| DSP-06 | — | Pending |
-| DSP-07 | — | Pending |
-| DSP-08 | — | Pending |
-| CMP-01 | — | Pending |
-| CMP-02 | — | Pending |
-| CMP-03 | — | Pending |
-| INT-01 | — | Pending |
-| INT-02 | — | Pending |
-| INT-03 | — | Pending |
-| INT-04 | — | Pending |
+| DSP-01 | Phase 10 | Pending |
+| DSP-02 | Phase 10 | Pending |
+| DSP-03 | Phase 10 | Pending |
+| DSP-04 | Phase 10 | Pending |
+| DSP-05 | Phase 11 | Pending |
+| DSP-06 | Phase 10 | Pending |
+| DSP-07 | Phase 11 | Pending |
+| DSP-08 | Phase 10 | Pending |
+| CMP-01 | Phase 11 | Pending |
+| CMP-02 | Phase 12 | Pending |
+| CMP-03 | Phase 12 | Pending |
+| INT-01 | Phase 11 | Pending |
+| INT-02 | Phase 12 | Pending |
+| INT-03 | Phase 10 | Pending |
+| INT-04 | Phase 10 | Pending |
 
 **Coverage:**
 - v1.3 requirements: 15 total
-- Mapped to phases: 0
-- Unmapped: 15 ⚠️
+- Mapped to phases: 15
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-30*
-*Last updated: 2026-04-30 after initial definition*
+*Last updated: 2026-04-30 after roadmap creation*
