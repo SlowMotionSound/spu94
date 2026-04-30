@@ -20,6 +20,7 @@ set(_binding_tests
     test_binding_drift_detection
     test_binding_numpy_contract
     test_binding_adpcm
+    test_binding_mixer_dac
 )
 
 foreach(test_name IN LISTS _binding_tests)
