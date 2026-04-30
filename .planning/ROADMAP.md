@@ -92,7 +92,11 @@ Plans:
   2. A Python frequency response script measures the DAC model output, plots against the Phase 5 design target, and verifies passband ripple falls within documented tolerance
   3. C unit tests verify filter coefficient correctness, noise shaping spectral slope (+12dB/octave), toggle state transitions, and filter state reset on disable
   4. `docs/COVERAGE.md` is updated with DAC model test mappings showing every DAC requirement covered
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 09-01-PLAN.md — DAC golden file corpus (55 WAVs + SHA-256 sidecars)
+- [ ] 09-02-PLAN.md — Frequency response measurement script + integration C tests
+- [ ] 09-03-PLAN.md — COVERAGE.md update (DAC + ADPCM backfill)
 
 ## Progress
 
@@ -105,7 +109,7 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 9
 | 6. DAC Core Implementation | 2/2 | Complete | 2026-04-29 |
 | 7. Pipeline Integration | 3/3 | Complete | 2026-04-29 |
 | 8. I/O Surface | 3/3 | Complete | 2026-04-30 |
-| 9. Verification + Documentation | 0/TBD | Not started | - |
+| 9. Verification + Documentation | 0/3 | Not started | - |
 
 ## Completed Milestones
 
