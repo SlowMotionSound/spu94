@@ -37,6 +37,14 @@ typedef struct {
  * Open Question 2). */
 int16_t spu94_dac_fir_step(spu94_dac_fir_state *state, int16_t input);
 
+/* Process one 44.1kHz Q15 sample through the three-stage cascade at
+ * true operating rates (88.2/176.4/352.8kHz). Zero-stuffs input,
+ * runs 14 evaluations of dac_fir_stage_apply (2+4+8), and returns
+ * the decimated output. State carries across calls.
+ * Naive implementation per D-01 -- polyphase deferred per D-02.
+ * Mono API -- caller invokes once per channel. */
+int16_t spu94_dac_fir_step_8x(spu94_dac_fir_state *state, int16_t input);
+
 /* Zero-initialize all delay lines and indices.
  * Equivalent to memset(state, 0, sizeof(*state)). */
 void spu94_dac_fir_init(spu94_dac_fir_state *state);

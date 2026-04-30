@@ -25,3 +25,8 @@ add_executable(test_dac_fir_impulse test_dac_fir_impulse.c)
 target_link_libraries(test_dac_fir_impulse PRIVATE unity spu94_static)
 add_test(NAME dac_fir_impulse COMMAND test_dac_fir_impulse)
 set_tests_properties(dac_fir_impulse PROPERTIES LABELS "dac_fir")
+
+add_executable(test_dac_fir_8x test_dac_fir_8x.c)
+target_link_libraries(test_dac_fir_8x PRIVATE unity spu94_static)
+add_test(NAME dac_fir_8x COMMAND test_dac_fir_8x)
+set_tests_properties(dac_fir_8x PROPERTIES LABELS "dac_fir")
