@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: in_progress
-stopped_at: Phase 8 Plan 02 complete (Python bindings), Plan 03 next
-last_updated: "2026-04-30T01:33:47Z"
-last_activity: 2026-04-29 -- Phase 8 Plan 02 complete (Python mixer/DAC bindings)
+stopped_at: Phase 8 complete (all 3 plans), Phase 9 next
+last_updated: "2026-04-30T02:24:00Z"
+last_activity: 2026-04-30 -- Phase 8 Plan 03 complete (JUCE 4-zone GUI redesign)
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 10
-  completed_plans: 8
-  percent: 80
+  completed_plans: 9
+  percent: 90
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-28)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.2 DAC Modeling — Phase 8 (I/O Surface) in progress, Plan 02 complete
+**Current focus:** v1.2 DAC Modeling — Phase 8 (I/O Surface) complete, Phase 9 next
 
 ## Current Position
 
-Phase: 8 of 9 (I/O Surface) -- IN PROGRESS
-Plan: 2 of 3 complete
-Status: CLI flags + Python bindings shipped, JUCE GUI next
-Last activity: 2026-04-29 -- Plan 02 complete (2 tasks, 2min)
+Phase: 8 of 9 (I/O Surface) -- COMPLETE
+Plan: 3 of 3 complete
+Status: All I/O surfaces shipped (CLI, Python, JUCE)
+Last activity: 2026-04-30 -- Plan 03 complete (JUCE 4-zone GUI, 3 tasks, ~45min)
 
-Progress: [########--] 80%
+Progress: [#########-] 90%
 
 ## Performance Metrics
 
@@ -53,7 +53,7 @@ Progress: [########--] 80%
 | 05-interpolation-filter-design | 1 | -- | -- |
 | 06-dac-core-implementation | 2/2 | 55min | 28min |
 | 07-pipeline-integration | 3/3 | 82min | 27min |
-| 08-i-o-surface | 2/3 | 4min | 2min |
+| 08-i-o-surface | 3/3 | 49min | 16min |
 
 ## Accumulated Context
 
@@ -86,6 +86,9 @@ Recent decisions affecting current work:
 - 24 integration tests cover mixer bus routing, DAC toggle hierarchy, and latency compensation
 - CLI --latency-comp flag accepted but is a no-op (default ON per D-07); only --no-latency-comp calls setter
 - CLI fader overrides apply even for Off preset (user explicitly requested values override automatic defaults)
+- JUCE GUI combined mixer strip + DAC toggles into single bottom row (original 4-zone overlapped register panel)
+- ADPCM auto-enables when patina fader or ADPCM send > 0 (replaces removed manual toggle)
+- Reverb Sends border removed from toolbar for cleaner layout -- three inline send knobs
 
 ### Blockers/Concerns
 
@@ -103,8 +106,14 @@ None yet.
 | Paperwork | Phase 6/7 Nyquist validation | Carried from v1.0 | 2026-04-26 |
 | License | MIT vs Apache-2.0 pick | Carried from M1 | 2026-04-25 |
 
+## Deferred Ideas
+
+| Category | Item | Deferred At |
+|----------|------|-------------|
+| UI Enhancement | ADPCM filter pair LED indicators (5 LEDs showing active filter pair, auto/manual toggle) | 2026-04-30 |
+
 ## Session Continuity
 
-Last session: 2026-04-29
-Stopped at: Completed 08-02-PLAN.md (Python mixer/DAC bindings)
-Resume file: .planning/phases/08-i-o-surface/08-03-PLAN.md
+Last session: 2026-04-30
+Stopped at: Completed 08-03-PLAN.md (JUCE 4-zone GUI redesign) -- Phase 8 complete
+Resume file: Phase 9 planning needed

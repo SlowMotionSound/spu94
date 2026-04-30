@@ -27,7 +27,7 @@ Requirements for the DAC modeling milestone. The PS1 uses an AKM AK4309AVM 1-bit
 
 - [x] **DAC-IO-01**: CLI --dac flag enables DAC model on spu94 process command (matches --adpcm pattern)
 - [x] **DAC-IO-02**: Python ctypes bindings expose DAC toggle (matches ADPCM binding pattern)
-- [ ] **DAC-IO-03**: JUCE standalone GUI includes DAC toggle checkbox (matches ADPCM toggle)
+- [x] **DAC-IO-03**: JUCE standalone GUI includes DAC toggle checkbox (matches ADPCM toggle)
 
 ### Verification (DAC-TEST)
 
