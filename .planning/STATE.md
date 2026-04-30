@@ -121,6 +121,8 @@ None yet.
 | Distribution | Visual signal flow diagram as GUI — Ensoniq/ASM Hydrasynth style panel layout. Future UI overhaul. | 2026-04-29 |
 | Feature | Preset save/load system — spu94_preset_save/load in C core, plain text key=value format, .spu94 files, JUCE Save/Load buttons, CLI preset-dump/preset-load. Principled foundation needed before custom presets accumulate. | 2026-04-29 |
 | Feature | Anthony has a screenshot of preset #1 to capture once save system exists | 2026-04-29 |
+| Feature | Real oversampling engine — current DAC FIR approximates at 44.1kHz, real impl would zero-stuff and run cascade at elevated rate. Variable 1x-128x knob (stepped powers of 2). Start practical (hard-switch + slew), then luxury (parallel crossfade). | 2026-04-29 |
+| Feature | Continuous oversampling sweep (luxury) — crossfade two adjacent rates for smooth knob feel. Runs both engines in parallel during transition. Desktop-only (too expensive for MCU). | 2026-04-29 |
 
 ## Session Continuity
 
