@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: True Oversampled DAC
-status: ready_to_execute
-stopped_at: Phase 10 planned (4 plans, 3 waves)
-last_updated: "2026-04-30T23:00:00.000Z"
-last_activity: 2026-04-30 -- Phase 10 planned
+status: executing
+stopped_at: Phase 10 Wave 1 complete (plans 01+02), executing Wave 2
+last_updated: "2026-05-01T00:30:00.000Z"
+last_activity: 2026-05-01 -- Phase 10 Wave 1 complete (plans 01+02)
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
-  percent: 0
+  completed_plans: 2
+  percent: 50
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 10 -- Core Polyphase FIR Cascade
+**Current focus:** Phase 10 — Core Polyphase FIR Cascade
 
 ## Current Position
 
 Phase: 10 of 12 (Core Polyphase FIR Cascade)
-Plan: 0 of 4
-Status: Ready to execute
-Last activity: 2026-04-30 -- Phase 10 planned (4 plans, 3 waves)
+Plan: 2 of 4
+Status: Executing — Wave 1 complete, Wave 2 next
+Last activity: 2026-05-01 -- Plans 10-01, 10-02 complete
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
