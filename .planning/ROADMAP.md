@@ -79,7 +79,7 @@ Plans:
 **Plans:** 3 plans
 Plans:
 - [x] 08-01-PLAN.md — CLI flags for mixer faders and DAC toggles (completed 2026-04-29)
-- [ ] 08-02-PLAN.md — Python ctypes bindings for mixer/DAC controls
+- [x] 08-02-PLAN.md — Python ctypes bindings for mixer/DAC controls (completed 2026-04-29)
 - [ ] 08-03-PLAN.md — JUCE 4-zone GUI redesign with all new controls
 **UI hint**: yes
 
@@ -104,7 +104,7 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8 -> 9
 | 5. Interpolation Filter Design | 1/1 | Complete | 2026-04-28 |
 | 6. DAC Core Implementation | 2/2 | Complete | 2026-04-29 |
 | 7. Pipeline Integration | 3/3 | Complete | 2026-04-29 |
-| 8. I/O Surface | 1/3 | In progress | - |
+| 8. I/O Surface | 2/3 | In progress | - |
 | 9. Verification + Documentation | 0/TBD | Not started | - |
 
 ## Completed Milestones

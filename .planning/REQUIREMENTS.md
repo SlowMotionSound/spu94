@@ -26,7 +26,7 @@ Requirements for the DAC modeling milestone. The PS1 uses an AKM AK4309AVM 1-bit
 ### I/O Surface (DAC-IO)
 
 - [x] **DAC-IO-01**: CLI --dac flag enables DAC model on spu94 process command (matches --adpcm pattern)
-- [ ] **DAC-IO-02**: Python ctypes bindings expose DAC toggle (matches ADPCM binding pattern)
+- [x] **DAC-IO-02**: Python ctypes bindings expose DAC toggle (matches ADPCM binding pattern)
 - [ ] **DAC-IO-03**: JUCE standalone GUI includes DAC toggle checkbox (matches ADPCM toggle)
 
 ### Verification (DAC-TEST)
@@ -72,7 +72,7 @@ Requirements for the DAC modeling milestone. The PS1 uses an AKM AK4309AVM 1-bit
 | DAC-INT-02 | Phase 7 (07-01 + 07-02) | Complete |
 | DAC-INT-03 | Phase 7 (07-02) | Complete |
 | DAC-IO-01 | Phase 8 | Pending |
-| DAC-IO-02 | Phase 8 | Pending |
+| DAC-IO-02 | Phase 8, Plan 02 | Complete |
 | DAC-IO-03 | Phase 8 | Pending |
 | DAC-TEST-01 | Phase 9 | Pending |
 | DAC-TEST-02 | Phase 9 | Pending |

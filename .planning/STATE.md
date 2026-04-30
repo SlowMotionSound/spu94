@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: milestone
 status: in_progress
-stopped_at: Phase 8 Plan 01 complete (CLI flags), Plan 02 next
-last_updated: "2026-04-30T01:17:33Z"
-last_activity: 2026-04-29 -- Phase 8 Plan 01 complete (CLI mixer/DAC flags)
+stopped_at: Phase 8 Plan 02 complete (Python bindings), Plan 03 next
+last_updated: "2026-04-30T01:33:47Z"
+last_activity: 2026-04-29 -- Phase 8 Plan 02 complete (Python mixer/DAC bindings)
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 10
-  completed_plans: 7
-  percent: 70
+  completed_plans: 8
+  percent: 80
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-28)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.2 DAC Modeling — Phase 8 (I/O Surface) in progress, Plan 01 complete
+**Current focus:** v1.2 DAC Modeling — Phase 8 (I/O Surface) in progress, Plan 02 complete
 
 ## Current Position
 
 Phase: 8 of 9 (I/O Surface) -- IN PROGRESS
-Plan: 1 of 3 complete
-Status: CLI mixer/DAC flags shipped, Python bindings next
-Last activity: 2026-04-29 -- Plan 01 complete (2 tasks, 2min)
+Plan: 2 of 3 complete
+Status: CLI flags + Python bindings shipped, JUCE GUI next
+Last activity: 2026-04-29 -- Plan 02 complete (2 tasks, 2min)
 
-Progress: [#######---] 70%
+Progress: [########--] 80%
 
 ## Performance Metrics
 
@@ -53,7 +53,7 @@ Progress: [#######---] 70%
 | 05-interpolation-filter-design | 1 | -- | -- |
 | 06-dac-core-implementation | 2/2 | 55min | 28min |
 | 07-pipeline-integration | 3/3 | 82min | 27min |
-| 08-i-o-surface | 1/3 | 2min | 2min |
+| 08-i-o-surface | 2/3 | 4min | 2min |
 
 ## Accumulated Context
 
@@ -82,7 +82,7 @@ Recent decisions affecting current work:
 - latency_comp defaults ON (set explicitly in init/reset after zero-fill, per D-07)
 - Off preset stays silent: CLI/tests do NOT set mixer faders for Off, preserving Off=silence contract
 - Golden files regenerated and witness thresholds widened after mixer architecture Q15 truncation changes
-- Python binding gets minimum mixer fader declarations; full API exposure is Plan 03
+- Python binding now has full 22 ctypes declarations for all mixer/DAC setter/getter functions (Plan 02 complete)
 - 24 integration tests cover mixer bus routing, DAC toggle hierarchy, and latency compensation
 - CLI --latency-comp flag accepted but is a no-op (default ON per D-07); only --no-latency-comp calls setter
 - CLI fader overrides apply even for Off preset (user explicitly requested values override automatic defaults)
@@ -106,5 +106,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-29
-Stopped at: Completed 08-01-PLAN.md (CLI mixer/DAC flags)
-Resume file: .planning/phases/08-i-o-surface/08-02-PLAN.md
+Stopped at: Completed 08-02-PLAN.md (Python mixer/DAC bindings)
+Resume file: .planning/phases/08-i-o-surface/08-03-PLAN.md
