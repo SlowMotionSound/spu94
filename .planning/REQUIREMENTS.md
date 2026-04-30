@@ -34,7 +34,7 @@ Requirements for the DAC modeling milestone. The PS1 uses an AKM AK4309AVM 1-bit
 - [ ] **DAC-TEST-01**: DAC-enabled golden WAV files with SHA-256 sidecar regression gate (separate corpus from reverb-only and ADPCM goldens)
 - [ ] **DAC-TEST-02**: Python frequency response script measures DAC model output, plots against design target curve, and verifies passband ripple magnitude falls within documented tolerance
 - [ ] **DAC-TEST-03**: C unit tests verify filter coefficient correctness, noise shaping spectral slope (+12dB/octave), toggle on/off state transitions, and filter state reset on disable
-- [ ] **DAC-TEST-04**: docs/COVERAGE.md updated with DAC model test mappings
+- [x] **DAC-TEST-04**: docs/COVERAGE.md updated with DAC model test mappings
 
 ## Future Requirements
 
@@ -77,7 +77,7 @@ Requirements for the DAC modeling milestone. The PS1 uses an AKM AK4309AVM 1-bit
 | DAC-TEST-01 | Phase 9 | Pending |
 | DAC-TEST-02 | Phase 9 | Pending |
 | DAC-TEST-03 | Phase 9 | Pending |
-| DAC-TEST-04 | Phase 9 | Pending |
+| DAC-TEST-04 | Phase 9 | Complete (09-03) |
 
 **Coverage:**
 - v1.2 requirements: 14 total
