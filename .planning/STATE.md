@@ -110,7 +110,15 @@ None yet.
 
 | Category | Item | Deferred At |
 |----------|------|-------------|
-| UI Enhancement | ADPCM filter pair LED indicators (5 LEDs showing active filter pair, auto/manual toggle) | 2026-04-30 |
+| UI Enhancement | ADPCM filter pair LED indicators (5 LEDs showing active filter pair, auto/manual toggle) | 2026-04-29 |
+| Performance | Memory Flush button — instant spu94_reset to kill feedback runaway | 2026-04-29 |
+| Performance | Smooth Memory Drain — gradual buffer decay with user-controlled drain rate (fast kill → slow tail-off → freeze) | 2026-04-29 |
+| Performance | Parameter Slew Control — knob controlling parameter transition speed (raw digital crunch ↔ smooth). M4 lever layer. | 2026-04-29 |
+| UI Enhancement | Stereo Link toggle — lock/unlock L/R register values for controllable vs asymmetric feedback | 2026-04-29 |
+| ADPCM Creative | ADPCM filter pair manual override — force specific filter pairs for tonal control | 2026-04-29 |
+| Distribution | Static linking for standalone (done — single 7.6MB executable, no .so dependency) | 2026-04-29 |
+| Distribution | Cross-platform build guides (Mac + Windows) — audience TBD, waiting on Anthony | 2026-04-29 |
+| Distribution | Visual signal flow diagram as GUI — Ensoniq/ASM Hydrasynth style panel layout. Future UI overhaul. | 2026-04-29 |
 
 ## Session Continuity
 

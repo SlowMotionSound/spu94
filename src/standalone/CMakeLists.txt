@@ -35,7 +35,7 @@ target_compile_definitions(spu94_standalone
 
 target_link_libraries(spu94_standalone
     PRIVATE
-        spu94_shared
+        spu94_static
         juce::juce_audio_utils
     PUBLIC
         juce::juce_recommended_config_flags
