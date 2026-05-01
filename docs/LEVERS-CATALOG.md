@@ -37,38 +37,38 @@ catalog regenerations.
 
 | Register | Musical role (HAND) | Modulation cost (AUTO) | Zipper onset (AUTO) | M4 lever (HAND) |
 |----------|---------------------|------------------------|---------------------|-----------------|
-| `vLOUT`  | Master Output | free | ~500 Hz | |
-| `vROUT`  | Master Output | free | ~500 Hz | |
-| `mBASE`  |  | catastrophic | ~500 Hz | |
-| `dAPF1`  |  | sample-quantized | ~500 Hz | |
-| `dAPF2`  |  | sample-quantized | ~500 Hz | |
-| `vIIR`   |  | free | ~500 Hz | |
-| `vCOMB1` |  | free | ~500 Hz | |
-| `vCOMB2` |  | free | ~500 Hz | |
-| `vCOMB3` |  | free | ~500 Hz | |
-| `vCOMB4` |  | free | ~500 Hz | |
-| `vWALL`  |  | free | ~500 Hz | |
-| `vAPF1`  |  | free | ~500 Hz | |
-| `vAPF2`  |  | free | ~500 Hz | |
-| `mLSAME` |  | catastrophic | ~500 Hz | |
-| `mRSAME` |  | catastrophic | ~500 Hz | |
-| `mLCOMB1` |  | catastrophic | ~500 Hz | |
-| `mRCOMB1` |  | catastrophic | ~500 Hz | |
-| `mLCOMB2` |  | catastrophic | ~500 Hz | |
-| `mRCOMB2` |  | catastrophic | ~500 Hz | |
-| `dLSAME` |  | sample-quantized | ~500 Hz | |
-| `dRSAME` |  | sample-quantized | ~500 Hz | |
-| `mLDIFF` |  | catastrophic | ~500 Hz | |
-| `mRDIFF` |  | catastrophic | ~500 Hz | |
-| `mLCOMB3` |  | catastrophic | ~500 Hz | |
-| `mRCOMB3` |  | catastrophic | ~500 Hz | |
-| `mLCOMB4` |  | catastrophic | ~500 Hz | |
-| `mRCOMB4` |  | catastrophic | ~500 Hz | |
-| `dLDIFF` |  | sample-quantized | ~500 Hz | |
-| `dRDIFF` |  | sample-quantized | ~500 Hz | |
-| `mLAPF1` |  | catastrophic | ~500 Hz | |
-| `mRAPF1` |  | catastrophic | ~500 Hz | |
-| `mLAPF2` |  | catastrophic | ~500 Hz | |
-| `mRAPF2` |  | catastrophic | ~500 Hz | |
-| `vLIN`   |  | free | ~500 Hz | |
-| `vRIN`   |  | free | ~500 Hz | |
+| `vLOUT`  | Master Output | free | clean through 11 kHz | |
+| `vROUT`  | Master Output | free | clean through 11 kHz | |
+| `mBASE`  |  | catastrophic | clean through 11 kHz | |
+| `dAPF1`  |  | sample-quantized | clean through 11 kHz | |
+| `dAPF2`  |  | sample-quantized | clean through 11 kHz | |
+| `vIIR`   |  | free | clean through 11 kHz | |
+| `vCOMB1` |  | free | clean through 11 kHz | |
+| `vCOMB2` |  | free | clean through 11 kHz | |
+| `vCOMB3` |  | free | clean through 11 kHz | |
+| `vCOMB4` |  | free | clean through 11 kHz | |
+| `vWALL`  |  | free | clean through 11 kHz | |
+| `vAPF1`  |  | free | clean through 11 kHz | |
+| `vAPF2`  |  | free | clean through 11 kHz | |
+| `mLSAME` |  | catastrophic | clean through 11 kHz | |
+| `mRSAME` |  | catastrophic | clean through 11 kHz | |
+| `mLCOMB1` |  | catastrophic | clean through 11 kHz | |
+| `mRCOMB1` |  | catastrophic | clean through 11 kHz | |
+| `mLCOMB2` |  | catastrophic | clean through 11 kHz | |
+| `mRCOMB2` |  | catastrophic | clean through 11 kHz | |
+| `dLSAME` |  | sample-quantized | clean through 11 kHz | |
+| `dRSAME` |  | sample-quantized | clean through 11 kHz | |
+| `mLDIFF` |  | catastrophic | clean through 11 kHz | |
+| `mRDIFF` |  | catastrophic | clean through 11 kHz | |
+| `mLCOMB3` |  | catastrophic | clean through 11 kHz | |
+| `mRCOMB3` |  | catastrophic | clean through 11 kHz | |
+| `mLCOMB4` |  | catastrophic | clean through 11 kHz | |
+| `mRCOMB4` |  | catastrophic | clean through 11 kHz | |
+| `dLDIFF` |  | sample-quantized | clean through 11 kHz | |
+| `dRDIFF` |  | sample-quantized | clean through 11 kHz | |
+| `mLAPF1` |  | catastrophic | clean through 11 kHz | |
+| `mRAPF1` |  | catastrophic | clean through 11 kHz | |
+| `mLAPF2` |  | catastrophic | clean through 11 kHz | |
+| `mRAPF2` |  | catastrophic | clean through 11 kHz | |
+| `vLIN`   |  | free | clean through 11 kHz | |
+| `vRIN`   |  | free | clean through 11 kHz | |

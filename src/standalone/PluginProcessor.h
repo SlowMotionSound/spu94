@@ -73,6 +73,7 @@ public:
     std::atomic<bool>& getDacEnabled() { return dacEnabled; }
     std::atomic<bool>& getDacFirEnabled() { return dacFirEnabled; }
     std::atomic<bool>& getDacNoiseEnabled() { return dacNoiseEnabled; }
+    std::atomic<bool>& getDacTrueOversample() { return dacTrueOversample; }
 
 private:
     std::atomic<float> inputLevel{0.25f}; // [0.0 = silence, 1.0 = unity gain]
@@ -92,6 +93,7 @@ private:
     std::atomic<bool> dacEnabled{false};
     std::atomic<bool> dacFirEnabled{true};    // sub-toggle: ON when DAC section is used
     std::atomic<bool> dacNoiseEnabled{true};  // sub-toggle: ON when DAC section is used
+    std::atomic<bool> dacTrueOversample{true}; // v1.3 true 8x path (default ON)
     RegisterBridge registerBridge;
     PresetCommandQueue presetQueue;
     // SPU state -- caller-owned buffers per libspu94 API contract

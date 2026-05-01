@@ -195,6 +195,16 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             std::memory_order_relaxed);
     };
 
+    // DAC True Oversample toggle (v1.2 vs v1.3 A/B)
+    addAndMakeVisible(dacOversampleToggle);
+    dacOversampleToggle.setClickingTogglesState(true);
+    dacOversampleToggle.setToggleState(true, juce::dontSendNotification);
+    dacOversampleToggle.onClick = [this] {
+        processorRef.getDacTrueOversample().store(
+            dacOversampleToggle.getToggleState(),
+            std::memory_order_relaxed);
+    };
+
     // Register panel -- 18 sliders grouped by register class.
     addAndMakeVisible(registerPanel);
 
@@ -277,8 +287,9 @@ void SPU94AudioProcessorEditor::resized()
     reverbKnobLabel.setBounds(320, bottomY, 80, 16);
     reverbKnob.setBounds(320, bottomY + 14, 80, 54);
     // Toggles: Latency Comp + DAC section
-    latencyCompToggle.setBounds(430, bottomY + 15, 120, 30);
-    dacToggle.setBounds(560, bottomY + 15, 60, 30);
-    dacFirToggle.setBounds(630, bottomY + 15, 60, 30);
-    dacNoiseToggle.setBounds(700, bottomY + 15, 70, 30);
+    latencyCompToggle.setBounds(420, bottomY + 15, 100, 30);
+    dacToggle.setBounds(520, bottomY + 15, 55, 30);
+    dacFirToggle.setBounds(575, bottomY + 15, 50, 30);
+    dacNoiseToggle.setBounds(625, bottomY + 15, 60, 30);
+    dacOversampleToggle.setBounds(690, bottomY + 15, 50, 30);
 }

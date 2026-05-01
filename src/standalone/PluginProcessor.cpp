@@ -184,6 +184,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         dacFirEnabled.load(std::memory_order_relaxed) ? 1 : 0);
     spu94_set_dac_noise_enabled(spu,
         dacNoiseEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_dac_true_oversample(spu,
+        dacTrueOversample.load(std::memory_order_relaxed) ? 1 : 0);
 
     auto playPos = wavSource.playPos.load(std::memory_order_relaxed);
     for (int i = 0; i < samplesToProcess; ++i)

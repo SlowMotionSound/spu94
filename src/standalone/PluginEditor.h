@@ -49,6 +49,7 @@ private:
     juce::ToggleButton dacToggle{"DAC"};
     juce::ToggleButton dacFirToggle{"FIR"};
     juce::ToggleButton dacNoiseToggle{"Noise"};
+    juce::ToggleButton dacOversampleToggle{"8x"};
 
     // Track preset-switch completion for slider sync.
     int lastAppliedCount = 0;
