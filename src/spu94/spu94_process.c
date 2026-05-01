@@ -111,11 +111,11 @@ void spu94_process(spu94_state *state,
           + (int32_t)q15_mul_truncate(patina_r, state->patina_fader)
           + (int32_t)q15_mul_truncate(rev_r,    state->reverb_fader));
 
-        /* 7. DAC section (D-09 through D-12): master output only */
+        /* 7. DAC section: true 8x oversampled interpolation (Phase 10) */
         if (state->dac_enabled) {
             if (state->dac_fir_enabled) {
-                out_l = spu94_dac_fir_step(&state->dac_fir_l, out_l);
-                out_r = spu94_dac_fir_step(&state->dac_fir_r, out_r);
+                out_l = spu94_dac_fir_step_8x(&state->dac_fir_l, out_l);
+                out_r = spu94_dac_fir_step_8x(&state->dac_fir_r, out_r);
             }
             if (state->dac_noise_enabled) {
                 out_l = q15_add_sat(out_l, spu94_dac_noise_step(&state->dac_noise_l));
