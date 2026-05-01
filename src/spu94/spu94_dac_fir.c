@@ -23,9 +23,29 @@
  */
 #include "spu94_dac_fir_internal.h"
 #include <spu94/spu94_dac_fir.h>
+#include <spu94/spu94_dac_noise.h>
 #include <spu94/spu94_q15.h>
 #include <stdint.h>
 #include <string.h>
+
+/* Post-decimation noise scaling for 352.8kHz injection (Phase 11).
+ *
+ * The last of 8 int16 noise samples (from spu94_dac_noise_step_8x,
+ * SHIFT_8X=10, raw white, range approx +/-32) is scaled by this
+ * constant and then right-shifted by 8 bits before being added to
+ * the decimated signal at int32 precision. The sum is then <<3 gain-
+ * compensated and saturated to int16.
+ *
+ * Effective output noise = noise_last * SCALE / 256 * 8
+ *                        = noise_last * SCALE / 32
+ * With noise_last RMS ~ 18.5 and SCALE=14:
+ *   output_rms = 18.5 * 14 / 32 = 8.1 = -72 dBFS ... but empirical
+ *   measurement shows -90 dBFS due to the int16 intermediate
+ *   quantization of noise_last * 14 >> 8 (most values map to 0).
+ *
+ * Empirically tuned via tests/unit/dac_noise/test_dac_noise_8x.c
+ * to hit -90 dBFS +/- 10 dB (window: -100 to -80 dB). */
+#define DAC_NOISE_8X_ACC_SCALE  14
 
 /* ========================================================================
  * Accumulator Width Proof -- Stage 1 (55-tap half-band)
@@ -250,6 +270,107 @@ int16_t spu94_dac_fir_step_8x(spu94_dac_fir_state *state, int16_t input) {
      * attenuates by 1/8. Shift left 3 to restore unity gain.
      * Phase 11 may revisit if noise floor or clipping behavior needs tuning. */
     return sat_s16((int32_t)s3_last << 3);
+}
+
+int16_t spu94_dac_fir_step_8x_with_noise(spu94_dac_fir_state *fir,
+                                          spu94_dac_noise_state *noise,
+                                          int16_t input)
+{
+    /* Stages 1 and 2 are identical to spu94_dac_fir_step_8x */
+
+    /* Stage 1: 2 evaluations at 88.2kHz */
+    int16_t s1[2];
+    dac_fir_push(fir->stage1_delay, &fir->stage1_idx,
+                 input, DAC_FIR_STAGE1_NTAPS);
+    s1[0] = dac_fir_stage_apply(fir->stage1_delay, fir->stage1_idx,
+                                DAC_FIR_STAGE1_NTAPS,
+                                dac_interp_stage1,
+                                dac_fir_stage1_pairs,
+                                DAC_FIR_STAGE1_NPAIRS);
+
+    dac_fir_push(fir->stage1_delay, &fir->stage1_idx,
+                 0, DAC_FIR_STAGE1_NTAPS);
+    s1[1] = dac_fir_stage_apply(fir->stage1_delay, fir->stage1_idx,
+                                DAC_FIR_STAGE1_NTAPS,
+                                dac_interp_stage1,
+                                dac_fir_stage1_pairs,
+                                DAC_FIR_STAGE1_NPAIRS);
+
+    /* Stage 2: 4 evaluations at 176.4kHz */
+    int16_t s2[4];
+    for (int i = 0; i < 2; i++) {
+        dac_fir_push(fir->stage2_delay, &fir->stage2_idx,
+                     s1[i], DAC_FIR_STAGE2_NTAPS);
+        s2[2 * i] = dac_fir_stage_apply(fir->stage2_delay, fir->stage2_idx,
+                                        DAC_FIR_STAGE2_NTAPS,
+                                        dac_interp_stage2,
+                                        dac_fir_stage2_pairs,
+                                        DAC_FIR_STAGE2_NPAIRS);
+
+        dac_fir_push(fir->stage2_delay, &fir->stage2_idx,
+                     0, DAC_FIR_STAGE2_NTAPS);
+        s2[2 * i + 1] = dac_fir_stage_apply(fir->stage2_delay, fir->stage2_idx,
+                                            DAC_FIR_STAGE2_NTAPS,
+                                            dac_interp_stage2,
+                                            dac_fir_stage2_pairs,
+                                            DAC_FIR_STAGE2_NPAIRS);
+    }
+
+    /* Stage 3: 8 evaluations at 352.8kHz with noise at converter rate.
+     *
+     * The LFSR advances 8 times per output sample, matching the real
+     * DAC converter clock. All 8 noise ticks must execute (advancing the
+     * LFSR state is the critical side effect for L/R decorrelation).
+     *
+     * Noise is added to the LAST Stage 3 output (the decimation pick)
+     * at int32 precision, BEFORE the <<3 gain compensation. This avoids
+     * the int16 quantization floor that limits noise to -72 dBFS when
+     * <<3 amplifies the smallest non-zero int16 value.
+     *
+     * The noise is NOT fed back into the Stage 3 delay line (the delay
+     * line receives Stage 2 outputs and zeros only). This means the
+     * cascade does not spectrally shape the noise -- the noise floor is
+     * flat white. This is consistent with the physical model where DAC
+     * quantization noise at 352.8kHz is broadband, and the reconstruction
+     * filter's transition band determines what leaks into the audio band.
+     * The <<3 gain compensation amplifies both signal and noise. */
+    int16_t s3_last = 0;
+    int16_t noise_last = 0;
+    for (int j = 0; j < 4; j++) {
+        dac_fir_push(fir->stage3_delay, &fir->stage3_idx,
+                     s2[j], DAC_FIR_STAGE3_NTAPS);
+        (void)dac_fir_stage_apply(fir->stage3_delay, fir->stage3_idx,
+                                  DAC_FIR_STAGE3_NTAPS,
+                                  dac_interp_stage3,
+                                  dac_fir_stage3_pairs,
+                                  DAC_FIR_STAGE3_NPAIRS);
+        (void)spu94_dac_noise_step_8x(noise);  /* advance LFSR */
+
+        dac_fir_push(fir->stage3_delay, &fir->stage3_idx,
+                     0, DAC_FIR_STAGE3_NTAPS);
+        s3_last = dac_fir_stage_apply(fir->stage3_delay, fir->stage3_idx,
+                                      DAC_FIR_STAGE3_NTAPS,
+                                      dac_interp_stage3,
+                                      dac_fir_stage3_pairs,
+                                      DAC_FIR_STAGE3_NPAIRS);
+        noise_last = spu94_dac_noise_step_8x(noise);  /* advance LFSR; keep last */
+    }
+
+    /* Gain compensation: <<3 on the FIR signal (identical to _step_8x).
+     * Noise is added AFTER gain compensation at int32 precision. This
+     * allows sub-LSB noise amplitudes that would be lost to int16
+     * quantization if added before <<3 (where minimum non-zero is 8 =
+     * -72 dBFS after amplification).
+     *
+     * noise_last is the last of 8 LFSR ticks, scaled by
+     * DAC_NOISE_8X_ACC_SCALE to hit the -90 dBFS target. The other 7
+     * LFSR ticks serve to advance the LFSR state for L/R decorrelation.
+     *
+     * DAC_NOISE_8X_ACC_SCALE is empirically tuned so that the final
+     * output RMS from noise alone lands in the -100 to -80 dB window. */
+    int32_t signal = (int32_t)s3_last << 3;
+    int32_t noise_val = ((int32_t)noise_last * DAC_NOISE_8X_ACC_SCALE) >> 8;
+    return sat_s16(signal + noise_val);
 }
 
 /* -------------------------------------------------------------------- */
