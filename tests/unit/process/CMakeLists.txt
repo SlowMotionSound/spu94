@@ -146,3 +146,12 @@ target_include_directories(test_process_dac_toggle_transitions PRIVATE
     ${CMAKE_SOURCE_DIR}/src/spu94)
 add_test(NAME test_process_dac_toggle_transitions COMMAND test_process_dac_toggle_transitions)
 set_tests_properties(test_process_dac_toggle_transitions PROPERTIES LABELS "process;dac_integration")
+
+# Phase 11: A/B mode toggle (v1.2/v1.3) + latency verification.
+add_executable(test_process_dac_mode_toggle test_process_dac_mode_toggle.c)
+target_link_libraries(test_process_dac_mode_toggle PRIVATE unity spu94_static spu94_warnings)
+target_include_directories(test_process_dac_mode_toggle PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src/spu94)
+add_test(NAME test_process_dac_mode_toggle COMMAND test_process_dac_mode_toggle)
+set_tests_properties(test_process_dac_mode_toggle PROPERTIES LABELS "process;dac_integration")
