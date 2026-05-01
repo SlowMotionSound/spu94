@@ -112,6 +112,7 @@ static void print_reverb_help(void) {
         "  --dac                    Enable DAC model (FIR + noise shaping)\n"
         "  --no-dac-fir             Disable DAC interpolation filter (use with --dac)\n"
         "  --no-dac-noise           Disable DAC noise shaping (use with --dac)\n"
+        "  --no-dac-true-oversample Use v1.2 approximate DAC path (use with --dac)\n"
         "\n"
         "Latency:\n"
         "  --latency-comp           Enable ADPCM latency compensation (default: on)\n"
@@ -141,6 +142,7 @@ int cmd_reverb(int argc, char **argv) {
         {"dac",             no_argument,       NULL, 'd'},
         {"no-dac-fir",      no_argument,       NULL, 1001},
         {"no-dac-noise",    no_argument,       NULL, 1002},
+        {"no-dac-true-oversample", no_argument, NULL, 1011},
         {"latency-comp",    no_argument,       NULL, 1003},
         {"no-latency-comp", no_argument,       NULL, 1004},
         {"input-gain",      required_argument, NULL, 1005},
@@ -161,6 +163,7 @@ int cmd_reverb(int argc, char **argv) {
     bool dac_enabled = false;
     bool no_dac_fir = false;
     bool no_dac_noise = false;
+    bool no_dac_true_oversample = false;
     bool latency_comp_off = false;
     /* Fader overrides: -1.0 means "not set by user" (use defaults). */
     double fader_input_gain = -1.0;
@@ -202,6 +205,9 @@ int cmd_reverb(int argc, char **argv) {
                 break;
             case 1002:
                 no_dac_noise = true;
+                break;
+            case 1011:
+                no_dac_true_oversample = true;
                 break;
             case 1003:
                 /* --latency-comp: already ON by default (D-07). Accepted for
@@ -396,6 +402,8 @@ int cmd_reverb(int argc, char **argv) {
         spu94_set_dac_enabled(state, 1);
         spu94_set_dac_fir_enabled(state, no_dac_fir ? 0 : 1);
         spu94_set_dac_noise_enabled(state, no_dac_noise ? 0 : 1);
+        if (no_dac_true_oversample)
+            spu94_set_dac_true_oversample(state, 0);
     }
 
     /* Latency compensation (D-05): ON by default. --no-latency-comp disables. */

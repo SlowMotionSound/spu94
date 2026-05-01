@@ -294,6 +294,13 @@ _lib.spu94_set_dac_noise_enabled.argtypes = [ctypes.c_void_p, ctypes.c_int]
 _lib.spu94_get_dac_noise_enabled.restype = ctypes.c_int
 _lib.spu94_get_dac_noise_enabled.argtypes = [ctypes.c_void_p]
 
+# DAC true oversample toggle (Phase 12 Plan 01, INT-02)
+_lib.spu94_set_dac_true_oversample.restype = None
+_lib.spu94_set_dac_true_oversample.argtypes = [ctypes.c_void_p, ctypes.c_int]
+
+_lib.spu94_get_dac_true_oversample.restype = ctypes.c_int
+_lib.spu94_get_dac_true_oversample.argtypes = [ctypes.c_void_p]
+
 # VAG file format I/O (M2 Phase 3, D-10) ------------------------------------
 
 _lib.spu94_vag_read_header.restype = ctypes.c_int  # 0=ok, -1=bad magic
