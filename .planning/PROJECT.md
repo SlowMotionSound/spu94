@@ -12,6 +12,16 @@
 
 **Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`.
 
+## Current Milestone: v1.4 Preset System
+
+**Goal:** Save and load custom presets as .spu94 files, with API in the C core and surfaces in CLI + JUCE GUI.
+
+**Target features:**
+- `spu94_preset_save` / `spu94_preset_load` in C core (plain text key=value format)
+- .spu94 file extension for preset files
+- CLI `preset-dump` / `preset-load` subcommands
+- JUCE Save/Load buttons in GUI
+
 ## What This Is
 
 SPU-94 is a bit-faithful software reimplementation of the Sony PlayStation 1 SPU reverb algorithm, built from the spec (nocash psx-spx) rather than ported from any existing emulator. It ships as a plain C library with Python bindings for development, and is designed to be wrapped later as a desktop audio plugin (JUCE) and eventually as hardware (Eurorack module, MCU firmware, or FPGA). SPU-94 is designed as a *living instrument*, not a static bank of presets — every parameter that moves in the original algorithm is designed to be controllable at runtime, smoothly and glitch-free, in service of performance, modulation, and CV control. The immediate audience is the author and a small circle of musicians who want the recognizable character of the PS1 reverb available as a modern, playable tool.
@@ -155,4 +165,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-30 — v1.3 True Oversampled DAC milestone started.*
+*Last updated: 2026-05-01 — v1.4 Preset System milestone started.*

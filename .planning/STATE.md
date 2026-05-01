@@ -1,32 +1,32 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.3
-milestone_name: True Oversampled DAC
-status: complete
-stopped_at: Milestone v1.3 tagged and closed
-last_updated: "2026-05-01T20:00:00.000Z"
-last_activity: 2026-05-01 -- v1.3 tagged, milestone complete
+milestone: v1.4
+milestone_name: Preset System
+status: planning
+stopped_at: Defining requirements
+last_updated: "2026-05-01T21:00:00.000Z"
+last_activity: 2026-05-01 -- Milestone v1.4 started
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-30)
+See: .planning/PROJECT.md (updated 2026-05-01)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Milestone v1.3 complete — True Oversampled DAC shipped
+**Current focus:** v1.4 Preset System — save/load custom presets
 
 ## Current Position
 
-Phase: 12 (Verification + Characterization) — COMPLETE
-Plan: 2 of 2
+Phase: Not started (defining requirements)
+Plan: —
 Status: All plans complete
 Last activity: 2026-05-01 -- Phase 12 Plan 02 complete (phase complete)
 
