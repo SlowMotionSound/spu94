@@ -57,8 +57,8 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 **Milestone Goal:** Replace the v1.2 44.1kHz FIR approximation with genuine 8x oversampling -- zero-stuff to 352.8kHz, run the AK4309 interpolation cascade at the real rate, decimate back to 44.1kHz.
 
 - [x] **Phase 10: Core Polyphase FIR Cascade** - True 8x zero-stuff + interpolation at real operating rates, with decimation and DAC-off identity proof (2026-05-01)
-- [ ] **Phase 11: Noise Recalibration + Integration** - Noise model at 352.8kHz, A/B mode toggle, latency update, surface compatibility
-- [ ] **Phase 12: Verification + Characterization** - Characterization script, ADR documenting audible differences, new golden files
+- [x] **Phase 11: Noise Recalibration + Integration** - Noise model at 352.8kHz, A/B mode toggle, latency update, surface compatibility (2026-05-01)
+- [x] **Phase 12: Verification + Characterization** - Characterization script, ADR documenting audible differences, new golden files (2026-05-01)
 
 ## Phase Details
 
@@ -96,7 +96,7 @@ Plans:
 - [x] 11-01-PLAN.md — Toggle API + noise shift constant + combined FIR+noise function
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 11-02-PLAN.md — Pipeline dispatch + latency update + integration tests + listen gate
+- [x] 11-02-PLAN.md — Pipeline dispatch + latency update + integration tests + listen gate
 
 ### Phase 12: Verification + Characterization
 **Goal**: The true oversampled DAC is proven correct with new golden files, and the central question -- does it sound different from v1.2? -- is answered with measurements
@@ -113,7 +113,7 @@ Plans:
 - [x] 12-01-PLAN.md — Surface toggle (CLI + Python) + regenerate v1.3 DAC golden files
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 12-02-PLAN.md — v1.2 vs v1.3 characterization script + ADR-0055
+- [x] 12-02-PLAN.md — v1.2 vs v1.3 characterization script + ADR-0055
 
 ## Progress
 
@@ -123,8 +123,8 @@ Phases execute in numeric order: 10 -> 11 -> 12
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 10. Core Polyphase FIR Cascade | v1.3 | 4/4 | Complete | 2026-05-01 |
-| 11. Noise Recalibration + Integration | v1.3 | 1/2 | Executing | - |
-| 12. Verification + Characterization | v1.3 | 1/2 | Executing | - |
+| 11. Noise Recalibration + Integration | v1.3 | 2/2 | Complete | 2026-05-01 |
+| 12. Verification + Characterization | v1.3 | 2/2 | Complete | 2026-05-01 |
 
 ---
 
@@ -139,4 +139,4 @@ Phases execute in numeric order: 10 -> 11 -> 12
 - `.planning/milestones/v1.0-REQUIREMENTS.md` -- M1 requirements
 
 ---
-*Last updated: 2026-05-01 -- Phase 12 planned (2 plans)*
+*Last updated: 2026-05-01 -- Phase 12 complete (2/2 plans)*

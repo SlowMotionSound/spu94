@@ -21,8 +21,8 @@ Requirements for true oversampled DAC milestone. Each maps to roadmap phases.
 ### Comparison + Characterization
 
 - [x] **CMP-01**: A/B mode toggle — selectable v1.2 (approx) vs v1.3 (true) DAC processing path
-- [ ] **CMP-02**: Python characterization script comparing v1.2 vs v1.3 (frequency response, impulse response, noise floor, time-domain)
-- [ ] **CMP-03**: ADR documenting whether true oversampling produces audible differences, with measurement evidence
+- [x] **CMP-02**: Python characterization script comparing v1.2 vs v1.3 (frequency response, impulse response, noise floor, time-domain)
+- [x] **CMP-03**: ADR documenting whether true oversampling produces audible differences, with measurement evidence
 
 ### Integration + Verification
 
@@ -77,8 +77,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DSP-07 | Phase 11 | Pending |
 | DSP-08 | Phase 10 | Pending |
 | CMP-01 | Phase 11 | Complete (11-01) |
-| CMP-02 | Phase 12 | Pending |
-| CMP-03 | Phase 12 | Pending |
+| CMP-02 | Phase 12 | Complete |
+| CMP-03 | Phase 12 | Complete |
 | INT-01 | Phase 11 | Pending |
 | INT-02 | Phase 12, Plan 01 | Complete |
 | INT-03 | Phase 10 | Pending |
