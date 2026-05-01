@@ -27,7 +27,7 @@ Requirements for true oversampled DAC milestone. Each maps to roadmap phases.
 ### Integration + Verification
 
 - [ ] **INT-01**: CLI/Python/JUCE surfaces unchanged — --dac, set_dac_enabled(), JUCE toggle work identically
-- [ ] **INT-02**: v1.2 DAC golden files archived; new v1.3 golden files generated
+- [x] **INT-02**: v1.2 DAC golden files archived; new v1.3 golden files generated
 - [ ] **INT-03**: DAC-off golden files are bit-identical before and after (zero blast radius on non-DAC paths)
 - [ ] **INT-04**: Audio-band frequency response matches v1.2 within 0.05dB (Q15 truncation budget across 14 evaluations/sample)
 
@@ -80,7 +80,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CMP-02 | Phase 12 | Pending |
 | CMP-03 | Phase 12 | Pending |
 | INT-01 | Phase 11 | Pending |
-| INT-02 | Phase 12 | Pending |
+| INT-02 | Phase 12, Plan 01 | Complete |
 | INT-03 | Phase 10 | Pending |
 | INT-04 | Phase 10 | Pending |
 

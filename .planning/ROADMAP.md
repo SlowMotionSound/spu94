@@ -110,7 +110,7 @@ Plans:
 
 Plans:
 **Wave 1**
-- [ ] 12-01-PLAN.md — Surface toggle (CLI + Python) + regenerate v1.3 DAC golden files
+- [x] 12-01-PLAN.md — Surface toggle (CLI + Python) + regenerate v1.3 DAC golden files
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 12-02-PLAN.md — v1.2 vs v1.3 characterization script + ADR-0055
@@ -124,7 +124,7 @@ Phases execute in numeric order: 10 -> 11 -> 12
 |-------|-----------|----------------|--------|-----------|
 | 10. Core Polyphase FIR Cascade | v1.3 | 4/4 | Complete | 2026-05-01 |
 | 11. Noise Recalibration + Integration | v1.3 | 1/2 | Executing | - |
-| 12. Verification + Characterization | v1.3 | 0/2 | Not started | - |
+| 12. Verification + Characterization | v1.3 | 1/2 | Executing | - |
 
 ---
 
