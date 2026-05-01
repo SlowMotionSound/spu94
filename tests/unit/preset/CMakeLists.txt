@@ -41,3 +41,17 @@ target_include_directories(test_preset_nonzero_tail PRIVATE
     ${CMAKE_SOURCE_DIR}/src/spu94)
 add_test(NAME test_preset_nonzero_tail COMMAND test_preset_nonzero_tail)
 set_tests_properties(test_preset_nonzero_tail PROPERTIES LABELS "preset")
+
+# Phase 13 Plan 01: Save format validation and round-trip scaffold
+add_executable(test_preset_roundtrip test_preset_roundtrip.c)
+target_link_libraries(test_preset_roundtrip
+    PRIVATE
+        unity
+        spu94_static
+        spu94_warnings
+)
+target_include_directories(test_preset_roundtrip PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src/spu94)
+add_test(NAME test_preset_roundtrip COMMAND test_preset_roundtrip)
+set_tests_properties(test_preset_roundtrip PROPERTIES LABELS "preset")
