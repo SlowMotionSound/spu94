@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Preset System
-status: executing
-stopped_at: Phase 13 complete (2/2 plans), ready for Phase 14
+status: planning
+stopped_at: Phase 13 verified and complete, Phase 14 ready to discuss/plan
 last_updated: "2026-05-01T21:53:52Z"
 last_activity: 2026-05-01 -- Phase 13 Plan 02 executed (preset load parser + round-trip tests)
 progress:
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-01)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.4 Preset System -- Phase 13 Core Preset API
+**Current focus:** v1.4 Preset System -- Phase 14 I/O Surfaces
 
 ## Current Position
 
-Phase: 13 of 15 (Core Preset API)
-Plan: 02 of 02 (complete)
-Status: Phase 13 complete, ready for Phase 14
-Last activity: 2026-05-01 -- Phase 13 Plan 02 executed (preset load parser + round-trip tests)
+Phase: 14 of 15 (I/O Surfaces)
+Plan: Ready to discuss/plan
+Status: Phase 13 verified, advancing to Phase 14
+Last activity: 2026-05-01 -- Phase 13 verified (10/10 must-haves)
 
-Progress: [██████████] 100%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
