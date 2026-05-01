@@ -124,15 +124,8 @@ void spu94_process(spu94_state *state,
                     out_l = spu94_dac_fir_step_8x(&state->dac_fir_l, out_l);
                     out_r = spu94_dac_fir_step_8x(&state->dac_fir_r, out_r);
                 } else if (state->dac_noise_enabled) {
-                    /* Noise-only at 352.8kHz: run 8 ticks, keep last.
-                     * Matches decimation pattern of the FIR cascade. */
-                    int16_t nl = 0, nr = 0;
-                    for (int k = 0; k < 8; k++) {
-                        nl = spu94_dac_noise_step_8x(&state->dac_noise_l);
-                        nr = spu94_dac_noise_step_8x(&state->dac_noise_r);
-                    }
-                    out_l = q15_add_sat(out_l, nl);
-                    out_r = q15_add_sat(out_r, nr);
+                    out_l = q15_add_sat(out_l, spu94_dac_noise_step(&state->dac_noise_l));
+                    out_r = q15_add_sat(out_r, spu94_dac_noise_step(&state->dac_noise_r));
                 }
             } else {
                 /* v1.2: approximate single-rate (D-02 fallback path) */
