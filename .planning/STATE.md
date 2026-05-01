@@ -96,6 +96,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-01T02:00:00.000Z
-Stopped at: Phase 10 complete — ready to discuss/plan Phase 11
-Resume file: none
+Last session: 2026-05-01T02:30:00.000Z
+Stopped at: Phase 11 context gathered — ready to plan
+Resume file: .planning/phases/11-noise-recalibration-integration/11-CONTEXT.md
