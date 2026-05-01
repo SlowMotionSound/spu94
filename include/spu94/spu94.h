@@ -482,6 +482,39 @@ spu94_error_counters_t spu94_get_error_counters(const spu94_state *state);
  * for the out-of-range id case. */
 spu94_result_t spu94_load_preset(spu94_state *state, spu94_preset_id_t id);
 
+/* ------------------------------------------------------------------------- */
+/* User-preset serialization (Phase 13, PRE-01..PRE-05)                      */
+/* ------------------------------------------------------------------------- */
+
+/* Upper bound on spu94_preset_save output. Generous: worst-case ~1400 bytes;
+ * 4096 leaves room for future field additions without a version bump.         */
+#define SPU94_PRESET_BUF_SIZE 4096u
+
+/* Serialize the full engine state (35 registers + 6 mixer faders +
+ * latency_comp toggle + 4 DAC toggles = 46 fields) to a human-readable
+ * INI-style key=value text buffer.
+ *
+ * name / description may be NULL (written as empty strings).
+ * Name is capped at 64 characters; description at 256. Excess is truncated.
+ *
+ * Returns bytes written (>= 0, excluding null terminator) on success.
+ * Returns -1 if state, buf are NULL, or buf_size is 0.
+ * Returns -2 if buf_size is too small to hold the complete output. */
+int spu94_preset_save(const spu94_state *state,
+                      const char *name,
+                      const char *description,
+                      char *buf, size_t buf_size);
+
+/* Deserialize a key=value text buffer and restore engine state.
+ * Missing keys retain the engine's current value (D-08).
+ * Unknown keys are silently ignored (D-09).
+ *
+ * Returns SPU94_OK on success.
+ * Returns SPU94_INVALID_STATE if state is NULL.
+ * Returns SPU94_INVALID_ARG if buf is NULL or buf_len is 0. */
+spu94_result_t spu94_preset_load(spu94_state *state,
+                                 const char *buf, size_t buf_len);
+
 #ifdef __cplusplus
 }
 #endif

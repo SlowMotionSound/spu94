@@ -16,6 +16,7 @@ add_library(spu94_obj OBJECT
     spu94_io_chain.c
     spu94_process.c
     spu94_presets.c
+    spu94_preset_io.c
     spu94_adpcm.c
     spu94_adpcm_encode.c
     vag.c
