@@ -83,7 +83,10 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
   2. `spu94_preset_load` parses a key=value buffer and restores all state -- a save/load round-trip produces bit-identical register values
   3. The preset text includes a version header line (e.g. `version=1`) so future format additions won't break existing files
   4. A .spu94 file saved to disk is plain text, human-readable, and hand-editable with a text editor
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 13-01-PLAN.md -- Public API declaration + spu94_preset_save implementation + save format tests
+- [ ] 13-02-PLAN.md -- spu94_preset_load parser implementation + round-trip fidelity + edge-case tests
 
 ### Phase 14: I/O Surfaces
 **Goal**: Users can save and load .spu94 presets through both CLI subcommands and JUCE GUI buttons
@@ -116,7 +119,7 @@ Phases execute in numeric order: 13 -> 14 -> 15
 | 10. Core Polyphase FIR Cascade | v1.3 | 4/4 | Complete | 2026-05-01 |
 | 11. Noise Recalibration + Integration | v1.3 | 2/2 | Complete | 2026-05-01 |
 | 12. Verification + Characterization | v1.3 | 2/2 | Complete | 2026-05-01 |
-| 13. Core Preset API | v1.4 | 0/? | Not started | - |
+| 13. Core Preset API | v1.4 | 0/2 | Not started | - |
 | 14. I/O Surfaces | v1.4 | 0/? | Not started | - |
 | 15. Verification | v1.4 | 0/? | Not started | - |
 
@@ -133,4 +136,4 @@ Phases execute in numeric order: 13 -> 14 -> 15
 - `.planning/milestones/v1.0-REQUIREMENTS.md` -- M1 requirements
 
 ---
-*Last updated: 2026-05-01 -- v1.4 Preset System roadmap created*
+*Last updated: 2026-05-01 -- Phase 13 plans created*
