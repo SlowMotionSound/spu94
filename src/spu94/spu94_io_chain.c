@@ -172,11 +172,24 @@ int spu94_get_adpcm_enabled(const spu94_state *state) {
     return state->adpcm_enabled;
 }
 
-/* ADPCM-INT-03: total latency including ADPCM block delay. */
+/* DAC FIR group delay at 44.1kHz output rate (Phase 11 DSP-07).
+ * v1.2: all stages at 44.1kHz = (55-1)/2 + (11-1)/2 + (7-1)/2 = 35
+ * v1.3: stages at true rates = 27/2 + 5/4 + 3/8 = 15.125, rounded to 15 */
+#define DAC_FIR_GROUP_DELAY_V12  35u
+#define DAC_FIR_GROUP_DELAY_V13  15u
+
+/* ADPCM-INT-03 + Phase 11 DSP-07: total latency including ADPCM block
+ * delay and mode-aware DAC FIR group delay. */
 uint32_t spu94_get_total_latency_samples(const spu94_state *state) {
     if (state == NULL) return SPU94_LATENCY_SAMPLES;
-    return SPU94_LATENCY_SAMPLES +
-           (state->adpcm_enabled ? SPU94_ADPCM_BLOCK_SAMPLES : 0u);
+    uint32_t lat = SPU94_LATENCY_SAMPLES;
+    if (state->adpcm_enabled)
+        lat += SPU94_ADPCM_BLOCK_SAMPLES;
+    if (state->dac_enabled && state->dac_fir_enabled)
+        lat += state->dac_true_oversample
+            ? DAC_FIR_GROUP_DELAY_V13
+            : DAC_FIR_GROUP_DELAY_V12;
+    return lat;
 }
 
 /* -----------------------------------------------------------------------

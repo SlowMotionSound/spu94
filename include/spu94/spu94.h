@@ -227,9 +227,12 @@ void     spu94_set_adpcm_enabled(spu94_state *state, int enabled);
 /** Query ADPCM coloration state. NULL state returns 0. */
 int      spu94_get_adpcm_enabled(const spu94_state *state);
 
-/** Total processing latency in samples at 44.1 kHz, including ADPCM
- *  block latency when enabled. Returns SPU94_LATENCY_SAMPLES (58) when
- *  ADPCM is off, 86 (58 + 28) when on. NULL state returns 58. */
+/** Total processing latency in samples at 44.1 kHz.
+ *  Base: SPU94_LATENCY_SAMPLES (58).
+ *  + 28 when ADPCM enabled.
+ *  + 15 when DAC FIR enabled in v1.3 mode (true oversample).
+ *  + 35 when DAC FIR enabled in v1.2 mode (approximate).
+ *  NULL state returns 58. */
 uint32_t spu94_get_total_latency_samples(const spu94_state *state);
 
 /* -----------------------------------------------------------------------

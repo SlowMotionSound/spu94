@@ -111,15 +111,39 @@ void spu94_process(spu94_state *state,
           + (int32_t)q15_mul_truncate(patina_r, state->patina_fader)
           + (int32_t)q15_mul_truncate(rev_r,    state->reverb_fader));
 
-        /* 7. DAC section: true 8x oversampled interpolation (Phase 10) */
+        /* 7. DAC section: mode-selectable v1.2/v1.3 processing (Phase 11) */
         if (state->dac_enabled) {
-            if (state->dac_fir_enabled) {
-                out_l = spu94_dac_fir_step_8x(&state->dac_fir_l, out_l);
-                out_r = spu94_dac_fir_step_8x(&state->dac_fir_r, out_r);
-            }
-            if (state->dac_noise_enabled) {
-                out_l = q15_add_sat(out_l, spu94_dac_noise_step(&state->dac_noise_l));
-                out_r = q15_add_sat(out_r, spu94_dac_noise_step(&state->dac_noise_r));
+            if (state->dac_true_oversample) {
+                /* v1.3: true 8x oversampling with noise at 352.8kHz (D-03) */
+                if (state->dac_fir_enabled && state->dac_noise_enabled) {
+                    out_l = spu94_dac_fir_step_8x_with_noise(
+                        &state->dac_fir_l, &state->dac_noise_l, out_l);
+                    out_r = spu94_dac_fir_step_8x_with_noise(
+                        &state->dac_fir_r, &state->dac_noise_r, out_r);
+                } else if (state->dac_fir_enabled) {
+                    out_l = spu94_dac_fir_step_8x(&state->dac_fir_l, out_l);
+                    out_r = spu94_dac_fir_step_8x(&state->dac_fir_r, out_r);
+                } else if (state->dac_noise_enabled) {
+                    /* Noise-only at 352.8kHz: run 8 ticks, keep last.
+                     * Matches decimation pattern of the FIR cascade. */
+                    int16_t nl = 0, nr = 0;
+                    for (int k = 0; k < 8; k++) {
+                        nl = spu94_dac_noise_step_8x(&state->dac_noise_l);
+                        nr = spu94_dac_noise_step_8x(&state->dac_noise_r);
+                    }
+                    out_l = q15_add_sat(out_l, nl);
+                    out_r = q15_add_sat(out_r, nr);
+                }
+            } else {
+                /* v1.2: approximate single-rate (D-02 fallback path) */
+                if (state->dac_fir_enabled) {
+                    out_l = spu94_dac_fir_step(&state->dac_fir_l, out_l);
+                    out_r = spu94_dac_fir_step(&state->dac_fir_r, out_r);
+                }
+                if (state->dac_noise_enabled) {
+                    out_l = q15_add_sat(out_l, spu94_dac_noise_step(&state->dac_noise_l));
+                    out_r = q15_add_sat(out_r, spu94_dac_noise_step(&state->dac_noise_r));
+                }
             }
         }
 
