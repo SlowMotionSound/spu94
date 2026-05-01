@@ -109,16 +109,151 @@ int spu94_preset_save(const spu94_state *state,
 }
 
 /* -----------------------------------------------------------------------
- * spu94_preset_load — stub (full parser implemented in Plan 02)
+ * spu94_preset_load — section-aware INI parser (Phase 13 Plan 02)
  * ----------------------------------------------------------------------- */
+
+/* Section state machine for the line parser. */
+typedef enum {
+    SECTION_NONE = 0,
+    SECTION_REGISTERS,
+    SECTION_MIXER,
+    SECTION_DAC
+} preset_section_t;
+
+/* Parse a boolean "0" or "1" value. Returns 0 or 1 on success, -1 on
+ * invalid input (anything other than a single 0/1 digit). */
+static int parse_bool(const char *s)
+{
+    if (!s) return -1;
+    if (s[0] == '1' && (s[1] == '\0' || s[1] == '\n' || s[1] == '\r'))
+        return 1;
+    if (s[0] == '0' && (s[1] == '\0' || s[1] == '\n' || s[1] == '\r'))
+        return 0;
+    return -1;
+}
 
 spu94_result_t spu94_preset_load(spu94_state *state,
                                  const char *buf, size_t buf_len)
 {
     if (!state) return SPU94_INVALID_STATE;
     if (!buf || buf_len == 0) return SPU94_INVALID_ARG;
-    /* Full parser implemented in Plan 02.  Reference parse_hex_u16 to
-     * suppress -Wunused-function until the real parser lands. */
-    (void)parse_hex_u16;
+
+    const char *p = buf;
+    const char *end = buf + buf_len;
+    preset_section_t section = SECTION_NONE;
+    char line[512];
+
+    while (p < end) {
+        /* Find end of current line */
+        const char *nl = p;
+        while (nl < end && *nl != '\n') nl++;
+
+        /* Copy line into local buffer (truncate if > 511 chars) */
+        size_t line_len = (size_t)(nl - p);
+        if (line_len >= sizeof line) line_len = sizeof line - 1;
+        memcpy(line, p, line_len);
+        line[line_len] = '\0';
+
+        /* Advance past the newline */
+        p = (nl < end) ? nl + 1 : end;
+
+        /* Strip trailing \r */
+        if (line_len > 0 && line[line_len - 1] == '\r') {
+            line_len--;
+            line[line_len] = '\0';
+        }
+
+        /* Skip empty lines */
+        if (line[0] == '\0') continue;
+
+        /* Skip comment lines */
+        if (line[0] == '#') continue;
+
+        /* Check for section headers */
+        if (strcmp(line, "[registers]") == 0) {
+            section = SECTION_REGISTERS;
+            continue;
+        }
+        if (strcmp(line, "[mixer]") == 0) {
+            section = SECTION_MIXER;
+            continue;
+        }
+        if (strcmp(line, "[dac]") == 0) {
+            section = SECTION_DAC;
+            continue;
+        }
+
+        /* Find the '=' separator */
+        char *eq = strchr(line, '=');
+        if (!eq) continue;  /* malformed line, skip (D-09 tolerance) */
+
+        /* Split into key and value */
+        *eq = '\0';
+        const char *key = line;
+        const char *value = eq + 1;
+
+        /* Dispatch by section */
+        switch (section) {
+        case SECTION_NONE:
+            /* Metadata keys: version, name, description -- not stored in
+             * engine state. Unknown keys silently ignored (D-09). */
+            break;
+
+        case SECTION_REGISTERS:
+            /* Match key against the register name table */
+            for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
+                if (strcmp(key, spu94_reg_name((spu94_reg_t)r)) == 0) {
+                    uint16_t val = parse_hex_u16(value);
+                    if (spu94_reg_type((spu94_reg_t)r) == SPU94_REG_TYPE_I16) {
+                        (void)spu94_set_reg_i16(state, (spu94_reg_t)r,
+                                                (int16_t)val);
+                    } else {
+                        (void)spu94_set_reg_u16(state, (spu94_reg_t)r, val);
+                    }
+                    break;
+                }
+            }
+            /* If no register matches, silently ignored (D-09) */
+            break;
+
+        case SECTION_MIXER:
+            if (strcmp(key, "input_gain") == 0)
+                spu94_set_input_gain(state, (int16_t)parse_hex_u16(value));
+            else if (strcmp(key, "dry_fader") == 0)
+                spu94_set_dry_fader(state, (int16_t)parse_hex_u16(value));
+            else if (strcmp(key, "patina_fader") == 0)
+                spu94_set_patina_fader(state, (int16_t)parse_hex_u16(value));
+            else if (strcmp(key, "dry_send") == 0)
+                spu94_set_dry_send(state, (int16_t)parse_hex_u16(value));
+            else if (strcmp(key, "patina_send") == 0)
+                spu94_set_patina_send(state, (int16_t)parse_hex_u16(value));
+            else if (strcmp(key, "reverb_fader") == 0)
+                spu94_set_reverb_fader(state, (int16_t)parse_hex_u16(value));
+            else if (strcmp(key, "latency_comp") == 0) {
+                int b = parse_bool(value);
+                if (b >= 0) spu94_set_latency_comp(state, b);
+            }
+            /* else: unknown key, silently ignored (D-09) */
+            break;
+
+        case SECTION_DAC:
+            if (strcmp(key, "dac_enabled") == 0) {
+                int b = parse_bool(value);
+                if (b >= 0) spu94_set_dac_enabled(state, b);
+            } else if (strcmp(key, "dac_fir_enabled") == 0) {
+                int b = parse_bool(value);
+                if (b >= 0) spu94_set_dac_fir_enabled(state, b);
+            } else if (strcmp(key, "dac_noise_enabled") == 0) {
+                int b = parse_bool(value);
+                if (b >= 0) spu94_set_dac_noise_enabled(state, b);
+            } else if (strcmp(key, "dac_true_oversample") == 0) {
+                int b = parse_bool(value);
+                if (b >= 0) spu94_set_dac_true_oversample(state, b);
+            }
+            /* else: unknown key, silently ignored (D-09) */
+            break;
+        }
+    }
+
     return SPU94_OK;
 }
