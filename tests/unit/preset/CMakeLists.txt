@@ -55,3 +55,17 @@ target_include_directories(test_preset_roundtrip PRIVATE
     ${CMAKE_SOURCE_DIR}/src/spu94)
 add_test(NAME test_preset_roundtrip COMMAND test_preset_roundtrip)
 set_tests_properties(test_preset_roundtrip PROPERTIES LABELS "preset")
+
+# Phase 13 Plan 02: Parser edge-case tests (D-08 missing keys, D-09 unknown keys)
+add_executable(test_preset_parse test_preset_parse.c)
+target_link_libraries(test_preset_parse
+    PRIVATE
+        unity
+        spu94_static
+        spu94_warnings
+)
+target_include_directories(test_preset_parse PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src/spu94)
+add_test(NAME test_preset_parse COMMAND test_preset_parse)
+set_tests_properties(test_preset_parse PROPERTIES LABELS "preset")

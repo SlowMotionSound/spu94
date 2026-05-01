@@ -18,6 +18,11 @@ static unsigned char work_buf[64 * 1024];
 static spu94_state *state = NULL;
 static char preset_buf[SPU94_PRESET_BUF_SIZE];
 
+/* Second state for round-trip comparison (Plan 02) */
+static alignas(SPU94_STATE_ALIGN_MAX) unsigned char state_buf2[SPU94_STATE_SIZE_MAX];
+static unsigned char work_buf2[64 * 1024];
+static spu94_state *state2 = NULL;
+
 void setUp(void) {
     state = spu94_init(state_buf, sizeof state_buf, work_buf, sizeof work_buf);
     TEST_ASSERT_NOT_NULL(state);
@@ -226,11 +231,211 @@ static void test_save_buf_too_small(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Round-trip fidelity tests (Phase 13 Plan 02 -- PRE-04)
+ * ----------------------------------------------------------------------- */
+
+/* Helper: init and reset state2 for round-trip comparison. */
+static void init_state2(void)
+{
+    state2 = spu94_init(state_buf2, sizeof state_buf2,
+                        work_buf2, sizeof work_buf2);
+    TEST_ASSERT_NOT_NULL(state2);
+    spu94_reset(state2);
+}
+
+static void test_roundtrip_hall_registers(void)
+{
+    spu94_load_preset(state, SPU94_PRESET_HALL);
+    int rc = spu94_preset_save(state, "Hall", "round-trip test",
+                               preset_buf, sizeof preset_buf);
+    TEST_ASSERT_GREATER_THAN(0, rc);
+
+    init_state2();
+    spu94_result_t lr = spu94_preset_load(state2, preset_buf, (size_t)rc);
+    TEST_ASSERT_EQUAL_INT((int)SPU94_OK, (int)lr);
+
+    /* Compare all 35 registers */
+    int16_t regs1[SPU94_REG__COUNT];
+    int16_t regs2[SPU94_REG__COUNT];
+    spu94_snapshot_registers(state, regs1);
+    spu94_snapshot_registers(state2, regs2);
+
+    char msg[96];
+    for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
+        snprintf(msg, sizeof msg, "register %s mismatch",
+                 spu94_reg_name((spu94_reg_t)r));
+        TEST_ASSERT_EQUAL_HEX16_MESSAGE(
+            (uint16_t)regs1[r], (uint16_t)regs2[r], msg);
+    }
+}
+
+static void test_roundtrip_hall_mixer(void)
+{
+    spu94_load_preset(state, SPU94_PRESET_HALL);
+    int rc = spu94_preset_save(state, "Hall", "mixer test",
+                               preset_buf, sizeof preset_buf);
+    TEST_ASSERT_GREATER_THAN(0, rc);
+
+    init_state2();
+    spu94_preset_load(state2, preset_buf, (size_t)rc);
+
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(
+        spu94_get_input_gain(state), spu94_get_input_gain(state2),
+        "input_gain mismatch");
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(
+        spu94_get_dry_fader(state), spu94_get_dry_fader(state2),
+        "dry_fader mismatch");
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(
+        spu94_get_patina_fader(state), spu94_get_patina_fader(state2),
+        "patina_fader mismatch");
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(
+        spu94_get_dry_send(state), spu94_get_dry_send(state2),
+        "dry_send mismatch");
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(
+        spu94_get_patina_send(state), spu94_get_patina_send(state2),
+        "patina_send mismatch");
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(
+        spu94_get_reverb_fader(state), spu94_get_reverb_fader(state2),
+        "reverb_fader mismatch");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(
+        spu94_get_latency_comp(state), spu94_get_latency_comp(state2),
+        "latency_comp mismatch");
+}
+
+static void test_roundtrip_hall_dac(void)
+{
+    spu94_load_preset(state, SPU94_PRESET_HALL);
+    int rc = spu94_preset_save(state, "Hall", "dac test",
+                               preset_buf, sizeof preset_buf);
+    TEST_ASSERT_GREATER_THAN(0, rc);
+
+    init_state2();
+    spu94_preset_load(state2, preset_buf, (size_t)rc);
+
+    TEST_ASSERT_EQUAL_INT_MESSAGE(
+        spu94_get_dac_enabled(state), spu94_get_dac_enabled(state2),
+        "dac_enabled mismatch");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(
+        spu94_get_dac_fir_enabled(state), spu94_get_dac_fir_enabled(state2),
+        "dac_fir_enabled mismatch");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(
+        spu94_get_dac_noise_enabled(state), spu94_get_dac_noise_enabled(state2),
+        "dac_noise_enabled mismatch");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(
+        spu94_get_dac_true_oversample(state), spu94_get_dac_true_oversample(state2),
+        "dac_true_oversample mismatch");
+}
+
+static void test_roundtrip_custom_state(void)
+{
+    /* Set up a non-default state exercising ALL field types */
+    spu94_load_preset(state, SPU94_PRESET_DELAY);
+    spu94_set_input_gain(state, 0x4000);
+    spu94_set_dry_fader(state, 0x2000);
+    spu94_set_patina_fader(state, 0x1000);
+    spu94_set_dry_send(state, 0x3000);
+    spu94_set_patina_send(state, 0x0800);
+    spu94_set_reverb_fader(state, 0x6000);
+    spu94_set_latency_comp(state, 0);
+    spu94_set_dac_enabled(state, 0);
+    spu94_set_dac_fir_enabled(state, 0);
+    spu94_set_dac_noise_enabled(state, 1);
+    spu94_set_dac_true_oversample(state, 0);
+
+    int rc = spu94_preset_save(state, "Custom", "full roundtrip",
+                               preset_buf, sizeof preset_buf);
+    TEST_ASSERT_GREATER_THAN(0, rc);
+
+    init_state2();
+    spu94_preset_load(state2, preset_buf, (size_t)rc);
+
+    /* Compare all 35 registers */
+    int16_t regs1[SPU94_REG__COUNT];
+    int16_t regs2[SPU94_REG__COUNT];
+    spu94_snapshot_registers(state, regs1);
+    spu94_snapshot_registers(state2, regs2);
+
+    char msg[96];
+    for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
+        snprintf(msg, sizeof msg, "custom register %s mismatch",
+                 spu94_reg_name((spu94_reg_t)r));
+        TEST_ASSERT_EQUAL_HEX16_MESSAGE(
+            (uint16_t)regs1[r], (uint16_t)regs2[r], msg);
+    }
+
+    /* Compare 7 mixer fields */
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(
+        spu94_get_input_gain(state), spu94_get_input_gain(state2),
+        "custom input_gain mismatch");
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(
+        spu94_get_dry_fader(state), spu94_get_dry_fader(state2),
+        "custom dry_fader mismatch");
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(
+        spu94_get_patina_fader(state), spu94_get_patina_fader(state2),
+        "custom patina_fader mismatch");
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(
+        spu94_get_dry_send(state), spu94_get_dry_send(state2),
+        "custom dry_send mismatch");
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(
+        spu94_get_patina_send(state), spu94_get_patina_send(state2),
+        "custom patina_send mismatch");
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(
+        spu94_get_reverb_fader(state), spu94_get_reverb_fader(state2),
+        "custom reverb_fader mismatch");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(
+        spu94_get_latency_comp(state), spu94_get_latency_comp(state2),
+        "custom latency_comp mismatch");
+
+    /* Compare 4 DAC toggles */
+    TEST_ASSERT_EQUAL_INT_MESSAGE(
+        spu94_get_dac_enabled(state), spu94_get_dac_enabled(state2),
+        "custom dac_enabled mismatch");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(
+        spu94_get_dac_fir_enabled(state), spu94_get_dac_fir_enabled(state2),
+        "custom dac_fir_enabled mismatch");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(
+        spu94_get_dac_noise_enabled(state), spu94_get_dac_noise_enabled(state2),
+        "custom dac_noise_enabled mismatch");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(
+        spu94_get_dac_true_oversample(state), spu94_get_dac_true_oversample(state2),
+        "custom dac_true_oversample mismatch");
+}
+
+static void test_roundtrip_preserves_bytes_exact(void)
+{
+    /* Prove serialization determinism: save(load(save(s))) == save(s) */
+    spu94_load_preset(state, SPU94_PRESET_HALL);
+    spu94_set_input_gain(state, 0x5555);
+    spu94_set_dac_enabled(state, 0);
+
+    int rc1 = spu94_preset_save(state, "Det", "determinism",
+                                preset_buf, sizeof preset_buf);
+    TEST_ASSERT_GREATER_THAN(0, rc1);
+
+    /* Load into state2 */
+    init_state2();
+    spu94_preset_load(state2, preset_buf, (size_t)rc1);
+
+    /* Save state2 to a second buffer */
+    char preset_buf2[SPU94_PRESET_BUF_SIZE];
+    int rc2 = spu94_preset_save(state2, "Det", "determinism",
+                                preset_buf2, sizeof preset_buf2);
+    TEST_ASSERT_GREATER_THAN(0, rc2);
+
+    /* The two buffers must be identical */
+    TEST_ASSERT_EQUAL_INT_MESSAGE(rc1, rc2,
+        "save lengths differ after round-trip");
+    TEST_ASSERT_EQUAL_STRING_MESSAGE(preset_buf, preset_buf2,
+        "save output differs after round-trip (determinism failure)");
+}
+
+/* -----------------------------------------------------------------------
  * main
  * ----------------------------------------------------------------------- */
 
 int main(void) {
     UNITY_BEGIN();
+    /* Plan 01: save format tests (1-15) */
     RUN_TEST(test_save_null_state_returns_error);
     RUN_TEST(test_save_null_buf_returns_error);
     RUN_TEST(test_save_zero_bufsize_returns_error);
@@ -246,5 +451,11 @@ int main(void) {
     RUN_TEST(test_save_hex_format_4digit);
     RUN_TEST(test_save_null_name_description);
     RUN_TEST(test_save_buf_too_small);
+    /* Plan 02: round-trip fidelity tests (16-20) */
+    RUN_TEST(test_roundtrip_hall_registers);
+    RUN_TEST(test_roundtrip_hall_mixer);
+    RUN_TEST(test_roundtrip_hall_dac);
+    RUN_TEST(test_roundtrip_custom_state);
+    RUN_TEST(test_roundtrip_preserves_bytes_exact);
     return UNITY_END();
 }
