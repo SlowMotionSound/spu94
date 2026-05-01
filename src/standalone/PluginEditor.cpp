@@ -205,8 +205,10 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             std::memory_order_relaxed);
     };
 
-    // Register panel -- 18 sliders grouped by register class.
-    addAndMakeVisible(registerPanel);
+    // Register panel -- all 35 SPU registers in a scrollable viewport.
+    registerViewport.setViewedComponent(&registerPanel, false);
+    registerViewport.setScrollBarsShown(true, false);
+    addAndMakeVisible(registerViewport);
 
     // Sync slider positions to the initial preset (Hall).
     registerPanel.updateFromShadows();
@@ -215,8 +217,8 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     lastAppliedCount = processorRef.getPresetQueue().getAppliedCount();
     startTimerHz(30);
 
-    setResizeLimits(900, 800, 900, 800);
-    setSize(900, 800);
+    setResizeLimits(900, 800, 1600, 1400);
+    setSize(900, 1100);
 }
 
 SPU94AudioProcessorEditor::~SPU94AudioProcessorEditor()
@@ -271,11 +273,15 @@ void SPU94AudioProcessorEditor::resized()
     drySendLabel.setBounds(790, 2, 90, 16);
     drySendKnob.setBounds(790, 16, 90, 54);
 
-    // ---- ZONE 2: Register panel (fills middle) ----
+    // ---- ZONE 2: Register panel in scrollable viewport (fills middle) ----
     const int bottomZoneHeight = 80;
     const int registerTop = 75;
     const int registerBottom = getHeight() - bottomZoneHeight - 5;
-    registerPanel.setBounds(10, registerTop, w - 20, registerBottom - registerTop);
+    const int viewportW = w - 20;
+    const int viewportH = registerBottom - registerTop;
+    registerViewport.setBounds(10, registerTop, viewportW, viewportH);
+    registerPanel.setSize(viewportW - registerViewport.getScrollBarThickness(),
+                          registerPanel.getPreferredHeight());
 
     // ---- ZONE 3+4: Combined mixer + DAC (single bottom row) ----
     const int bottomY = registerBottom + 5;

@@ -24,6 +24,7 @@ private:
     juce::TextButton stopButton{"Stop"};
 
     RegisterPanel registerPanel;
+    juce::Viewport registerViewport;
     juce::ComboBox presetSelector;
     juce::Label presetLabel{"", "Preset:"};
 

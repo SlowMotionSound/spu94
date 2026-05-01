@@ -3,8 +3,6 @@
 RegisterPanel::RegisterPanel(RegisterBridge& b)
     : bridge(b)
 {
-    // Build sliders dynamically by iterating kSliderRegisters.
-    // Labels use the raw register name from spu94_reg_name (D-01).
     for (size_t i = 0; i < kSliderRegisters.size(); ++i)
     {
         const spu94_reg_t reg = kSliderRegisters[i];
@@ -32,10 +30,10 @@ RegisterPanel::RegisterPanel(RegisterBridge& b)
         addAndMakeVisible(labels[i]);
     }
 
-    // Group headers -- bold text for visual organization.
     auto boldFont = juce::FontOptions(14.0f, juce::Font::bold);
     for (auto* header : {&headerMasterIO, &headerIIRWall, &headerComb,
-                         &headerAPF, &headerDelay})
+                         &headerAPF, &headerDelay, &headerBase,
+                         &headerSameGeom, &headerDiffGeom, &headerAPFAddr})
     {
         header->setFont(boldFont);
         header->setJustificationType(juce::Justification::centredLeft);
@@ -52,10 +50,18 @@ void RegisterPanel::updateFromShadows()
     }
 }
 
+int RegisterPanel::getPreferredHeight() const
+{
+    const int rowH = 24;
+    const int headerH = 22;
+    const int gap = 2;
+    const int numHeaders = 9;
+    const int numSliders = static_cast<int>(kSliderRegisters.size());
+    return numSliders * (rowH + gap) + numHeaders * (headerH + gap) + 8;
+}
+
 void RegisterPanel::resized()
 {
-    // Layout: vertical stack of group-header rows and slider rows.
-    // 80px label width, remaining width for slider, 28px row height, 4px gap.
     const int labelW = 80;
     const int rowH = 24;
     const int headerH = 22;
@@ -65,7 +71,6 @@ void RegisterPanel::resized()
     auto area = getLocalBounds().reduced(margin, 0);
     int y = 0;
 
-    // Helper to lay out a group header + a range of slider indices.
     auto layoutGroup = [&](juce::Label& header, size_t startIdx, size_t count) {
         header.setBounds(area.getX(), y, area.getWidth(), headerH);
         y += headerH + gap;
@@ -81,15 +86,23 @@ void RegisterPanel::resized()
         }
     };
 
-    // Groups (per plan: 4 Master I/O, 2 IIR+Wall, 4 Comb, 2 APF, 6 Delay)
-    // kSliderRegisters order: vLOUT(0) vROUT(1) vLIN(2) vRIN(3)
-    //   vIIR(4) vWALL(5)
-    //   vCOMB1(6) vCOMB2(7) vCOMB3(8) vCOMB4(9)
-    //   vAPF1(10) vAPF2(11)
-    //   dLSAME(12) dRSAME(13) dLDIFF(14) dRDIFF(15) dAPF1(16) dAPF2(17)
-    layoutGroup(headerMasterIO, 0, 4);
-    layoutGroup(headerIIRWall, 4, 2);
-    layoutGroup(headerComb, 6, 4);
-    layoutGroup(headerAPF, 10, 2);
-    layoutGroup(headerDelay, 12, 6);
+    // Groups match kSliderRegisters order:
+    // 0-3: Master I/O (vLOUT, vROUT, vLIN, vRIN)
+    // 4-5: IIR + Wall (vIIR, vWALL)
+    // 6-9: Comb (vCOMB1-4)
+    // 10-11: All-Pass (vAPF1, vAPF2)
+    // 12-17: Delay Offsets (dAPF1, dAPF2, dLSAME, dRSAME, dLDIFF, dRDIFF)
+    // 18: Buffer Base (mBASE)
+    // 19-24: Same-Side Geometry (mLSAME, mRSAME, mLCOMB1, mRCOMB1, mLCOMB2, mRCOMB2)
+    // 25-30: Cross-Side Geometry (mLDIFF, mRDIFF, mLCOMB3, mRCOMB3, mLCOMB4, mRCOMB4)
+    // 31-34: APF Addresses (mLAPF1, mRAPF1, mLAPF2, mRAPF2)
+    layoutGroup(headerMasterIO,  0, 4);
+    layoutGroup(headerIIRWall,   4, 2);
+    layoutGroup(headerComb,      6, 4);
+    layoutGroup(headerAPF,      10, 2);
+    layoutGroup(headerDelay,    12, 6);
+    layoutGroup(headerBase,     18, 1);
+    layoutGroup(headerSameGeom, 19, 6);
+    layoutGroup(headerDiffGeom, 25, 6);
+    layoutGroup(headerAPFAddr,  31, 4);
 }

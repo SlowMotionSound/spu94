@@ -10,22 +10,38 @@ extern "C" {
 #include <spu94/spu94_registers.h>
 }
 
-// The 18 registers exposed as sliders (D-01: 12 free + 6 sample-quantized).
+// All 35 SPU reverb registers exposed as sliders.
 // This array is the single source of truth -- slider construction, atomic
 // shadow indexing, and per-block register writes all index into it.
 // Do NOT hardcode register names elsewhere; use this + spu94_reg_name().
-constexpr std::array<spu94_reg_t, 18> kSliderRegisters = {
-    // 12 free-class (v-prefix gain registers -- smooth at any rate)
+constexpr std::array<spu94_reg_t, SPU94_REG__COUNT> kSliderRegisters = {
+    // Master I/O (4)
     SPU94_REG_vLOUT, SPU94_REG_vROUT, SPU94_REG_vLIN, SPU94_REG_vRIN,
+    // IIR + Wall (2)
     SPU94_REG_vIIR, SPU94_REG_vWALL,
+    // Comb coefficients (4)
     SPU94_REG_vCOMB1, SPU94_REG_vCOMB2, SPU94_REG_vCOMB3, SPU94_REG_vCOMB4,
+    // All-pass coefficients (2)
     SPU94_REG_vAPF1, SPU94_REG_vAPF2,
-    // 6 sample-quantized (d-prefix delay registers -- audible stepping is character)
+    // Delay offsets (6)
+    SPU94_REG_dAPF1, SPU94_REG_dAPF2,
     SPU94_REG_dLSAME, SPU94_REG_dRSAME,
     SPU94_REG_dLDIFF, SPU94_REG_dRDIFF,
-    SPU94_REG_dAPF1,  SPU94_REG_dAPF2,
+    // Buffer base (1)
+    SPU94_REG_mBASE,
+    // Same-side geometry (6)
+    SPU94_REG_mLSAME, SPU94_REG_mRSAME,
+    SPU94_REG_mLCOMB1, SPU94_REG_mRCOMB1,
+    SPU94_REG_mLCOMB2, SPU94_REG_mRCOMB2,
+    // Cross-side geometry (6)
+    SPU94_REG_mLDIFF, SPU94_REG_mRDIFF,
+    SPU94_REG_mLCOMB3, SPU94_REG_mRCOMB3,
+    SPU94_REG_mLCOMB4, SPU94_REG_mRCOMB4,
+    // APF addresses (4)
+    SPU94_REG_mLAPF1, SPU94_REG_mRAPF1,
+    SPU94_REG_mLAPF2, SPU94_REG_mRAPF2,
 };
-static_assert(kSliderRegisters.size() == 18);
+static_assert(kSliderRegisters.size() == SPU94_REG__COUNT);
 
 // ---------------------------------------------------------------------------
 // RegisterBridge -- lock-free atomic bridge between GUI and audio thread
@@ -52,8 +68,8 @@ public:
     int16_t getShadowValue(size_t sliderIndex) const;
 
 private:
-    std::array<std::atomic<int16_t>, 18> shadows{};
-    std::array<int16_t, 18> lastApplied{};  // audio-thread-only
+    std::array<std::atomic<int16_t>, SPU94_REG__COUNT> shadows{};
+    std::array<int16_t, SPU94_REG__COUNT> lastApplied{};  // audio-thread-only
 };
 
 // ---------------------------------------------------------------------------
