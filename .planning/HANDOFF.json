@@ -1,33 +1,40 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-30T23:30:00Z",
-  "phase": "10",
-  "phase_name": "Core Polyphase FIR Cascade",
-  "phase_dir": ".planning/phases/10-core-polyphase-fir-cascade",
-  "plan": 0,
-  "task": 0,
-  "total_tasks": 8,
-  "status": "planned",
-  "completed_tasks": [],
+  "timestamp": "2026-05-01T10:45:00.000Z",
+  "phase": "11",
+  "phase_name": "Noise Recalibration + Integration",
+  "phase_dir": ".planning/phases/11-noise-recalibration-integration",
+  "plan": 2,
+  "task": 3,
+  "total_tasks": 5,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "plan": "11-01", "name": "Toggle API + DAC_NOISE_SHIFT_8X + declarations", "status": "done", "commit": "54288e7"},
+    {"id": 2, "plan": "11-01", "name": "Implement spu94_dac_fir_step_8x_with_noise + amplitude test (TDD)", "status": "done", "commit": "5d693a3"},
+    {"id": 3, "plan": "11-02", "name": "Wire mode dispatch + latency update", "status": "done", "commit": "b24ad83"},
+    {"id": 4, "plan": "11-02", "name": "Integration tests for A/B toggle + latency + surface", "status": "done", "commit": "8af1f40"}
+  ],
   "remaining_tasks": [
-    {"id": "10-01-T1", "name": "Archive v1.2 DAC golden files", "status": "not_started"},
-    {"id": "10-01-T2", "name": "Scipy 8x prototype in dac_filter_design.py", "status": "not_started"},
-    {"id": "10-02-T1", "name": "Implement spu94_dac_fir_step_8x in C", "status": "not_started"},
-    {"id": "10-02-T2", "name": "DAC FIR 8x unit tests", "status": "not_started"},
-    {"id": "10-03-T1", "name": "Wire 8x into spu94_process.c", "status": "not_started"},
-    {"id": "10-03-T2", "name": "Prove DAC-off golden identity (zero blast radius)", "status": "not_started"},
-    {"id": "10-04-T1", "name": "Regenerate DAC golden files for 8x path", "status": "not_started"},
-    {"id": "10-04-T2", "name": "Passband conformance gate (v1.2 vs v1.3 within 0.01dB)", "status": "not_started"}
+    {"id": 5, "plan": "11-02", "name": "Human listen gate -- gain compensation sign-off (D-05)", "status": "awaiting_human"}
   ],
-  "blockers": [],
-  "human_actions_pending": [],
+  "blockers": [
+    {"description": "Human listen gate -- Anthony needs to A/B compare v1.2 vs v1.3 DAC modes and approve gain compensation", "type": "human_action", "workaround": "JUCE 8x toggle button added (uncommitted)"}
+  ],
+  "human_actions_pending": [
+    {"action": "Listen test: launch SPU-94, enable DAC+FIR+Noise, toggle 8x on/off, evaluate audio quality", "context": "D-05 gain compensation sign-off", "blocking": true}
+  ],
   "decisions": [
-    {"decision": "Naive 8x zero-stuff (not polyphase)", "rationale": "Faithful to AK4309 hardware, simpler, fast enough on desktop", "phase": "10"},
-    {"decision": "Keep v1.2 spu94_dac_fir_step, add _8x alongside", "rationale": "Phase 11 A/B toggle needs both paths", "phase": "10"},
-    {"decision": "Scipy prototype first, then port to C", "rationale": "Catch inter-stage bugs before C implementation", "phase": "10"},
-    {"decision": "Milestone sequence: v1.3 → v1.4 → v1.5", "rationale": "Oversampling → presets → DAW plugin (VST3/AU/AAX)", "phase": "milestone"}
+    {"decision": "DAC_NOISE_SHIFT_8X=10 (not 9)", "rationale": "Empirical tuning: post-cascade int32 injection + <<3 gain requires different calibration than theoretical", "phase": "11"},
+    {"decision": "Raw white noise, not HP-shaped", "rationale": "int16 intermediates + <<3 gain hit -72dBFS floor; post-cascade int32 injection avoids this", "phase": "11"},
+    {"decision": "dac_true_oversample defaults to 1", "rationale": "Matches Phase 10 switch to _step_8x", "phase": "11"},
+    {"decision": "Latency: v1.3=73, v1.2=93 samples", "rationale": "Group delay from FIR cascade at true operating rates vs single-rate", "phase": "11"}
   ],
-  "uncommitted_files": ["docs/LEVERS-CATALOG.md"],
-  "next_action": "/gsd-execute-phase 10",
-  "context_notes": "Full new-milestone workflow complete. Phase 10 planned and verified. Ready to execute."
+  "uncommitted_files": [
+    "src/standalone/PluginEditor.cpp",
+    "src/standalone/PluginEditor.h",
+    "src/standalone/PluginProcessor.cpp",
+    "src/standalone/PluginProcessor.h"
+  ],
+  "next_action": "Get listen gate verdict from Anthony, commit JUCE 8x toggle, complete Plan 11-02, run post-execution gates",
+  "context_notes": "Executor returned CHECKPOINT REACHED for Task 3 (listen gate). JUCE 8x toggle was added mid-checkpoint so Anthony could A/B compare. Build target for standalone exe is spu94_standalone_Standalone (not spu94_standalone)."
 }
