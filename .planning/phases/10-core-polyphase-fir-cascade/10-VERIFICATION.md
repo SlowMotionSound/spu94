@@ -1,8 +1,8 @@
 ---
 phase: 10-core-polyphase-fir-cascade
 verified: 2026-04-30T21:30:00Z
-status: human_needed
-score: 4/5 must-haves verified
+status: passed
+score: 5/5 must-haves verified (human items resolved 2026-05-01)
 overrides_applied: 0
 human_verification:
   - test: "Confirm that the 18 dB gain drop on the production DAC path is intentional and acceptable — or decide whether gain compensation is required before Phase 10 is considered complete"

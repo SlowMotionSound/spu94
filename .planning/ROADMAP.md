@@ -56,7 +56,7 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 
 **Milestone Goal:** Replace the v1.2 44.1kHz FIR approximation with genuine 8x oversampling -- zero-stuff to 352.8kHz, run the AK4309 interpolation cascade at the real rate, decimate back to 44.1kHz.
 
-- [ ] **Phase 10: Core Polyphase FIR Cascade** - True 8x zero-stuff + interpolation at real operating rates, with decimation and DAC-off identity proof
+- [x] **Phase 10: Core Polyphase FIR Cascade** - True 8x zero-stuff + interpolation at real operating rates, with decimation and DAC-off identity proof (2026-05-01)
 - [ ] **Phase 11: Noise Recalibration + Integration** - Noise model at 352.8kHz, A/B mode toggle, latency update, surface compatibility
 - [ ] **Phase 12: Verification + Characterization** - Characterization script, ADR documenting audible differences, new golden files
 
@@ -75,10 +75,10 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 **Plans:** 4 plans
 
 Plans:
-- [ ] 10-01-PLAN.md — Scipy 8x prototype + archive v1.2 DAC goldens
-- [ ] 10-02-PLAN.md — Implement spu94_dac_fir_step_8x in C + unit tests
-- [ ] 10-03-PLAN.md — Wire 8x into pipeline + prove zero blast radius (INT-03)
-- [ ] 10-04-PLAN.md — Regenerate DAC goldens + passband conformance (INT-04)
+- [x] 10-01-PLAN.md — Scipy 8x prototype + archive v1.2 DAC goldens
+- [x] 10-02-PLAN.md — Implement spu94_dac_fir_step_8x in C + unit tests
+- [x] 10-03-PLAN.md — Wire 8x into pipeline + prove zero blast radius (INT-03)
+- [x] 10-04-PLAN.md — Regenerate DAC goldens + passband conformance (INT-04)
 
 ### Phase 11: Noise Recalibration + Integration
 **Goal**: The complete DAC pipeline works end-to-end with noise at the correct rate and amplitude, with a mode toggle for v1.2/v1.3 comparison
