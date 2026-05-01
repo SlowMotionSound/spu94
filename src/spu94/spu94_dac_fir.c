@@ -246,7 +246,10 @@ int16_t spu94_dac_fir_step_8x(spu94_dac_fir_state *state, int16_t input) {
                                       DAC_FIR_STAGE3_NPAIRS);
     }
 
-    return s3_last;
+    /* Gain compensation: naive zero-stuff decimation (keep last of 8)
+     * attenuates by 1/8. Shift left 3 to restore unity gain.
+     * Phase 11 may revisit if noise floor or clipping behavior needs tuning. */
+    return sat_s16((int32_t)s3_last << 3);
 }
 
 /* -------------------------------------------------------------------- */

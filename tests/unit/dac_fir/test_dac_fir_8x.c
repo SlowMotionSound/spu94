@@ -108,12 +108,11 @@ static void test_8x_dc_gain(void) {
     int32_t avg = sum / 64;
 
     /* The naive 8x zero-stuff cascade decimates by keeping only the last
-     * of 8 Stage 3 outputs per input sample. At DC, this yields 1/8 of the
-     * v1.2 single-rate DC gain. v1.2 steady-state: 16333 for input 16384.
-     * Expected 8x steady-state: 16333/8 = 2042, measured: 2044.
-     * Allow +/-10 tolerance for Q15 truncation accumulation. */
-    TEST_ASSERT_INT_WITHIN_MESSAGE(10, 2044, (int)avg,
-        "8x DC gain average should be ~1/8 of v1.2 DC gain (2044 for input 16384)");
+     * of 8 Stage 3 outputs, then applies <<3 gain compensation to restore
+     * unity gain. Expected steady-state matches v1.2: ~16333 for input 16384.
+     * Allow +/-100 tolerance for Q15 truncation across 14 evaluations. */
+    TEST_ASSERT_INT_WITHIN_MESSAGE(100, 16333, (int)avg,
+        "8x DC gain (with <<3 compensation) should match v1.2 (~16333 for input 16384)");
 }
 
 /* ---- Test 5: Overflow resilience with adversarial input ---- */
