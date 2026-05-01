@@ -10,9 +10,9 @@ Requirements for the Preset System milestone. Each maps to roadmap phases.
 ### Core API
 
 - [x] **PRE-01**: `spu94_preset_save` writes all register + mixer + DAC state to a caller-provided buffer in key=value text format
-- [ ] **PRE-02**: `spu94_preset_load` reads a key=value text buffer and restores all register + mixer + DAC state
+- [x] **PRE-02**: `spu94_preset_load` reads a key=value text buffer and restores all register + mixer + DAC state
 - [x] **PRE-03**: Preset format includes a version header so future additions don't break old files
-- [ ] **PRE-04**: Round-trip fidelity -- save then load produces bit-identical SPU state
+- [x] **PRE-04**: Round-trip fidelity -- save then load produces bit-identical SPU state
 
 ### File I/O
 
@@ -37,9 +37,9 @@ Requirements for the Preset System milestone. Each maps to roadmap phases.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | PRE-01 | Phase 13 | Complete (13-01) |
-| PRE-02 | Phase 13 | Pending |
+| PRE-02 | Phase 13 | Complete (13-02) |
 | PRE-03 | Phase 13 | Complete (13-01) |
-| PRE-04 | Phase 13 | Pending |
+| PRE-04 | Phase 13 | Complete (13-02) |
 | PRE-05 | Phase 13 | Complete (13-01) |
 | PRE-06 | Phase 14 | Pending |
 | PRE-07 | Phase 14 | Pending |

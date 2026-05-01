@@ -68,7 +68,7 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 
 **Milestone Goal:** Save and load custom presets as .spu94 files -- human-readable key=value text capturing all register + mixer + DAC state -- with C core API, CLI subcommands, and JUCE GUI buttons.
 
-- [ ] **Phase 13: Core Preset API** - C functions to serialize/deserialize full SPU state as versioned key=value text, with round-trip fidelity proof
+- [x] **Phase 13: Core Preset API** - C functions to serialize/deserialize full SPU state as versioned key=value text, with round-trip fidelity proof
 - [ ] **Phase 14: I/O Surfaces** - CLI preset-dump/preset-load subcommands and JUCE Save/Load buttons with file dialogs
 - [ ] **Phase 15: Verification** - Round-trip golden test proving save/load/process produces bit-identical output
 
@@ -86,7 +86,7 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 **Plans**: 2 plans
 Plans:
 - [x] 13-01-PLAN.md -- Public API declaration + spu94_preset_save implementation + save format tests
-- [ ] 13-02-PLAN.md -- spu94_preset_load parser implementation + round-trip fidelity + edge-case tests
+- [x] 13-02-PLAN.md -- spu94_preset_load parser implementation + round-trip fidelity + edge-case tests
 
 ### Phase 14: I/O Surfaces
 **Goal**: Users can save and load .spu94 presets through both CLI subcommands and JUCE GUI buttons
@@ -119,7 +119,7 @@ Phases execute in numeric order: 13 -> 14 -> 15
 | 10. Core Polyphase FIR Cascade | v1.3 | 4/4 | Complete | 2026-05-01 |
 | 11. Noise Recalibration + Integration | v1.3 | 2/2 | Complete | 2026-05-01 |
 | 12. Verification + Characterization | v1.3 | 2/2 | Complete | 2026-05-01 |
-| 13. Core Preset API | v1.4 | 1/2 | In progress | - |
+| 13. Core Preset API | v1.4 | 2/2 | Complete | 2026-05-01 |
 | 14. I/O Surfaces | v1.4 | 0/? | Not started | - |
 | 15. Verification | v1.4 | 0/? | Not started | - |
 
@@ -136,4 +136,4 @@ Phases execute in numeric order: 13 -> 14 -> 15
 - `.planning/milestones/v1.0-REQUIREMENTS.md` -- M1 requirements
 
 ---
-*Last updated: 2026-05-01 -- Phase 13 Plan 01 complete*
+*Last updated: 2026-05-01 -- Phase 13 complete (2/2 plans)*
