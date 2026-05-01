@@ -93,7 +93,7 @@ Plans:
 
 Plans:
 **Wave 1**
-- [ ] 11-01-PLAN.md — Toggle API + noise shift constant + combined FIR+noise function
+- [x] 11-01-PLAN.md — Toggle API + noise shift constant + combined FIR+noise function
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 11-02-PLAN.md — Pipeline dispatch + latency update + integration tests + listen gate
@@ -120,7 +120,7 @@ Phases execute in numeric order: 10 -> 11 -> 12
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 10. Core Polyphase FIR Cascade | v1.3 | 4/4 | Complete | 2026-05-01 |
-| 11. Noise Recalibration + Integration | v1.3 | 0/2 | Planned | - |
+| 11. Noise Recalibration + Integration | v1.3 | 1/2 | Executing | - |
 | 12. Verification + Characterization | v1.3 | 0/TBD | Not started | - |
 
 ---
@@ -136,4 +136,4 @@ Phases execute in numeric order: 10 -> 11 -> 12
 - `.planning/milestones/v1.0-REQUIREMENTS.md` -- M1 requirements
 
 ---
-*Last updated: 2026-04-30 -- Phase 11 planned (2 plans)*
+*Last updated: 2026-05-01 -- Phase 11 Plan 01 complete (1/2 plans)*

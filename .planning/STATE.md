@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: True Oversampled DAC
 status: executing
-stopped_at: Phase 11 context gathered — ready to plan
-last_updated: "2026-05-01T02:36:42.609Z"
-last_activity: 2026-05-01 -- Phase 11 planning complete
+stopped_at: Completed 11-01-PLAN.md
+last_updated: "2026-05-01T03:31:00.000Z"
+last_activity: 2026-05-01 -- Phase 11 Plan 01 complete
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
-  percent: 67
+  completed_plans: 5
+  percent: 83
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 
 ## Current Position
 
-Phase: 11 of 12 (Noise Recalibration + Integration)
-Plan: 0 of 0
-Status: Ready to execute
-Last activity: 2026-05-01 -- Phase 11 planning complete
+Phase: 11 (Noise Recalibration + Integration) — EXECUTING
+Plan: 2 of 2
+Status: Plan 01 complete, Plan 02 pending
+Last activity: 2026-05-01 -- Phase 11 Plan 01 complete
 
-Progress: [███░░░░░░░] 33%
+Progress: [████████░░] 83%
 
 ## Performance Metrics
 
@@ -60,6 +60,9 @@ Recent decisions affecting current work:
 - v1.2 coefficients are already designed for true operating rates -- reuse verbatim, zero modification
 - Polyphase half-band pattern already proven in spu94_fir.c -- same approach for DAC cascade
 - All DSP signal flow lives in C core -- JUCE/CLI/Python are thin wrappers with no DSP logic
+- Raw white noise at 352.8kHz (not HP-shaped): HP shaping impractical at int16 precision above 8x rate
+- Post-cascade int32 noise injection: avoids -72dBFS quantization floor from int16 + <<3 gain
+- DAC_NOISE_SHIFT_8X=10, DAC_NOISE_8X_ACC_SCALE=14 empirically calibrated for -90dB target
 
 ### Blockers/Concerns
 
@@ -96,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-01T02:30:00.000Z
-Stopped at: Phase 11 context gathered — ready to plan
-Resume file: .planning/phases/11-noise-recalibration-integration/11-CONTEXT.md
+Last session: 2026-05-01T03:31:00.000Z
+Stopped at: Completed 11-01-PLAN.md
+Resume file: .planning/phases/11-noise-recalibration-integration/11-01-SUMMARY.md

@@ -13,14 +13,14 @@ Requirements for true oversampled DAC milestone. Each maps to roadmap phases.
 - [ ] **DSP-02**: Run Stage 1 interpolation FIR at 88.2kHz using v1.2 coefficients verbatim
 - [ ] **DSP-03**: Run Stage 2 interpolation FIR at 176.4kHz using v1.2 coefficients verbatim
 - [ ] **DSP-04**: Run Stage 3 interpolation FIR at 352.8kHz using v1.2 coefficients verbatim
-- [ ] **DSP-05**: Run LFSR + HP noise model at 352.8kHz (8 ticks per output sample), retune DAC_NOISE_SHIFT for correct -90dB amplitude
+- [x] **DSP-05**: Run LFSR + HP noise model at 352.8kHz (8 ticks per output sample), retune DAC_NOISE_SHIFT for correct -90dB amplitude
 - [ ] **DSP-06**: Decimate 352.8kHz output to 44.1kHz (pick every 8th sample after full cascade)
 - [ ] **DSP-07**: Report correct group delay via spu94_get_total_latency_samples for true oversampled path
 - [ ] **DSP-08**: Real-time safety preserved — no heap, no locks, no syscalls in 8x processing path
 
 ### Comparison + Characterization
 
-- [ ] **CMP-01**: A/B mode toggle — selectable v1.2 (approx) vs v1.3 (true) DAC processing path
+- [x] **CMP-01**: A/B mode toggle — selectable v1.2 (approx) vs v1.3 (true) DAC processing path
 - [ ] **CMP-02**: Python characterization script comparing v1.2 vs v1.3 (frequency response, impulse response, noise floor, time-domain)
 - [ ] **CMP-03**: ADR documenting whether true oversampling produces audible differences, with measurement evidence
 
@@ -72,11 +72,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DSP-02 | Phase 10 | Pending |
 | DSP-03 | Phase 10 | Pending |
 | DSP-04 | Phase 10 | Pending |
-| DSP-05 | Phase 11 | Pending |
+| DSP-05 | Phase 11 | Complete (11-01) |
 | DSP-06 | Phase 10 | Pending |
 | DSP-07 | Phase 11 | Pending |
 | DSP-08 | Phase 10 | Pending |
-| CMP-01 | Phase 11 | Pending |
+| CMP-01 | Phase 11 | Complete (11-01) |
 | CMP-02 | Phase 12 | Pending |
 | CMP-03 | Phase 12 | Pending |
 | INT-01 | Phase 11 | Pending |
@@ -91,4 +91,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-04-30*
-*Last updated: 2026-04-30 after roadmap creation*
+*Last updated: 2026-05-01 -- DSP-05 and CMP-01 complete (Phase 11 Plan 01)*
