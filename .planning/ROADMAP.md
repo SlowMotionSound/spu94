@@ -89,11 +89,11 @@ Plans:
   2. A/B mode toggle selects between v1.2 (approx) and v1.3 (true) DAC paths, accessible from C API
   3. `spu94_get_total_latency_samples` reports correct group delay for the true oversampled path
   4. CLI `--dac`, Python `set_dac_enabled()`, and JUCE DAC toggle work identically to v1.2 -- no surface breakage
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 11-01: TBD
-- [ ] 11-02: TBD
+- [ ] 11-01-PLAN.md — Toggle API + noise shift constant + combined FIR+noise function
+- [ ] 11-02-PLAN.md — Pipeline dispatch + latency update + integration tests + listen gate
 
 ### Phase 12: Verification + Characterization
 **Goal**: The true oversampled DAC is proven correct with new golden files, and the central question -- does it sound different from v1.2? -- is answered with measurements
@@ -116,8 +116,8 @@ Phases execute in numeric order: 10 -> 11 -> 12
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 10. Core Polyphase FIR Cascade | v1.3 | 0/4 | Planned | - |
-| 11. Noise Recalibration + Integration | v1.3 | 0/TBD | Not started | - |
+| 10. Core Polyphase FIR Cascade | v1.3 | 4/4 | Complete | 2026-05-01 |
+| 11. Noise Recalibration + Integration | v1.3 | 0/2 | Planned | - |
 | 12. Verification + Characterization | v1.3 | 0/TBD | Not started | - |
 
 ---
@@ -133,4 +133,4 @@ Phases execute in numeric order: 10 -> 11 -> 12
 - `.planning/milestones/v1.0-REQUIREMENTS.md` -- M1 requirements
 
 ---
-*Last updated: 2026-04-30 -- Phase 10 planned (4 plans)*
+*Last updated: 2026-04-30 -- Phase 11 planned (2 plans)*
