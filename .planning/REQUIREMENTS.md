@@ -1,7 +1,7 @@
 # Requirements: SPU-94
 
 **Defined:** 2026-05-01
-**Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
+**Core Value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
 
 ## v1.4 Requirements
 
@@ -12,7 +12,7 @@ Requirements for the Preset System milestone. Each maps to roadmap phases.
 - [ ] **PRE-01**: `spu94_preset_save` writes all register + mixer + DAC state to a caller-provided buffer in key=value text format
 - [ ] **PRE-02**: `spu94_preset_load` reads a key=value text buffer and restores all register + mixer + DAC state
 - [ ] **PRE-03**: Preset format includes a version header so future additions don't break old files
-- [ ] **PRE-04**: Round-trip fidelity — save then load produces bit-identical SPU state
+- [ ] **PRE-04**: Round-trip fidelity -- save then load produces bit-identical SPU state
 
 ### File I/O
 
@@ -30,26 +30,26 @@ Requirements for the Preset System milestone. Each maps to roadmap phases.
 
 ### Verification
 
-- [ ] **PRE-10**: Round-trip golden test — save, load, process, compare output to pre-save output
+- [ ] **PRE-10**: Round-trip golden test -- save, load, process, compare output to pre-save output
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PRE-01 | TBD | Pending |
-| PRE-02 | TBD | Pending |
-| PRE-03 | TBD | Pending |
-| PRE-04 | TBD | Pending |
-| PRE-05 | TBD | Pending |
-| PRE-06 | TBD | Pending |
-| PRE-07 | TBD | Pending |
-| PRE-08 | TBD | Pending |
-| PRE-09 | TBD | Pending |
-| PRE-10 | TBD | Pending |
+| PRE-01 | Phase 13 | Pending |
+| PRE-02 | Phase 13 | Pending |
+| PRE-03 | Phase 13 | Pending |
+| PRE-04 | Phase 13 | Pending |
+| PRE-05 | Phase 13 | Pending |
+| PRE-06 | Phase 14 | Pending |
+| PRE-07 | Phase 14 | Pending |
+| PRE-08 | Phase 14 | Pending |
+| PRE-09 | Phase 14 | Pending |
+| PRE-10 | Phase 15 | Pending |
 
 ## Out of Scope
 
-- **Preset bank management** (folders, categories, search) — future, after basic save/load proves out
-- **Binary preset format** — plain text chosen for human-readability and hand-editability
-- **Preset sharing/cloud sync** — out of scope for all milestones
-- **Python binding for preset save/load** — defer to if/when needed for tooling
+- **Preset bank management** (folders, categories, search) -- future, after basic save/load proves out
+- **Binary preset format** -- plain text chosen for human-readability and hand-editability
+- **Preset sharing/cloud sync** -- out of scope for all milestones
+- **Python binding for preset save/load** -- defer to if/when needed for tooling

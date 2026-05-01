@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Preset System
-status: planning
-stopped_at: Defining requirements
-last_updated: "2026-05-01T21:00:00.000Z"
-last_activity: 2026-05-01 -- Milestone v1.4 started
+status: ready_to_plan
+stopped_at: Roadmap created, Phase 13 ready to plan
+last_updated: "2026-05-01T21:30:00.000Z"
+last_activity: 2026-05-01 -- v1.4 roadmap created (3 phases, 10 requirements)
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,33 +21,31 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-01)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.4 Preset System — save/load custom presets
+**Current focus:** v1.4 Preset System -- Phase 13 Core Preset API
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: All plans complete
-Last activity: 2026-05-01 -- Phase 12 Plan 02 complete (phase complete)
+Phase: 13 of 15 (Core Preset API)
+Plan: Ready to plan
+Status: Ready to plan
+Last activity: 2026-05-01 -- v1.4 roadmap created
 
-Progress: [████████░░] 88%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 12 (v1.2), 10 (v1.1), 37 (v1.0)
-- Prior milestone: v1.2 shipped 12 plans across 5 phases
+- Total plans completed: 8 (v1.3), 12 (v1.2), 10 (v1.1), 37 (v1.0)
+- Prior milestone: v1.3 shipped 8 plans across 3 phases
 
-**By Phase (v1.2):**
+**By Phase (v1.3):**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 05-interpolation-filter-design | 1 | -- | -- |
-| 06-dac-core-implementation | 2/2 | 55min | 28min |
-| 07-pipeline-integration | 3/3 | 82min | 27min |
-| 08-i-o-surface | 3/3 | 49min | 16min |
-| 09-verification-documentation | 3/3 | -- | -- |
+| 10-core-polyphase-fir-cascade | 4/4 | -- | -- |
+| 11-noise-recalibration-integration | 2/2 | -- | -- |
+| 12-verification-characterization | 2/2 | -- | -- |
 
 ## Accumulated Context
 
@@ -56,14 +54,10 @@ Progress: [████████░░] 88%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- v1.2 DAC FIR approximates 8x oversampling at 44.1kHz -- v1.3 replaces with true 352.8kHz processing
-- v1.2 coefficients are already designed for true operating rates -- reuse verbatim, zero modification
-- Polyphase half-band pattern already proven in spu94_fir.c -- same approach for DAC cascade
 - All DSP signal flow lives in C core -- JUCE/CLI/Python are thin wrappers with no DSP logic
-- Raw white noise at 352.8kHz (not HP-shaped): HP shaping impractical at int16 precision above 8x rate
-- Post-cascade int32 noise injection: avoids -72dBFS quantization floor from int16 + <<3 gain
-- DAC_NOISE_SHIFT_8X=10, DAC_NOISE_8X_ACC_SCALE=14 empirically calibrated for -90dB target
-- v1.2 vs v1.3 DAC: 91.83 dB freq response deviation (HF rolloff), identical -84.9 dBFS noise floor, v1.3 retained as default
+- Preset save/load is a C core responsibility (consistent with above)
+- Send/return mixer architecture: 3 buses, 6 faders -- all must be captured in preset state
+- v1.3 DAC mode (A/B toggle) must be captured in preset state alongside v1.2 DAC toggle
 
 ### Blockers/Concerns
 
@@ -94,12 +88,11 @@ None yet.
 | Distribution | Static linking for standalone (done -- single 7.6MB executable, no .so dependency) | 2026-04-29 |
 | Distribution | Cross-platform build guides (Mac + Windows) -- audience TBD, waiting on Anthony | 2026-04-29 |
 | Distribution | Visual signal flow diagram as GUI -- Ensoniq/ASM Hydrasynth style panel layout. Future UI overhaul. | 2026-04-29 |
-| Feature | Preset save/load system -- spu94_preset_save/load in C core, plain text key=value format, .spu94 files, JUCE Save/Load buttons, CLI preset-dump/preset-load | 2026-04-29 |
 | Feature | Anthony has a screenshot of preset #1 to capture once save system exists | 2026-04-29 |
 | Feature | Continuous oversampling sweep (luxury) -- crossfade two adjacent rates for smooth knob feel. Desktop-only. | 2026-04-29 |
 
 ## Session Continuity
 
-Last session: 2026-05-01T19:36:31.000Z
-Stopped at: Completed 12-02-PLAN.md
-Resume file: .planning/phases/12-verification-characterization/12-02-SUMMARY.md
+Last session: 2026-05-01T21:30:00.000Z
+Stopped at: v1.4 roadmap created, Phase 13 ready to plan
+Resume file: None

@@ -1,17 +1,29 @@
 # Roadmap: SPU-94
 
 **Updated:** 2026-05-01
-**Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
+**Core Value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
 
 ## Milestones
 
-- 🚧 **v1.3 True Oversampled DAC** — Phases 10-12 (in progress)
-- ✅ **v1.2 DAC Modeling** — Phases 5-9 (shipped 2026-04-30, tag `v1.2`)
-- ✅ **v1.1 ADPCM** — Phases 1-4 (shipped 2026-04-27, tag `v1.1`)
-- ✅ **v1.0 Product** — 8 phases (shipped 2026-04-26, standalone GUI)
-- ✅ **M1 Reverb Core** — 7 phases (shipped 2026-04-25, tag `m1-reverb-core`)
+- 🚧 **v1.4 Preset System** -- Phases 13-15 (in progress)
+- ✅ **v1.3 True Oversampled DAC** -- Phases 10-12 (shipped 2026-05-01, tag `v1.3`)
+- ✅ **v1.2 DAC Modeling** -- Phases 5-9 (shipped 2026-04-30, tag `v1.2`)
+- ✅ **v1.1 ADPCM** -- Phases 1-4 (shipped 2026-04-27, tag `v1.1`)
+- ✅ **v1.0 Product** -- 8 phases (shipped 2026-04-26, standalone GUI)
+- ✅ **M1 Reverb Core** -- 7 phases (shipped 2026-04-25, tag `m1-reverb-core`)
 
 ## Phases
+
+<details>
+<summary>v1.3 True Oversampled DAC (Phases 10-12) -- SHIPPED 2026-05-01</summary>
+
+Genuine 8x oversampling at 352.8kHz replacing v1.2's single-rate approximation. Sum-of-8 proper decimation, unified HP-shaped noise model, A/B mode toggle across all surfaces. 3 phases, 8 plans.
+
+- [x] Phase 10: Core Polyphase FIR Cascade (4/4 plans) -- completed 2026-05-01
+- [x] Phase 11: Noise Recalibration + Integration (2/2 plans) -- completed 2026-05-01
+- [x] Phase 12: Verification + Characterization (2/2 plans) -- completed 2026-05-01
+
+</details>
 
 <details>
 <summary>v1.2 DAC Modeling (Phases 5-9) -- SHIPPED 2026-04-30</summary>
@@ -52,79 +64,61 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 
 </details>
 
-### v1.3 True Oversampled DAC (In Progress)
+### v1.4 Preset System (In Progress)
 
-**Milestone Goal:** Replace the v1.2 44.1kHz FIR approximation with genuine 8x oversampling -- zero-stuff to 352.8kHz, run the AK4309 interpolation cascade at the real rate, decimate back to 44.1kHz.
+**Milestone Goal:** Save and load custom presets as .spu94 files -- human-readable key=value text capturing all register + mixer + DAC state -- with C core API, CLI subcommands, and JUCE GUI buttons.
 
-- [x] **Phase 10: Core Polyphase FIR Cascade** - True 8x zero-stuff + interpolation at real operating rates, with decimation and DAC-off identity proof (2026-05-01)
-- [x] **Phase 11: Noise Recalibration + Integration** - Noise model at 352.8kHz, A/B mode toggle, latency update, surface compatibility (2026-05-01)
-- [x] **Phase 12: Verification + Characterization** - Characterization script, ADR documenting audible differences, new golden files (2026-05-01)
+- [ ] **Phase 13: Core Preset API** - C functions to serialize/deserialize full SPU state as versioned key=value text, with round-trip fidelity proof
+- [ ] **Phase 14: I/O Surfaces** - CLI preset-dump/preset-load subcommands and JUCE Save/Load buttons with file dialogs
+- [ ] **Phase 15: Verification** - Round-trip golden test proving save/load/process produces bit-identical output
 
 ## Phase Details
 
-### Phase 10: Core Polyphase FIR Cascade
-**Goal**: The DAC interpolation filter runs at true operating rates (88.2 / 176.4 / 352.8 kHz) producing correct 8x oversampled output that decimates back to 44.1kHz
-**Depends on**: Phase 9 (v1.2 DAC Modeling complete)
-**Requirements**: DSP-01, DSP-02, DSP-03, DSP-04, DSP-06, DSP-08, INT-03, INT-04
+### Phase 13: Core Preset API
+**Goal**: The C core can serialize all SPU state (35 registers + mixer faders + DAC toggles) to a versioned key=value text buffer and restore it with bit-identical fidelity
+**Depends on**: Phase 12 (v1.3 complete)
+**Requirements**: PRE-01, PRE-02, PRE-03, PRE-04, PRE-05
 **Success Criteria** (what must be TRUE):
-  1. Processing a signal through the DAC-enabled path produces output with correct passband response (matches v1.2 within 0.05dB across 20Hz-20kHz; Q15 truncation budget)
-  2. DAC-off golden files are bit-identical before and after the changes (zero blast radius on non-DAC paths)
-  3. Each FIR stage runs at its designed rate (Stage 1 at 88.2kHz, Stage 2 at 176.4kHz, Stage 3 at 352.8kHz) with inter-stage Q15 truncation preserved
-  4. Real-time safety gates pass -- no heap, no locks, no syscalls in the 8x processing path
-  5. v1.2 DAC golden files are archived before any code changes
-**Plans:** 4 plans
+  1. `spu94_preset_save` writes all register, mixer, and DAC state to a caller-provided buffer in human-readable key=value format
+  2. `spu94_preset_load` parses a key=value buffer and restores all state -- a save/load round-trip produces bit-identical register values
+  3. The preset text includes a version header line (e.g. `version=1`) so future format additions won't break existing files
+  4. A .spu94 file saved to disk is plain text, human-readable, and hand-editable with a text editor
+**Plans**: TBD
 
-Plans:
-- [x] 10-01-PLAN.md — Scipy 8x prototype + archive v1.2 DAC goldens
-- [x] 10-02-PLAN.md — Implement spu94_dac_fir_step_8x in C + unit tests
-- [x] 10-03-PLAN.md — Wire 8x into pipeline + prove zero blast radius (INT-03)
-- [x] 10-04-PLAN.md — Regenerate DAC goldens + passband conformance (INT-04)
-
-### Phase 11: Noise Recalibration + Integration
-**Goal**: The complete DAC pipeline works end-to-end with noise at the correct rate and amplitude, with a mode toggle for v1.2/v1.3 comparison
-**Depends on**: Phase 10
-**Requirements**: DSP-05, DSP-07, CMP-01, INT-01
+### Phase 14: I/O Surfaces
+**Goal**: Users can save and load .spu94 presets through both CLI subcommands and JUCE GUI buttons
+**Depends on**: Phase 13
+**Requirements**: PRE-06, PRE-07, PRE-08, PRE-09
 **Success Criteria** (what must be TRUE):
-  1. LFSR noise model runs 8 ticks per output sample at 352.8kHz with in-band noise floor at -90dB target
-  2. A/B mode toggle selects between v1.2 (approx) and v1.3 (true) DAC paths, accessible from C API
-  3. `spu94_get_total_latency_samples` reports correct group delay for the true oversampled path
-  4. CLI `--dac`, Python `set_dac_enabled()`, and JUCE DAC toggle work identically to v1.2 -- no surface breakage
-**Plans:** 2 plans
+  1. `spu94 preset-dump` writes the current engine state to stdout (default) or a named .spu94 file
+  2. `spu94 preset-load <file.spu94>` reads a preset file and applies it before WAV processing begins
+  3. JUCE Save button opens a native file dialog filtered to .spu94, writes the current state to the chosen path
+  4. JUCE Load button opens a native file dialog, reads the chosen .spu94 file, and updates all GUI controls (registers, mixer faders, DAC toggles) to reflect the loaded state
+**Plans**: TBD
+**UI hint**: yes
 
-Plans:
-**Wave 1**
-- [x] 11-01-PLAN.md — Toggle API + noise shift constant + combined FIR+noise function
-
-**Wave 2** *(blocked on Wave 1 completion)*
-- [x] 11-02-PLAN.md — Pipeline dispatch + latency update + integration tests + listen gate
-
-### Phase 12: Verification + Characterization
-**Goal**: The true oversampled DAC is proven correct with new golden files, and the central question -- does it sound different from v1.2? -- is answered with measurements
-**Depends on**: Phase 11
-**Requirements**: CMP-02, CMP-03, INT-02
+### Phase 15: Verification
+**Goal**: Round-trip preset fidelity is proven at the integration level -- save state, load into a fresh engine, process audio, get bit-identical output
+**Depends on**: Phase 14
+**Requirements**: PRE-10
 **Success Criteria** (what must be TRUE):
-  1. New v1.3 DAC golden files are generated with SHA-256 sidecars and pass regression gate
-  2. Python characterization script produces comparison plots (frequency response, impulse response, noise floor, time-domain) between v1.2 and v1.3 modes
-  3. ADR documents whether true oversampling produces audible differences, with measurement evidence supporting the conclusion
-**Plans:** 2 plans
-
-Plans:
-**Wave 1**
-- [x] 12-01-PLAN.md — Surface toggle (CLI + Python) + regenerate v1.3 DAC golden files
-
-**Wave 2** *(blocked on Wave 1 completion)*
-- [x] 12-02-PLAN.md — v1.2 vs v1.3 characterization script + ADR-0055
+  1. A ctest target saves a preset from a configured engine, loads it into a fresh engine, processes audio through both, and asserts bit-identical WAV output
+  2. The test covers at least two preset configurations (one factory preset, one with non-default mixer/DAC state) to exercise all serialized fields
+**Plans**: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 10 -> 11 -> 12
+Phases execute in numeric order: 13 -> 14 -> 15
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 10. Core Polyphase FIR Cascade | v1.3 | 4/4 | Complete | 2026-05-01 |
 | 11. Noise Recalibration + Integration | v1.3 | 2/2 | Complete | 2026-05-01 |
 | 12. Verification + Characterization | v1.3 | 2/2 | Complete | 2026-05-01 |
+| 13. Core Preset API | v1.4 | 0/? | Not started | - |
+| 14. I/O Surfaces | v1.4 | 0/? | Not started | - |
+| 15. Verification | v1.4 | 0/? | Not started | - |
 
 ---
 
@@ -139,4 +133,4 @@ Phases execute in numeric order: 10 -> 11 -> 12
 - `.planning/milestones/v1.0-REQUIREMENTS.md` -- M1 requirements
 
 ---
-*Last updated: 2026-05-01 -- Phase 12 complete (2/2 plans)*
+*Last updated: 2026-05-01 -- v1.4 Preset System roadmap created*
