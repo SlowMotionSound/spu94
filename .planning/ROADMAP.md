@@ -92,7 +92,10 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
+**Wave 1**
 - [ ] 11-01-PLAN.md — Toggle API + noise shift constant + combined FIR+noise function
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 11-02-PLAN.md — Pipeline dispatch + latency update + integration tests + listen gate
 
 ### Phase 12: Verification + Characterization
