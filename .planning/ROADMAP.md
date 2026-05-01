@@ -67,7 +67,7 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 **Depends on**: Phase 9 (v1.2 DAC Modeling complete)
 **Requirements**: DSP-01, DSP-02, DSP-03, DSP-04, DSP-06, DSP-08, INT-03, INT-04
 **Success Criteria** (what must be TRUE):
-  1. Processing a signal through the DAC-enabled path produces output with correct passband response (matches v1.2 within 0.01dB across 20Hz-20kHz)
+  1. Processing a signal through the DAC-enabled path produces output with correct passband response (matches v1.2 within 0.05dB across 20Hz-20kHz; Q15 truncation budget)
   2. DAC-off golden files are bit-identical before and after the changes (zero blast radius on non-DAC paths)
   3. Each FIR stage runs at its designed rate (Stage 1 at 88.2kHz, Stage 2 at 176.4kHz, Stage 3 at 352.8kHz) with inter-stage Q15 truncation preserved
   4. Real-time safety gates pass -- no heap, no locks, no syscalls in the 8x processing path
