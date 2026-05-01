@@ -1,6 +1,6 @@
 # Roadmap: SPU-94
 
-**Updated:** 2026-04-30
+**Updated:** 2026-05-01
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
 
 ## Milestones
@@ -106,11 +106,14 @@ Plans:
   1. New v1.3 DAC golden files are generated with SHA-256 sidecars and pass regression gate
   2. Python characterization script produces comparison plots (frequency response, impulse response, noise floor, time-domain) between v1.2 and v1.3 modes
   3. ADR documents whether true oversampling produces audible differences, with measurement evidence supporting the conclusion
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 12-01: TBD
-- [ ] 12-02: TBD
+**Wave 1**
+- [ ] 12-01-PLAN.md — Surface toggle (CLI + Python) + regenerate v1.3 DAC golden files
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 12-02-PLAN.md — v1.2 vs v1.3 characterization script + ADR-0055
 
 ## Progress
 
@@ -121,7 +124,7 @@ Phases execute in numeric order: 10 -> 11 -> 12
 |-------|-----------|----------------|--------|-----------|
 | 10. Core Polyphase FIR Cascade | v1.3 | 4/4 | Complete | 2026-05-01 |
 | 11. Noise Recalibration + Integration | v1.3 | 1/2 | Executing | - |
-| 12. Verification + Characterization | v1.3 | 0/TBD | Not started | - |
+| 12. Verification + Characterization | v1.3 | 0/2 | Not started | - |
 
 ---
 
@@ -136,4 +139,4 @@ Phases execute in numeric order: 10 -> 11 -> 12
 - `.planning/milestones/v1.0-REQUIREMENTS.md` -- M1 requirements
 
 ---
-*Last updated: 2026-05-01 -- Phase 11 Plan 01 complete (1/2 plans)*
+*Last updated: 2026-05-01 -- Phase 12 planned (2 plans)*
