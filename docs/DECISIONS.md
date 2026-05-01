@@ -30,6 +30,49 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-0055: True oversampled DAC (v1.3) -- audible difference characterization
+
+**Status:** Accepted  
+**Date:** 2026-05-01  
+**Phase:** 12 (Verification + Characterization)  
+**Requirement:** CMP-03
+
+**Context:**
+
+Phase 10-11 replaced the v1.2 44.1kHz FIR approximation with genuine 8x oversampling at 352.8kHz. The central question: does running the AK4309 interpolation cascade at the correct operating rates produce audibly different output compared to the single-rate approximation?
+
+Human listen gate (Phase 11 Plan 02): Anthony confirmed "the character is very subtle."
+
+**Decision:**
+
+The true oversampled DAC (v1.3) is retained as the default path. The differences are measurable and significant in objective terms, though subjectively subtle on typical music material:
+
+- **Frequency response:** 91.83 dB max deviation in 20Hz-20kHz band. The v1.2 path runs all three half-band FIR stages at 44.1kHz, causing severe high-frequency rolloff (the cascaded stopband rejection compounds near Nyquist). The v1.3 path runs each stage at its correct oversampling rate (88.2/176.4/352.8 kHz), preserving the intended passband up to 20kHz. This is the dominant measurable difference.
+- **Impulse response:** Peak sample difference = 12078, RMS difference = 748.97. The v1.2 impulse peaks at 6535 while v1.3 peaks at 12062 -- the true oversampled path preserves nearly twice the impulse energy because the correctly-rated FIR stages pass more signal through.
+- **Noise floor:** v1.2 = -84.9 dBFS, v1.3 = -84.9 dBFS. Identical -- both modes use the same HP-shaped noise model (spu94_dac_noise_step at 44.1kHz). This confirms the noise path is shared and only the FIR cascade differs.
+- **Time-domain (full signal):** Max sample difference = 32042, RMS difference = -8.6 dBFS on a 20Hz-20kHz log chirp. The large RMS difference reflects the v1.2 path's aggressive high-frequency attenuation on wideband content.
+
+The v1.2 path is preserved via `--no-dac-true-oversample` (CLI) and `spu94_set_dac_true_oversample(state, 0)` (API) for A/B comparison and backward compatibility.
+
+**Measurement methodology:**
+
+All measurements performed by `tools/dac_compare.py` using the spu94 CLI with Off preset (no reverb), --dac enabled, --input-gain 1.0, --dry 1.0. Signals: white noise (frequency response), impulse (IR), silence (noise floor), log chirp 20-20kHz (time-domain). 2 seconds at 44100 Hz, int16 stereo. Fixed random seed 0xDAC_F1B for reproducibility.
+
+**Consequences:**
+
+- *Default behavior:* v1.3 (true oversampling) is ON by default. Users get the physically correct model without opting in.
+- *CPU cost:* The 8x path processes 8 FIR evaluations per sample versus 1 in v1.2. This is acceptable for desktop real-time (measured well within budget in Phase 10).
+- *Audibility:* The objective measurements show large differences (91 dB frequency response, -8.6 dBFS RMS on chirp), but these concentrate at high frequencies where music content is sparse. On typical program material, the difference manifests as subtle high-frequency presence -- consistent with Anthony's listen gate assessment.
+- *Characterization evidence:* `tools/dac_compare.py --plot` generates `tools/dac_compare.png` with 4-panel visual comparison.
+
+**Sources:**
+
+- Phase 11 listen gate confirmation (Anthony: "the character is very subtle")
+- `tools/dac_compare.py` measurement script output (reproducible with fixed seed)
+- `tools/dac_compare.png` visual comparison plots
+
+---
+
 ## ADR-0054: AK4309 interpolation filter passband ripple -- datasheet is authoritative
 
 **Status:** Accepted (2026-04-28, v1.2 Phase 5)
