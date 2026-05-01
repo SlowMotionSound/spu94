@@ -324,3 +324,13 @@ int spu94_get_dac_noise_enabled(const spu94_state *state) {
     if (state == NULL) return 0;
     return state->dac_noise_enabled;
 }
+
+void spu94_set_dac_true_oversample(spu94_state *state, int enabled) {
+    if (state == NULL) return;
+    state->dac_true_oversample = enabled ? 1 : 0;
+}
+
+int spu94_get_dac_true_oversample(const spu94_state *state) {
+    if (state == NULL) return 0;
+    return state->dac_true_oversample;
+}

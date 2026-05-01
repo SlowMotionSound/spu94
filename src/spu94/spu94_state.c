@@ -92,6 +92,7 @@ spu94_state *spu94_init(void *state_buf, size_t state_buf_size,
      * Different seeds per channel to decorrelate L/R noise (WR-02). */
     spu94_dac_noise_init(&s->dac_noise_l, 0xACE1u);
     spu94_dac_noise_init(&s->dac_noise_r, 0x1ECAu);
+    s->dac_true_oversample = 1;  /* v1.3 true 8x ON by default (CMP-01) */
 
     s->work_buf       = (unsigned char *)work_buf;
     s->work_buf_size  = work_buf_size;
@@ -130,6 +131,7 @@ void spu94_reset(spu94_state *state) {
     state->latency_comp = 1;
     spu94_dac_noise_init(&state->dac_noise_l, 0xACE1u);
     spu94_dac_noise_init(&state->dac_noise_r, 0x1ECAu);
+    state->dac_true_oversample = 1;  /* v1.3 true 8x ON by default (CMP-01) */
 
     state->work_buf       = saved_work;
     state->work_buf_size  = saved_work_size;

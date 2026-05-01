@@ -298,6 +298,13 @@ int      spu94_get_dac_fir_enabled(const spu94_state *state);
 void     spu94_set_dac_noise_enabled(spu94_state *state, int enabled);
 int      spu94_get_dac_noise_enabled(const spu94_state *state);
 
+/** Select DAC processing mode. 0 = v1.2 approximate (single-rate FIR),
+ *  1 = v1.3 true 8x oversampling (352.8kHz cascade). Default: 1.
+ *  When v1.3 is active and both FIR+noise are enabled, noise is injected
+ *  at 352.8kHz inside the cascade for spectrally shaped noise floor. */
+void     spu94_set_dac_true_oversample(spu94_state *state, int enabled);
+int      spu94_get_dac_true_oversample(const spu94_state *state);
+
 /* ------------------------------------------------------------------------- */
 /* Public block-based audio entry point (Phase 5, D-01, D-02, D-03, D-04)    */
 /* ------------------------------------------------------------------------- */

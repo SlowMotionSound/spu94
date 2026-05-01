@@ -44,6 +44,16 @@
  * Validated by tests/unit/dac_noise/test_dac_noise_amplitude.c. */
 #define DAC_NOISE_SHIFT  14
 
+/* 352.8kHz noise amplitude scaling (Phase 11 DSP-05). At 8x sample rate,
+ * the 2nd-order HP shaping (1-z^-1)^2 pushes ~99.92% of noise power above
+ * 22.05kHz (~31dB reduction in in-band power). The shift decreases from 14
+ * to compensate, maintaining ~-90dB in-band RMS target. The <<3 gain
+ * compensation in spu94_dac_fir_step_8x_with_noise adds 18dB which is
+ * accounted for in this calibration. Starting at 9 (theoretical), tune
+ * empirically via test_dac_noise_8x.c.
+ * Validated by tests/unit/dac_noise/test_dac_noise_8x.c. */
+#define DAC_NOISE_SHIFT_8X  9
+
 void spu94_dac_noise_init(spu94_dac_noise_state *state, uint32_t seed) {
     memset(state, 0, sizeof(*state));
     state->lfsr = seed ? seed : DAC_NOISE_LFSR_SEED;
@@ -66,6 +76,24 @@ int16_t spu94_dac_noise_step(spu94_dac_noise_state *state) {
     /* 2nd-order highpass shaping: y[n] = x[n] - 2*x[n-1] + x[n-2]
      * This is the discrete NTF (1 - z^-1)^2 from delta-sigma theory.
      * Produces +12 dB/octave spectral slope. */
+    int32_t y = (int32_t)x - 2 * (int32_t)state->x_prev + (int32_t)state->x_prev2;
+    state->x_prev2 = state->x_prev;
+    state->x_prev = x;
+
+    return sat_s16(y);
+}
+
+int16_t spu94_dac_noise_step_8x(spu94_dac_noise_state *state) {
+    /* Identical LFSR + HP shaping as spu94_dac_noise_step, but uses
+     * DAC_NOISE_SHIFT_8X for 352.8kHz amplitude calibration. */
+    uint32_t lfsr = state->lfsr;
+    uint32_t bit = lfsr & 1u;
+    lfsr >>= 1;
+    if (bit) lfsr ^= DAC_NOISE_LFSR_FEEDBACK;
+    state->lfsr = lfsr;
+
+    int16_t x = (int16_t)(((int32_t)(lfsr >> 16) - 32768) >> DAC_NOISE_SHIFT_8X);
+
     int32_t y = (int32_t)x - 2 * (int32_t)state->x_prev + (int32_t)state->x_prev2;
     state->x_prev2 = state->x_prev;
     state->x_prev = x;

@@ -17,6 +17,7 @@
 #define SPU94_DAC_FIR_H
 
 #include <stdint.h>
+#include <spu94/spu94_dac_noise.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,6 +45,15 @@ int16_t spu94_dac_fir_step(spu94_dac_fir_state *state, int16_t input);
  * Naive implementation per D-01 -- polyphase deferred per D-02.
  * Mono API -- caller invokes once per channel. */
 int16_t spu94_dac_fir_step_8x(spu94_dac_fir_state *state, int16_t input);
+
+/* Process one 44.1kHz Q15 sample through the 8x cascade with noise
+ * injection at 352.8kHz (Phase 11, DSP-05). Noise is added to each of
+ * the 8 Stage 3 evaluations before decimation, producing spectrally
+ * shaped noise through the reconstruction filter.
+ * Mono API -- caller invokes once per channel. */
+int16_t spu94_dac_fir_step_8x_with_noise(spu94_dac_fir_state *fir,
+                                          spu94_dac_noise_state *noise,
+                                          int16_t input);
 
 /* Zero-initialize all delay lines and indices.
  * Equivalent to memset(state, 0, sizeof(*state)). */

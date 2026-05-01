@@ -189,6 +189,7 @@ struct spu94_state {
     uint8_t        dac_enabled;       /* master toggle, 0=off (default) */
     uint8_t        dac_fir_enabled;   /* FIR sub-toggle, 0=off (default) */
     uint8_t        dac_noise_enabled; /* noise sub-toggle, 0=off (default) */
+    uint8_t        dac_true_oversample; /* 0=v1.2 approx, 1=v1.3 true 8x (Phase 11 CMP-01) */
     spu94_dac_fir_state   dac_fir_l;  /* FIR state, L channel */
     spu94_dac_fir_state   dac_fir_r;  /* FIR state, R channel */
     spu94_dac_noise_state dac_noise_l;/* noise state, L channel */
