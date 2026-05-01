@@ -4,21 +4,13 @@
 
 **Shipped:** M1 — Reverb Core foundation (2026-04-25). 7 phases, 33 plans, 58 tasks complete. The bit-faithful PS1 SPU reverb network is implemented end-to-end as `libspu94`, with Python bindings, a native CLI, the 10 PS1 factory presets, full spec-conformance + golden-file + witness-diff + modulation test infrastructure, and a polished README. 82/82 ctest green. M1 close-out remediation cycle (Steps 1-15 from `ARCHITECTURAL-AUDIT.md`) hardened the test surface and closed every audit-flagged correctness gap; see `.planning/milestones/v1.0-MILESTONE-AUDIT.md` for the post-remediation re-audit (filename uses GSD's internal milestone numbering) and `.planning/MILESTONES.md` for the shipped accomplishments list.
 
-**Tagged:** `m1-reverb-core` (M1 reverb core foundation), `v1.0` (standalone GUI product), `v1.1` (ADPCM codec).
-
 **Shipped:** M2 — Sony 4-bit ADPCM Encode/Decode (2026-04-27, tag `v1.1`). Bit-faithful ADPCM codec added to libspu94 as toggleable coloration stage. 4 phases, 10 plans, 23/23 requirements verified. 380 LOC C core + 841 LOC tests + 30 golden files + 7 ADRs.
 
 **Shipped:** v1.2 — DAC Modeling (2026-04-30, tag `v1.2`). AK4309 interpolation filter + delta-sigma noise model as toggleable DAC coloration stage. Send/return mixer architecture with 3 buses, 6 faders, latency compensation. 5 phases, 12 plans, 14/14 requirements verified. 55 DAC golden files, frequency response characterization script, 99-row coverage map.
 
-## Current Milestone: v1.3 True Oversampled DAC
+**Shipped:** v1.3 — True Oversampled DAC (2026-05-01, tag `v1.3`). Genuine 8x oversampling at 352.8kHz replacing v1.2's single-rate approximation. Sum-of-8 proper decimation, unified HP-shaped noise model, A/B mode toggle across all surfaces. 3 phases, 8 plans. 55 v1.3 DAC golden files, characterization comparison script, ADR-0055.
 
-**Goal:** Replace the 44.1kHz FIR approximation with genuine 8x oversampling — zero-stuff to 352.8kHz, run the AK4309 interpolation cascade at the real rate, decimate back to 44.1kHz.
-
-**Target features:**
-- True 8x zero-stuff + interpolation at 352.8kHz
-- Faithful AK4309 cascade behavior at elevated rate
-- Decimation back to 44.1kHz for output
-- CLI/Python/JUCE surfaces updated for new DAC mode
+**Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`.
 
 ## What This Is
 
