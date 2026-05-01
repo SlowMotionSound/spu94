@@ -16,3 +16,8 @@ add_executable(test_dac_noise_amplitude test_dac_noise_amplitude.c)
 target_link_libraries(test_dac_noise_amplitude PRIVATE unity spu94_static m)
 add_test(NAME dac_noise_amplitude COMMAND test_dac_noise_amplitude)
 set_tests_properties(dac_noise_amplitude PROPERTIES LABELS "dac_noise")
+
+add_executable(test_dac_noise_8x test_dac_noise_8x.c)
+target_link_libraries(test_dac_noise_8x PRIVATE unity spu94_static m)
+add_test(NAME dac_noise_8x COMMAND test_dac_noise_8x)
+set_tests_properties(dac_noise_8x PROPERTIES LABELS "dac_noise")
