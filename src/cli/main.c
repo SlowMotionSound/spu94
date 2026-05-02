@@ -24,6 +24,7 @@
 
 /* External subcommand handlers */
 extern int cmd_reverb(int argc, char **argv);
+extern int cmd_preset_dump(int argc, char **argv);
 extern int cmd_adpcm_encode(int argc, char **argv);
 extern int cmd_adpcm_decode(int argc, char **argv);
 extern int cmd_adpcm_roundtrip(int argc, char **argv);
@@ -34,6 +35,7 @@ static void print_global_help(void) {
         "\n"
         "Commands:\n"
         "  reverb             Render a WAV file through the PS1 SPU reverb.\n"
+        "  preset-dump        Export a factory preset as .spu94 text.\n"
         "  adpcm-encode       Encode a WAV file to Sony ADPCM (.vag) format.\n"
         "  adpcm-decode       Decode a .vag file back to WAV.\n"
         "  adpcm-roundtrip    Encode WAV to ADPCM in memory, decode back to WAV.\n"
@@ -57,6 +59,8 @@ int main(int argc, char **argv) {
     if (argc >= 2 && argv[1][0] != '-') {
         if (strcmp(argv[1], "reverb") == 0)
             return cmd_reverb(argc - 1, argv + 1);
+        if (strcmp(argv[1], "preset-dump") == 0)
+            return cmd_preset_dump(argc - 1, argv + 1);
         if (strcmp(argv[1], "adpcm-encode") == 0)
             return cmd_adpcm_encode(argc - 1, argv + 1);
         if (strcmp(argv[1], "adpcm-decode") == 0)
