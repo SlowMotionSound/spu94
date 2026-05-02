@@ -70,7 +70,7 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 
 - [x] **Phase 13: Core Preset API** - C functions to serialize/deserialize full SPU state as versioned key=value text, with round-trip fidelity proof
 - [x] **Phase 14: I/O Surfaces** - CLI preset-dump/preset-load subcommands and JUCE Save/Load buttons with file dialogs -- completed 2026-05-02
-- [ ] **Phase 15: Verification** - Round-trip golden test proving save/load/process produces bit-identical output
+- [x] **Phase 15: Verification** - Round-trip golden test proving save/load/process produces bit-identical output -- completed 2026-05-02
 
 ## Phase Details
 
@@ -112,7 +112,7 @@ Plans:
   2. The test covers at least two preset configurations (one factory preset, one with non-default mixer/DAC state) to exercise all serialized fields
 **Plans**: 1 plan
 Plans:
-- [ ] 15-01-PLAN.md -- Integration-level golden round-trip test (save/load/process/compare)
+- [x] 15-01-PLAN.md -- Integration-level golden round-trip test (save/load/process/compare)
 
 ## Progress
 
@@ -126,7 +126,7 @@ Phases execute in numeric order: 13 -> 14 -> 15
 | 12. Verification + Characterization | v1.3 | 2/2 | Complete | 2026-05-01 |
 | 13. Core Preset API | v1.4 | 2/2 | Complete | 2026-05-01 |
 | 14. I/O Surfaces | v1.4 | 2/2 | Complete | 2026-05-02 |
-| 15. Verification | v1.4 | 0/1 | Not started | - |
+| 15. Verification | v1.4 | 1/1 | Complete | 2026-05-02 |
 
 ---
 

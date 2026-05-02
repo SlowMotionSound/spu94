@@ -20,17 +20,17 @@ Requirements for the Preset System milestone. Each maps to roadmap phases.
 
 ### CLI Surface
 
-- [ ] **PRE-06**: `spu94 preset-dump` subcommand writes current state to stdout or file
-- [ ] **PRE-07**: `spu94 preset-load` subcommand reads .spu94 file and applies before processing
+- [x] **PRE-06**: `spu94 preset-dump` subcommand writes current state to stdout or file
+- [x] **PRE-07**: `spu94 preset-load` subcommand reads .spu94 file and applies before processing
 
 ### JUCE GUI Surface
 
-- [ ] **PRE-08**: Save button opens file dialog, writes .spu94 file
-- [ ] **PRE-09**: Load button opens file dialog, reads .spu94 file, updates all GUI controls
+- [x] **PRE-08**: Save button opens file dialog, writes .spu94 file
+- [x] **PRE-09**: Load button opens file dialog, reads .spu94 file, updates all GUI controls
 
 ### Verification
 
-- [ ] **PRE-10**: Round-trip golden test -- save, load, process, compare output to pre-save output
+- [x] **PRE-10**: Round-trip golden test -- save, load, process, compare output to pre-save output
 
 ## Traceability
 
@@ -41,11 +41,11 @@ Requirements for the Preset System milestone. Each maps to roadmap phases.
 | PRE-03 | Phase 13 | Complete (13-01) |
 | PRE-04 | Phase 13 | Complete (13-02) |
 | PRE-05 | Phase 13 | Complete (13-01) |
-| PRE-06 | Phase 14 | Pending |
-| PRE-07 | Phase 14 | Pending |
-| PRE-08 | Phase 14 | Pending |
-| PRE-09 | Phase 14 | Pending |
-| PRE-10 | Phase 15 | Pending |
+| PRE-06 | Phase 14 | Complete (14-01) |
+| PRE-07 | Phase 14 | Complete (14-01) |
+| PRE-08 | Phase 14 | Complete (14-02) |
+| PRE-09 | Phase 14 | Complete (14-02) |
+| PRE-10 | Phase 15 | Complete (15-01) |
 
 ## Out of Scope
 
