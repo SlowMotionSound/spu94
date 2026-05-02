@@ -42,6 +42,61 @@
 
 ---
 
+## v1.4 Preset System (Shipped: 2026-05-02)
+
+**Phases completed:** 3 phases, 5 plans
+**Tag:** `v1.4`
+**Requirements:** 10/10 complete (PRE-01..PRE-10)
+
+**What shipped:**
+
+Human-readable preset save/load system for SPU-94. The C core serializes all 46 engine fields (35 registers + 7 mixer faders + 4 DAC toggles) to a versioned INI-style `.spu94` text file and restores them with bit-identical fidelity. Accessible via C API (`spu94_preset_save` / `spu94_preset_load`), CLI (`preset-dump` subcommand + `--load-preset` flag), and JUCE standalone GUI (Save/Load buttons with native file dialogs, custom preset dropdown, modified-state asterisk indicator).
+
+**Key accomplishments:**
+
+1. `spu94_preset_save` — EMIT-macro-based overflow-safe serializer writing 46 fields across 3 INI sections (registers, mixer, DAC) with version header
+2. `spu94_preset_load` — section-aware strchr-based parser with 512-byte line buffer, hand-rolled `parse_hex_u16` (grep-guard compliant)
+3. CLI `preset-dump` with `--preset`/`--name`/`-o`/`--list-presets` flags + `--load-preset` on reverb with three-way mutual exclusion
+4. JUCE Save/Load buttons with native file dialogs, custom preset dropdown (diamond prefix), modified-state asterisk (30Hz 46-field diff)
+5. Integration-level golden round-trip test proving bit-identical audio output after save/load through `spu94_process` (factory Hall + custom Delay with non-default mixer/DAC)
+
+**Key decisions:**
+
+- EMIT macro pattern for overflow-safe snprintf writes
+- strchr-based key=value splitting (strtok modifies strings)
+- Save dialog simplified to single native file dialog step (kdialog touch-create workaround)
+- File-preset audio-thread handoff via pendingPresetBuf + acquire/release atomics
+- loaded_pid = -1 for file presets prevents default-fader overwrite
+
+**Issues deferred:** None — clean close.
+
+**Archived to:** `.planning/milestones/v1.4-ROADMAP.md`, `.planning/milestones/v1.4-REQUIREMENTS.md`
+
+---
+
+## v1.3 True Oversampled DAC (Shipped: 2026-05-01)
+
+**Phases completed:** 3 phases, 8 plans
+**Tag:** `v1.3`
+
+**What shipped:** Genuine 8x oversampling at 352.8kHz replacing v1.2's single-rate approximation. Sum-of-8 proper decimation, unified HP-shaped noise model, A/B mode toggle across all surfaces.
+
+**Archived to:** `.planning/milestones/v1.3-ROADMAP.md` (if exists)
+
+---
+
+## v1.2 DAC Modeling (Shipped: 2026-04-30)
+
+**Phases completed:** 5 phases, 12 plans
+**Tag:** `v1.2`
+**Requirements:** 14/14 complete
+
+**What shipped:** AK4309 interpolation filter + delta-sigma noise model as toggleable DAC coloration stage. Send/return mixer architecture with 3 buses, 6 faders, latency compensation.
+
+**Archived to:** `.planning/milestones/v1.2-ROADMAP.md`, `.planning/milestones/v1.2-REQUIREMENTS.md`
+
+---
+
 ## v1.1 ADPCM Encode/Decode (Shipped: 2026-04-27)
 
 **Phases completed:** 4 phases, 10 plans

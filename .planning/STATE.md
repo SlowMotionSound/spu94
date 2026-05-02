@@ -21,7 +21,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-01)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.4 Preset System — milestone complete
+**Current focus:** v1.4 shipped — planning next milestone
 
 ## Current Position
 
@@ -30,7 +30,7 @@ Plan: 1 of 1 — Complete
 Status: v1.4 milestone complete, all phases shipped
 Last activity: 2026-05-02 -- Phase 15 verification passed
 
-Progress: [██████░░░░] 67%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 

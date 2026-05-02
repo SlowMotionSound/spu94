@@ -10,17 +10,9 @@
 
 **Shipped:** v1.3 — True Oversampled DAC (2026-05-01, tag `v1.3`). Genuine 8x oversampling at 352.8kHz replacing v1.2's single-rate approximation. Sum-of-8 proper decimation, unified HP-shaped noise model, A/B mode toggle across all surfaces. 3 phases, 8 plans. 55 v1.3 DAC golden files, characterization comparison script, ADR-0055.
 
-**Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`.
+**Shipped:** v1.4 — Preset System (2026-05-02, tag `v1.4`). Human-readable preset save/load for all 46 engine fields. C core API (`spu94_preset_save` / `spu94_preset_load`), CLI subcommands (`preset-dump`, `--load-preset`), JUCE Save/Load buttons with native file dialogs and custom preset dropdown. 3 phases, 5 plans, 10/10 requirements verified. Integration-level golden round-trip proof (bit-identical audio after save/load).
 
-## Current Milestone: v1.4 Preset System
-
-**Goal:** Save and load custom presets as .spu94 files, with API in the C core and surfaces in CLI + JUCE GUI.
-
-**Target features:**
-- `spu94_preset_save` / `spu94_preset_load` in C core (plain text key=value format)
-- .spu94 file extension for preset files
-- CLI `preset-dump` / `preset-load` subcommands
-- JUCE Save/Load buttons in GUI
+**Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`.
 
 ## What This Is
 
@@ -94,7 +86,7 @@ See `.planning/milestones/v1.2-REQUIREMENTS.md` for full 14-requirement traceabi
 
 ## Context
 
-Shipped v1.2 additions: DAC FIR filter (`spu94_dac_fir.c`), noise model (`spu94_dac_noise.c`), send/return mixer rewrite of `spu94_process.c`, JUCE 4-zone GUI redesign. 55 DAC golden WAVs, frequency response characterization script (`tools/dac_measure.py`), 99-row coverage map. Total project C LOC: ~7,300. Total ctest: ~50 (282 pytest conformance tests, ~100 pytest integration tests).
+Shipped v1.4 additions: `spu94_preset_io.c` (259 LOC serializer/parser), `cmd_preset_dump.c` (155 LOC CLI subcommand), JUCE Save/Load GUI with custom preset dropdown and modified-state asterisk. Total project C LOC: ~8,200. Total ctest: 107 (47 C unit tests + 60 Python/CLI/packaging tests).
 
 Shipped v1.1 additions: 380 LOC ADPCM C core (`spu94_adpcm.c`, `spu94_adpcm_encode.c`, `vag.c`), 841 LOC unit tests, 30 ADPCM golden WAV files with SHA-256 sidecars, 7 numbered ADRs (ADR-0047 through ADR-0053).
 
@@ -165,4 +157,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-01 — v1.4 Preset System milestone started.*
+*Last updated: 2026-05-02 — v1.4 Preset System shipped.*
