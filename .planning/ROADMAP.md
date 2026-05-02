@@ -1,6 +1,6 @@
 # Roadmap: SPU-94
 
-**Updated:** 2026-05-01
+**Updated:** 2026-05-02
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
 
 ## Milestones
@@ -97,7 +97,10 @@ Plans:
   2. `spu94 preset-load <file.spu94>` reads a preset file and applies it before WAV processing begins
   3. JUCE Save button opens a native file dialog filtered to .spu94, writes the current state to the chosen path
   4. JUCE Load button opens a native file dialog, reads the chosen .spu94 file, and updates all GUI controls (registers, mixer faders, DAC toggles) to reflect the loaded state
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 14-01-PLAN.md -- CLI preset-dump subcommand + reverb --load-preset flag
+- [ ] 14-02-PLAN.md -- JUCE Save/Load buttons, name prompt, custom dropdown entry, modified indicator
 **UI hint**: yes
 
 ### Phase 15: Verification
@@ -120,7 +123,7 @@ Phases execute in numeric order: 13 -> 14 -> 15
 | 11. Noise Recalibration + Integration | v1.3 | 2/2 | Complete | 2026-05-01 |
 | 12. Verification + Characterization | v1.3 | 2/2 | Complete | 2026-05-01 |
 | 13. Core Preset API | v1.4 | 2/2 | Complete | 2026-05-01 |
-| 14. I/O Surfaces | v1.4 | 0/? | Not started | - |
+| 14. I/O Surfaces | v1.4 | 0/2 | Planning complete | - |
 | 15. Verification | v1.4 | 0/? | Not started | - |
 
 ---
@@ -136,4 +139,4 @@ Phases execute in numeric order: 13 -> 14 -> 15
 - `.planning/milestones/v1.0-REQUIREMENTS.md` -- M1 requirements
 
 ---
-*Last updated: 2026-05-01 -- Phase 13 complete (2/2 plans)*
+*Last updated: 2026-05-02 -- Phase 14 planned (2 plans)*
