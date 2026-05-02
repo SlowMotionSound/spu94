@@ -10,6 +10,7 @@
 add_executable(spu94_cli
     main.c
     cmd_reverb.c
+    cmd_preset_dump.c
     cmd_adpcm.c
     wav_io.c
     json_config.c

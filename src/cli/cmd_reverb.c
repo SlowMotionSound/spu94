@@ -95,6 +95,7 @@ static void print_reverb_help(void) {
         "Signal choice (one of):\n"
         "  --preset <name>        Apply a factory preset. See --list-presets.\n"
         "  --config <path.json>   Apply a register-map or override from JSON.\n"
+        "  --load-preset <file>   Apply a .spu94 preset file before processing.\n"
         "\n"
         "Optional:\n"
         "  --adpcm                Enable ADPCM coloration (PS1 codec artifacts).\n"
@@ -127,6 +128,7 @@ static void print_reverb_help(void) {
         "  spu94 --preset hall --tail-seconds 2 input.wav output.wav\n"
         "  spu94 reverb --adpcm --preset hall input.wav output.wav\n"
         "  spu94 reverb --preset hall --dac input.wav output.wav\n"
+        "  spu94 reverb --load-preset my.spu94 input.wav output.wav\n"
         "  spu94 --config my_override.json input.wav output.wav\n"
         "\n"
         "Input must be 16-bit PCM stereo at 44.1 kHz. Output is the same format.\n",
@@ -143,6 +145,7 @@ int cmd_reverb(int argc, char **argv) {
         {"no-dac-fir",      no_argument,       NULL, 1001},
         {"no-dac-noise",    no_argument,       NULL, 1002},
         {"no-dac-true-oversample", no_argument, NULL, 1011},
+        {"load-preset",     required_argument, NULL, 1012},
         {"latency-comp",    no_argument,       NULL, 1003},
         {"no-latency-comp", no_argument,       NULL, 1004},
         {"input-gain",      required_argument, NULL, 1005},
@@ -164,6 +167,7 @@ int cmd_reverb(int argc, char **argv) {
     bool no_dac_fir = false;
     bool no_dac_noise = false;
     bool no_dac_true_oversample = false;
+    const char *load_preset_path = NULL;
     bool latency_comp_off = false;
     /* Fader overrides: -1.0 means "not set by user" (use defaults). */
     double fader_input_gain = -1.0;
@@ -208,6 +212,9 @@ int cmd_reverb(int argc, char **argv) {
                 break;
             case 1011:
                 no_dac_true_oversample = true;
+                break;
+            case 1012:
+                load_preset_path = optarg;
                 break;
             case 1003:
                 /* --latency-comp: already ON by default (D-07). Accepted for
@@ -290,12 +297,13 @@ int cmd_reverb(int argc, char **argv) {
     }
 
     /* Validate flag combination (D-05 contract). */
-    if (preset_name && config_path) {
-        SPU94_ERROR("--preset and --config are mutually exclusive");
+    int source_count = (preset_name ? 1 : 0) + (config_path ? 1 : 0) + (load_preset_path ? 1 : 0);
+    if (source_count > 1) {
+        SPU94_ERROR("--preset, --config, and --load-preset are mutually exclusive");
         return 2;
     }
-    if (!preset_name && !config_path) {
-        SPU94_ERROR("one of --preset or --config is required (try --help)");
+    if (source_count == 0) {
+        SPU94_ERROR("one of --preset, --config, or --load-preset is required (try --help)");
         return 2;
     }
     if (argc - optind != 2) {
@@ -374,22 +382,48 @@ int cmd_reverb(int argc, char **argv) {
             return 2;
         }
         loaded_pid = pid;
-    } else {
+    } else if (config_path) {
         if (spu94_cli_json_apply(config_path, state, err_buf, sizeof err_buf) != 0) {
             spu94_destroy(state);
             free(input.L); free(input.R); free(work_buf);
             SPU94_ERROR("%s", err_buf);
             return 2;
         }
+    } else if (load_preset_path) {
+        FILE *fp = fopen(load_preset_path, "r");
+        if (!fp) {
+            SPU94_ERROR("cannot open preset file '%s'", load_preset_path);
+            spu94_destroy(state);
+            free(input.L); free(input.R); free(work_buf);
+            return 1;
+        }
+        char preset_buf[SPU94_PRESET_BUF_SIZE];
+        size_t nread = fread(preset_buf, 1, sizeof(preset_buf) - 1, fp);
+        fclose(fp);
+        if (nread == 0) {
+            SPU94_ERROR("preset file '%s' is empty", load_preset_path);
+            spu94_destroy(state);
+            free(input.L); free(input.R); free(work_buf);
+            return 1;
+        }
+        preset_buf[nread] = '\0';
+        spu94_result_t lrc = spu94_preset_load(state, preset_buf, nread);
+        if (lrc != SPU94_OK) {
+            SPU94_ERROR("failed to apply preset file '%s'", load_preset_path);
+            spu94_destroy(state);
+            free(input.L); free(input.R); free(work_buf);
+            return 1;
+        }
+        loaded_pid = -1;  /* custom file, not a factory preset */
     }
 
     spu94_tick(state);
 
-    /* Phase 7: mixer faders default to 0 (silence). Set unity gains so the
-     * CLI produces audible output without requiring JSON config entries.
-     * Off preset (pid=0) stays silent -- no faders, matching the historic
-     * "Off = silence" contract. JSON configs manage their own faders. */
-    if (loaded_pid != 0) {
+    /* Phase 7: mixer faders default to 0 (silence). Set unity gains so
+     * factory presets produce audible output. Off (pid=0) stays silent.
+     * JSON configs and --load-preset files (pid=-1) manage their own
+     * faders -- the .spu94 file already contains mixer values. */
+    if (loaded_pid > 0) {
         spu94_set_input_gain(state, 0x7FFF);
         spu94_set_dry_fader(state, 0x7FFF);
         spu94_set_reverb_fader(state, 0x7FFF);
