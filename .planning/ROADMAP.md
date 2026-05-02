@@ -69,7 +69,7 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 **Milestone Goal:** Save and load custom presets as .spu94 files -- human-readable key=value text capturing all register + mixer + DAC state -- with C core API, CLI subcommands, and JUCE GUI buttons.
 
 - [x] **Phase 13: Core Preset API** - C functions to serialize/deserialize full SPU state as versioned key=value text, with round-trip fidelity proof
-- [ ] **Phase 14: I/O Surfaces** - CLI preset-dump/preset-load subcommands and JUCE Save/Load buttons with file dialogs
+- [x] **Phase 14: I/O Surfaces** - CLI preset-dump/preset-load subcommands and JUCE Save/Load buttons with file dialogs -- completed 2026-05-02
 - [ ] **Phase 15: Verification** - Round-trip golden test proving save/load/process produces bit-identical output
 
 ## Phase Details
@@ -99,8 +99,8 @@ Plans:
   4. JUCE Load button opens a native file dialog, reads the chosen .spu94 file, and updates all GUI controls (registers, mixer faders, DAC toggles) to reflect the loaded state
 **Plans**: 2 plans
 Plans:
-- [ ] 14-01-PLAN.md -- CLI preset-dump subcommand + reverb --load-preset flag
-- [ ] 14-02-PLAN.md -- JUCE Save/Load buttons, name prompt, custom dropdown entry, modified indicator
+- [x] 14-01-PLAN.md -- CLI preset-dump subcommand + reverb --load-preset flag
+- [x] 14-02-PLAN.md -- JUCE Save/Load buttons, name prompt, custom dropdown entry, modified indicator
 **UI hint**: yes
 
 ### Phase 15: Verification
@@ -123,7 +123,7 @@ Phases execute in numeric order: 13 -> 14 -> 15
 | 11. Noise Recalibration + Integration | v1.3 | 2/2 | Complete | 2026-05-01 |
 | 12. Verification + Characterization | v1.3 | 2/2 | Complete | 2026-05-01 |
 | 13. Core Preset API | v1.4 | 2/2 | Complete | 2026-05-01 |
-| 14. I/O Surfaces | v1.4 | 0/2 | Planning complete | - |
+| 14. I/O Surfaces | v1.4 | 2/2 | Complete | 2026-05-02 |
 | 15. Verification | v1.4 | 0/? | Not started | - |
 
 ---
