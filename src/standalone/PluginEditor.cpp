@@ -96,10 +96,26 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     presetSelector.setSelectedId(SPU94_PRESET_HALL + 1, juce::dontSendNotification);
 
     presetSelector.onChange = [this] {
-        const int id = presetSelector.getSelectedId() - 1;  // back to 0-based
-        if (id >= 0 && id < SPU94_PRESET__COUNT)
+        const int id = presetSelector.getSelectedId();
+        if (id == kCustomPresetId)
+            return;  // Custom entry selected -- no action needed
+
+        // D-10: Selecting a factory preset clears the custom entry
+        if (presetSelector.indexOfItemId(kCustomPresetId) >= 0)
+        {
+            presetSelector.clear(juce::dontSendNotification);
+            for (int i = 0; i < SPU94_PRESET__COUNT; ++i)
+                presetSelector.addItem(juce::String(spu94_presets[i].name), i + 1);
+            customPresetName = {};
+            modifiedState = false;
+        }
+
+        const int pid = id - 1;  // back to 0-based
+        if (pid >= 0 && pid < SPU94_PRESET__COUNT)
+        {
             processorRef.getPresetQueue().requestPreset(
-                static_cast<spu94_preset_id_t>(id));
+                static_cast<spu94_preset_id_t>(pid));
+        }
     };
 
     // ---- ZONE 1: Toolbar controls ----
@@ -264,6 +280,8 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     lastFilePresetCount = processorRef.getFilePresetAppliedCount();
     startTimerHz(30);
 
+    captureBaseline();
+
     setResizeLimits(900, 800, 1600, 1400);
     setSize(900, 1100);
 }
@@ -281,8 +299,18 @@ void SPU94AudioProcessorEditor::timerCallback()
         lastAppliedCount = current;
         registerPanel.updateFromShadows();
         const int appliedId = processorRef.getPresetQueue().getAppliedId();
-        presetSelector.setSelectedId(appliedId + 1,
-                                      juce::dontSendNotification);
+
+        // D-10: clear custom entry when switching to factory preset
+        if (presetSelector.indexOfItemId(kCustomPresetId) >= 0)
+        {
+            presetSelector.clear(juce::dontSendNotification);
+            for (int i = 0; i < SPU94_PRESET__COUNT; ++i)
+                presetSelector.addItem(juce::String(spu94_presets[i].name), i + 1);
+            customPresetName = {};
+        }
+
+        presetSelector.setSelectedId(appliedId + 1, juce::dontSendNotification);
+        captureBaseline();  // D-12: factory preset switch resets baseline
     }
 
     // Detect file-preset load completion
@@ -292,7 +320,26 @@ void SPU94AudioProcessorEditor::timerCallback()
         lastFilePresetCount = fileCount;
         registerPanel.updateFromShadows();
         syncMixerKnobsFromProcessor();
+
+        // D-09: Show custom preset entry in dropdown
+        if (presetSelector.getNumItems() == SPU94_PRESET__COUNT)
+        {
+            // Add custom entry (appends at end; JUCE doesn't support insert-at-position)
+            presetSelector.addItem(juce::String::charToString(0x25C6) + " " + customPresetName,
+                                   kCustomPresetId);
+        }
+        else
+        {
+            // Update existing custom entry text
+            presetSelector.changeItemText(kCustomPresetId,
+                juce::String::charToString(0x25C6) + " " + customPresetName);
+        }
+        presetSelector.setSelectedId(kCustomPresetId, juce::dontSendNotification);
+        captureBaseline();  // D-12: file load resets baseline
     }
+
+    // D-11: check for modified state and update asterisk
+    updatePresetDisplayName();
 }
 
 void SPU94AudioProcessorEditor::paint(juce::Graphics& g)
@@ -381,9 +428,9 @@ void SPU94AudioProcessorEditor::showPresetNamePrompt()
 
     window->enterModalState(true,
         juce::ModalCallbackFunction::create(
-            [this, window](int result)
+            [this, window](int buttonResult)
             {
-                if (result == 0)
+                if (buttonResult == 0)
                 {
                     delete window;
                     return;
@@ -415,18 +462,87 @@ void SPU94AudioProcessorEditor::showPresetNamePrompt()
                     juce::FileBrowserComponent::warnAboutOverwriting,
                     [this, name, desc](const juce::FileChooser& fc)
                     {
-                        auto result = fc.getResult();
-                        if (result == juce::File()) return;
+                        auto chosen = fc.getResult();
+                        if (chosen == juce::File()) return;
 
                         auto text = processorRef.savePresetToString(name, desc);
                         if (text.isNotEmpty())
                         {
-                            result.replaceWithText(text);
+                            chosen.replaceWithText(text);
                             customPresetName = name;
                         }
                     });
             }),
         true);
+}
+
+void SPU94AudioProcessorEditor::captureBaseline()
+{
+    for (size_t i = 0; i < SPU94_REG__COUNT; ++i)
+        baseline.registers[i] = processorRef.getRegisterBridge().getShadowValue(i);
+    baseline.inputGain = processorRef.getInputLevel().load(std::memory_order_relaxed);
+    baseline.dry = processorRef.getDryLevel().load(std::memory_order_relaxed);
+    baseline.patina = processorRef.getPatinaLevel().load(std::memory_order_relaxed);
+    baseline.reverb = processorRef.getReverbLevel().load(std::memory_order_relaxed);
+    baseline.adpcmSend = processorRef.getAdpcmSend().load(std::memory_order_relaxed);
+    baseline.drySend = processorRef.getDrySend().load(std::memory_order_relaxed);
+    baseline.latencyComp = processorRef.getLatencyCompEnabled().load(std::memory_order_relaxed);
+    baseline.dac = processorRef.getDacEnabled().load(std::memory_order_relaxed);
+    baseline.dacFir = processorRef.getDacFirEnabled().load(std::memory_order_relaxed);
+    baseline.dacNoise = processorRef.getDacNoiseEnabled().load(std::memory_order_relaxed);
+    baseline.dacOversample = processorRef.getDacTrueOversample().load(std::memory_order_relaxed);
+    modifiedState = false;
+}
+
+bool SPU94AudioProcessorEditor::checkModified() const
+{
+    for (size_t i = 0; i < SPU94_REG__COUNT; ++i)
+    {
+        if (processorRef.getRegisterBridge().getShadowValue(i) != baseline.registers[i])
+            return true;
+    }
+    auto& p = processorRef;
+    // Float comparisons: these are slider-sourced values stored/loaded without
+    // arithmetic, so bitwise equality is the correct test. Use memcmp to
+    // avoid -Wfloat-equal warnings while preserving exact-match semantics.
+    auto feq = [](float a, float b) { return std::memcmp(&a, &b, sizeof(float)) == 0; };
+    if (!feq(p.getInputLevel().load(std::memory_order_relaxed), baseline.inputGain)) return true;
+    if (!feq(p.getDryLevel().load(std::memory_order_relaxed), baseline.dry)) return true;
+    if (!feq(p.getPatinaLevel().load(std::memory_order_relaxed), baseline.patina)) return true;
+    if (!feq(p.getReverbLevel().load(std::memory_order_relaxed), baseline.reverb)) return true;
+    if (!feq(p.getAdpcmSend().load(std::memory_order_relaxed), baseline.adpcmSend)) return true;
+    if (!feq(p.getDrySend().load(std::memory_order_relaxed), baseline.drySend)) return true;
+    if (p.getLatencyCompEnabled().load(std::memory_order_relaxed) != baseline.latencyComp) return true;
+    if (p.getDacEnabled().load(std::memory_order_relaxed) != baseline.dac) return true;
+    if (p.getDacFirEnabled().load(std::memory_order_relaxed) != baseline.dacFir) return true;
+    if (p.getDacNoiseEnabled().load(std::memory_order_relaxed) != baseline.dacNoise) return true;
+    if (p.getDacTrueOversample().load(std::memory_order_relaxed) != baseline.dacOversample) return true;
+    return false;
+}
+
+void SPU94AudioProcessorEditor::updatePresetDisplayName()
+{
+    bool nowModified = checkModified();
+    if (nowModified == modifiedState) return;  // no change
+    modifiedState = nowModified;
+
+    const int selectedId = presetSelector.getSelectedId();
+    if (selectedId == kCustomPresetId)
+    {
+        juce::String display = juce::String::charToString(0x25C6) + " " + customPresetName;
+        if (nowModified) display += " *";
+        presetSelector.changeItemText(kCustomPresetId, display);
+        // Force visual refresh
+        presetSelector.setSelectedId(kCustomPresetId, juce::dontSendNotification);
+    }
+    else if (selectedId >= 1 && selectedId <= SPU94_PRESET__COUNT)
+    {
+        const int pid = selectedId - 1;
+        juce::String display(spu94_presets[pid].name);
+        if (nowModified) display += " *";
+        presetSelector.changeItemText(selectedId, display);
+        presetSelector.setSelectedId(selectedId, juce::dontSendNotification);
+    }
 }
 
 void SPU94AudioProcessorEditor::syncMixerKnobsFromProcessor()
