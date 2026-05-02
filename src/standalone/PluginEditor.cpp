@@ -300,17 +300,15 @@ void SPU94AudioProcessorEditor::timerCallback()
         registerPanel.updateFromShadows();
         const int appliedId = processorRef.getPresetQueue().getAppliedId();
 
-        // D-10: clear custom entry when switching to factory preset
-        if (presetSelector.indexOfItemId(kCustomPresetId) >= 0)
-        {
-            presetSelector.clear(juce::dontSendNotification);
-            for (int i = 0; i < SPU94_PRESET__COUNT; ++i)
-                presetSelector.addItem(juce::String(spu94_presets[i].name), i + 1);
-            customPresetName = {};
-        }
+        // Reset all preset names to clean state (clears asterisks and custom entries)
+        presetSelector.clear(juce::dontSendNotification);
+        for (int i = 0; i < SPU94_PRESET__COUNT; ++i)
+            presetSelector.addItem(juce::String(spu94_presets[i].name), i + 1);
+        customPresetName = {};
 
         presetSelector.setSelectedId(appliedId + 1, juce::dontSendNotification);
-        captureBaseline();  // D-12: factory preset switch resets baseline
+        captureBaseline();
+        modifiedState = false;
     }
 
     // Detect file-preset load completion
