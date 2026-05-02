@@ -69,3 +69,17 @@ target_include_directories(test_preset_parse PRIVATE
     ${CMAKE_SOURCE_DIR}/src/spu94)
 add_test(NAME test_preset_parse COMMAND test_preset_parse)
 set_tests_properties(test_preset_parse PROPERTIES LABELS "preset")
+
+# Phase 15: Integration-level golden round-trip -- save/load/process/compare
+add_executable(test_preset_golden_roundtrip test_preset_golden_roundtrip.c)
+target_link_libraries(test_preset_golden_roundtrip
+    PRIVATE
+        unity
+        spu94_static
+        spu94_warnings
+)
+target_include_directories(test_preset_golden_roundtrip PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src/spu94)
+add_test(NAME test_preset_golden_roundtrip COMMAND test_preset_golden_roundtrip)
+set_tests_properties(test_preset_golden_roundtrip PROPERTIES LABELS "preset")
