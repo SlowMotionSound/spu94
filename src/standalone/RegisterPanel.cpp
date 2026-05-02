@@ -21,6 +21,7 @@ RegisterPanel::RegisterPanel(RegisterBridge& b)
         slider.onValueChange = [this, i] {
             bridge.setRegisterShadow(i,
                 static_cast<int16_t>(sliders[i].getValue()));
+            baseline[i] = sliders[i].getValue();
         };
 
         labels[i].setText(juce::String(name), juce::dontSendNotification);
@@ -39,14 +40,50 @@ RegisterPanel::RegisterPanel(RegisterBridge& b)
         header->setJustificationType(juce::Justification::centredLeft);
         addAndMakeVisible(header);
     }
+
+    scaleSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    scaleSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 50, 20);
+    scaleSlider.setRange(0.0, 2.0, 0.01);
+    scaleSlider.setValue(1.0, juce::dontSendNotification);
+    scaleSlider.onValueChange = [this] { applyScale(scaleSlider.getValue()); };
+    scaleLabel.setText("SCALE", juce::dontSendNotification);
+    scaleLabel.setJustificationType(juce::Justification::centredRight);
+    scaleLabel.setFont(juce::FontOptions(16.0f, juce::Font::bold));
+    addAndMakeVisible(scaleSlider);
+    addAndMakeVisible(scaleLabel);
 }
 
 void RegisterPanel::updateFromShadows()
 {
     for (size_t i = 0; i < kSliderRegisters.size(); ++i)
     {
-        sliders[i].setValue(bridge.getShadowValue(i),
-                            juce::dontSendNotification);
+        double val = bridge.getShadowValue(i);
+        baseline[i] = val;
+        sliders[i].setValue(val, juce::dontSendNotification);
+    }
+    scaleSlider.setValue(1.0, juce::dontSendNotification);
+}
+
+void RegisterPanel::applyScale(double scale)
+{
+    for (size_t i = 0; i < kSliderRegisters.size(); ++i)
+    {
+        const auto reg = kSliderRegisters[i];
+
+        if (reg == SPU94_REG_vLOUT || reg == SPU94_REG_vROUT ||
+            reg == SPU94_REG_vLIN  || reg == SPU94_REG_vRIN)
+            continue;
+
+        const auto type = spu94_reg_type(reg);
+        double scaled = baseline[i] * scale;
+
+        if (type == SPU94_REG_TYPE_I16)
+            scaled = std::clamp(scaled, -32768.0, 32767.0);
+        else
+            scaled = std::clamp(scaled, 0.0, 65535.0);
+
+        sliders[i].setValue(std::round(scaled), juce::dontSendNotification);
+        bridge.setRegisterShadow(i, static_cast<int16_t>(std::round(scaled)));
     }
 }
 
@@ -57,7 +94,7 @@ int RegisterPanel::getPreferredHeight() const
     const int gap = 2;
     const int numHeaders = 9;
     const int numSliders = static_cast<int>(kSliderRegisters.size());
-    return numSliders * (rowH + gap) + numHeaders * (headerH + gap) + 8;
+    return numSliders * (rowH + gap) + numHeaders * (headerH + gap) + rowH + gap + 4 + 8;
 }
 
 void RegisterPanel::resized()
@@ -105,4 +142,10 @@ void RegisterPanel::resized()
     layoutGroup(headerSameGeom, 19, 6);
     layoutGroup(headerDiffGeom, 25, 6);
     layoutGroup(headerAPFAddr,  31, 4);
+
+    y += 8;
+    const int scaleH = 32;
+    scaleLabel.setBounds(area.getX(), y, labelW, scaleH);
+    scaleSlider.setBounds(area.getX() + labelW + gap, y,
+                          area.getWidth() - labelW - gap, scaleH);
 }

@@ -18,16 +18,24 @@ public:
 
     // After a preset switch, pull current shadow values to update
     // slider positions so they reflect the new preset's register values.
+    // Also captures the baseline for ratio-locked scaling.
     void updateFromShadows();
 
     // Returns the preferred height for laying out all sliders.
     int getPreferredHeight() const;
 
 private:
+    void applyScale(double scale);
+
     RegisterBridge& bridge;
 
     std::array<juce::Slider, SPU94_REG__COUNT> sliders;
     std::array<juce::Label, SPU94_REG__COUNT> labels;
+
+    // Ratio-locked scaling: baseline captured on preset load.
+    std::array<double, SPU94_REG__COUNT> baseline{};
+    juce::Slider scaleSlider;
+    juce::Label scaleLabel{"", "Scale"};
 
     // Group header labels for visual organization.
     juce::Label headerMasterIO{"", "Master I/O"};

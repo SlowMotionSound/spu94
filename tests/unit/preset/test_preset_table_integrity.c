@@ -4,7 +4,7 @@
 
 static const char *const expected_names[SPU94_PRESET__COUNT] = {
     "Off", "Room", "Studio A", "Studio B", "Studio C",
-    "Hall", "Half Echo", "Space Echo", "Echo", "Delay"
+    "Hall", "Half Echo", "Space Echo", "Echo", "Delay", "Init"
 };
 
 /* Off-preset m-prefix (buffer-address) register indices that carry the
@@ -32,13 +32,14 @@ _Static_assert(SPU94_PRESET_HALF_ECHO  == 6, "HALF_ECHO id stable");
 _Static_assert(SPU94_PRESET_SPACE_ECHO == 7, "SPACE_ECHO id stable");
 _Static_assert(SPU94_PRESET_ECHO       == 8, "ECHO id stable");
 _Static_assert(SPU94_PRESET_DELAY      == 9, "DELAY id stable");
-_Static_assert(SPU94_PRESET__COUNT     == 10, "count == 10 per D-06");
+_Static_assert(SPU94_PRESET_INIT  == 10, "MONO_HALL id stable");
+_Static_assert(SPU94_PRESET__COUNT     == 11, "count == 11");
 
 void setUp(void)    {}
 void tearDown(void) {}
 
-static void test_count_is_ten(void) {
-    TEST_ASSERT_EQUAL_INT(10, (int)SPU94_PRESET__COUNT);
+static void test_count(void) {
+    TEST_ASSERT_EQUAL_INT(11, (int)SPU94_PRESET__COUNT);
 }
 
 static void test_names_present_and_match(void) {
@@ -75,7 +76,7 @@ static void test_regs_array_length_pinned(void) {
 
 int main(void) {
     UNITY_BEGIN();
-    RUN_TEST(test_count_is_ten);
+    RUN_TEST(test_count);
     RUN_TEST(test_names_present_and_match);
     RUN_TEST(test_off_matches_audit);
     RUN_TEST(test_regs_array_length_pinned);

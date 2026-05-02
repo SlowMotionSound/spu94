@@ -4,8 +4,8 @@ milestone: v1.4
 milestone_name: Preset System
 status: planning
 stopped_at: Phase 13 verified and complete, Phase 14 ready to discuss/plan
-last_updated: "2026-05-01T21:53:52Z"
-last_activity: 2026-05-01 -- Phase 13 Plan 02 executed (preset load parser + round-trip tests)
+last_updated: "2026-05-02T00:30:00Z"
+last_activity: 2026-05-01 -- Ad-hoc GUI work (Init preset, Scale slider, pending sync bugfix)
 progress:
   total_phases: 3
   completed_phases: 1
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-05-01)
 Phase: 14 of 15 (I/O Surfaces)
 Plan: Ready to discuss/plan
 Status: Phase 13 verified, advancing to Phase 14
-Last activity: 2026-05-01 -- Phase 13 verified (10/10 must-haves)
+Last activity: 2026-05-01 -- Ad-hoc GUI improvements (Init preset, Scale slider, pending sync bugfix)
 
 Progress: [███░░░░░░░] 33%
 
@@ -62,6 +62,9 @@ Recent decisions affecting current work:
 - Hand-rolled parse_hex_u16 avoids strtol/long grep-guard ban (Phase 13 Plan 01)
 - strchr-based key=value splitting for const char* parser (Plan 02 -- strtok modifies strings)
 - 512-byte stack line buffer with truncation for parser line safety (Plan 02)
+- Init preset (slot 10): Hall coefficients with L/R geometry collapsed to mono -- user expands stereo from scratch
+- Scale slider: ratio-locked register scaling from preset baseline, excludes vLIN/vRIN/vLOUT/vROUT
+- syncShadowsFromSPU reads pending values (not active) so tick-latched registers show correctly after preset load
 
 ### Blockers/Concerns
 
@@ -94,9 +97,13 @@ None yet.
 | Distribution | Visual signal flow diagram as GUI -- Ensoniq/ASM Hydrasynth style panel layout. Future UI overhaul. | 2026-04-29 |
 | Feature | Anthony has a screenshot of preset #1 to capture once save system exists | 2026-04-29 |
 | Feature | Continuous oversampling sweep (luxury) -- crossfade two adjacent rates for smooth knob feel. Desktop-only. | 2026-04-29 |
+| Performance | Tap tempo sync -- quantize d*/m* registers to BPM subdivisions for rhythmic reverb | 2026-05-01 |
+| Performance | Buffer Base step-lock -- mBASE snaps to discrete lockable positions for deliberate buffer jumps | 2026-05-01 |
+| Performance | Resistance to Feedback -- meta-control inversely linking pro/anti-feedback registers with adjustable ceiling | 2026-05-01 |
+| Creative | Codec re-sync effect -- deliberate frame boundary misalignment in codec decode for glitch textures | 2026-05-01 |
 
 ## Session Continuity
 
-Last session: 2026-05-01T21:53:52Z
-Stopped at: Phase 13 complete (2/2 plans), ready for Phase 14
+Last session: 2026-05-02T00:30:00Z
+Stopped at: Phase 14 ready to discuss/plan. Ad-hoc GUI work committed.
 Resume file: None

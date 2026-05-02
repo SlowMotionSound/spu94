@@ -35,9 +35,9 @@ void RegisterBridge::syncShadowsFromSPU(const spu94_state* spu)
         const spu94_reg_t reg = kSliderRegisters[i];
         int16_t v;
         if (spu94_reg_type(reg) == SPU94_REG_TYPE_I16)
-            v = spu94_get_reg_i16(spu, reg);
+            v = spu94_get_reg_i16_pending(spu, reg);
         else
-            v = static_cast<int16_t>(spu94_get_reg_u16(spu, reg));
+            v = static_cast<int16_t>(spu94_get_reg_u16_pending(spu, reg));
 
         shadows[i].store(v, std::memory_order_release);
         lastApplied[i] = v;
