@@ -110,7 +110,9 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. A ctest target saves a preset from a configured engine, loads it into a fresh engine, processes audio through both, and asserts bit-identical WAV output
   2. The test covers at least two preset configurations (one factory preset, one with non-default mixer/DAC state) to exercise all serialized fields
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 15-01-PLAN.md -- Integration-level golden round-trip test (save/load/process/compare)
 
 ## Progress
 
@@ -124,7 +126,7 @@ Phases execute in numeric order: 13 -> 14 -> 15
 | 12. Verification + Characterization | v1.3 | 2/2 | Complete | 2026-05-01 |
 | 13. Core Preset API | v1.4 | 2/2 | Complete | 2026-05-01 |
 | 14. I/O Surfaces | v1.4 | 2/2 | Complete | 2026-05-02 |
-| 15. Verification | v1.4 | 0/? | Not started | - |
+| 15. Verification | v1.4 | 0/1 | Not started | - |
 
 ---
 
@@ -139,4 +141,4 @@ Phases execute in numeric order: 13 -> 14 -> 15
 - `.planning/milestones/v1.0-REQUIREMENTS.md` -- M1 requirements
 
 ---
-*Last updated: 2026-05-02 -- Phase 14 planned (2 plans)*
+*Last updated: 2026-05-02 -- Phase 15 planned (1 plan)*
