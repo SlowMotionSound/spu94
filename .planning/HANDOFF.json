@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-02T18:30:00Z",
+  "phase": "14",
+  "phase_name": "i-o-surfaces",
+  "phase_dir": ".planning/phases/14-i-o-surfaces",
+  "plan": 2,
+  "task": 3,
+  "total_tasks": 3,
+  "status": "complete",
+  "completed_tasks": [
+    {"id": "14-01-T1", "name": "Create cmd_preset_dump.c subcommand", "status": "done", "commit": "027c5d3"},
+    {"id": "14-01-T2", "name": "Add --load-preset flag to reverb", "status": "done", "commit": "462ab07"},
+    {"id": "14-02-T1", "name": "Save/Load buttons + processor file preset support", "status": "done", "commit": "1230a86"},
+    {"id": "14-02-T2", "name": "Custom preset dropdown + modified-state asterisk", "status": "done", "commit": "e3cf09b"},
+    {"id": "14-02-T3", "name": "Human verification", "status": "done", "commit": "2e9443b"}
+  ],
+  "remaining_tasks": [],
+  "blockers": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {"decision": "Removed AlertWindow name prompt, go straight to file dialog", "rationale": "User found two-step redundant; kdialog doesn't pre-fill non-existent filenames", "phase": "14"},
+    {"decision": "Sync mixer atomics to SPU in savePresetToString", "rationale": "processBlock only pushes while playing; saving while stopped captured stale defaults", "phase": "14"},
+    {"decision": "Always rebuild dropdown on factory preset switch", "rationale": "Asterisk text stuck on previous preset otherwise", "phase": "14"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "/gsd-discuss-phase 15 or /gsd-plan-phase 15 — plan the verification golden test",
+  "context_notes": "Phase 14 complete. Phase 15 is the final phase of v1.4 — a ctest proving save/load/process round-trip bit-identity."
+}
