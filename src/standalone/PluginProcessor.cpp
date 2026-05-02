@@ -242,6 +242,32 @@ juce::String SPU94AudioProcessor::savePresetToString(
     const juce::String& name, const juce::String& description)
 {
     if (!spu) return {};
+
+    // processBlock only pushes GUI atomics to the SPU while audio is playing.
+    // Sync them here so the saved state always matches what the knobs show.
+    spu94_set_input_gain(spu, static_cast<int16_t>(
+        inputLevel.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_dry_fader(spu, static_cast<int16_t>(
+        dryLevel.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_patina_fader(spu, static_cast<int16_t>(
+        patinaLevel.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_reverb_fader(spu, static_cast<int16_t>(
+        reverbLevel.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_dry_send(spu, static_cast<int16_t>(
+        drySend.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_patina_send(spu, static_cast<int16_t>(
+        adpcmSend.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_latency_comp(spu,
+        latencyCompEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_dac_enabled(spu,
+        dacEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_dac_fir_enabled(spu,
+        dacFirEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_dac_noise_enabled(spu,
+        dacNoiseEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_dac_true_oversample(spu,
+        dacTrueOversample.load(std::memory_order_relaxed) ? 1 : 0);
+
     char buf[SPU94_PRESET_BUF_SIZE];
     int written = spu94_preset_save(
         spu,

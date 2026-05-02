@@ -407,7 +407,6 @@ void SPU94AudioProcessorEditor::resized()
 
 void SPU94AudioProcessorEditor::showPresetNamePrompt()
 {
-    // D-07: Pre-fill from current preset name
     juce::String defaultName;
     if (customPresetName.isNotEmpty())
         defaultName = customPresetName;
@@ -418,62 +417,41 @@ void SPU94AudioProcessorEditor::showPresetNamePrompt()
             defaultName = juce::String(spu94_presets[pid].name);
     }
 
-    auto* window = new juce::AlertWindow("Save Preset",
-                                          "Enter a name for this preset:",
-                                          juce::MessageBoxIconType::NoIcon);
-    window->addTextEditor("name", defaultName, "Name:");
-    window->addTextEditor("desc", "", "Description (optional):");
-    window->addButton("Save", 1);
-    window->addButton("Cancel", 0);
+    auto suggestedFile = juce::File::getSpecialLocation(
+        juce::File::userDocumentsDirectory)
+        .getChildFile(defaultName + ".spu94");
 
-    window->enterModalState(true,
-        juce::ModalCallbackFunction::create(
-            [this, window](int buttonResult)
+    // Touch-create so kdialog pre-fills the filename (it drops names for non-existent files)
+    if (!suggestedFile.exists())
+        suggestedFile.create();
+
+    fileChooser = std::make_unique<juce::FileChooser>(
+        "Save Preset",
+        suggestedFile,
+        "*.spu94");
+
+    fileChooser->launchAsync(
+        juce::FileBrowserComponent::saveMode |
+        juce::FileBrowserComponent::canSelectFiles |
+        juce::FileBrowserComponent::warnAboutOverwriting,
+        [this, suggestedFile](const juce::FileChooser& fc)
+        {
+            auto chosen = fc.getResult();
+
+            // Clean up the touch-created file if user cancelled or picked a different path
+            if (suggestedFile.getSize() == 0 && suggestedFile != chosen)
+                suggestedFile.deleteFile();
+
+            if (chosen == juce::File()) return;
+
+            auto name = chosen.getFileNameWithoutExtension();
+            auto text = processorRef.savePresetToString(name, {});
+            if (text.isNotEmpty())
             {
-                if (buttonResult == 0)
-                {
-                    delete window;
-                    return;
-                }
-
-                auto name = window->getTextEditorContents("name").trim();
-                auto desc = window->getTextEditorContents("desc").trim();
-                delete window;
-
-                if (name.isEmpty())
-                {
-                    // Silently cancel if no name provided (name is required per D-07)
-                    return;
-                }
-
-                // D-08: typed name becomes default filename
-                auto suggestedFile = juce::File::getSpecialLocation(
-                    juce::File::userDocumentsDirectory)
-                    .getChildFile(name + ".spu94");
-
-                fileChooser = std::make_unique<juce::FileChooser>(
-                    "Save Preset",
-                    suggestedFile,
-                    "*.spu94");
-
-                fileChooser->launchAsync(
-                    juce::FileBrowserComponent::saveMode |
-                    juce::FileBrowserComponent::canSelectFiles |
-                    juce::FileBrowserComponent::warnAboutOverwriting,
-                    [this, name, desc](const juce::FileChooser& fc)
-                    {
-                        auto chosen = fc.getResult();
-                        if (chosen == juce::File()) return;
-
-                        auto text = processorRef.savePresetToString(name, desc);
-                        if (text.isNotEmpty())
-                        {
-                            chosen.replaceWithText(text);
-                            customPresetName = name;
-                        }
-                    });
-            }),
-        true);
+                chosen.replaceWithText(text);
+                customPresetName = name;
+            }
+        });
 }
 
 void SPU94AudioProcessorEditor::captureBaseline()
