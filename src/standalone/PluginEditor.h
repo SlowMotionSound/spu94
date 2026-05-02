@@ -23,6 +23,22 @@ private:
     juce::TextButton playButton{"Play"};
     juce::TextButton stopButton{"Stop"};
 
+    // Preset Save/Load buttons (D-06 through D-08)
+    juce::TextButton savePresetButton{"Save"};
+    juce::TextButton loadPresetButton{"Load"};
+
+    // Name prompt helper
+    void showPresetNamePrompt();
+
+    // Currently loaded custom preset name (D-09)
+    juce::String customPresetName;
+
+    // Track file-preset load completion for GUI sync
+    int lastFilePresetCount = 0;
+
+    // Sync all mixer/DAC knobs from processor atomics after file load
+    void syncMixerKnobsFromProcessor();
+
     RegisterPanel registerPanel;
     juce::Viewport registerViewport;
     juce::ComboBox presetSelector;

@@ -75,6 +75,24 @@ public:
     std::atomic<bool>& getDacNoiseEnabled() { return dacNoiseEnabled; }
     std::atomic<bool>& getDacTrueOversample() { return dacTrueOversample; }
 
+    // --- File preset save/load (Phase 14, PRE-08/PRE-09) ---
+
+    // Message thread: serialize current engine state to a .spu94 text buffer.
+    // Returns the text as a juce::String, or empty string on failure.
+    // name and description are metadata fields written to the preset header.
+    juce::String savePresetToString(const juce::String& name,
+                                    const juce::String& description);
+
+    // Message thread: apply a .spu94 text buffer to the engine.
+    // Parses the text, applies to SPU state on the audio thread via a
+    // pending-file mechanism, and syncs all GUI-facing atomics.
+    // Returns true on success.
+    bool loadPresetFromString(const juce::String& presetText);
+
+    // GUI thread: poll for file-preset load completion (analogous to
+    // getAppliedCount for factory presets).
+    int getFilePresetAppliedCount() const;
+
 private:
     std::atomic<float> inputLevel{0.25f}; // [0.0 = silence, 1.0 = unity gain]
     std::atomic<bool> adpcmEnabled{false}; // ADPCM coloration toggle (D-06)
@@ -94,6 +112,13 @@ private:
     std::atomic<bool> dacFirEnabled{true};    // sub-toggle: ON when DAC section is used
     std::atomic<bool> dacNoiseEnabled{true};  // sub-toggle: ON when DAC section is used
     std::atomic<bool> dacTrueOversample{true}; // v1.3 true 8x path (default ON)
+
+    // File preset pending load mechanism (message -> audio thread handoff)
+    std::array<char, 4096> pendingPresetBuf{};
+    std::atomic<size_t> pendingPresetLen{0};
+    std::atomic<bool> filePresetReady{false};
+    std::atomic<int> filePresetAppliedCount{0};
+
     RegisterBridge registerBridge;
     PresetCommandQueue presetQueue;
     // SPU state -- caller-owned buffers per libspu94 API contract

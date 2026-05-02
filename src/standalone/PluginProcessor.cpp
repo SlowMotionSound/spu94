@@ -121,6 +121,29 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         registerBridge.syncShadowsFromSPU(spu);
     }
 
+    // 1b. Drain file-preset load request (GUI thread may have loaded a .spu94 file)
+    if (filePresetReady.load(std::memory_order_acquire))
+    {
+        size_t len = pendingPresetLen.load(std::memory_order_relaxed);
+        spu94_preset_load(spu, pendingPresetBuf.data(), len);
+        registerBridge.syncShadowsFromSPU(spu);
+        filePresetReady.store(false, std::memory_order_release);
+        filePresetAppliedCount.fetch_add(1, std::memory_order_release);
+
+        // Sync mixer/DAC atomics from loaded SPU state so GUI reflects the file's values
+        inputLevel.store(static_cast<float>(spu94_get_input_gain(spu)) / 0x7FFF, std::memory_order_relaxed);
+        dryLevel.store(static_cast<float>(spu94_get_dry_fader(spu)) / 0x7FFF, std::memory_order_relaxed);
+        patinaLevel.store(static_cast<float>(spu94_get_patina_fader(spu)) / 0x7FFF, std::memory_order_relaxed);
+        reverbLevel.store(static_cast<float>(spu94_get_reverb_fader(spu)) / 0x7FFF, std::memory_order_relaxed);
+        drySend.store(static_cast<float>(spu94_get_dry_send(spu)) / 0x7FFF, std::memory_order_relaxed);
+        adpcmSend.store(static_cast<float>(spu94_get_patina_send(spu)) / 0x7FFF, std::memory_order_relaxed);
+        latencyCompEnabled.store(spu94_get_latency_comp(spu) != 0, std::memory_order_relaxed);
+        dacEnabled.store(spu94_get_dac_enabled(spu) != 0, std::memory_order_relaxed);
+        dacFirEnabled.store(spu94_get_dac_fir_enabled(spu) != 0, std::memory_order_relaxed);
+        dacNoiseEnabled.store(spu94_get_dac_noise_enabled(spu) != 0, std::memory_order_relaxed);
+        dacTrueOversample.store(spu94_get_dac_true_oversample(spu) != 0, std::memory_order_relaxed);
+    }
+
     // 2. Push any GUI-changed register values to the SPU
     registerBridge.pushPendingRegisterWrites(spu);
 
@@ -211,6 +234,40 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // Advance play position (continuous loop).
     wavSource.playPos.store((playPos + static_cast<uint64_t>(samplesToProcess)) % numFrames,
                             std::memory_order_relaxed);
+}
+
+// --- File preset save/load (Phase 14, PRE-08/PRE-09) ---
+
+juce::String SPU94AudioProcessor::savePresetToString(
+    const juce::String& name, const juce::String& description)
+{
+    if (!spu) return {};
+    char buf[SPU94_PRESET_BUF_SIZE];
+    int written = spu94_preset_save(
+        spu,
+        name.isNotEmpty() ? name.toRawUTF8() : nullptr,
+        description.isNotEmpty() ? description.toRawUTF8() : nullptr,
+        buf, sizeof(buf));
+    if (written < 0) return {};
+    return juce::String(buf, static_cast<size_t>(written));
+}
+
+bool SPU94AudioProcessor::loadPresetFromString(const juce::String& presetText)
+{
+    if (presetText.isEmpty() || !spu) return false;
+    auto raw = presetText.toRawUTF8();
+    auto len = presetText.getNumBytesAsUTF8();
+    if (len == 0 || len >= sizeof(pendingPresetBuf)) return false;
+    std::memcpy(pendingPresetBuf.data(), raw, len);
+    pendingPresetBuf[len] = '\0';
+    pendingPresetLen.store(len, std::memory_order_relaxed);
+    filePresetReady.store(true, std::memory_order_release);
+    return true;
+}
+
+int SPU94AudioProcessor::getFilePresetAppliedCount() const
+{
+    return filePresetAppliedCount.load(std::memory_order_acquire);
 }
 
 void SPU94AudioProcessor::loadWavFile(const juce::File& file)
