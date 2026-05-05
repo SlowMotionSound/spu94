@@ -1,0 +1,39 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-05T21:59:51.538Z",
+  "phase": "23",
+  "phase_name": "gui-overlay-display",
+  "phase_dir": ".planning/phases/23-gui-overlay-display",
+  "plan": 4,
+  "task": 2,
+  "total_tasks": 2,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "name": "PluginProcessor atomic bridge (17 knob + 6 toggle + 6 snap atomics, processBlock apply)", "status": "done", "commit": "51d0cb5"},
+    {"id": 2, "name": "MacroPanel component (22 knobs, 8 toggles, unit labels, 7 sections)", "status": "done", "commit": "4f42017"},
+    {"id": 3, "name": "RegisterPanel mods (hide vLIN/vRIN/vLOUT/vROUT, dual hex+human readout)", "status": "done", "commit": "695551a"},
+    {"id": 4, "name": "PluginEditor integration (view swap, timer sync, window sizing)", "status": "done", "commit": "ad200f6"},
+    {"id": 5, "name": "Visual checkpoint bug fixes (snap-back, overflow, layout, missing register_all)", "status": "done", "commit": "e2e8f57"},
+    {"id": 6, "name": "Visual checkpoint — human verification", "status": "in_progress", "progress": "Partial pass. Working: overlay toggle, labels, units, wall shaping, echo spread+sweep, buffer inversion. Open bugs: sync mode snap-to-0, rotate with partial dropdowns, room size feedback at extremes."}
+  ],
+  "remaining_tasks": [
+    {"id": 7, "name": "Fix sync mode echo snap-to-0 (C core needs global subdivision awareness)", "status": "not_started"},
+    {"id": 8, "name": "Fix rotate with partial dropdowns (C core snap module change)", "status": "not_started"},
+    {"id": 9, "name": "Room size feedback tolerance tuning", "status": "not_started"}
+  ],
+  "blockers": [
+    {"description": "Snap module 0xFF sentinel means Global registers don't participate in Sync mode. C core spu94_snap.c needs a fallback subdivision parameter or state field so 0xFF resolves to global instead of being skipped.", "type": "technical", "workaround": "Set all 4 dropdowns explicitly (not Global) before using Sync/Rotate"},
+    {"description": "GUI-layer resolution of 0xFF to global caused register overwrites when BPM was unset in C core (tempo_bpm=0 makes spu94_set_subdivision fail). Two attempts reverted.", "type": "technical", "workaround": "None — needs C core approach"}
+  ],
+  "human_actions_pending": [],
+  "decisions": [
+    {"decision": "Wall distance knobs are interactive, not read-only indicators", "rationale": "User wants to shape individual walls in Room Designer. Clamped by mBASE buffer boundary, not by Room Size.", "phase": "23"},
+    {"decision": "Buffer knob inverted in GUI (up=max space, down=crush)", "rationale": "Macro engine position 0 = mBASE at floor = max space, which is unintuitive. GUI inverts so up=max.", "phase": "23"},
+    {"decision": "Subdivision dropdowns removed from MacroPanel", "rationale": "Already in toolbar, redundant. User confirmed they were cluttering the UI.", "phase": "23"},
+    {"decision": "Manual register changes refresh Spread+Sweep references", "rationale": "Without this, Echo Physics Sweep operates on old preset references, not the user's custom wall settings.", "phase": "23"},
+    {"decision": "Knob positions only sync from derived atomics on derive-all events", "rationale": "Timer-driven sync every 33ms caused knobs to snap back to stale derived values. knobsNeedSync flag gates updates to preset load and view switch only.", "phase": "23"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Fix the sync mode snap-to-0 bug by adding a global_subdivision field to spu94_state (C core) so the snap module can resolve 0xFF to the global subdivision instead of skipping. Then re-test Sync toggle + Rotate with partial dropdowns.",
+  "context_notes": "Two attempts at GUI-layer resolution of 0xFF Global were reverted — both caused register overwrites. The fix must live in the C core where the snap module can resolve 0xFF at apply time using a state-level fallback subdivision. This is ~15 lines in spu94_snap.c + a new uint8_t field in spu94_state_internal.h + a setter function."
+}
