@@ -1,51 +1,34 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.4
-milestone_name: Preset System
-status: milestone_complete
-stopped_at: v1.4 Preset System complete — all 3 phases shipped
-last_updated: "2026-05-02T18:30:00Z"
-last_activity: 2026-05-02 -- Phase 15 complete (verification passed), v1.4 milestone done
+milestone: v1.5
+milestone_name: Preset Interpolation Engine
+status: planning
+stopped_at: Milestone started — defining requirements
+last_updated: "2026-05-05T23:00:00Z"
+last_activity: 2026-05-05 -- v1.5 milestone started, archived v1.5/v1.6 macro approach
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 5
-  completed_plans: 5
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-01)
+See: .planning/PROJECT.md (updated 2026-05-05)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.4 shipped — planning next milestone
+**Current focus:** v1.5 Preset Interpolation Engine -- single morph knob between Sony's 9 factory presets
 
 ## Current Position
 
-Phase: 15 of 15 (Verification) — COMPLETE
-Plan: 1 of 1 — Complete
-Status: v1.4 milestone complete, all phases shipped
-Last activity: 2026-05-02 -- Phase 15 verification passed
-
-Progress: [██████████] 100%
-
-## Performance Metrics
-
-**Velocity:**
-
-- Total plans completed: 8 (v1.3), 12 (v1.2), 10 (v1.1), 37 (v1.0)
-- Prior milestone: v1.3 shipped 8 plans across 3 phases
-
-**By Phase (v1.3):**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 10-core-polyphase-fir-cascade | 4/4 | -- | -- |
-| 11-noise-recalibration-integration | 2/2 | -- | -- |
-| 12-verification-characterization | 2/2 | -- | -- |
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-05 — Milestone v1.5 started
 
 ## Accumulated Context
 
@@ -55,16 +38,12 @@ Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
 - All DSP signal flow lives in C core -- JUCE/CLI/Python are thin wrappers with no DSP logic
-- Preset save/load is a C core responsibility (consistent with above)
-- Send/return mixer architecture: 3 buses, 6 faders -- all must be captured in preset state
-- v1.3 DAC mode (A/B toggle) must be captured in preset state alongside v1.2 DAC toggle
-- EMIT macro pattern for overflow-safe snprintf buffer writes (Phase 13 Plan 01)
-- Hand-rolled parse_hex_u16 avoids strtol/long grep-guard ban (Phase 13 Plan 01)
-- strchr-based key=value splitting for const char* parser (Plan 02 -- strtok modifies strings)
-- 512-byte stack line buffer with truncation for parser line safety (Plan 02)
-- Init preset (slot 10): Hall coefficients with L/R geometry collapsed to mono -- user expands stereo from scratch
-- Scale slider: ratio-locked register scaling from preset baseline, excludes vLIN/vRIN/vLOUT/vROUT
-- syncShadowsFromSPU reads pending values (not active) so tick-latched registers show correctly after preset load
+- Preset interpolation replaces macro control approach (archived on branch archive/v1.5-v1.6-macro-approach)
+- Waypoint order confirmed by ear: Half Echo > Room > Studio A > Studio B > Studio C > Hall > Space Echo > Echo > Delay
+- All registers morph together -- no decoupled parameters for v1.5
+- Fixed registers excluded: vLOUT/vROUT (0x7FFF), vLIN/vRIN (0x8000), mBASE (0x0000)
+- Equal angular spacing between waypoints on the knob
+- GUI: single 250-300px rotary knob with dot markers at preset positions
 
 ### Blockers/Concerns
 
@@ -72,7 +51,7 @@ None.
 
 ### Pending Todos
 
-None yet.
+None.
 
 ## Deferred Items
 
@@ -86,24 +65,25 @@ None yet.
 
 | Category | Item | Deferred At |
 |----------|------|-------------|
-| UI Enhancement | ADPCM filter pair LED indicators (5 LEDs showing active filter pair, auto/manual toggle) | 2026-04-29 |
-| Performance | Memory Flush button -- instant spu94_reset to kill feedback runaway | 2026-04-29 |
-| Performance | Smooth Memory Drain -- gradual buffer decay with user-controlled drain rate (fast kill -> slow tail-off -> freeze) | 2026-04-29 |
-| Performance | Parameter Slew Control -- knob controlling parameter transition speed (raw digital crunch <-> smooth). M4 lever layer. | 2026-04-29 |
-| UI Enhancement | Stereo Link toggle -- lock/unlock L/R register values for controllable vs asymmetric feedback | 2026-04-29 |
-| ADPCM Creative | ADPCM filter pair manual override -- force specific filter pairs for tonal control | 2026-04-29 |
-| Distribution | Static linking for standalone (done -- single 7.6MB executable, no .so dependency) | 2026-04-29 |
-| Distribution | Cross-platform build guides (Mac + Windows) -- audience TBD, waiting on Anthony | 2026-04-29 |
-| Distribution | Visual signal flow diagram as GUI -- Ensoniq/ASM Hydrasynth style panel layout. Future UI overhaul. | 2026-04-29 |
-| Feature | Anthony has a screenshot of preset #1 to capture once save system exists | 2026-04-29 |
-| Feature | Continuous oversampling sweep (luxury) -- crossfade two adjacent rates for smooth knob feel. Desktop-only. | 2026-04-29 |
-| Performance | Tap tempo sync -- quantize d*/m* registers to BPM subdivisions for rhythmic reverb | 2026-05-01 |
-| Performance | Buffer Base step-lock -- mBASE snaps to discrete lockable positions for deliberate buffer jumps | 2026-05-01 |
-| Performance | Resistance to Feedback -- meta-control inversely linking pro/anti-feedback registers with adjustable ceiling | 2026-05-01 |
-| Creative | Codec re-sync effect -- deliberate frame boundary misalignment in codec decode for glitch textures | 2026-05-01 |
+| UI Enhancement | ADPCM filter pair LED indicators | 2026-04-29 |
+| Performance | Memory Flush button -- instant spu94_reset | 2026-04-29 |
+| Performance | Smooth Memory Drain -- gradual buffer decay | 2026-04-29 |
+| Performance | Parameter Slew Control | 2026-04-29 |
+| UI Enhancement | Stereo Link toggle -- lock/unlock L/R values | 2026-04-29 |
+| ADPCM Creative | ADPCM filter pair manual override | 2026-04-29 |
+| Distribution | Cross-platform build guides (Mac + Windows) | 2026-04-29 |
+| Distribution | Visual signal flow diagram as GUI | 2026-04-29 |
+| Feature | Continuous oversampling sweep (luxury) | 2026-04-29 |
+| Performance | Buffer Base step-lock | 2026-05-01 |
+| Performance | Resistance to Feedback meta-control | 2026-05-01 |
+| Creative | Codec re-sync effect | 2026-05-01 |
+| Experiment | Independent clamping (ratio drift) | 2026-05-03 |
+| Visualization | Real-time room geometry visualizer | 2026-05-03 |
+| Visualization | Polytope room shapes | 2026-05-03 |
+| Documentation | Register reference manual | 2026-05-03 |
 
 ## Session Continuity
 
-Last session: 2026-05-02T13:00:00Z
-Stopped at: Phase 14 complete — Phase 15 (Verification) next
+Last session: 2026-05-05T23:00:00Z
+Stopped at: v1.5 milestone started — defining requirements
 Resume file: .planning/ROADMAP.md

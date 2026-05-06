@@ -14,6 +14,19 @@
 
 **Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`.
 
+## Current Milestone: v1.5 Preset Interpolation Engine
+
+**Goal:** Replace raw register complexity with a single morph knob that sweeps through Sony's 9 factory presets, linearly interpolating all registers between adjacent waypoints.
+
+**Target features:**
+- C core interpolation engine (waypoint table, position-to-register mapping, linear interpolation of all active registers between adjacent presets)
+- Single large rotary knob (250-300px) as sole GUI control
+- 9 equally-spaced waypoint markers (dots) around the knob arc at exact preset positions
+- Waypoint order (confirmed by ear): Half Echo → Room → Studio A → Studio B → Studio C → Hall → Space Echo → Echo → Delay
+- Fixed registers excluded from interpolation: vLOUT/vROUT (0x7FFF), vLIN/vRIN (0x8000), mBASE (0x0000)
+
+**Context:** Replaces archived v1.5/v1.6 macro control approach (gang clamping, Spread/Sweep/Rotate, safety constraints) which proved too complex. Archive branch: `archive/v1.5-v1.6-macro-approach`. Every interpolated state is bounded by Sony-validated configurations — no clamping or safety logic needed.
+
 ## What This Is
 
 SPU-94 is a bit-faithful software reimplementation of the Sony PlayStation 1 SPU reverb algorithm, built from the spec (nocash psx-spx) rather than ported from any existing emulator. It ships as a plain C library with Python bindings for development, and is designed to be wrapped later as a desktop audio plugin (JUCE) and eventually as hardware (Eurorack module, MCU firmware, or FPGA). SPU-94 is designed as a *living instrument*, not a static bank of presets — every parameter that moves in the original algorithm is designed to be controllable at runtime, smoothly and glitch-free, in service of performance, modulation, and CV control. The immediate audience is the author and a small circle of musicians who want the recognizable character of the PS1 reverb available as a modern, playable tool.
@@ -75,7 +88,8 @@ See `.planning/milestones/v1.2-REQUIREMENTS.md` for full 14-requirement traceabi
 - **Real oversampling engine** — ACTIVE as v1.3 (True Oversampled DAC)
 - **DAC analog output stage** (op-amps, coupling caps, output impedance) — deferred; needs real hardware measurement
 - **JUCE DAW plugin (VST3 / AU / LV2)** — next milestone candidate; wraps the existing C core for use in Reaper / Ableton / Logic
-- **Named musical levers ("Room Size", "Pre Delay", etc.), parameter smoothing, CV mappings, plugin UI** — DAW plugin milestone work atop the register API. v1.0 contributed: glitch-free mid-stream register API + `LEVERS-CATALOG.md` candidate-lever catalog.
+- **Named musical levers ("Room Size", "Pre Delay", etc.), parameter smoothing, CV mappings, plugin UI** — superseded by v1.5 interpolation engine approach for initial musical controls. Individual register levers may return as decoupled parameters on top of the interpolation base.
+- **Tempo-synced taps, BPM subdivision snapping** — archived with v1.5/v1.6 macro approach. May return as a layer on top of interpolation engine.
 - **Hardware validation via PSX homebrew + digital capture** — deferred to Milestone 5; Anthony has an original PSX
 - **Eurorack module** — explicitly future direction, separately documented in `ps1-reverb-eurorack.md`
 - **FPGA implementation** — future direction; C core chosen specifically to keep FPGA HLS path open
@@ -156,5 +170,7 @@ This document evolves at phase transitions and milestone boundaries.
 3. Audit Out of Scope — reasons still valid?
 4. Update Context with current state
 
+| Preset interpolation engine replaces macro control approach | v1.5/v1.6 macro engine (gang clamping, Spread/Sweep/Rotate, safety constraints, Sync/Free snap) proved too complex — interlocking constraints fought each other, GUI exposed complexity rather than taming it. Interpolation between Sony's known-good presets eliminates clamping by construction. | ✓ Good — design confirmed 2026-05-05; archived code recoverable on `archive/v1.5-v1.6-macro-approach` branch |
+
 ---
-*Last updated: 2026-05-02 — v1.4 Preset System shipped.*
+*Last updated: 2026-05-05 — v1.5 Preset Interpolation Engine milestone started.*
