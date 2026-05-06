@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Preset Interpolation Engine
-status: executing
-stopped_at: ""
-last_updated: "2026-05-06T00:31:32Z"
-last_activity: 2026-05-06 -- Phase 16 Plan 01 complete (interpolation engine)
+status: phase_complete
+stopped_at: "Phase 16 verified and complete -- ready for Phase 17"
+last_updated: "2026-05-06T01:00:00Z"
+last_activity: 2026-05-06 -- Phase 16 verified (NaN fix applied, all tests green)
 progress:
   total_phases: 2
   completed_phases: 1
@@ -21,7 +21,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-05)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.5 Preset Interpolation Engine -- Phase 16 (Interpolation Engine) executing
+**Current focus:** v1.5 Preset Interpolation Engine -- Phase 16 complete, Phase 17 (Morph Knob GUI) next
 
 ## Current Position
 
