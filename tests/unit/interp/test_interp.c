@@ -297,6 +297,66 @@ static void test_interp_signed_no_wraparound(void) {
         "vWALL signed midpoint Half Echo->Room");
 }
 
+/* -------------------------------------------------------------------------
+ * Test 8: NaN and Infinity inputs produce valid state (T-16-02).
+ * NaN must not cause UB -- negated comparisons route it to clamp.
+ * +Inf clamps to 1.0 (Delay), -Inf clamps to 0.0 (Half Echo).
+ * ------------------------------------------------------------------------- */
+static void test_interp_nan_inf_safety(void) {
+    #include <math.h>
+    const spu94_preset_t *half_echo = &spu94_presets[SPU94_PRESET_HALF_ECHO];
+    const spu94_preset_t *delay     = &spu94_presets[SPU94_PRESET_DELAY];
+    char msg[128];
+
+    /* NaN should produce Half Echo (same as position 0.0) */
+    spu94_reset(state);
+    spu94_interp_set_morph(state, NAN);
+    spu94_tick(state);
+    for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
+        if (is_fixed_reg((spu94_reg_t)r)) continue;
+        snprintf(msg, sizeof msg, "NaN reg=%d", r);
+        if (spu94_reg_type((spu94_reg_t)r) == SPU94_REG_TYPE_I16) {
+            TEST_ASSERT_EQUAL_INT16_MESSAGE(half_echo->regs[r],
+                spu94_get_reg_i16(state, (spu94_reg_t)r), msg);
+        } else {
+            TEST_ASSERT_EQUAL_UINT16_MESSAGE((uint16_t)half_echo->regs[r],
+                spu94_get_reg_u16(state, (spu94_reg_t)r), msg);
+        }
+    }
+
+    /* +Infinity should produce Delay (same as position 1.0) */
+    spu94_reset(state);
+    spu94_interp_set_morph(state, INFINITY);
+    spu94_tick(state);
+    for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
+        if (is_fixed_reg((spu94_reg_t)r)) continue;
+        snprintf(msg, sizeof msg, "+Inf reg=%d", r);
+        if (spu94_reg_type((spu94_reg_t)r) == SPU94_REG_TYPE_I16) {
+            TEST_ASSERT_EQUAL_INT16_MESSAGE(delay->regs[r],
+                spu94_get_reg_i16(state, (spu94_reg_t)r), msg);
+        } else {
+            TEST_ASSERT_EQUAL_UINT16_MESSAGE((uint16_t)delay->regs[r],
+                spu94_get_reg_u16(state, (spu94_reg_t)r), msg);
+        }
+    }
+
+    /* -Infinity should produce Half Echo (same as position 0.0) */
+    spu94_reset(state);
+    spu94_interp_set_morph(state, -INFINITY);
+    spu94_tick(state);
+    for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
+        if (is_fixed_reg((spu94_reg_t)r)) continue;
+        snprintf(msg, sizeof msg, "-Inf reg=%d", r);
+        if (spu94_reg_type((spu94_reg_t)r) == SPU94_REG_TYPE_I16) {
+            TEST_ASSERT_EQUAL_INT16_MESSAGE(half_echo->regs[r],
+                spu94_get_reg_i16(state, (spu94_reg_t)r), msg);
+        } else {
+            TEST_ASSERT_EQUAL_UINT16_MESSAGE((uint16_t)half_echo->regs[r],
+                spu94_get_reg_u16(state, (spu94_reg_t)r), msg);
+        }
+    }
+}
+
 /* ========================================================================= */
 /* Main                                                                      */
 /* ========================================================================= */
@@ -310,5 +370,6 @@ int main(void) {
     RUN_TEST(test_interp_fixed_registers);
     RUN_TEST(test_interp_midpoint_linear);
     RUN_TEST(test_interp_signed_no_wraparound);
+    RUN_TEST(test_interp_nan_inf_safety);
     return UNITY_END();
 }

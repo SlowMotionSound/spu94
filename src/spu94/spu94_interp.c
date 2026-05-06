@@ -60,11 +60,10 @@ void spu94_interp_set_morph(spu94_state *state, float position) {
 
     /* T-16-01: Clamp position to [0.0, 1.0].
      * T-16-02: NaN fails both comparisons, falls through with position
-     * unchanged. The subsequent arithmetic with NaN produces seg=0 via
-     * integer truncation of 0.0f (NaN cast to int is implementation-defined
-     * but typically 0 on all target platforms; the clamp below handles it). */
-    if (position < 0.0f) position = 0.0f;
-    if (position > 1.0f) position = 1.0f;
+     * unchanged. Negated comparisons catch NaN: IEEE 754 says NaN >= x is
+     * always false, so !(NaN >= 0.0f) is true, routing NaN into the clamp. */
+    if (!(position >= 0.0f)) position = 0.0f;
+    if (!(position <= 1.0f)) position = 1.0f;
 
     /* Map position to segment index and fractional distance within segment.
      * 9 waypoints define 8 segments (indices 0..7). */
