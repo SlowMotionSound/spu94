@@ -5,7 +5,7 @@
 
 ## Milestones
 
-- **v1.5 Preset Interpolation Engine** -- Phases 16-17 (in progress)
+- ✅ **v1.5 Preset Interpolation Engine** -- Phases 16-17 (shipped 2026-05-06, tag `v1.5`)
 - ✅ **v1.4 Preset System** -- Phases 13-15 (shipped 2026-05-02, tag `v1.4`)
 - ✅ **v1.3 True Oversampled DAC** -- Phases 10-12 (shipped 2026-05-01, tag `v1.3`)
 - ✅ **v1.2 DAC Modeling** -- Phases 5-9 (shipped 2026-04-30, tag `v1.2`)
@@ -13,54 +13,28 @@
 - ✅ **v1.0 Product** -- 8 phases (shipped 2026-04-26, standalone GUI)
 - ✅ **M1 Reverb Core** -- 7 phases (shipped 2026-04-25, tag `m1-reverb-core`)
 
-## Phases
-
-- [x] **Phase 16: Interpolation Engine** - C core: waypoint table, position mapping, linear interpolation of 30 registers between 9 Sony presets
-- [ ] **Phase 17: Morph Knob GUI** - JUCE: single rotary knob with waypoint markers, real-time register updates from morph position
-
-## Phase Details
-
-### Phase 16: Interpolation Engine
-**Goal**: A morph position value produces the correct interpolated register set for any point along the 9-preset continuum
-**Depends on**: Nothing (v1.4 preset infrastructure already exists)
-**Requirements**: INTERP-01, INTERP-02, INTERP-03, INTERP-04, INTERP-05
-**Success Criteria** (what must be TRUE):
-  1. Setting morph position to 0.0 produces Half Echo registers; setting it to 1.0 produces Delay registers; setting it to 0.5 produces registers halfway between Studio B and Studio C
-  2. At each of the 9 waypoint positions (0/8, 1/8, 2/8, ... 8/8), the output registers are bit-identical to the corresponding Sony factory preset
-  3. Between waypoints, all 30 active registers change smoothly (linear interpolation) while vLOUT, vROUT, vLIN, vRIN, and mBASE remain fixed
-  4. Signed coefficients (v-prefix registers like vIIR, vWALL, vCOMB1-4, vAPF1/2) interpolate through negative values correctly without unsigned wraparound artifacts
-**Plans**: 1 plan
-Plans:
-- [x] 16-01-PLAN.md -- Interpolation engine: waypoint table, position mapping, linear interpolation, TDD tests
-
-### Phase 17: Morph Knob GUI
-**Goal**: User controls the interpolation engine via a single large rotary knob with visual preset waypoint indicators
-**Depends on**: Phase 16
-**Requirements**: GUI-01, GUI-02, GUI-03
-**Success Criteria** (what must be TRUE):
-  1. A single rotary knob (250-300px) dominates the macro control area and is the sole control for preset morphing
-  2. 9 dot markers around the knob arc visually indicate the exact angular positions of the Sony factory presets
-  3. Turning the knob produces audible, continuous timbral change in real time -- no clicks, no silence gaps, no waiting
-**Plans**: 2 plans
-Plans:
-- [x] 17-01-PLAN.md -- Processor morph atomic + MorphPanel component (knob, dots, snap, label)
-- [x] 17-02-PLAN.md -- Wire MorphPanel into editor with Macro/Advanced toggle, build, visual verify
-**UI hint**: yes
-
 ## Progress
-
-**Execution Order:** 16 -> 17
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 16. Interpolation Engine | v1.5 | 1/1 | Complete | 2026-05-06 |
 | 17. Morph Knob GUI | v1.5 | 2/2 | Complete | 2026-05-06 |
-| 1-4 | v1.1 | 10/10 | Complete | 2026-04-27 |
-| 5-9 | v1.2 | 12/12 | Complete | 2026-04-30 |
-| 10-12 | v1.3 | 8/8 | Complete | 2026-05-01 |
 | 13-15 | v1.4 | 5/5 | Complete | 2026-05-02 |
+| 10-12 | v1.3 | 8/8 | Complete | 2026-05-01 |
+| 5-9 | v1.2 | 12/12 | Complete | 2026-04-30 |
+| 1-4 | v1.1 | 10/10 | Complete | 2026-04-27 |
 
 ## Previous Milestone Archives
+
+<details>
+<summary>v1.5 Preset Interpolation Engine (Phases 16-17) -- SHIPPED 2026-05-06</summary>
+
+Single morph knob between Sony's 9 factory presets. C interpolation engine with bit-identical waypoint output, 280px JUCE rotary knob with PS1-colored waypoint dots, detent snap, Macro/Advanced toggle. 2 phases, 3 plans, 8/8 requirements.
+
+- [x] Phase 16: Interpolation Engine (1/1 plans) -- completed 2026-05-06
+- [x] Phase 17: Morph Knob GUI (2/2 plans) -- completed 2026-05-06
+
+</details>
 
 <details>
 <summary>v1.4 Preset System (Phases 13-15) -- SHIPPED 2026-05-02</summary>
@@ -124,4 +98,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-06 -- Phase 17 plans created (2 plans, 2 waves)*
+*Last updated: 2026-05-06 -- v1.5 milestone archived*

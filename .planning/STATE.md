@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Preset Interpolation Engine
-status: milestone_complete
-stopped_at: "v1.5 milestone complete -- all phases done"
-last_updated: "2026-05-06T12:00:00Z"
-last_activity: 2026-05-06 -- Phase 17 complete (morph knob GUI)
+status: milestone_shipped
+stopped_at: "v1.5 shipped and archived -- ready for next milestone"
+last_updated: "2026-05-06T12:15:00Z"
+last_activity: 2026-05-06 -- v1.5 milestone archived and tagged
 progress:
   total_phases: 2
   completed_phases: 2
@@ -18,19 +18,18 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-05)
+See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.5 Preset Interpolation Engine -- milestone complete (Phases 16-17 done)
+**Current focus:** v1.5 shipped -- planning next milestone
 
 ## Current Position
 
-Phase: 17 of 17 (Morph Knob GUI) -- COMPLETE
-Plan: All complete
-Status: v1.5 milestone complete
-Last activity: 2026-05-06 -- Phase 17 verified and approved
+Milestone: v1.5 shipped and archived
+Status: Ready for next milestone
+Last activity: 2026-05-06 -- v1.5 archived, tag created
 
-Progress: [██████████] 100%
+Progress: Milestone complete
 
 ## Accumulated Context
 
