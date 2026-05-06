@@ -43,7 +43,7 @@ Plans:
   3. Turning the knob produces audible, continuous timbral change in real time -- no clicks, no silence gaps, no waiting
 **Plans**: 2 plans
 Plans:
-- [ ] 17-01-PLAN.md -- Processor morph atomic + MorphPanel component (knob, dots, snap, label)
+- [x] 17-01-PLAN.md -- Processor morph atomic + MorphPanel component (knob, dots, snap, label)
 - [ ] 17-02-PLAN.md -- Wire MorphPanel into editor with Macro/Advanced toggle, build, visual verify
 **UI hint**: yes
 
@@ -54,7 +54,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 16. Interpolation Engine | v1.5 | 1/1 | Complete | 2026-05-06 |
-| 17. Morph Knob GUI | v1.5 | 0/2 | Planned | - |
+| 17. Morph Knob GUI | v1.5 | 1/2 | Executing | - |
 | 1-4 | v1.1 | 10/10 | Complete | 2026-04-27 |
 | 5-9 | v1.2 | 12/12 | Complete | 2026-04-30 |
 | 10-12 | v1.3 | 8/8 | Complete | 2026-05-01 |
