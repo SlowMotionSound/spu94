@@ -516,6 +516,41 @@ int spu94_preset_save(const spu94_state *state,
 spu94_result_t spu94_preset_load(spu94_state *state,
                                  const char *buf, size_t buf_len);
 
+/* ------------------------------------------------------------------------- */
+/* Preset interpolation engine (Phase 16, INTERP-01..05)                     */
+/* ------------------------------------------------------------------------- */
+
+/* Number of waypoints in the morph continuum. The order is perceptual
+ * (confirmed by ear), not the spu94_preset_id_t enum order:
+ *   0: Half Echo, 1: Room, 2: Studio A, 3: Studio B, 4: Studio C,
+ *   5: Hall, 6: Space Echo, 7: Echo, 8: Delay.                              */
+#define SPU94_INTERP_WAYPOINT_COUNT 9
+
+/* Set the morph position and write interpolated register values to state.
+ *
+ * position: 0.0 = first waypoint (Half Echo), 1.0 = last (Delay).
+ *           Clamped to [0.0, 1.0]. Values outside this range are safe.
+ *
+ * At each of the 9 waypoint positions (0/8, 1/8, ... 8/8), the written
+ * registers are bit-identical to the corresponding Sony factory preset
+ * (INTERP-04 -- no rounding drift).
+ *
+ * Between waypoints, all 30 active registers are linearly interpolated
+ * (INTERP-02). The 5 fixed registers are always written as their constant
+ * values: vLOUT/vROUT = 0x7FFF, vLIN/vRIN = 0x8000, mBASE = 0x0000
+ * (INTERP-03).
+ *
+ * Signed registers (v-prefix coefficients) interpolate in their signed
+ * int16 range (INTERP-05 -- no unsigned wraparound).
+ *
+ * Writes use the engine-layer setters (spu94_set_reg_i16/u16), so the
+ * split write-timing policy (ADR-0005) is honored automatically:
+ * v-prefix gains take effect immediately, d/m-prefix addresses stage
+ * to pending and commit at the next spu94_tick.
+ *
+ * NULL state is a no-op. */
+void spu94_interp_set_morph(spu94_state *state, float position);
+
 #ifdef __cplusplus
 }
 #endif
