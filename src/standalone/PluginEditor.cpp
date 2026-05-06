@@ -143,7 +143,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     adpcmSendKnob.setSliderStyle(juce::Slider::Rotary);
     adpcmSendKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
     adpcmSendKnob.setRange(0.0, 1.0, 0.01);
-    adpcmSendKnob.setValue(0.0, juce::dontSendNotification);
+    adpcmSendKnob.setValue(1.0, juce::dontSendNotification);
     adpcmSendKnob.onValueChange = [this] {
         processorRef.getAdpcmSend().store(
             static_cast<float>(adpcmSendKnob.getValue()),
@@ -158,7 +158,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     drySendKnob.setSliderStyle(juce::Slider::Rotary);
     drySendKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
     drySendKnob.setRange(0.0, 1.0, 0.01);
-    drySendKnob.setValue(1.0, juce::dontSendNotification);
+    drySendKnob.setValue(0.0, juce::dontSendNotification);
     drySendKnob.onValueChange = [this] {
         processorRef.getDrySend().store(
             static_cast<float>(drySendKnob.getValue()),
@@ -175,7 +175,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     dryKnob.setSliderStyle(juce::Slider::Rotary);
     dryKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
     dryKnob.setRange(0.0, 1.0, 0.01);
-    dryKnob.setValue(1.0, juce::dontSendNotification);
+    dryKnob.setValue(0.0, juce::dontSendNotification);
     dryKnob.onValueChange = [this] {
         processorRef.getDryLevel().store(
             static_cast<float>(dryKnob.getValue()),
@@ -232,6 +232,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     dacToggle.setClickingTogglesState(true);
     dacToggle.setColour(juce::ToggleButton::tickColourId,
                         juce::Colour(0xFFD4A017));  // amber
+    dacToggle.setToggleState(true, juce::dontSendNotification);
     dacToggle.onClick = [this] {
         processorRef.getDacEnabled().store(
             dacToggle.getToggleState(),
@@ -287,9 +288,12 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         registerViewport.setVisible(showAdvanced);
         advancedToggle.setButtonText(showAdvanced ? "Macro" : "Advanced");
 
+        // Gate which write path owns the 30 reverb registers
+        processorRef.getMorphActive().store(!showAdvanced, std::memory_order_relaxed);
+
         if (showAdvanced) {
-            // Switching to Advanced: sync raw register sliders from current state
-            registerPanel.updateFromShadows();
+            // Request audio-thread shadow sync so sliders reflect morph state
+            processorRef.requestShadowSync();
         }
     };
 

@@ -77,6 +77,8 @@ public:
 
     // --- Morph position (Phase 17, D-09/D-10: preset interpolation engine) ---
     std::atomic<float>& getMorphPosition() { return morphPosition; }
+    std::atomic<bool>& getMorphActive() { return morphActive; }
+    void requestShadowSync() { needShadowSync.store(true, std::memory_order_relaxed); }
 
     // --- File preset save/load (Phase 14, PRE-08/PRE-09) ---
 
@@ -101,17 +103,17 @@ private:
     std::atomic<bool> adpcmEnabled{false}; // ADPCM coloration toggle (D-06)
 
     // Mixer faders (0.0-1.0 float, converted to Q15 at processBlock boundary)
-    std::atomic<float> dryLevel{1.0f};        // dry bus level
+    std::atomic<float> dryLevel{0.0f};        // dry bus level (default OFF)
     std::atomic<float> patinaLevel{0.0f};     // ADPCM bus level
     std::atomic<float> reverbLevel{1.0f};     // reverb return level
-    std::atomic<float> adpcmSend{0.0f};       // ADPCM bus reverb send
-    std::atomic<float> drySend{1.0f};         // dry bus reverb send
+    std::atomic<float> adpcmSend{1.0f};       // ADPCM bus reverb send (default FULL)
+    std::atomic<float> drySend{0.0f};         // dry bus reverb send (default OFF)
 
     // Latency compensation (default ON per D-07)
     std::atomic<bool> latencyCompEnabled{true};
 
-    // DAC coloration toggles (default OFF)
-    std::atomic<bool> dacEnabled{false};
+    // DAC coloration toggles (default ON)
+    std::atomic<bool> dacEnabled{true};
     std::atomic<bool> dacFirEnabled{true};    // sub-toggle: ON when DAC section is used
     std::atomic<bool> dacNoiseEnabled{true};  // sub-toggle: ON when DAC section is used
     std::atomic<bool> dacTrueOversample{true}; // v1.3 true 8x path (default ON)
@@ -119,6 +121,9 @@ private:
     // Morph position (Phase 17: preset interpolation engine, D-09/D-10)
     // 0.625 = Hall preset position (waypoint 5 of 8 = 5/8), matching default SPU94_PRESET_HALL
     std::atomic<float> morphPosition{0.625f};
+    std::atomic<bool> morphActive{true}; // true = morph engine owns reverb registers
+    std::atomic<bool> needShadowSync{false}; // GUI requests shadow sync on mode switch
+    float lastMorphPosition{-1.0f}; // audio-thread only: tracks last applied position
 
     // File preset pending load mechanism (message -> audio thread handoff)
     std::array<char, 4096> pendingPresetBuf{};

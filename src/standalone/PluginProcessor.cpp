@@ -64,17 +64,16 @@ void SPU94AudioProcessor::prepareToPlay(double /*sampleRate*/, int /*samplesPerB
 
     spu94_load_preset(spu, SPU94_PRESET_HALL);
     registerBridge.syncShadowsFromSPU(spu);
+    lastMorphPosition = -1.0f; // force morph apply on first processBlock
 
-    // Apply initial morph position (matches Hall = 0.625)
-    spu94_interp_set_morph(spu, morphPosition.load(std::memory_order_relaxed));
-
-    // Phase 7 (D-05): C core now owns mixing. Set sensible defaults
-    // so audio is audible immediately (faders default to 0x0000 = silence).
+    // Mixer defaults: reverb-focused signal path.
+    // DAC on, ADPCM send full, dry path off, reverb at unity.
     spu94_set_input_gain(spu,   0x7FFF);  // full input level
-    spu94_set_dry_fader(spu,    0x7FFF);  // dry bus at unity
+    spu94_set_dry_fader(spu,    0x0000);  // dry bus OFF
     spu94_set_reverb_fader(spu, 0x7FFF);  // reverb at unity
-    spu94_set_dry_send(spu,     0x7FFF);  // dry bus feeds reverb at unity
-    // patina_fader and patina_send stay at 0 until ADPCM is enabled
+    spu94_set_dry_send(spu,     0x0000);  // dry bus reverb send OFF
+    spu94_set_patina_send(spu,  0x7FFF);  // ADPCM send FULL
+    spu94_set_dac_enabled(spu,  1);       // DAC ON
 
     // Latency comp ON by default (D-07)
     spu94_set_latency_comp(spu, 1);
@@ -147,8 +146,15 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         dacTrueOversample.store(spu94_get_dac_true_oversample(spu) != 0, std::memory_order_relaxed);
     }
 
-    // 2. Push any GUI-changed register values to the SPU
-    registerBridge.pushPendingRegisterWrites(spu);
+    // 2. Push register values: morph engine OR register bridge, never both.
+    // When morph is active, the interpolation engine owns all 30 reverb registers.
+    // When advanced mode is active, the register bridge (GUI sliders) owns them.
+    if (!morphActive.load(std::memory_order_relaxed))
+        registerBridge.pushPendingRegisterWrites(spu);
+
+    // Sync shadows from SPU when switching from morph to advanced mode
+    if (needShadowSync.exchange(false, std::memory_order_relaxed))
+        registerBridge.syncShadowsFromSPU(spu);
 
     // 3. ADPCM coloration toggle (ADPCM-IO-06, D-06): read GUI atomic,
     // push to C API. Takes effect on the next spu94_process block.
@@ -214,8 +220,17 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         dacTrueOversample.load(std::memory_order_relaxed) ? 1 : 0);
 
     // Morph position: drive preset interpolation engine (Phase 17, D-09)
-    spu94_interp_set_morph(spu,
-        morphPosition.load(std::memory_order_relaxed));
+    // Only write registers when position actually changes — continuous writes
+    // disrupt the reverb's delay-line pending mechanism.
+    if (morphActive.load(std::memory_order_relaxed))
+    {
+        float pos = morphPosition.load(std::memory_order_relaxed);
+        if (pos != lastMorphPosition)
+        {
+            spu94_interp_set_morph(spu, pos);
+            lastMorphPosition = pos;
+        }
+    }
 
     auto playPos = wavSource.playPos.load(std::memory_order_relaxed);
     for (int i = 0; i < samplesToProcess; ++i)
