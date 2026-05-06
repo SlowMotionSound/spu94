@@ -25,6 +25,7 @@ target_sources(spu94_standalone
         WavLoader.cpp
         ParameterBridge.cpp
         RegisterPanel.cpp
+        MorphPanel.cpp
 )
 
 target_compile_definitions(spu94_standalone

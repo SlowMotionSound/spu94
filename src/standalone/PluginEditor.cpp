@@ -3,7 +3,8 @@
 SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     : AudioProcessorEditor(p),
       processorRef(p),
-      registerPanel(p.getRegisterBridge())
+      registerPanel(p.getRegisterBridge()),
+      morphPanel(p)
 {
     // Load WAV button -- opens async file picker.
     addAndMakeVisible(loadButton);
@@ -272,6 +273,26 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     registerViewport.setScrollBarsShown(true, false);
     addAndMakeVisible(registerViewport);
 
+    // Morph panel -- default view (D-01, D-02)
+    addAndMakeVisible(morphPanel);
+
+    // Start with macro view: morph panel visible, register panel hidden
+    registerViewport.setVisible(false);
+
+    // Advanced toggle -- swaps between morph knob and raw register view (D-01)
+    addAndMakeVisible(advancedToggle);
+    advancedToggle.onClick = [this] {
+        bool showAdvanced = !registerViewport.isVisible();
+        morphPanel.setVisible(!showAdvanced);
+        registerViewport.setVisible(showAdvanced);
+        advancedToggle.setButtonText(showAdvanced ? "Macro" : "Advanced");
+
+        if (showAdvanced) {
+            // Switching to Advanced: sync raw register sliders from current state
+            registerPanel.updateFromShadows();
+        }
+    };
+
     // Sync slider positions to the initial preset (Hall).
     registerPanel.updateFromShadows();
 
@@ -338,6 +359,12 @@ void SPU94AudioProcessorEditor::timerCallback()
 
     // D-11: check for modified state and update asterisk
     updatePresetDisplayName();
+
+    // Sync morph panel knob position when visible (Phase 17)
+    if (morphPanel.isVisible())
+    {
+        morphPanel.updateKnobPosition();
+    }
 }
 
 void SPU94AudioProcessorEditor::paint(juce::Graphics& g)
@@ -385,6 +412,12 @@ void SPU94AudioProcessorEditor::resized()
     registerViewport.setBounds(10, registerTop, viewportW, viewportH);
     registerPanel.setSize(viewportW - registerViewport.getScrollBarThickness(),
                           registerPanel.getPreferredHeight());
+
+    // Morph panel occupies the same Zone 2 bounds (D-01)
+    morphPanel.setBounds(10, registerTop, viewportW, viewportH);
+
+    // Advanced/Macro toggle (D-01)
+    advancedToggle.setBounds(w - 100, 45, 90, 25);
 
     // ---- ZONE 3+4: Combined mixer + DAC (single bottom row) ----
     const int bottomY = registerBottom + 5;

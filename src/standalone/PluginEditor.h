@@ -2,6 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "RegisterPanel.h"
+#include "MorphPanel.h"
 #include <memory>
 
 class SPU94AudioProcessorEditor : public juce::AudioProcessorEditor,
@@ -41,6 +42,8 @@ private:
 
     RegisterPanel registerPanel;
     juce::Viewport registerViewport;
+    MorphPanel morphPanel;
+    juce::TextButton advancedToggle{"Advanced"};
     juce::ComboBox presetSelector;
     juce::Label presetLabel{"", "Preset:"};
 
