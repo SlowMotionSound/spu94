@@ -41,6 +41,6 @@
 | INTERP-03 | Phase 16 | 16-01 | Complete |
 | INTERP-04 | Phase 16 | 16-01 | Complete |
 | INTERP-05 | Phase 16 | 16-01 | Complete |
-| GUI-01 | Phase 17 | | Pending |
-| GUI-02 | Phase 17 | | Pending |
-| GUI-03 | Phase 17 | | Pending |
+| GUI-01 | Phase 17 | 17-01, 17-02 | Complete |
+| GUI-02 | Phase 17 | 17-01 | Complete |
+| GUI-03 | Phase 17 | 17-01, 17-02 | Complete |
