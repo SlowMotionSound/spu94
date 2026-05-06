@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Preset Interpolation Engine
-status: planning
-stopped_at: Milestone started — defining requirements
-last_updated: "2026-05-05T23:00:00Z"
-last_activity: 2026-05-05 -- v1.5 milestone started, archived v1.5/v1.6 macro approach
+status: ready_to_plan
+stopped_at: Roadmap created — 2 phases, ready to plan Phase 16
+last_updated: "2026-05-05T23:30:00Z"
+last_activity: 2026-05-05 -- v1.5 roadmap created (2 phases, 8 requirements mapped)
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,14 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-05)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.5 Preset Interpolation Engine -- single morph knob between Sony's 9 factory presets
+**Current focus:** v1.5 Preset Interpolation Engine -- Phase 16 (Interpolation Engine) ready to plan
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-05-05 — Milestone v1.5 started
+Phase: 16 of 17 (Interpolation Engine)
+Plan: --
+Status: Ready to plan
+Last activity: 2026-05-05 -- Roadmap created
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Accumulated Context
 
@@ -84,6 +86,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-05T23:00:00Z
-Stopped at: v1.5 milestone started — defining requirements
+Last session: 2026-05-05T23:30:00Z
+Stopped at: Roadmap created -- ready to plan Phase 16
 Resume file: .planning/ROADMAP.md

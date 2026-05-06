@@ -36,11 +36,11 @@
 
 | REQ-ID | Phase | Plan | Status |
 |--------|-------|------|--------|
-| INTERP-01 | | | Pending |
-| INTERP-02 | | | Pending |
-| INTERP-03 | | | Pending |
-| INTERP-04 | | | Pending |
-| INTERP-05 | | | Pending |
-| GUI-01 | | | Pending |
-| GUI-02 | | | Pending |
-| GUI-03 | | | Pending |
+| INTERP-01 | Phase 16 | | Pending |
+| INTERP-02 | Phase 16 | | Pending |
+| INTERP-03 | Phase 16 | | Pending |
+| INTERP-04 | Phase 16 | | Pending |
+| INTERP-05 | Phase 16 | | Pending |
+| GUI-01 | Phase 17 | | Pending |
+| GUI-02 | Phase 17 | | Pending |
+| GUI-03 | Phase 17 | | Pending |

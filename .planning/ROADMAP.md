@@ -1,10 +1,11 @@
 # Roadmap: SPU-94
 
-**Updated:** 2026-05-02
+**Updated:** 2026-05-05
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
 
 ## Milestones
 
+- **v1.5 Preset Interpolation Engine** -- Phases 16-17 (in progress)
 - ✅ **v1.4 Preset System** -- Phases 13-15 (shipped 2026-05-02, tag `v1.4`)
 - ✅ **v1.3 True Oversampled DAC** -- Phases 10-12 (shipped 2026-05-01, tag `v1.3`)
 - ✅ **v1.2 DAC Modeling** -- Phases 5-9 (shipped 2026-04-30, tag `v1.2`)
@@ -13,6 +14,48 @@
 - ✅ **M1 Reverb Core** -- 7 phases (shipped 2026-04-25, tag `m1-reverb-core`)
 
 ## Phases
+
+- [ ] **Phase 16: Interpolation Engine** - C core: waypoint table, position mapping, linear interpolation of 30 registers between 9 Sony presets
+- [ ] **Phase 17: Morph Knob GUI** - JUCE: single rotary knob with waypoint markers, real-time register updates from morph position
+
+## Phase Details
+
+### Phase 16: Interpolation Engine
+**Goal**: A morph position value produces the correct interpolated register set for any point along the 9-preset continuum
+**Depends on**: Nothing (v1.4 preset infrastructure already exists)
+**Requirements**: INTERP-01, INTERP-02, INTERP-03, INTERP-04, INTERP-05
+**Success Criteria** (what must be TRUE):
+  1. Setting morph position to 0.0 produces Half Echo registers; setting it to 1.0 produces Delay registers; setting it to 0.5 produces registers halfway between Studio B and Studio C
+  2. At each of the 9 waypoint positions (0/8, 1/8, 2/8, ... 8/8), the output registers are bit-identical to the corresponding Sony factory preset
+  3. Between waypoints, all 30 active registers change smoothly (linear interpolation) while vLOUT, vROUT, vLIN, vRIN, and mBASE remain fixed
+  4. Signed coefficients (v-prefix registers like vIIR, vWALL, vCOMB1-4, vAPF1/2) interpolate through negative values correctly without unsigned wraparound artifacts
+**Plans**: TBD
+
+### Phase 17: Morph Knob GUI
+**Goal**: User controls the interpolation engine via a single large rotary knob with visual preset waypoint indicators
+**Depends on**: Phase 16
+**Requirements**: GUI-01, GUI-02, GUI-03
+**Success Criteria** (what must be TRUE):
+  1. A single rotary knob (250-300px) dominates the macro control area and is the sole control for preset morphing
+  2. 9 dot markers around the knob arc visually indicate the exact angular positions of the Sony factory presets
+  3. Turning the knob produces audible, continuous timbral change in real time -- no clicks, no silence gaps, no waiting
+**Plans**: TBD
+**UI hint**: yes
+
+## Progress
+
+**Execution Order:** 16 -> 17
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 16. Interpolation Engine | v1.5 | 0/TBD | Not started | - |
+| 17. Morph Knob GUI | v1.5 | 0/TBD | Not started | - |
+| 1-4 | v1.1 | 10/10 | Complete | 2026-04-27 |
+| 5-9 | v1.2 | 12/12 | Complete | 2026-04-30 |
+| 10-12 | v1.3 | 8/8 | Complete | 2026-05-01 |
+| 13-15 | v1.4 | 5/5 | Complete | 2026-05-02 |
+
+## Previous Milestone Archives
 
 <details>
 <summary>v1.4 Preset System (Phases 13-15) -- SHIPPED 2026-05-02</summary>
@@ -75,26 +118,5 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 
 </details>
 
-## Progress
-
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 1-4 | v1.1 | 10/10 | Complete | 2026-04-27 |
-| 5-9 | v1.2 | 12/12 | Complete | 2026-04-30 |
-| 10-12 | v1.3 | 8/8 | Complete | 2026-05-01 |
-| 13-15 | v1.4 | 5/5 | Complete | 2026-05-02 |
-
-## Previous Milestone Archives
-
-- `.planning/milestones/v1.4-ROADMAP.md` -- Full v1.4 Preset System roadmap
-- `.planning/milestones/v1.4-REQUIREMENTS.md` -- 10 requirements (all complete)
-- `.planning/milestones/v1.2-ROADMAP.md` -- Full v1.2 DAC Modeling roadmap
-- `.planning/milestones/v1.2-REQUIREMENTS.md` -- 14 requirements (all complete)
-- `.planning/milestones/v1.1-ROADMAP.md` -- Full M2 ADPCM roadmap
-- `.planning/milestones/v1.1-REQUIREMENTS.md` -- 23 requirements (all complete)
-- `.planning/milestones/v1.0-product-ROADMAP.md` -- v1.0 product roadmap
-- `.planning/milestones/v1.0-ROADMAP.md` -- M1 reverb core roadmap
-- `.planning/milestones/v1.0-REQUIREMENTS.md` -- M1 requirements
-
 ---
-*Last updated: 2026-05-02 -- v1.4 Preset System shipped*
+*Last updated: 2026-05-05 -- v1.5 Preset Interpolation Engine roadmap created*
