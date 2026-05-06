@@ -15,7 +15,7 @@
 
 ## Phases
 
-- [ ] **Phase 16: Interpolation Engine** - C core: waypoint table, position mapping, linear interpolation of 30 registers between 9 Sony presets
+- [x] **Phase 16: Interpolation Engine** - C core: waypoint table, position mapping, linear interpolation of 30 registers between 9 Sony presets
 - [ ] **Phase 17: Morph Knob GUI** - JUCE: single rotary knob with waypoint markers, real-time register updates from morph position
 
 ## Phase Details
@@ -31,7 +31,7 @@
   4. Signed coefficients (v-prefix registers like vIIR, vWALL, vCOMB1-4, vAPF1/2) interpolate through negative values correctly without unsigned wraparound artifacts
 **Plans**: 1 plan
 Plans:
-- [ ] 16-01-PLAN.md -- Interpolation engine: waypoint table, position mapping, linear interpolation, TDD tests
+- [x] 16-01-PLAN.md -- Interpolation engine: waypoint table, position mapping, linear interpolation, TDD tests
 
 ### Phase 17: Morph Knob GUI
 **Goal**: User controls the interpolation engine via a single large rotary knob with visual preset waypoint indicators
@@ -52,7 +52,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 16. Interpolation Engine | v1.5 | 0/1 | Planned | - |
+| 16. Interpolation Engine | v1.5 | 1/1 | Complete | 2026-05-06 |
 | 17. Morph Knob GUI | v1.5 | 0/TBD | Not started | - |
 | 1-4 | v1.1 | 10/10 | Complete | 2026-04-27 |
 | 5-9 | v1.2 | 12/12 | Complete | 2026-04-30 |

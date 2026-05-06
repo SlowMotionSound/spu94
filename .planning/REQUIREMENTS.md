@@ -5,11 +5,11 @@
 
 ## Interpolation Engine (C core)
 
-- [ ] **INTERP-01**: A morph position (0.0 to 1.0) maps to a specific pair of adjacent presets and a fractional distance between them
-- [ ] **INTERP-02**: All 30 active registers linearly interpolate between the two adjacent presets at the current morph position
-- [ ] **INTERP-03**: vLOUT/vROUT stay fixed at 0x7FFF, vLIN/vRIN stay fixed at 0x8000, mBASE stays fixed at 0x0000 regardless of morph position
-- [ ] **INTERP-04**: At each of the 9 waypoint positions, the registers exactly match the corresponding Sony factory preset (no rounding drift)
-- [ ] **INTERP-05**: Signed registers (v-prefix coefficients) interpolate through their signed range correctly (no unsigned wraparound)
+- [x] **INTERP-01**: A morph position (0.0 to 1.0) maps to a specific pair of adjacent presets and a fractional distance between them
+- [x] **INTERP-02**: All 30 active registers linearly interpolate between the two adjacent presets at the current morph position
+- [x] **INTERP-03**: vLOUT/vROUT stay fixed at 0x7FFF, vLIN/vRIN stay fixed at 0x8000, mBASE stays fixed at 0x0000 regardless of morph position
+- [x] **INTERP-04**: At each of the 9 waypoint positions, the registers exactly match the corresponding Sony factory preset (no rounding drift)
+- [x] **INTERP-05**: Signed registers (v-prefix coefficients) interpolate through their signed range correctly (no unsigned wraparound)
 
 ## GUI
 
@@ -36,11 +36,11 @@
 
 | REQ-ID | Phase | Plan | Status |
 |--------|-------|------|--------|
-| INTERP-01 | Phase 16 | | Pending |
-| INTERP-02 | Phase 16 | | Pending |
-| INTERP-03 | Phase 16 | | Pending |
-| INTERP-04 | Phase 16 | | Pending |
-| INTERP-05 | Phase 16 | | Pending |
+| INTERP-01 | Phase 16 | 16-01 | Complete |
+| INTERP-02 | Phase 16 | 16-01 | Complete |
+| INTERP-03 | Phase 16 | 16-01 | Complete |
+| INTERP-04 | Phase 16 | 16-01 | Complete |
+| INTERP-05 | Phase 16 | 16-01 | Complete |
 | GUI-01 | Phase 17 | | Pending |
 | GUI-02 | Phase 17 | | Pending |
 | GUI-03 | Phase 17 | | Pending |

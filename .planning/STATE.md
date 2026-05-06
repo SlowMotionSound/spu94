@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Preset Interpolation Engine
-status: ready_to_plan
-stopped_at: Roadmap created — 2 phases, ready to plan Phase 16
-last_updated: "2026-05-05T23:30:00Z"
-last_activity: 2026-05-05 -- v1.5 roadmap created (2 phases, 8 requirements mapped)
+status: executing
+stopped_at: ""
+last_updated: "2026-05-06T00:31:32Z"
+last_activity: 2026-05-06 -- Phase 16 Plan 01 complete (interpolation engine)
 progress:
   total_phases: 2
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
+  percent: 50
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-05)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.5 Preset Interpolation Engine -- Phase 16 (Interpolation Engine) ready to plan
+**Current focus:** v1.5 Preset Interpolation Engine -- Phase 16 (Interpolation Engine) executing
 
 ## Current Position
 
-Phase: 16 of 17 (Interpolation Engine)
-Plan: --
-Status: Ready to plan
-Last activity: 2026-05-05 -- Roadmap created
+Phase: 17 of 17 (Morph Knob GUI)
+Plan: 17-01 (next)
+Status: Phase 16 complete -- ready for Phase 17
+Last activity: 2026-05-06 -- Phase 16 Plan 01 shipped (interpolation engine TDD)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█████░░░░░] 50%
 
 ## Accumulated Context
 
@@ -46,6 +46,8 @@ Recent decisions affecting current work:
 - Fixed registers excluded: vLOUT/vROUT (0x7FFF), vLIN/vRIN (0x8000), mBASE (0x0000)
 - Equal angular spacing between waypoints on the knob
 - GUI: single 250-300px rotary knob with dot markers at preset positions
+- Waypoint positions use frac==0/1 direct-write bypass for bit-identical output (INTERP-04)
+- NaN position falls through clamp logic to seg=0 frac=0 producing valid Half Echo state (T-16-02)
 
 ### Blockers/Concerns
 
@@ -84,8 +86,14 @@ None.
 | Visualization | Polytope room shapes | 2026-05-03 |
 | Documentation | Register reference manual | 2026-05-03 |
 
+## Performance Metrics
+
+| Phase | Plan | Duration | Tasks | Files |
+|-------|------|----------|-------|-------|
+| 16 | 01 | 50m 19s | 2 | 6 |
+
 ## Session Continuity
 
-Last session: 2026-05-05T23:30:00Z
-Stopped at: Roadmap created -- ready to plan Phase 16
-Resume file: .planning/ROADMAP.md
+Last session: 2026-05-06T00:31:32Z
+Stopped at: Completed 16-01-PLAN.md (interpolation engine)
+Resume file: .planning/phases/16-interpolation-engine/16-01-SUMMARY.md
