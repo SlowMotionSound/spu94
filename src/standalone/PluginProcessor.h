@@ -75,6 +75,9 @@ public:
     std::atomic<bool>& getDacNoiseEnabled() { return dacNoiseEnabled; }
     std::atomic<bool>& getDacTrueOversample() { return dacTrueOversample; }
 
+    // --- Morph position (Phase 17, D-09/D-10: preset interpolation engine) ---
+    std::atomic<float>& getMorphPosition() { return morphPosition; }
+
     // --- File preset save/load (Phase 14, PRE-08/PRE-09) ---
 
     // Message thread: serialize current engine state to a .spu94 text buffer.
@@ -112,6 +115,10 @@ private:
     std::atomic<bool> dacFirEnabled{true};    // sub-toggle: ON when DAC section is used
     std::atomic<bool> dacNoiseEnabled{true};  // sub-toggle: ON when DAC section is used
     std::atomic<bool> dacTrueOversample{true}; // v1.3 true 8x path (default ON)
+
+    // Morph position (Phase 17: preset interpolation engine, D-09/D-10)
+    // 0.625 = Hall preset position (waypoint 5 of 8 = 5/8), matching default SPU94_PRESET_HALL
+    std::atomic<float> morphPosition{0.625f};
 
     // File preset pending load mechanism (message -> audio thread handoff)
     std::array<char, 4096> pendingPresetBuf{};

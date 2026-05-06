@@ -65,6 +65,9 @@ void SPU94AudioProcessor::prepareToPlay(double /*sampleRate*/, int /*samplesPerB
     spu94_load_preset(spu, SPU94_PRESET_HALL);
     registerBridge.syncShadowsFromSPU(spu);
 
+    // Apply initial morph position (matches Hall = 0.625)
+    spu94_interp_set_morph(spu, morphPosition.load(std::memory_order_relaxed));
+
     // Phase 7 (D-05): C core now owns mixing. Set sensible defaults
     // so audio is audible immediately (faders default to 0x0000 = silence).
     spu94_set_input_gain(spu,   0x7FFF);  // full input level
@@ -209,6 +212,10 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         dacNoiseEnabled.load(std::memory_order_relaxed) ? 1 : 0);
     spu94_set_dac_true_oversample(spu,
         dacTrueOversample.load(std::memory_order_relaxed) ? 1 : 0);
+
+    // Morph position: drive preset interpolation engine (Phase 17, D-09)
+    spu94_interp_set_morph(spu,
+        morphPosition.load(std::memory_order_relaxed));
 
     auto playPos = wavSource.playPos.load(std::memory_order_relaxed);
     for (int i = 0; i < samplesToProcess; ++i)
