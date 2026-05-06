@@ -29,7 +29,9 @@
   2. At each of the 9 waypoint positions (0/8, 1/8, 2/8, ... 8/8), the output registers are bit-identical to the corresponding Sony factory preset
   3. Between waypoints, all 30 active registers change smoothly (linear interpolation) while vLOUT, vROUT, vLIN, vRIN, and mBASE remain fixed
   4. Signed coefficients (v-prefix registers like vIIR, vWALL, vCOMB1-4, vAPF1/2) interpolate through negative values correctly without unsigned wraparound artifacts
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 16-01-PLAN.md -- Interpolation engine: waypoint table, position mapping, linear interpolation, TDD tests
 
 ### Phase 17: Morph Knob GUI
 **Goal**: User controls the interpolation engine via a single large rotary knob with visual preset waypoint indicators
@@ -39,7 +41,9 @@
   1. A single rotary knob (250-300px) dominates the macro control area and is the sole control for preset morphing
   2. 9 dot markers around the knob arc visually indicate the exact angular positions of the Sony factory presets
   3. Turning the knob produces audible, continuous timbral change in real time -- no clicks, no silence gaps, no waiting
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 16-01-PLAN.md -- Interpolation engine: waypoint table, position mapping, linear interpolation, TDD tests
 **UI hint**: yes
 
 ## Progress
@@ -48,7 +52,7 @@
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 16. Interpolation Engine | v1.5 | 0/TBD | Not started | - |
+| 16. Interpolation Engine | v1.5 | 0/1 | Planned | - |
 | 17. Morph Knob GUI | v1.5 | 0/TBD | Not started | - |
 | 1-4 | v1.1 | 10/10 | Complete | 2026-04-27 |
 | 5-9 | v1.2 | 12/12 | Complete | 2026-04-30 |
