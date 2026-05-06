@@ -54,7 +54,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 16. Interpolation Engine | v1.5 | 1/1 | Complete | 2026-05-06 |
-| 17. Morph Knob GUI | v1.5 | 0/2 | Not started | - |
+| 17. Morph Knob GUI | v1.5 | 0/2 | Planned | - |
 | 1-4 | v1.1 | 10/10 | Complete | 2026-04-27 |
 | 5-9 | v1.2 | 12/12 | Complete | 2026-04-30 |
 | 10-12 | v1.3 | 8/8 | Complete | 2026-05-01 |
