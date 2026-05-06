@@ -1,6 +1,6 @@
 # Roadmap: SPU-94
 
-**Updated:** 2026-05-05
+**Updated:** 2026-05-06
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
 
 ## Milestones
@@ -41,9 +41,10 @@ Plans:
   1. A single rotary knob (250-300px) dominates the macro control area and is the sole control for preset morphing
   2. 9 dot markers around the knob arc visually indicate the exact angular positions of the Sony factory presets
   3. Turning the knob produces audible, continuous timbral change in real time -- no clicks, no silence gaps, no waiting
-**Plans**: 1 plan
+**Plans**: 2 plans
 Plans:
-- [ ] 16-01-PLAN.md -- Interpolation engine: waypoint table, position mapping, linear interpolation, TDD tests
+- [ ] 17-01-PLAN.md -- Processor morph atomic + MorphPanel component (knob, dots, snap, label)
+- [ ] 17-02-PLAN.md -- Wire MorphPanel into editor with Macro/Advanced toggle, build, visual verify
 **UI hint**: yes
 
 ## Progress
@@ -53,7 +54,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 16. Interpolation Engine | v1.5 | 1/1 | Complete | 2026-05-06 |
-| 17. Morph Knob GUI | v1.5 | 0/TBD | Not started | - |
+| 17. Morph Knob GUI | v1.5 | 0/2 | Not started | - |
 | 1-4 | v1.1 | 10/10 | Complete | 2026-04-27 |
 | 5-9 | v1.2 | 12/12 | Complete | 2026-04-30 |
 | 10-12 | v1.3 | 8/8 | Complete | 2026-05-01 |
@@ -123,4 +124,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-05 -- v1.5 Preset Interpolation Engine roadmap created*
+*Last updated: 2026-05-06 -- Phase 17 plans created (2 plans, 2 waves)*
