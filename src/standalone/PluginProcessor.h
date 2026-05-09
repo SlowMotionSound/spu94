@@ -81,6 +81,15 @@ public:
     std::atomic<bool>& getMorphActive() { return morphActive; }
     void requestShadowSync() { needShadowSync.store(true, std::memory_order_relaxed); }
 
+    // --- Engine blend: 0.0 = instant (clicky v1.5 behavior), 1.0 = smooth (slewed) ---
+    std::atomic<float>& getEngineBlend() { return engineBlend; }
+
+    // --- Haze: granular decay layer on top of blended engine output ---
+    std::atomic<float>& getHazeAmount() { return hazeAmount; }
+
+    // --- Freeze: log-scaled grain playback rate (0=unity, 1≈1000x stretch) ---
+    std::atomic<float>& getHazeFreeze() { return hazeFreeze; }
+
     // --- File preset save/load (Phase 14, PRE-08/PRE-09) ---
 
     // Message thread: serialize current engine state to a .spu94 text buffer.
@@ -130,6 +139,36 @@ private:
     int16_t targetRegs[SPU94_REG__COUNT] = {};
     bool morphInitialized = false;
 
+    // Engine blend (smooth ↔ instant) — default 1.0 = fully smooth.
+    std::atomic<float> engineBlend{1.0f};
+
+    // Haze: granular decay layer mix amount (0.0 = dry blend, 1.0 = full grains)
+    std::atomic<float> hazeAmount{0.0f};
+
+    // Freeze: log-scaled grain playback rate. 0.0 = unity (1.0x), 1.0 ≈ 0.001 (1000x stretch)
+    std::atomic<float> hazeFreeze{0.0f};
+
+    // Granular haze layer state (audio-thread only).
+    static constexpr int kHazeBufLen = 88200;   // ~2s @ 44.1k stereo
+    static constexpr int kHazeMaxGrains = 6;
+    static constexpr int kHazeGrainLen = 4096;  // ~93ms output lifetime
+    static constexpr int kHazeSpawnInterval = 512;  // ~11ms spawn rate
+    // posInBuf is integer because grains play at UNITY rate (no pitch shift).
+    // Time-stretch comes from a separate playhead that advances slowly and
+    // determines where new grains spawn — see hazePlayhead below.
+    struct HazeGrain { int posInBuf = 0; int age = 0; bool active = false; };
+    std::array<float, kHazeBufLen> hazeBufL{};
+    std::array<float, kHazeBufLen> hazeBufR{};
+    int hazeWritePos = 0;
+    // Playhead: floating-point position in buffer, advances at grainRate
+    // per output sample. New grains spawn near this position. At freeze=0
+    // it tracks the write head with a fixed lag; at freeze>0 it falls
+    // behind, replaying older captured audio without pitch shift.
+    float hazePlayhead = 0.0f;
+    std::array<HazeGrain, kHazeMaxGrains> hazeGrains{};
+    int hazeSpawnCounter = 0;
+    uint32_t hazeRng = 0xC0FFEE42u;
+
     // File preset pending load mechanism (message -> audio thread handoff)
     std::array<char, 4096> pendingPresetBuf{};
     std::atomic<size_t> pendingPresetLen{0};
@@ -138,10 +177,13 @@ private:
 
     RegisterBridge registerBridge;
     PresetCommandQueue presetQueue;
-    // engines[0] = active (processes audio), engines[1] = scratch (computes target registers)
-    juce::HeapBlock<unsigned char> stateBufA, stateBufB;
-    juce::HeapBlock<unsigned char> workBufA, workBufB;
-    spu94_state* engines[2] = { nullptr, nullptr };
+    // engines[0] = smooth (slewed audio path — Phase 18 register slewing)
+    // engines[1] = scratch (computes target registers for engines[0]'s slew)
+    // engines[2] = instant (audio path with direct register writes — v1.5 click-on-change behavior)
+    // engineBlend mixes engines[0] (1.0) ↔ engines[2] (0.0) outputs.
+    juce::HeapBlock<unsigned char> stateBufA, stateBufB, stateBufC;
+    juce::HeapBlock<unsigned char> workBufA, workBufB, workBufC;
+    spu94_state* engines[3] = { nullptr, nullptr, nullptr };
 
     // WAV playback source. Message thread writes pendingL/R + sets
     // newWavReady; audio thread swaps into the live source struct.

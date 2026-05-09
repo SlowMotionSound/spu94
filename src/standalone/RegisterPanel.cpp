@@ -1,5 +1,56 @@
 #include "RegisterPanel.h"
 
+namespace {
+// Map each register to its L/R partner (or SPU94_REG__COUNT if none).
+// Used to clamp the L/R spread when a user drags a slider in Advanced mode —
+// independent L/R divergence on address/delay/gain registers can produce
+// pathologically asymmetric stereo that blasts one ear.
+spu94_reg_t pairedRegister(spu94_reg_t r)
+{
+    switch (r) {
+        case SPU94_REG_vLOUT:  return SPU94_REG_vROUT;
+        case SPU94_REG_vROUT:  return SPU94_REG_vLOUT;
+        case SPU94_REG_vLIN:   return SPU94_REG_vRIN;
+        case SPU94_REG_vRIN:   return SPU94_REG_vLIN;
+        case SPU94_REG_dLSAME: return SPU94_REG_dRSAME;
+        case SPU94_REG_dRSAME: return SPU94_REG_dLSAME;
+        case SPU94_REG_dLDIFF: return SPU94_REG_dRDIFF;
+        case SPU94_REG_dRDIFF: return SPU94_REG_dLDIFF;
+        case SPU94_REG_mLSAME: return SPU94_REG_mRSAME;
+        case SPU94_REG_mRSAME: return SPU94_REG_mLSAME;
+        case SPU94_REG_mLDIFF: return SPU94_REG_mRDIFF;
+        case SPU94_REG_mRDIFF: return SPU94_REG_mLDIFF;
+        case SPU94_REG_mLCOMB1: return SPU94_REG_mRCOMB1;
+        case SPU94_REG_mRCOMB1: return SPU94_REG_mLCOMB1;
+        case SPU94_REG_mLCOMB2: return SPU94_REG_mRCOMB2;
+        case SPU94_REG_mRCOMB2: return SPU94_REG_mLCOMB2;
+        case SPU94_REG_mLCOMB3: return SPU94_REG_mRCOMB3;
+        case SPU94_REG_mRCOMB3: return SPU94_REG_mLCOMB3;
+        case SPU94_REG_mLCOMB4: return SPU94_REG_mRCOMB4;
+        case SPU94_REG_mRCOMB4: return SPU94_REG_mLCOMB4;
+        case SPU94_REG_mLAPF1: return SPU94_REG_mRAPF1;
+        case SPU94_REG_mRAPF1: return SPU94_REG_mLAPF1;
+        case SPU94_REG_mLAPF2: return SPU94_REG_mRAPF2;
+        case SPU94_REG_mRAPF2: return SPU94_REG_mLAPF2;
+        default:               return SPU94_REG__COUNT;
+    }
+}
+
+// Find the slider index that drives a given register, or -1 if none.
+int sliderIndexForRegister(spu94_reg_t r)
+{
+    for (size_t j = 0; j < kSliderRegisters.size(); ++j)
+        if (kSliderRegisters[j] == r) return (int)j;
+    return -1;
+}
+
+// Maximum allowed |L - R| difference per register type.
+// Factory presets have L/R diffs around 1000–1500 on address/delay regs,
+// so 4096 leaves plenty of musical room without runaway divergence.
+constexpr double kMaxLRDiffI16 = 4096.0;  // gain pairs (±25% of full scale)
+constexpr double kMaxLRDiffU16 = 4096.0;  // address/delay pairs
+}  // namespace
+
 RegisterPanel::RegisterPanel(RegisterBridge& b)
     : bridge(b)
 {
@@ -22,9 +73,37 @@ RegisterPanel::RegisterPanel(RegisterBridge& b)
             slider.setRange(0.0, 65535.0, 1.0);
 
         slider.onValueChange = [this, i] {
-            bridge.setRegisterShadow(i,
-                static_cast<int16_t>(sliders[i].getValue()));
-            baseline[i] = sliders[i].getValue();
+            double v = sliders[i].getValue();
+
+            // L/R spread clamp: if this register has a paired register,
+            // limit |this - pair| to a max so the user can't drag stereo
+            // divergence into ear-blasting territory.
+            const spu94_reg_t reg = kSliderRegisters[i];
+            const spu94_reg_t pair = pairedRegister(reg);
+            if (pair != SPU94_REG__COUNT)
+            {
+                const int pairIdx = sliderIndexForRegister(pair);
+                if (pairIdx >= 0)
+                {
+                    const auto type = spu94_reg_type(reg);
+                    double pairVal;
+                    if (type == SPU94_REG_TYPE_I16)
+                        pairVal = (double)bridge.getShadowValue((size_t)pairIdx);
+                    else
+                        pairVal = (double)(uint16_t)bridge.getShadowValue((size_t)pairIdx);
+
+                    const double maxDiff = (type == SPU94_REG_TYPE_I16)
+                                            ? kMaxLRDiffI16 : kMaxLRDiffU16;
+                    if (v > pairVal + maxDiff) v = pairVal + maxDiff;
+                    if (v < pairVal - maxDiff) v = pairVal - maxDiff;
+
+                    if (v != sliders[i].getValue())
+                        sliders[i].setValue(v, juce::dontSendNotification);
+                }
+            }
+
+            bridge.setRegisterShadow(i, static_cast<int16_t>(v));
+            baseline[i] = v;
         };
 
         labels[i].setText(juce::String(name), juce::dontSendNotification);
