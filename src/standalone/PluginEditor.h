@@ -71,17 +71,6 @@ private:
     juce::ToggleButton dacNoiseToggle{"Noise"};
     juce::ToggleButton dacOversampleToggle{"8x"};
 
-    // Engine Blend: smooth (slewed) ↔ instant (clicky v1.5 behavior)
-    juce::Slider engineBlendKnob;
-    juce::Label engineBlendLabel;
-
-    // Haze: granular decay layer mix
-    juce::Slider hazeKnob;
-    juce::Label hazeLabel;
-
-    // Freeze: granular playback rate (slow stretch)
-    juce::Slider freezeKnob;
-    juce::Label freezeLabel;
 
 
     // Track preset-switch completion for slider sync.

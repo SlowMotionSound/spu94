@@ -27,6 +27,11 @@ private:
     MorphSlider morphKnob;
     juce::Label morphLabel;
 
+    // Morph Speed: 0 = Instant Snap, 1 = Glide. Smaller rotary at the
+    // lower-right of the main knob, mauve PS1 palette.
+    juce::Slider speedKnob;
+    juce::Label speedLabel;
+
     bool isUpdatingFromTimer = false;
 
     void updateLabelText(double value);

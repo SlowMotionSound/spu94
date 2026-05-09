@@ -168,53 +168,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     drySendLabel.setText("Dry Send", juce::dontSendNotification);
     drySendLabel.setJustificationType(juce::Justification::centred);
 
-    // Engine Blend knob: 0.0 = instant (clicky v1.5), 1.0 = smooth (slewed v1.6)
-    addAndMakeVisible(engineBlendKnob);
-    engineBlendKnob.setSliderStyle(juce::Slider::Rotary);
-    engineBlendKnob.setTextBoxStyle(juce::Slider::NoTextBox, true, 0, 0);
-    engineBlendKnob.setRange(0.0, 1.0, 0.01);
-    engineBlendKnob.setValue(1.0, juce::dontSendNotification);
-    engineBlendKnob.onValueChange = [this] {
-        processorRef.getEngineBlend().store(
-            static_cast<float>(engineBlendKnob.getValue()),
-            std::memory_order_relaxed);
-    };
-    addAndMakeVisible(engineBlendLabel);
-    engineBlendLabel.setText("Blend", juce::dontSendNotification);
-    engineBlendLabel.setJustificationType(juce::Justification::centred);
-    engineBlendLabel.setFont(juce::FontOptions(11.0f));
-
-    // Haze knob: granular decay layer mix
-    addAndMakeVisible(hazeKnob);
-    hazeKnob.setSliderStyle(juce::Slider::Rotary);
-    hazeKnob.setTextBoxStyle(juce::Slider::NoTextBox, true, 0, 0);
-    hazeKnob.setRange(0.0, 1.0, 0.01);
-    hazeKnob.setValue(0.0, juce::dontSendNotification);
-    hazeKnob.onValueChange = [this] {
-        processorRef.getHazeAmount().store(
-            static_cast<float>(hazeKnob.getValue()),
-            std::memory_order_relaxed);
-    };
-    addAndMakeVisible(hazeLabel);
-    hazeLabel.setText("Haze", juce::dontSendNotification);
-    hazeLabel.setJustificationType(juce::Justification::centred);
-    hazeLabel.setFont(juce::FontOptions(11.0f));
-
-    // Freeze knob: log-scaled grain playback rate (0=normal, 1≈1000x stretch)
-    addAndMakeVisible(freezeKnob);
-    freezeKnob.setSliderStyle(juce::Slider::Rotary);
-    freezeKnob.setTextBoxStyle(juce::Slider::NoTextBox, true, 0, 0);
-    freezeKnob.setRange(0.0, 1.0, 0.01);
-    freezeKnob.setValue(0.0, juce::dontSendNotification);
-    freezeKnob.onValueChange = [this] {
-        processorRef.getHazeFreeze().store(
-            static_cast<float>(freezeKnob.getValue()),
-            std::memory_order_relaxed);
-    };
-    addAndMakeVisible(freezeLabel);
-    freezeLabel.setText("Freeze", juce::dontSendNotification);
-    freezeLabel.setJustificationType(juce::Justification::centred);
-    freezeLabel.setFont(juce::FontOptions(11.0f));
+    // (Morph Speed knob lives inside MorphPanel — see MorphPanel.cpp)
 
     // ---- ZONE 3: Mixer strip ----
 
@@ -470,13 +424,7 @@ void SPU94AudioProcessorEditor::resized()
 
     // ---- ZONE 3+4: Combined mixer + DAC (single bottom row) ----
     const int bottomY = registerBottom + 5;
-    // Granular trio (Engine Blend + Haze + Freeze) compact in left margin
-    engineBlendLabel.setBounds(0, bottomY, 50, 14);
-    engineBlendKnob.setBounds(5, bottomY + 14, 40, 54);
-    hazeLabel.setBounds(40, bottomY, 40, 14);
-    hazeKnob.setBounds(40, bottomY + 14, 40, 54);
-    freezeLabel.setBounds(75, bottomY, 45, 14);
-    freezeKnob.setBounds(75, bottomY + 14, 40, 54);
+    // (Morph Speed knob is laid out by MorphPanel inside the viewport.)
     // Three level knobs (unchanged)
     dryKnobLabel.setBounds(120, bottomY, 80, 16);
     dryKnob.setBounds(120, bottomY + 14, 80, 54);

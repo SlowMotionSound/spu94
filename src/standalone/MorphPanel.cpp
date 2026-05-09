@@ -49,6 +49,36 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
     morphLabel.setFont(juce::FontOptions(16.0f));
     addAndMakeVisible(morphLabel);
 
+    // Morph Speed knob — small rotary tucked at the lower-right of the
+    // main morph knob. Mauve PS1 palette to differentiate from the teal
+    // main knob. 0 = Instant Snap (registers latch at next tick),
+    // 1 = Glide (full slew duration).
+    speedKnob.setSliderStyle(juce::Slider::Rotary);
+    speedKnob.setTextBoxStyle(juce::Slider::NoTextBox, true, 0, 0);
+    speedKnob.setRange(0.0, 1.0, 0.01);
+    speedKnob.setValue(1.0, juce::dontSendNotification);
+    speedKnob.setColour(juce::Slider::rotarySliderOutlineColourId, psxDarkGray);
+    speedKnob.setColour(juce::Slider::rotarySliderFillColourId, psxMauve.withAlpha(0.5f));
+    speedKnob.setColour(juce::Slider::thumbColourId, psxMauve);
+    speedKnob.setRotaryParameters(juce::MathConstants<float>::pi * 1.2f,
+                                   juce::MathConstants<float>::pi * 2.8f,
+                                   true);
+    speedKnob.setTooltip("Morph Speed: 0 = Instant Snap, 1 = Glide");
+    addAndMakeVisible(speedKnob);
+
+    speedKnob.onValueChange = [this]()
+    {
+        processorRef.getMorphSpeed().store(
+            static_cast<float>(speedKnob.getValue()),
+            std::memory_order_relaxed);
+    };
+
+    speedLabel.setText("Morph Speed", juce::dontSendNotification);
+    speedLabel.setJustificationType(juce::Justification::centred);
+    speedLabel.setColour(juce::Label::textColourId, psxLightGray.withAlpha(0.7f));
+    speedLabel.setFont(juce::FontOptions(11.0f));
+    addAndMakeVisible(speedLabel);
+
     // Set initial label to "Hall" (matching default morph position 0.625)
     updateLabelText(0.625);
 }
@@ -148,4 +178,15 @@ void MorphPanel::resized()
 
     morphKnob.setBounds(startX, startY, knobSize, knobSize);
     morphLabel.setBounds(startX, startY + knobSize + 8, knobSize, labelHeight);
+
+    // Speed knob: anchored to the bottom of the viewport (just above the
+    // mixer/DAC bar), centered horizontally, with its label below it.
+    // Visually separated from the main morph knob — its own row.
+    constexpr int speedSize = 60;
+    constexpr int speedLabelH = 14;
+    constexpr int speedBottomMargin = 4;
+    int speedX = (area.getWidth() - speedSize) / 2;
+    int speedY = area.getHeight() - speedSize - speedLabelH - speedBottomMargin;
+    speedKnob.setBounds(speedX, speedY, speedSize, speedSize);
+    speedLabel.setBounds(speedX - 40, speedY + speedSize, speedSize + 80, speedLabelH);
 }

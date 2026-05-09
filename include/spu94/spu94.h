@@ -566,6 +566,13 @@ int  spu94_is_slewing(const spu94_state *state);
  * Use before preset loads or resets that should apply instantly. */
 void spu94_slew_cancel(spu94_state *state);
 
+/* Override the in-flight slew duration set by spu94_set_slew_targets.
+ * Recomputes per-tick increments so all registers still converge
+ * simultaneously at the new sample budget. Lets the caller decouple slew
+ * rate from morph magnitude (e.g. a "Glide" knob). No-op if no slew is
+ * active; samples < 1 is clamped to 1. NULL state is a no-op. */
+void spu94_set_slew_duration(spu94_state *state, int32_t samples);
+
 #ifdef __cplusplus
 }
 #endif

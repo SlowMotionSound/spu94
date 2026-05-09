@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "WavLoader.h"
+#include <algorithm>
 #include <cstring>
 #include <memory>
 
@@ -29,7 +30,7 @@ SPU94AudioProcessor::SPU94AudioProcessor()
 
 SPU94AudioProcessor::~SPU94AudioProcessor()
 {
-    for (int e = 0; e < 3; ++e)
+    for (int e = 0; e < 2; ++e)
     {
         if (engines[e] != nullptr)
         {
@@ -46,8 +47,8 @@ const juce::String SPU94AudioProcessor::getName() const
 
 void SPU94AudioProcessor::prepareToPlay(double /*sampleRate*/, int /*samplesPerBlock*/)
 {
-    // Tear down all three engines before reinitializing (WR-03 extended)
-    for (int e = 0; e < 3; ++e)
+    // Tear down both engines before reinitializing (WR-03 extended)
+    for (int e = 0; e < 2; ++e)
     {
         if (engines[e] != nullptr)
         {
@@ -56,48 +57,43 @@ void SPU94AudioProcessor::prepareToPlay(double /*sampleRate*/, int /*samplesPerB
         }
     }
 
-    // Allocate caller-owned SPU state and work buffers for all three engines
+    // engines[0] = audio path. engines[1] = scratch (target-register
+    // computation only — never produces audio). The Register Behavior knob
+    // dials slew duration on engines[0]; instant snap is achieved by
+    // skipping the slew machinery and writing registers directly.
     stateBufA.allocate(SPU94_STATE_SIZE_MAX, true);
     workBufA.allocate(SPU94_WORK_BUF_MAX_BYTES, true);
     stateBufB.allocate(SPU94_STATE_SIZE_MAX, true);
     workBufB.allocate(SPU94_WORK_BUF_MAX_BYTES, true);
-    stateBufC.allocate(SPU94_STATE_SIZE_MAX, true);
-    workBufC.allocate(SPU94_WORK_BUF_MAX_BYTES, true);
 
     engines[0] = spu94_init(stateBufA.getData(), SPU94_STATE_SIZE_MAX,
                             workBufA.getData(), SPU94_WORK_BUF_MAX_BYTES);
     engines[1] = spu94_init(stateBufB.getData(), SPU94_STATE_SIZE_MAX,
                             workBufB.getData(), SPU94_WORK_BUF_MAX_BYTES);
-    engines[2] = spu94_init(stateBufC.getData(), SPU94_STATE_SIZE_MAX,
-                            workBufC.getData(), SPU94_WORK_BUF_MAX_BYTES);
 
-    if (engines[0] == nullptr || engines[1] == nullptr || engines[2] == nullptr)
+    if (engines[0] == nullptr || engines[1] == nullptr)
         return;
 
-    // engines[0] (smooth) and engines[2] (instant) both start at Hall preset
     spu94_load_preset(engines[0], SPU94_PRESET_HALL);
     spu94_load_preset(engines[1], SPU94_PRESET_HALL);
-    spu94_load_preset(engines[2], SPU94_PRESET_HALL);
     registerBridge.syncShadowsFromSPU(engines[0]);
     lastMorphPosition = -1.0f;  // force morph apply on first processBlock
     morphInitialized = false;
 
-    // Mixer defaults on all three engines (timbral parity)
-    for (int e = 0; e < 3; ++e)
-    {
-        spu94_set_input_gain(engines[e], 0x7FFF);
-        spu94_set_dry_fader(engines[e], 0x0000);
-        spu94_set_reverb_fader(engines[e], 0x7FFF);
-        spu94_set_dry_send(engines[e], 0x0000);
-        spu94_set_patina_send(engines[e], 0x7FFF);
-        spu94_set_dac_enabled(engines[e], 1);
-        spu94_set_latency_comp(engines[e], 1);
-    }
+    // Mixer defaults on the audio engine (scratch is silent and inherits its
+    // settings from preset load — its mixer state is never observed).
+    spu94_set_input_gain(engines[0], 0x7FFF);
+    spu94_set_dry_fader(engines[0], 0x0000);
+    spu94_set_reverb_fader(engines[0], 0x7FFF);
+    spu94_set_dry_send(engines[0], 0x0000);
+    spu94_set_patina_send(engines[0], 0x7FFF);
+    spu94_set_dac_enabled(engines[0], 1);
+    spu94_set_latency_comp(engines[0], 1);
 }
 
 void SPU94AudioProcessor::releaseResources()
 {
-    for (int e = 0; e < 3; ++e)
+    for (int e = 0; e < 2; ++e)
     {
         if (engines[e] != nullptr)
         {
@@ -128,20 +124,15 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
     if (!wavSource.loaded.load(std::memory_order_acquire) ||
         !wavSource.playing.load(std::memory_order_relaxed) ||
-        engines[0] == nullptr || engines[1] == nullptr || engines[2] == nullptr)
+        engines[0] == nullptr || engines[1] == nullptr)
     {
         buffer.clear();
         return;
     }
 
-    // 1. Drain preset command queue — apply to both audio engines so they
-    // stay in lockstep when the GUI requests a preset switch.
+    // 1. Drain preset command queue — applied to the single audio engine.
     if (presetQueue.drain(engines[0]))
     {
-        // Mirror the same preset onto engines[2] (instant audio path).
-        spu94_load_preset(engines[2], presetQueue.getAppliedId() < SPU94_PRESET__COUNT
-                                       ? (spu94_preset_id_t)presetQueue.getAppliedId()
-                                       : SPU94_PRESET_HALL);
         registerBridge.syncShadowsFromSPU(engines[0]);
     }
 
@@ -150,7 +141,6 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     {
         size_t len = pendingPresetLen.load(std::memory_order_relaxed);
         spu94_preset_load(engines[0], pendingPresetBuf.data(), len);
-        spu94_preset_load(engines[2], pendingPresetBuf.data(), len);
         registerBridge.syncShadowsFromSPU(engines[0]);
         filePresetReady.store(false, std::memory_order_release);
         filePresetAppliedCount.fetch_add(1, std::memory_order_release);
@@ -176,7 +166,6 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     if (!morphActive.load(std::memory_order_relaxed))
     {
         registerBridge.pushPendingRegisterWrites(engines[0]);
-        registerBridge.pushPendingRegisterWrites(engines[2]);
     }
 
     // Sync shadows from SPU when switching from morph to advanced mode
@@ -213,42 +202,40 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
     int16_t tmpL_in[kMaxBlock];
     int16_t tmpR_in[kMaxBlock];
-    int16_t tmpL_out[kMaxBlock];   // smooth engine output
+    int16_t tmpL_out[kMaxBlock];
     int16_t tmpR_out[kMaxBlock];
-    int16_t tmpL_out2[kMaxBlock];  // instant engine output
-    int16_t tmpR_out2[kMaxBlock];
 
-    // Push mixer/DAC state to BOTH audio engines so they sound identical
-    // modulo morph behavior. Mismatched mixer state would cause the blend
-    // to sound like two unrelated reverbs rather than two morph styles.
-    for (int e : {0, 2})
-    {
-        spu94_set_input_gain(engines[e], static_cast<int16_t>(
-            inputLevel.load(std::memory_order_relaxed) * 0x7FFF));
-        spu94_set_dry_fader(engines[e], static_cast<int16_t>(
-            dryLevel.load(std::memory_order_relaxed) * 0x7FFF));
-        spu94_set_patina_fader(engines[e], static_cast<int16_t>(
-            patinaLevel.load(std::memory_order_relaxed) * 0x7FFF));
-        spu94_set_reverb_fader(engines[e], static_cast<int16_t>(
-            reverbLevel.load(std::memory_order_relaxed) * 0x7FFF));
-        spu94_set_dry_send(engines[e], static_cast<int16_t>(
-            drySend.load(std::memory_order_relaxed) * 0x7FFF));
-        spu94_set_patina_send(engines[e], static_cast<int16_t>(
-            adpcmSend.load(std::memory_order_relaxed) * 0x7FFF));
-        spu94_set_latency_comp(engines[e],
-            latencyCompEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-        spu94_set_dac_enabled(engines[e],
-            dacEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-        spu94_set_dac_fir_enabled(engines[e],
-            dacFirEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-        spu94_set_dac_noise_enabled(engines[e],
-            dacNoiseEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-        spu94_set_dac_true_oversample(engines[e],
-            dacTrueOversample.load(std::memory_order_relaxed) ? 1 : 0);
-    }
+    // Push mixer/DAC state to the single audio engine.
+    spu94_set_input_gain(engines[0], static_cast<int16_t>(
+        inputLevel.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_dry_fader(engines[0], static_cast<int16_t>(
+        dryLevel.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_patina_fader(engines[0], static_cast<int16_t>(
+        patinaLevel.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_reverb_fader(engines[0], static_cast<int16_t>(
+        reverbLevel.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_dry_send(engines[0], static_cast<int16_t>(
+        drySend.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_patina_send(engines[0], static_cast<int16_t>(
+        adpcmSend.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_latency_comp(engines[0],
+        latencyCompEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_dac_enabled(engines[0],
+        dacEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_dac_fir_enabled(engines[0],
+        dacFirEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_dac_noise_enabled(engines[0],
+        dacNoiseEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_dac_true_oversample(engines[0],
+        dacTrueOversample.load(std::memory_order_relaxed) ? 1 : 0);
 
-    // Morph position: smooth path uses scratch engine + slew targets;
-    // instant path writes register values directly (TICK_LATCHED, clicky).
+    // Morph position. The Register Behavior knob picks one of two paths:
+    //   knob ≈ 0  → direct write (snap): registers latch at next tick.
+    //                Same TICK_LATCHED click character as original v1.5.
+    //   knob > 0  → slew on engines[0] over (knob * max_delta) samples.
+    //                knob=1.0 reproduces the full Phase 18 glide duration.
+    constexpr float kSnapThreshold = 0.001f;
+    const float behavior = morphSpeed.load(std::memory_order_relaxed);
     if (morphActive.load(std::memory_order_relaxed))
     {
         float pos = morphPosition.load(std::memory_order_relaxed);
@@ -256,140 +243,51 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         {
             lastMorphPosition = pos;
 
-            if (!morphInitialized)
+            if (!morphInitialized || behavior <= kSnapThreshold)
             {
+                // First-time apply OR snap path: write registers directly.
                 spu94_interp_set_morph(engines[0], pos);
-                spu94_interp_set_morph(engines[2], pos);
                 morphInitialized = true;
             }
             else
             {
-                // Smooth path: compute targets on scratch, arm slew on engines[0]
+                // Glide path: compute targets on scratch, arm slew on
+                // engines[0], then scale slew duration by the knob so
+                // smaller behavior values produce shorter slews.
                 spu94_interp_set_morph(engines[1], pos);
                 spu94_apply_pending_writes(engines[1]);
                 spu94_snapshot_registers(engines[1], targetRegs);
                 spu94_set_slew_targets(engines[0], targetRegs);
-
-                // Instant path: write directly to engines[2] — registers latch
-                // at the next reverb tick boundary (the v1.5 click behavior).
-                spu94_interp_set_morph(engines[2], pos);
+                const int32_t maxDelta =
+                    spu94_is_slewing(engines[0])
+                        ? std::max(1, (int)(behavior * 22050.0f))
+                        : 1;
+                spu94_set_slew_duration(engines[0], maxDelta);
             }
         }
     }
 
-    // Engine blend, haze, freeze — read once per block
-    const float b = engineBlend.load(std::memory_order_relaxed);
-    const float bSmooth  = b;
-    const float bInstant = 1.0f - b;
-    const float haze     = hazeAmount.load(std::memory_order_relaxed);
-    const float freeze   = hazeFreeze.load(std::memory_order_relaxed);
-    // Playhead advance rate: knob=0 → 1.0 (tracks write head with fixed lag),
-    // knob=1 → ~0.001 (nearly stopped, ~1000x time stretch). Pitch preserved
-    // because grains always read at unity rate.
-    const float playheadRate = std::exp(freeze * -6.908f);
-    // Feedback safety: keeps the grain → reverb input loop stable even at
-    // Haze=1.0. The reverb itself can have feedback near unity in some
-    // presets, so we cap the grain re-injection well below that.
-    // While morph is actively slewing the registers may pass through
-    // unstable combinations momentarily — drop feedback further then.
-    constexpr float kGrainFeedbackSafety = 0.5f;
-    constexpr float kGrainFeedbackMorphing = 0.2f;
-    const bool morphing = spu94_is_slewing(engines[0]) != 0;
-    const float fbSafety = morphing ? kGrainFeedbackMorphing
-                                     : kGrainFeedbackSafety;
-
-    // Pre-pass: per-sample, generate audio input + grain feedback for the reverb.
-    // Grains read from the granular buffer (filled by previous blocks' reverb
-    // output) and inject into the reverb input scaled by Haze * safety.
+    // Build the int16 input to the reverb directly from the WAV source.
     auto playPos = wavSource.playPos.load(std::memory_order_relaxed);
-    int16_t grainL_pre[kMaxBlock];
-    int16_t grainR_pre[kMaxBlock];
     for (int i = 0; i < samplesToProcess; ++i)
     {
         const auto idx = static_cast<size_t>((playPos + static_cast<uint64_t>(i)) % numFrames);
-        const float dryInL = wavSource.L[idx] / 32768.0f;
-        const float dryInR = wavSource.R[idx] / 32768.0f;
-
-        // Advance playhead
-        hazePlayhead += playheadRate;
-        if (hazePlayhead >= (float)kHazeBufLen) hazePlayhead -= (float)kHazeBufLen;
-
-        // Spawn new grains at fixed intervals
-        if (++hazeSpawnCounter >= kHazeSpawnInterval)
-        {
-            hazeSpawnCounter = 0;
-            for (auto& g : hazeGrains)
-            {
-                if (g.active) continue;
-                g.active = true;
-                g.age = 0;
-                hazeRng = hazeRng * 1664525u + 1013904223u;
-                int jitter = (int)(hazeRng & 0x3FFFu) - 0x2000;  // ±8192 samples
-                int p = (int)hazePlayhead + jitter;
-                p %= kHazeBufLen;
-                if (p < 0) p += kHazeBufLen;
-                g.posInBuf = p;
-                break;
-            }
-        }
-
-        // Sum active grain contributions (unity rate, no pitch shift)
-        float gL = 0.0f, gR = 0.0f;
-        for (auto& g : hazeGrains)
-        {
-            if (!g.active) continue;
-            const float tNorm = (float)g.age / (float)kHazeGrainLen;
-            const float env = 4.0f * tNorm * (1.0f - tNorm);
-            gL += hazeBufL[g.posInBuf] * env;
-            gR += hazeBufR[g.posInBuf] * env;
-            g.posInBuf = (g.posInBuf + 1) % kHazeBufLen;
-            if (++g.age >= kHazeGrainLen)
-                g.active = false;
-        }
-
-        // Mix dry input + grain feedback (clamped) into the reverb input.
-        // Narrow the grain stereo width before feedback to prevent runaway
-        // one-side blasts (independent L/R grain positions can produce
-        // pathologically asymmetric content that the reverb amplifies).
-        // 60% original / 40% mono blend keeps motion without extremes.
-        const float fbGain = haze * kGrainFeedbackSafety;
-        constexpr float kGrainStereoWidth = 0.6f;
-        const float gMid  = 0.5f * (gL + gR);
-        const float gLNarrow = gL * kGrainStereoWidth + gMid * (1.0f - kGrainStereoWidth);
-        const float gRNarrow = gR * kGrainStereoWidth + gMid * (1.0f - kGrainStereoWidth);
-        float reverbInL = dryInL + gLNarrow * fbGain;
-        float reverbInR = dryInR + gRNarrow * fbGain;
-        // Clamp to [-1, 1] before int16 conversion
-        if (reverbInL >  1.0f) reverbInL =  1.0f;
-        if (reverbInL < -1.0f) reverbInL = -1.0f;
-        if (reverbInR >  1.0f) reverbInR =  1.0f;
-        if (reverbInR < -1.0f) reverbInR = -1.0f;
-        tmpL_in[i] = (int16_t)(reverbInL * 32767.0f);
-        tmpR_in[i] = (int16_t)(reverbInR * 32767.0f);
-
-        // Stash grain values for any later use (currently unused but cheap)
-        (void)grainL_pre; (void)grainR_pre;
+        tmpL_in[i] = wavSource.L[idx];
+        tmpR_in[i] = wavSource.R[idx];
     }
 
-    // Process both reverb engines in parallel on the grain-shaped input
-    spu94_process(engines[0], tmpL_in, tmpR_in, tmpL_out,  tmpR_out,
-                  static_cast<uint32_t>(samplesToProcess));
-    spu94_process(engines[2], tmpL_in, tmpR_in, tmpL_out2, tmpR_out2,
+    // Single reverb engine — Register Behavior is enacted via slew on the
+    // morph register writes above; the per-sample audio path is unchanged.
+    spu94_process(engines[0], tmpL_in, tmpR_in, tmpL_out, tmpR_out,
                   static_cast<uint32_t>(samplesToProcess));
 
-    // Post-pass: blend reverb outputs, capture into granular buffer, emit
+    // Post-pass: side-channel limiter, emit
     auto* outL = buffer.getWritePointer(0);
     auto* outR = (buffer.getNumChannels() > 1) ? buffer.getWritePointer(1) : nullptr;
     for (int i = 0; i < samplesToProcess; ++i)
     {
-        const float blendedL = (tmpL_out[i] * bSmooth + tmpL_out2[i] * bInstant) / 32768.0f;
-        const float blendedR = (tmpR_out[i] * bSmooth + tmpR_out2[i] * bInstant) / 32768.0f;
-
-        // Capture reverb output into the granular buffer (this is what the
-        // grains will replay back into the reverb input on future blocks)
-        hazeBufL[hazeWritePos] = blendedL;
-        hazeBufR[hazeWritePos] = blendedR;
-        hazeWritePos = (hazeWritePos + 1) % kHazeBufLen;
+        const float wetL = tmpL_out[i] / 32768.0f;
+        const float wetR = tmpR_out[i] / 32768.0f;
 
         // Side-channel soft limiter: bound L/R divergence without affecting
         // the mono content. Mid passes through unchanged; side gets a tanh
@@ -398,8 +296,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // center while leaving the mono level untouched.
         constexpr float kSideKnee    = 0.125f;  // tanh starts compressing here
         constexpr float kSideCeiling = 0.06f;   // max side amplitude after limit
-        const float mid = 0.5f * (blendedL + blendedR);
-        const float side = 0.5f * (blendedL - blendedR);
+        const float mid = 0.5f * (wetL + wetR);
+        const float side = 0.5f * (wetL - wetR);
         const float sideLimited = std::tanh(side / kSideKnee) * kSideCeiling;
 
         outL[i] = mid + sideLimited;

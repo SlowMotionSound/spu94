@@ -224,11 +224,19 @@ struct spu94_state {
      * ----------------------------------------------------------------- */
     int16_t        slew_target[SPU94_REG__COUNT];
     float          slew_frac[SPU94_REG__COUNT];   /* fractional register positions */
-    float          slew_inc[SPU94_REG__COUNT];     /* per-tick fractional increment */
     int32_t        slew_abs_delta[SPU94_REG__COUNT];
     int32_t        slew_max_delta;
     int32_t        slew_samples_remaining;
     uint8_t        slew_active;
+
+    /* Cubic ease-out slew. slew_start_frac records each register's value
+     * at the moment the slew was armed; slew_total_samples is the original
+     * sample budget. Each tick computes t = elapsed/total and applies
+     * s(t) = 1 - (1-t)^3, then sets
+     *   slew_frac[r] = start_frac[r] + s(t) * (target_f - start_frac[r])
+     * Curve choice rationale documented in spu94_slew.c. */
+    float          slew_start_frac[SPU94_REG__COUNT];
+    int32_t        slew_total_samples;
 };
 
 /* Pin the shell-type bounds. A future plan that grows the struct past these

@@ -40,31 +40,36 @@ void spu94_set_slew_targets(spu94_state *state,
         int32_t abs_d = (delta >= 0) ? delta : -delta;
         state->slew_abs_delta[r] = abs_d;
         state->slew_frac[r] = cur_f;
+        /* Cubic ease-out interpolates against the start position on every
+         * tick (slew_frac[r] = start + s(t) * (target - start)), so we
+         * snapshot the start value at slew-arm time. */
+        state->slew_start_frac[r] = cur_f;
 
         if (abs_d > state->slew_max_delta)
             state->slew_max_delta = abs_d;
     }
 
-    /* Compute per-tick fractional increments (proportional to each delta). */
-    if (state->slew_max_delta > 0) {
-        float inv_max = 1.0f / (float)state->slew_max_delta;
-        for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
-            float tgt_f;
-            if (spu94_reg_type((spu94_reg_t)r) == SPU94_REG_TYPE_I16)
-                tgt_f = (float)state->slew_target[r];
-            else
-                tgt_f = (float)(uint16_t)state->slew_target[r];
-            float delta_f = tgt_f - state->slew_frac[r];
-            state->slew_inc[r] = delta_f * inv_max;
-        }
-    }
-
     state->slew_samples_remaining = state->slew_max_delta;
+    state->slew_total_samples     = state->slew_max_delta;
     state->slew_active = (state->slew_max_delta > 0) ? 1 : 0;
 }
 
 int spu94_is_slewing(const spu94_state *state) {
     return (state && state->slew_active) ? 1 : 0;
+}
+
+/* Override the in-flight slew duration set by spu94_set_slew_targets.
+ * Lets the caller dial slew rate independently of the morph magnitude.
+ * Cubic ease-out reads slew_total_samples each tick to compute t, so this
+ * just updates the budget. No-op if no slew is active. samples < 1
+ * clamped to 1. */
+void spu94_set_slew_duration(spu94_state *state, int32_t samples) {
+    if (!state) return;
+    if (!state->slew_active) return;
+    if (samples < 1) samples = 1;
+
+    state->slew_samples_remaining = samples;
+    state->slew_total_samples     = samples;
 }
 
 void spu94_slew_cancel(spu94_state *state) {
@@ -81,7 +86,7 @@ void spu94_slew_cancel(spu94_state *state) {
 void spu94_slew_tick(spu94_state *state) {
     if (!state->slew_active) return;
 
-    if (state->slew_samples_remaining <= 0) {
+    if (state->slew_samples_remaining <= 0 || state->slew_total_samples <= 0) {
         /* Converged: snap all registers to exact integer targets */
         for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
             if (state->slew_abs_delta[r] == 0) continue;
@@ -97,10 +102,33 @@ void spu94_slew_tick(spu94_state *state) {
         return;
     }
 
-    /* Advance fractional positions and sync integer reg_values. */
+    /* Cubic ease-out: t = elapsed/total, s(t) = 1 - (1-t)^3.
+     * Decisive take-off, graceful settle. All registers use the same
+     * curve. Empirical note: at slew durations up to ~500 ms, curve shape
+     * is below the audible threshold — non-linear variants (smoothstep,
+     * quartic, quintic, true exponential) and per-register schedules
+     * (e.g. vIIR three-phase hold) were each verified to produce their
+     * designed register trajectories but were A/B-indistinguishable from
+     * each other in audio. The audible bottleneck is downstream (reverb
+     * network integration time), so cubic stays as the simplest non-
+     * linear option. */
+    const int32_t elapsed = state->slew_total_samples - state->slew_samples_remaining + 1;
+    float t = (float)elapsed / (float)state->slew_total_samples;
+    if (t > 1.0f) t = 1.0f;
+    const float oneMinusT = 1.0f - t;
+    const float s = 1.0f - oneMinusT * oneMinusT * oneMinusT;
+
     for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
         if (state->slew_abs_delta[r] == 0) continue;
-        state->slew_frac[r] += state->slew_inc[r];
+
+        float tgt_f;
+        if (spu94_reg_type((spu94_reg_t)r) == SPU94_REG_TYPE_I16)
+            tgt_f = (float)state->slew_target[r];
+        else
+            tgt_f = (float)(uint16_t)state->slew_target[r];
+
+        const float start_f = state->slew_start_frac[r];
+        state->slew_frac[r] = start_f + s * (tgt_f - start_f);
 
         int16_t int_val;
         if (spu94_reg_type((spu94_reg_t)r) == SPU94_REG_TYPE_I16) {
