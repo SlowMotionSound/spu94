@@ -71,6 +71,7 @@ private:
     juce::ToggleButton dacNoiseToggle{"Noise"};
     juce::ToggleButton dacOversampleToggle{"8x"};
 
+
     // Track preset-switch completion for slider sync.
     int lastAppliedCount = 0;
 
