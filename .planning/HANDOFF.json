@@ -1,0 +1,42 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-09T04:29:27Z",
+  "phase": null,
+  "phase_name": "Exploratory: parallel engine + granular haze (post-v1.5 main branch)",
+  "phase_dir": null,
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
+  "status": "paused",
+  "branch": "main",
+  "branch_note": "main branched from v1.5 (5bd9ff3) on 2026-05-08. master branch preserves all 31 commits since v1.5 including the Phase 19 Error Accumulator prototype — cherry-pick selectively to bring forward functional pieces.",
+  "completed_tasks": [
+    {"id": 1, "name": "Cherry-pick per-sample register slewing (Phase 18) from master", "status": "done", "commit": "cf682f0"},
+    {"id": 2, "name": "Revert and re-apply slewing for A/B listening test", "status": "done", "commits": ["0784f37", "3fb247c"]},
+    {"id": 3, "name": "Three-engine parallel architecture (smooth/scratch/instant) + Engine Blend knob", "status": "done", "commit": "363c935"},
+    {"id": 4, "name": "Granular Haze loop: 2s circular buffer, 6 voices, paulstretch-style Freeze (pitch-preserving time stretch via independent playhead)", "status": "done", "commit": "363c935"},
+    {"id": 5, "name": "Grain feedback fed into reverb INPUT (not output), 0.5x safety clamp, 0.2x during morph slew, 60/40 stereo→mono narrowing", "status": "done", "commit": "363c935"},
+    {"id": 6, "name": "L/R spread clamp on Advanced-mode sliders (24 paired registers, max |L-R| = 4096)", "status": "done", "commit": "363c935"},
+    {"id": 7, "name": "UI: Macro/Advanced toggle moved to bottom-right, slider wheel-scroll disabled, Engine Blend/Haze/Freeze knobs added bottom-left", "status": "done", "commits": ["2074597", "363c935"]},
+    {"id": 8, "name": "Side-channel soft limiter on output (knee 0.125, ceiling 0.06) — redistributes hard-panned content toward center", "status": "done", "commit": "e078cd2"}
+  ],
+  "remaining_tasks": [
+    {"id": 9, "name": "Optional: cherry-pick b65b8a2 (Phase 18 crackle fix — feedback taps revert to integer reads + slew rate alignment)", "status": "available_on_master"},
+    {"id": 10, "name": "Optional: cherry-pick eea9de1 (morph speed knob + user-programmable waypoints)", "status": "available_on_master"},
+    {"id": 11, "name": "Optional: forward-port Phase 19 Error Accumulator prototype (Memory Slip, Clock Drift, S&H, envelope follower)", "status": "available_on_master"},
+    {"id": 12, "name": "License pick (MIT vs Apache-2.0) — deferred per project memory; do not raise unprompted"}
+  ],
+  "blockers": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {"decision": "Branched fresh main from v1.5 after broken working tree", "rationale": "Clock Drift refactor attempts on master corrupted the working prototype; fresh branch from a known-good tag was cleanest reset. master branch preserved with all post-v1.5 work as cherry-pickable history."},
+    {"decision": "Three-engine architecture instead of two", "rationale": "engines[0]=smooth (slewed audio), engines[1]=scratch (target computation for [0]), engines[2]=instant (audio with direct register writes). Engine Blend continuously crossfades [0]/[2] outputs. Different goal from the abandoned dual-engine crossfade — that was for transition smoothing, this is for creative blend."},
+    {"decision": "Granular Haze feeds reverb INPUT, not output mix", "rationale": "Pre-feeding the reverb with stretched echoes of its own tail creates a self-reinforcing texture (with safety clamp to prevent runaway). Cleaner than parallel mix because the grain content gets shaped by the reverb itself rather than being layered raw."},
+    {"decision": "Paulstretch-style time stretch (independent playhead, unity-rate grains)", "rationale": "Naive granular slowdown via fractional-rate playback creates tape-pitch-down artifact. Solution: keep grain playback rate at 1.0 (no pitch shift), advance a separate playhead through the buffer at the freeze-controlled rate. Preserves pitch while elongating time."},
+    {"decision": "Soft limiter chosen over hard runaway prevention", "rationale": "User wanted to preserve ability to generate sustained feedback as a creative effect. Side-channel limiter on output bounds L/R divergence (the 'blow out one ear' issue) while leaving mid content untouched, so feedback can still build up musically."},
+    {"decision": "Knee/ceiling separation on side-channel limiter", "rationale": "Lower asymptote (0.06) than knee threshold (0.125) means tanh kicks in at the 'feels right' point but compresses harder afterward — gives more redistribution toward center on hard-pan content without changing the limiter onset feel."}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Decide whether to bring forward more functionality from master (crackle fix, morph speed knob, Error Accumulator prototype) or continue exploring the granular/blend axis. Listen-test current build with diverse source material to identify next refinement.",
+  "context_notes": "This is a creative DSP exploration session, not a formal GSD phase. The architecture started as 'morph between commits' (smooth↔click) and grew into a multi-axis texture engine with feedback grain loop and stereo-balance-aware limiting. Sound character: the Engine Blend dimension lets you choose between glide and stutter morph behavior; Haze adds sustained granular feedback that shapes the reverb tail; Freeze stretches the grain timebase without pitch shift (paulstretch). Side-channel limiter protects ears during morph squeals."
+}
