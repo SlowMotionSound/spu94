@@ -420,9 +420,6 @@ void SPU94AudioProcessorEditor::resized()
     // Morph panel occupies the same Zone 2 bounds (D-01)
     morphPanel.setBounds(10, registerTop, viewportW, viewportH);
 
-    // Advanced/Macro toggle (D-01)
-    advancedToggle.setBounds(w - 100, 45, 90, 25);
-
     // ---- ZONE 3+4: Combined mixer + DAC (single bottom row) ----
     const int bottomY = registerBottom + 5;
     // Three level knobs
@@ -438,6 +435,11 @@ void SPU94AudioProcessorEditor::resized()
     dacFirToggle.setBounds(575, bottomY + 15, 50, 30);
     dacNoiseToggle.setBounds(625, bottomY + 15, 60, 30);
     dacOversampleToggle.setBounds(690, bottomY + 15, 50, 30);
+
+    // Advanced/Macro toggle (D-01) — centered between 8x toggle right edge
+    // (x=740) and window right edge (x=w-10). 90-wide button → left edge at
+    // ((740 + (w-10))/2) - 45 = (w + 640) / 2.
+    advancedToggle.setBounds((w + 640) / 2, bottomY + 15, 90, 30);
 }
 
 void SPU94AudioProcessorEditor::showPresetNamePrompt()

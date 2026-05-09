@@ -12,6 +12,9 @@ RegisterPanel::RegisterPanel(RegisterBridge& b)
         auto& slider = sliders[i];
         slider.setSliderStyle(juce::Slider::LinearHorizontal);
         slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 60, 20);
+        // Disable wheel scroll on sliders — only click+drag changes value;
+        // wheel events propagate up to the viewport for two-finger scrolling.
+        slider.setScrollWheelEnabled(false);
 
         if (type == SPU94_REG_TYPE_I16)
             slider.setRange(-32768.0, 32767.0, 1.0);
@@ -43,6 +46,7 @@ RegisterPanel::RegisterPanel(RegisterBridge& b)
 
     scaleSlider.setSliderStyle(juce::Slider::LinearHorizontal);
     scaleSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 50, 20);
+    scaleSlider.setScrollWheelEnabled(false);
     scaleSlider.setRange(0.0, 2.0, 0.01);
     scaleSlider.setValue(1.0, juce::dontSendNotification);
     scaleSlider.onValueChange = [this] { applyScale(scaleSlider.getValue()); };
