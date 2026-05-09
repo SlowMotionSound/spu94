@@ -15,7 +15,6 @@ add_library(spu94_obj OBJECT
     spu94_fir.c
     spu94_io_chain.c
     spu94_process.c
-    spu94_slew.c
     spu94_presets.c
     spu94_preset_io.c
     spu94_interp.c
@@ -35,7 +34,7 @@ target_include_directories(spu94_obj PUBLIC
 
 # Determinism + warnings: PRIVATE — they apply when compiling spu94_obj,
 # but do NOT leak to downstream targets. Critical per RESEARCH.md Pitfall 7.
-target_link_libraries(spu94_obj PRIVATE spu94_warnings m)
+target_link_libraries(spu94_obj PRIVATE spu94_warnings)
 
 # Shared library consumer.
 add_library(spu94_shared SHARED $<TARGET_OBJECTS:spu94_obj>)

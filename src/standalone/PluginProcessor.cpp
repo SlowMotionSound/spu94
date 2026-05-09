@@ -29,13 +29,10 @@ SPU94AudioProcessor::SPU94AudioProcessor()
 
 SPU94AudioProcessor::~SPU94AudioProcessor()
 {
-    for (int e = 0; e < 2; ++e)
+    if (spu != nullptr)
     {
-        if (engines[e] != nullptr)
-        {
-            spu94_destroy(engines[e]);
-            engines[e] = nullptr;
-        }
+        spu94_destroy(spu);
+        spu = nullptr;
     }
 }
 
@@ -46,59 +43,48 @@ const juce::String SPU94AudioProcessor::getName() const
 
 void SPU94AudioProcessor::prepareToPlay(double /*sampleRate*/, int /*samplesPerBlock*/)
 {
-    // Tear down both engines before reinitializing (WR-03 extended for dual-engine)
-    for (int e = 0; e < 2; ++e)
+    // Tear down any existing SPU state before reinitializing (WR-03).
+    // JUCE calls prepareToPlay on every audio device change; without this
+    // the old spu pointer leaks its internal bookkeeping.
+    if (spu != nullptr)
     {
-        if (engines[e] != nullptr)
-        {
-            spu94_destroy(engines[e]);
-            engines[e] = nullptr;
-        }
+        spu94_destroy(spu);
+        spu = nullptr;
     }
 
-    // Allocate caller-owned SPU state and work buffers for both engines
-    stateBufA.allocate(SPU94_STATE_SIZE_MAX, true);
-    workBufA.allocate(SPU94_WORK_BUF_MAX_BYTES, true);
-    stateBufB.allocate(SPU94_STATE_SIZE_MAX, true);
-    workBufB.allocate(SPU94_WORK_BUF_MAX_BYTES, true);
+    // Allocate caller-owned SPU state and work buffers.
+    stateBuf.allocate(SPU94_STATE_SIZE_MAX, true);
+    workBuf.allocate(SPU94_WORK_BUF_MAX_BYTES, true);
 
-    engines[0] = spu94_init(stateBufA.getData(), SPU94_STATE_SIZE_MAX,
-                            workBufA.getData(), SPU94_WORK_BUF_MAX_BYTES);
-    engines[1] = spu94_init(stateBufB.getData(), SPU94_STATE_SIZE_MAX,
-                            workBufB.getData(), SPU94_WORK_BUF_MAX_BYTES);
+    spu = spu94_init(stateBuf.getData(), SPU94_STATE_SIZE_MAX,
+                     workBuf.getData(), SPU94_WORK_BUF_MAX_BYTES);
 
-    if (engines[0] == nullptr || engines[1] == nullptr)
+    if (spu == nullptr)
         return;
 
-    // Both engines start with Hall preset (same initial state)
-    spu94_load_preset(engines[0], SPU94_PRESET_HALL);
-    spu94_load_preset(engines[1], SPU94_PRESET_HALL);
-    registerBridge.syncShadowsFromSPU(engines[0]);
-    lastMorphPosition = -1.0f;  // force morph apply on first processBlock
-    morphInitialized = false;
+    spu94_load_preset(spu, SPU94_PRESET_HALL);
+    registerBridge.syncShadowsFromSPU(spu);
+    lastMorphPosition = -1.0f; // force morph apply on first processBlock
 
-    // Mixer defaults on BOTH engines (Pitfall 3: prevent timbral discontinuity)
-    for (int e = 0; e < 2; ++e)
-    {
-        spu94_set_input_gain(engines[e], 0x7FFF);
-        spu94_set_dry_fader(engines[e], 0x0000);
-        spu94_set_reverb_fader(engines[e], 0x7FFF);
-        spu94_set_dry_send(engines[e], 0x0000);
-        spu94_set_patina_send(engines[e], 0x7FFF);
-        spu94_set_dac_enabled(engines[e], 1);
-        spu94_set_latency_comp(engines[e], 1);
-    }
+    // Mixer defaults: reverb-focused signal path.
+    // DAC on, ADPCM send full, dry path off, reverb at unity.
+    spu94_set_input_gain(spu,   0x7FFF);  // full input level
+    spu94_set_dry_fader(spu,    0x0000);  // dry bus OFF
+    spu94_set_reverb_fader(spu, 0x7FFF);  // reverb at unity
+    spu94_set_dry_send(spu,     0x0000);  // dry bus reverb send OFF
+    spu94_set_patina_send(spu,  0x7FFF);  // ADPCM send FULL
+    spu94_set_dac_enabled(spu,  1);       // DAC ON
+
+    // Latency comp ON by default (D-07)
+    spu94_set_latency_comp(spu, 1);
 }
 
 void SPU94AudioProcessor::releaseResources()
 {
-    for (int e = 0; e < 2; ++e)
+    if (spu != nullptr)
     {
-        if (engines[e] != nullptr)
-        {
-            spu94_destroy(engines[e]);
-            engines[e] = nullptr;
-        }
+        spu94_destroy(spu);
+        spu = nullptr;
     }
 }
 
@@ -123,52 +109,52 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
     if (!wavSource.loaded.load(std::memory_order_acquire) ||
         !wavSource.playing.load(std::memory_order_relaxed) ||
-        engines[0] == nullptr || engines[1] == nullptr)
+        spu == nullptr)
     {
         buffer.clear();
         return;
     }
 
     // 1. Drain preset command queue (GUI thread may have requested a switch)
-    if (presetQueue.drain(engines[0]))
+    if (presetQueue.drain(spu))
     {
         // Preset was applied on audio thread. GUI thread will observe
         // appliedCount change and re-sync slider positions via Timer.
-        registerBridge.syncShadowsFromSPU(engines[0]);
+        registerBridge.syncShadowsFromSPU(spu);
     }
 
     // 1b. Drain file-preset load request (GUI thread may have loaded a .spu94 file)
     if (filePresetReady.load(std::memory_order_acquire))
     {
         size_t len = pendingPresetLen.load(std::memory_order_relaxed);
-        spu94_preset_load(engines[0], pendingPresetBuf.data(), len);
-        registerBridge.syncShadowsFromSPU(engines[0]);
+        spu94_preset_load(spu, pendingPresetBuf.data(), len);
+        registerBridge.syncShadowsFromSPU(spu);
         filePresetReady.store(false, std::memory_order_release);
         filePresetAppliedCount.fetch_add(1, std::memory_order_release);
 
         // Sync mixer/DAC atomics from loaded SPU state so GUI reflects the file's values
-        inputLevel.store(static_cast<float>(spu94_get_input_gain(engines[0])) / 0x7FFF, std::memory_order_relaxed);
-        dryLevel.store(static_cast<float>(spu94_get_dry_fader(engines[0])) / 0x7FFF, std::memory_order_relaxed);
-        patinaLevel.store(static_cast<float>(spu94_get_patina_fader(engines[0])) / 0x7FFF, std::memory_order_relaxed);
-        reverbLevel.store(static_cast<float>(spu94_get_reverb_fader(engines[0])) / 0x7FFF, std::memory_order_relaxed);
-        drySend.store(static_cast<float>(spu94_get_dry_send(engines[0])) / 0x7FFF, std::memory_order_relaxed);
-        adpcmSend.store(static_cast<float>(spu94_get_patina_send(engines[0])) / 0x7FFF, std::memory_order_relaxed);
-        latencyCompEnabled.store(spu94_get_latency_comp(engines[0]) != 0, std::memory_order_relaxed);
-        dacEnabled.store(spu94_get_dac_enabled(engines[0]) != 0, std::memory_order_relaxed);
-        dacFirEnabled.store(spu94_get_dac_fir_enabled(engines[0]) != 0, std::memory_order_relaxed);
-        dacNoiseEnabled.store(spu94_get_dac_noise_enabled(engines[0]) != 0, std::memory_order_relaxed);
-        dacTrueOversample.store(spu94_get_dac_true_oversample(engines[0]) != 0, std::memory_order_relaxed);
+        inputLevel.store(static_cast<float>(spu94_get_input_gain(spu)) / 0x7FFF, std::memory_order_relaxed);
+        dryLevel.store(static_cast<float>(spu94_get_dry_fader(spu)) / 0x7FFF, std::memory_order_relaxed);
+        patinaLevel.store(static_cast<float>(spu94_get_patina_fader(spu)) / 0x7FFF, std::memory_order_relaxed);
+        reverbLevel.store(static_cast<float>(spu94_get_reverb_fader(spu)) / 0x7FFF, std::memory_order_relaxed);
+        drySend.store(static_cast<float>(spu94_get_dry_send(spu)) / 0x7FFF, std::memory_order_relaxed);
+        adpcmSend.store(static_cast<float>(spu94_get_patina_send(spu)) / 0x7FFF, std::memory_order_relaxed);
+        latencyCompEnabled.store(spu94_get_latency_comp(spu) != 0, std::memory_order_relaxed);
+        dacEnabled.store(spu94_get_dac_enabled(spu) != 0, std::memory_order_relaxed);
+        dacFirEnabled.store(spu94_get_dac_fir_enabled(spu) != 0, std::memory_order_relaxed);
+        dacNoiseEnabled.store(spu94_get_dac_noise_enabled(spu) != 0, std::memory_order_relaxed);
+        dacTrueOversample.store(spu94_get_dac_true_oversample(spu) != 0, std::memory_order_relaxed);
     }
 
     // 2. Push register values: morph engine OR register bridge, never both.
     // When morph is active, the interpolation engine owns all 30 reverb registers.
     // When advanced mode is active, the register bridge (GUI sliders) owns them.
     if (!morphActive.load(std::memory_order_relaxed))
-        registerBridge.pushPendingRegisterWrites(engines[0]);
+        registerBridge.pushPendingRegisterWrites(spu);
 
     // Sync shadows from SPU when switching from morph to advanced mode
     if (needShadowSync.exchange(false, std::memory_order_relaxed))
-        registerBridge.syncShadowsFromSPU(engines[0]);
+        registerBridge.syncShadowsFromSPU(spu);
 
     // 3. ADPCM coloration toggle (ADPCM-IO-06, D-06): read GUI atomic,
     // push to C API. Takes effect on the next spu94_process block.
@@ -179,8 +165,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         const bool patina_active =
             patinaLevel.load(std::memory_order_relaxed) > 0.0f ||
             adpcmSend.load(std::memory_order_relaxed) > 0.0f;
-        const int adpcm_flag = patina_active ? 1 : 0;
-        spu94_set_adpcm_enabled(engines[0], adpcm_flag);
+        spu94_set_adpcm_enabled(spu, patina_active ? 1 : 0);
     }
 
     const int n = buffer.getNumSamples();
@@ -203,51 +188,47 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     int16_t tmpL_out[kMaxBlock];
     int16_t tmpR_out[kMaxBlock];
 
-    // Push mixer/DAC state to active engine
-    spu94_set_input_gain(engines[0], static_cast<int16_t>(
+    // Push host input level to C core mixer (D-05: float -> Q15 at boundary).
+    // The C core's input_gain handles attenuation; host passes full-scale samples.
+    spu94_set_input_gain(spu, static_cast<int16_t>(
         inputLevel.load(std::memory_order_relaxed) * 0x7FFF));
-    spu94_set_dry_fader(engines[0], static_cast<int16_t>(
+
+    // Mixer faders: float -> Q15 at host boundary (D-05)
+    spu94_set_dry_fader(spu, static_cast<int16_t>(
         dryLevel.load(std::memory_order_relaxed) * 0x7FFF));
-    spu94_set_patina_fader(engines[0], static_cast<int16_t>(
+    spu94_set_patina_fader(spu, static_cast<int16_t>(
         patinaLevel.load(std::memory_order_relaxed) * 0x7FFF));
-    spu94_set_reverb_fader(engines[0], static_cast<int16_t>(
+    spu94_set_reverb_fader(spu, static_cast<int16_t>(
         reverbLevel.load(std::memory_order_relaxed) * 0x7FFF));
-    spu94_set_dry_send(engines[0], static_cast<int16_t>(
+    spu94_set_dry_send(spu, static_cast<int16_t>(
         drySend.load(std::memory_order_relaxed) * 0x7FFF));
-    spu94_set_patina_send(engines[0], static_cast<int16_t>(
+    spu94_set_patina_send(spu, static_cast<int16_t>(
         adpcmSend.load(std::memory_order_relaxed) * 0x7FFF));
-    spu94_set_latency_comp(engines[0],
+
+    // Latency compensation
+    spu94_set_latency_comp(spu,
         latencyCompEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_dac_enabled(engines[0],
+
+    // DAC coloration section
+    spu94_set_dac_enabled(spu,
         dacEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_dac_fir_enabled(engines[0],
+    spu94_set_dac_fir_enabled(spu,
         dacFirEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_dac_noise_enabled(engines[0],
+    spu94_set_dac_noise_enabled(spu,
         dacNoiseEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_dac_true_oversample(engines[0],
+    spu94_set_dac_true_oversample(spu,
         dacTrueOversample.load(std::memory_order_relaxed) ? 1 : 0);
 
-    // Morph position: compute target registers on scratch engine, arm
-    // per-sample register slewing in the C core (Phase 18).
+    // Morph position: drive preset interpolation engine (Phase 17, D-09)
+    // Only write registers when position actually changes — continuous writes
+    // disrupt the reverb's delay-line pending mechanism.
     if (morphActive.load(std::memory_order_relaxed))
     {
         float pos = morphPosition.load(std::memory_order_relaxed);
         if (pos != lastMorphPosition)
         {
+            spu94_interp_set_morph(spu, pos);
             lastMorphPosition = pos;
-
-            if (!morphInitialized)
-            {
-                spu94_interp_set_morph(engines[0], pos);
-                morphInitialized = true;
-            }
-            else
-            {
-                spu94_interp_set_morph(engines[1], pos);
-                spu94_apply_pending_writes(engines[1]);
-                spu94_snapshot_registers(engines[1], targetRegs);
-                spu94_set_slew_targets(engines[0], targetRegs);
-            }
         }
     }
 
@@ -259,11 +240,11 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         tmpR_in[i] = wavSource.R[idx];
     }
 
-    // Single engine processes audio — registers are slewing smoothly
-    spu94_process(engines[0], tmpL_in, tmpR_in, tmpL_out, tmpR_out,
+    // Feed through the SPU reverb.
+    spu94_process(spu, tmpL_in, tmpR_in, tmpL_out, tmpR_out,
                   static_cast<uint32_t>(samplesToProcess));
 
-    // Output conversion (unchanged -- reads from tmpL_out/tmpR_out)
+    // C core mixer owns all mixing (D-02). Straight passthrough.
     auto* outL = buffer.getWritePointer(0);
     auto* outR = (buffer.getNumChannels() > 1) ? buffer.getWritePointer(1) : nullptr;
     for (int i = 0; i < samplesToProcess; ++i)
@@ -282,36 +263,36 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 juce::String SPU94AudioProcessor::savePresetToString(
     const juce::String& name, const juce::String& description)
 {
-    if (!engines[0]) return {};
+    if (!spu) return {};
 
     // processBlock only pushes GUI atomics to the SPU while audio is playing.
     // Sync them here so the saved state always matches what the knobs show.
-    spu94_set_input_gain(engines[0], static_cast<int16_t>(
+    spu94_set_input_gain(spu, static_cast<int16_t>(
         inputLevel.load(std::memory_order_relaxed) * 0x7FFF));
-    spu94_set_dry_fader(engines[0], static_cast<int16_t>(
+    spu94_set_dry_fader(spu, static_cast<int16_t>(
         dryLevel.load(std::memory_order_relaxed) * 0x7FFF));
-    spu94_set_patina_fader(engines[0], static_cast<int16_t>(
+    spu94_set_patina_fader(spu, static_cast<int16_t>(
         patinaLevel.load(std::memory_order_relaxed) * 0x7FFF));
-    spu94_set_reverb_fader(engines[0], static_cast<int16_t>(
+    spu94_set_reverb_fader(spu, static_cast<int16_t>(
         reverbLevel.load(std::memory_order_relaxed) * 0x7FFF));
-    spu94_set_dry_send(engines[0], static_cast<int16_t>(
+    spu94_set_dry_send(spu, static_cast<int16_t>(
         drySend.load(std::memory_order_relaxed) * 0x7FFF));
-    spu94_set_patina_send(engines[0], static_cast<int16_t>(
+    spu94_set_patina_send(spu, static_cast<int16_t>(
         adpcmSend.load(std::memory_order_relaxed) * 0x7FFF));
-    spu94_set_latency_comp(engines[0],
+    spu94_set_latency_comp(spu,
         latencyCompEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_dac_enabled(engines[0],
+    spu94_set_dac_enabled(spu,
         dacEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_dac_fir_enabled(engines[0],
+    spu94_set_dac_fir_enabled(spu,
         dacFirEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_dac_noise_enabled(engines[0],
+    spu94_set_dac_noise_enabled(spu,
         dacNoiseEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_dac_true_oversample(engines[0],
+    spu94_set_dac_true_oversample(spu,
         dacTrueOversample.load(std::memory_order_relaxed) ? 1 : 0);
 
     char buf[SPU94_PRESET_BUF_SIZE];
     int written = spu94_preset_save(
-        engines[0],
+        spu,
         name.isNotEmpty() ? name.toRawUTF8() : nullptr,
         description.isNotEmpty() ? description.toRawUTF8() : nullptr,
         buf, sizeof(buf));
@@ -321,7 +302,7 @@ juce::String SPU94AudioProcessor::savePresetToString(
 
 bool SPU94AudioProcessor::loadPresetFromString(const juce::String& presetText)
 {
-    if (presetText.isEmpty() || !engines[0]) return false;
+    if (presetText.isEmpty() || !spu) return false;
     auto raw = presetText.toRawUTF8();
     auto len = presetText.getNumBytesAsUTF8();
     if (len == 0 || len >= sizeof(pendingPresetBuf)) return false;

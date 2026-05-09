@@ -22,7 +22,6 @@
 #include <spu94/spu94_registers.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <math.h>
 
 /* Forward decl — Phase 2 engine layer (spu94_register_io.c). */
 int16_t  spu94_get_reg_i16(const spu94_state *state, spu94_reg_t reg);
@@ -81,40 +80,6 @@ static inline void reverb_buf_write(spu94_state *s,
     uint16_t u = (uint16_t)value;
     s->work_buf[byte_off]       = (unsigned char)(u & 0xFFu);
     s->work_buf[byte_off + 1u]  = (unsigned char)((u >> 8) & 0xFFu);
-}
-
-/* =====================================================================
- * Interpolated buffer read for fractional register slewing (Phase 18).
- * Linear interpolation between adjacent halfword positions. At rest
- * (integer offset, frac=0), returns the exact sample — bit-identical
- * to reverb_buf_read. During morph transitions, smoothly blends
- * adjacent samples instead of jumping between integer positions.
- * ===================================================================== */
-static inline int16_t reverb_buf_read_interp(spu94_state *s,
-                                              float halfword_offset_f)
-{
-    float fl = floorf(halfword_offset_f);
-    float frac = halfword_offset_f - fl;
-    int32_t int_part = (int32_t)fl;
-
-    if (frac < 0.0001f)
-        return reverb_buf_read(s, (uint16_t)int_part);
-
-    int16_t a = reverb_buf_read(s, (uint16_t)int_part);
-    int16_t b = reverb_buf_read(s, (uint16_t)(int_part + 1));
-
-    return (int16_t)((float)a + frac * (float)(b - a));
-}
-
-/* Helper: read fractional register position (slew_frac if slewing, else integer). */
-static inline float get_reg_frac(const spu94_state *s, spu94_reg_t reg)
-{
-    if (s->slew_active && s->slew_abs_delta[reg] > 0)
-        return s->slew_frac[reg];
-    /* pending_values always has the latest write — handles both IMMEDIATE
-     * (synced with reg_values) and TICK_LATCHED (only in pending until
-     * apply_pending_writes runs at tick start). */
-    return (float)(uint16_t)s->pending_values[reg];
 }
 
 /* =====================================================================
@@ -259,11 +224,10 @@ void spu94_reverb_same_iir(spu94_state *state,
 
     /* L side: [mLSAME] = (Lin + [dLSAME]*vWALL - [mLSAME-2])*vIIR + [mLSAME-2] */
     {
-        float    dLSAME_f = get_reg_frac(state, SPU94_REG_dLSAME);
-        uint16_t mLSAME   = spu94_get_reg_u16(state, SPU94_REG_mLSAME);
-        float    mLSAME_f = get_reg_frac(state, SPU94_REG_mLSAME);
-        int16_t  tap_d    = reverb_buf_read_interp(state, dLSAME_f);
-        int16_t  tap_prev = reverb_buf_read_interp(state, mLSAME_f - 2.0f);
+        uint16_t dLSAME = spu94_get_reg_u16(state, SPU94_REG_dLSAME);
+        uint16_t mLSAME = spu94_get_reg_u16(state, SPU94_REG_mLSAME);
+        int16_t  tap_d    = reverb_buf_read(state, dLSAME);
+        int16_t  tap_prev = reverb_buf_read(state, (uint16_t)(mLSAME - 2u));
 
         int16_t err = 0;
         int16_t wall_prod = q15_mul_truncate_with_err(tap_d, vWALL_snap, &err);
@@ -290,11 +254,10 @@ void spu94_reverb_same_iir(spu94_state *state,
 
     /* R side: [mRSAME] = (Rin + [dRSAME]*vWALL - [mRSAME-2])*vIIR + [mRSAME-2] */
     {
-        float    dRSAME_f = get_reg_frac(state, SPU94_REG_dRSAME);
-        uint16_t mRSAME   = spu94_get_reg_u16(state, SPU94_REG_mRSAME);
-        float    mRSAME_f = get_reg_frac(state, SPU94_REG_mRSAME);
-        int16_t  tap_d    = reverb_buf_read_interp(state, dRSAME_f);
-        int16_t  tap_prev = reverb_buf_read_interp(state, mRSAME_f - 2.0f);
+        uint16_t dRSAME = spu94_get_reg_u16(state, SPU94_REG_dRSAME);
+        uint16_t mRSAME = spu94_get_reg_u16(state, SPU94_REG_mRSAME);
+        int16_t  tap_d    = reverb_buf_read(state, dRSAME);
+        int16_t  tap_prev = reverb_buf_read(state, (uint16_t)(mRSAME - 2u));
 
         int16_t err = 0;
         int16_t wall_prod = q15_mul_truncate_with_err(tap_d, vWALL_snap, &err);
@@ -339,11 +302,10 @@ void spu94_reverb_diff_iir(spu94_state *state,
     /* L side: [mLDIFF] = (Lin + [dRDIFF]*vWALL - [mLDIFF-2])*vIIR + [mLDIFF-2]
      * NOTE: cross-side tap — dRDIFF (not dLDIFF) feeds the L-side write. */
     {
-        float    dRDIFF_f = get_reg_frac(state, SPU94_REG_dRDIFF);
-        uint16_t mLDIFF   = spu94_get_reg_u16(state, SPU94_REG_mLDIFF);
-        float    mLDIFF_f = get_reg_frac(state, SPU94_REG_mLDIFF);
-        int16_t  tap_d    = reverb_buf_read_interp(state, dRDIFF_f);
-        int16_t  tap_prev = reverb_buf_read_interp(state, mLDIFF_f - 2.0f);
+        uint16_t dRDIFF = spu94_get_reg_u16(state, SPU94_REG_dRDIFF);
+        uint16_t mLDIFF = spu94_get_reg_u16(state, SPU94_REG_mLDIFF);
+        int16_t  tap_d    = reverb_buf_read(state, dRDIFF);
+        int16_t  tap_prev = reverb_buf_read(state, (uint16_t)(mLDIFF - 2u));
 
         int16_t err = 0;
         int16_t wall_prod = q15_mul_truncate_with_err(tap_d, vWALL_snap, &err);
@@ -367,11 +329,10 @@ void spu94_reverb_diff_iir(spu94_state *state,
     /* R side: [mRDIFF] = (Rin + [dLDIFF]*vWALL - [mRDIFF-2])*vIIR + [mRDIFF-2]
      * NOTE: cross-side tap — dLDIFF (not dRDIFF) feeds the R-side write. */
     {
-        float    dLDIFF_f = get_reg_frac(state, SPU94_REG_dLDIFF);
-        uint16_t mRDIFF   = spu94_get_reg_u16(state, SPU94_REG_mRDIFF);
-        float    mRDIFF_f = get_reg_frac(state, SPU94_REG_mRDIFF);
-        int16_t  tap_d    = reverb_buf_read_interp(state, dLDIFF_f);
-        int16_t  tap_prev = reverb_buf_read_interp(state, mRDIFF_f - 2.0f);
+        uint16_t dLDIFF = spu94_get_reg_u16(state, SPU94_REG_dLDIFF);
+        uint16_t mRDIFF = spu94_get_reg_u16(state, SPU94_REG_mRDIFF);
+        int16_t  tap_d    = reverb_buf_read(state, dLDIFF);
+        int16_t  tap_prev = reverb_buf_read(state, (uint16_t)(mRDIFF - 2u));
 
         int16_t err = 0;
         int16_t wall_prod = q15_mul_truncate_with_err(tap_d, vWALL_snap, &err);
@@ -426,11 +387,16 @@ void spu94_reverb_comb(spu94_state *state,
     if (state == (spu94_state *)0) return;
     if (Lout_out == (int16_t *)0 || Rout_out == (int16_t *)0) return;
 
-    /* L side — read 4 taps via fractional m*COMB* positions. */
-    int16_t tL1 = reverb_buf_read_interp(state, get_reg_frac(state, SPU94_REG_mLCOMB1));
-    int16_t tL2 = reverb_buf_read_interp(state, get_reg_frac(state, SPU94_REG_mLCOMB2));
-    int16_t tL3 = reverb_buf_read_interp(state, get_reg_frac(state, SPU94_REG_mLCOMB3));
-    int16_t tL4 = reverb_buf_read_interp(state, get_reg_frac(state, SPU94_REG_mLCOMB4));
+    /* L side — read 4 taps via the m*COMB* halfword indexes. */
+    uint16_t mLCOMB1 = spu94_get_reg_u16(state, SPU94_REG_mLCOMB1);
+    uint16_t mLCOMB2 = spu94_get_reg_u16(state, SPU94_REG_mLCOMB2);
+    uint16_t mLCOMB3 = spu94_get_reg_u16(state, SPU94_REG_mLCOMB3);
+    uint16_t mLCOMB4 = spu94_get_reg_u16(state, SPU94_REG_mLCOMB4);
+
+    int16_t tL1 = reverb_buf_read(state, mLCOMB1);
+    int16_t tL2 = reverb_buf_read(state, mLCOMB2);
+    int16_t tL3 = reverb_buf_read(state, mLCOMB3);
+    int16_t tL4 = reverb_buf_read(state, mLCOMB4);
 
     int16_t e = 0;
     int16_t p1 = q15_mul_truncate_with_err(vCOMB1_snap, tL1, &e);
@@ -449,11 +415,16 @@ void spu94_reverb_comb(spu94_state *state,
     accL = q15_add_sat(accL, p4);   /* sat #3 */
     *Lout_out = accL;
 
-    /* R side — fractional reads with mRCOMB1..4. */
-    int16_t tR1 = reverb_buf_read_interp(state, get_reg_frac(state, SPU94_REG_mRCOMB1));
-    int16_t tR2 = reverb_buf_read_interp(state, get_reg_frac(state, SPU94_REG_mRCOMB2));
-    int16_t tR3 = reverb_buf_read_interp(state, get_reg_frac(state, SPU94_REG_mRCOMB3));
-    int16_t tR4 = reverb_buf_read_interp(state, get_reg_frac(state, SPU94_REG_mRCOMB4));
+    /* R side — mirror structure with mRCOMB1..4. */
+    uint16_t mRCOMB1 = spu94_get_reg_u16(state, SPU94_REG_mRCOMB1);
+    uint16_t mRCOMB2 = spu94_get_reg_u16(state, SPU94_REG_mRCOMB2);
+    uint16_t mRCOMB3 = spu94_get_reg_u16(state, SPU94_REG_mRCOMB3);
+    uint16_t mRCOMB4 = spu94_get_reg_u16(state, SPU94_REG_mRCOMB4);
+
+    int16_t tR1 = reverb_buf_read(state, mRCOMB1);
+    int16_t tR2 = reverb_buf_read(state, mRCOMB2);
+    int16_t tR3 = reverb_buf_read(state, mRCOMB3);
+    int16_t tR4 = reverb_buf_read(state, mRCOMB4);
 
     int16_t pR1 = q15_mul_truncate_with_err(vCOMB1_snap, tR1, &e);
     state->err_comb += (int32_t)e;
@@ -502,11 +473,12 @@ void spu94_reverb_apf1(spu94_state *state,
 {
     if (state == (spu94_state *)0) return;
     if (Lout_inout == (int16_t *)0 || Rout_inout == (int16_t *)0) return;
+
     /* L side: feedback through mLAPF1 / dAPF1 offsets. */
     {
         uint16_t mLAPF1 = spu94_get_reg_u16(state, SPU94_REG_mLAPF1);
-        float mLAPF1_f = get_reg_frac(state, SPU94_REG_mLAPF1);
-        int16_t tap_delayed = reverb_buf_read_interp(state, mLAPF1_f - (float)dAPF1_snap);
+        uint16_t tap_offset = (uint16_t)(mLAPF1 - dAPF1_snap);
+        int16_t tap_delayed = reverb_buf_read(state, tap_offset);
         int16_t Lin = *Lout_inout;
 
         int16_t e = 0;
@@ -532,8 +504,8 @@ void spu94_reverb_apf1(spu94_state *state,
     /* R side: mirror with mRAPF1 / dAPF1. */
     {
         uint16_t mRAPF1 = spu94_get_reg_u16(state, SPU94_REG_mRAPF1);
-        float mRAPF1_f = get_reg_frac(state, SPU94_REG_mRAPF1);
-        int16_t tap_delayed = reverb_buf_read_interp(state, mRAPF1_f - (float)dAPF1_snap);
+        uint16_t tap_offset = (uint16_t)(mRAPF1 - dAPF1_snap);
+        int16_t tap_delayed = reverb_buf_read(state, tap_offset);
         int16_t Rin = *Rout_inout;
 
         int16_t e = 0;
@@ -565,11 +537,12 @@ void spu94_reverb_apf2(spu94_state *state,
 {
     if (state == (spu94_state *)0) return;
     if (Lout_inout == (int16_t *)0 || Rout_inout == (int16_t *)0) return;
+
     /* L side. */
     {
         uint16_t mLAPF2 = spu94_get_reg_u16(state, SPU94_REG_mLAPF2);
-        float mLAPF2_f = get_reg_frac(state, SPU94_REG_mLAPF2);
-        int16_t tap_delayed = reverb_buf_read_interp(state, mLAPF2_f - (float)dAPF2_snap);
+        uint16_t tap_offset = (uint16_t)(mLAPF2 - dAPF2_snap);
+        int16_t tap_delayed = reverb_buf_read(state, tap_offset);
         int16_t Lin = *Lout_inout;
 
         int16_t e = 0;
@@ -590,8 +563,8 @@ void spu94_reverb_apf2(spu94_state *state,
     /* R side. */
     {
         uint16_t mRAPF2 = spu94_get_reg_u16(state, SPU94_REG_mRAPF2);
-        float mRAPF2_f = get_reg_frac(state, SPU94_REG_mRAPF2);
-        int16_t tap_delayed = reverb_buf_read_interp(state, mRAPF2_f - (float)dAPF2_snap);
+        uint16_t tap_offset = (uint16_t)(mRAPF2 - dAPF2_snap);
+        int16_t tap_delayed = reverb_buf_read(state, tap_offset);
         int16_t Rin = *Rout_inout;
 
         int16_t e = 0;

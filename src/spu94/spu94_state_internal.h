@@ -214,29 +214,11 @@ struct spu94_state {
      * offset audit concession" as reverb_out_l/r above).
      * ----------------------------------------------------------------- */
     uint64_t       oob_tap_count;
-
-    /* -----------------------------------------------------------------
-     * Phase 18: per-sample register slewing for click-free morph.
-     * spu94_set_slew_targets() loads target values and computes
-     * Bresenham error state. spu94_process calls spu94_slew_tick()
-     * once per sample, stepping each register by ±1 proportionally
-     * so all registers converge at the same instant (no stereo skew).
-     * ----------------------------------------------------------------- */
-    int16_t        slew_target[SPU94_REG__COUNT];
-    float          slew_frac[SPU94_REG__COUNT];   /* fractional register positions */
-    float          slew_inc[SPU94_REG__COUNT];     /* per-tick fractional increment */
-    int32_t        slew_abs_delta[SPU94_REG__COUNT];
-    int32_t        slew_max_delta;
-    int32_t        slew_samples_remaining;
-    uint8_t        slew_active;
 };
 
 /* Pin the shell-type bounds. A future plan that grows the struct past these
  * limits fails the build; the fix is an intentional macro bump in spu94.h. */
 _Static_assert(sizeof(struct spu94_state) <= SPU94_STATE_SIZE_MAX,
     "spu94_state grew beyond SPU94_STATE_SIZE_MAX; bump the macro in spu94.h");
-
-/* Phase 18: per-sample slew tick — called from spu94_process */
-void spu94_slew_tick(spu94_state *state);
 
 #endif /* SPU94_STATE_INTERNAL_H */

@@ -4,12 +4,11 @@
 #include "ParameterBridge.h"
 #include <array>
 #include <atomic>
-#include <cstdint>
 #include <vector>
+#include <cstdint>
 
 extern "C" {
 #include <spu94/spu94.h>
-#include <spu94/spu94_registers.h>
 }
 
 class SPU94AudioProcessor : public juce::AudioProcessor
@@ -126,10 +125,6 @@ private:
     std::atomic<bool> needShadowSync{false}; // GUI requests shadow sync on mode switch
     float lastMorphPosition{-1.0f}; // audio-thread only: tracks last applied position
 
-    // Per-sample register slewing (Phase 18)
-    int16_t targetRegs[SPU94_REG__COUNT] = {};
-    bool morphInitialized = false;
-
     // File preset pending load mechanism (message -> audio thread handoff)
     std::array<char, 4096> pendingPresetBuf{};
     std::atomic<size_t> pendingPresetLen{0};
@@ -138,10 +133,10 @@ private:
 
     RegisterBridge registerBridge;
     PresetCommandQueue presetQueue;
-    // engines[0] = active (processes audio), engines[1] = scratch (computes target registers)
-    juce::HeapBlock<unsigned char> stateBufA, stateBufB;
-    juce::HeapBlock<unsigned char> workBufA, workBufB;
-    spu94_state* engines[2] = { nullptr, nullptr };
+    // SPU state -- caller-owned buffers per libspu94 API contract
+    juce::HeapBlock<unsigned char> stateBuf;
+    juce::HeapBlock<unsigned char> workBuf;
+    spu94_state* spu = nullptr;
 
     // WAV playback source. Message thread writes pendingL/R + sets
     // newWavReady; audio thread swaps into the live source struct.

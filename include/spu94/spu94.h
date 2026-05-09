@@ -551,21 +551,6 @@ spu94_result_t spu94_preset_load(spu94_state *state,
  * NULL state is a no-op. */
 void spu94_interp_set_morph(spu94_state *state, float position);
 
-/* Per-sample register slewing (Phase 18).
- * Sets target register values and arms the Bresenham slew engine.
- * spu94_process steps each register by ±1 per sample, proportionally
- * distributed so all registers converge simultaneously (no stereo skew).
- * Pass the output of spu94_snapshot_registers from a scratch state. */
-void spu94_set_slew_targets(spu94_state *state,
-                            const int16_t targets[SPU94_REG__COUNT]);
-
-/* Returns 1 while any register has not yet reached its slew target. */
-int  spu94_is_slewing(const spu94_state *state);
-
-/* Disable slewing and leave registers at their current values.
- * Use before preset loads or resets that should apply instantly. */
-void spu94_slew_cancel(spu94_state *state);
-
 #ifdef __cplusplus
 }
 #endif
