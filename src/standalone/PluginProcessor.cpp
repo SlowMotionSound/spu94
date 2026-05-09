@@ -391,8 +391,19 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         hazeBufR[hazeWritePos] = blendedR;
         hazeWritePos = (hazeWritePos + 1) % kHazeBufLen;
 
-        outL[i] = blendedL;
-        if (outR) outR[i] = blendedR;
+        // Side-channel soft limiter: bound L/R divergence without affecting
+        // the mono content. Mid passes through unchanged; side gets a tanh
+        // limiter that kicks in around `kSideKnee` and asymptotes well below
+        // it at `kSideCeiling`, pulling hard-panned content noticeably toward
+        // center while leaving the mono level untouched.
+        constexpr float kSideKnee    = 0.125f;  // tanh starts compressing here
+        constexpr float kSideCeiling = 0.06f;   // max side amplitude after limit
+        const float mid = 0.5f * (blendedL + blendedR);
+        const float side = 0.5f * (blendedL - blendedR);
+        const float sideLimited = std::tanh(side / kSideKnee) * kSideCeiling;
+
+        outL[i] = mid + sideLimited;
+        if (outR) outR[i] = mid - sideLimited;
     }
 
     // Advance play position (continuous loop).
