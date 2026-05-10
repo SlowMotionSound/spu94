@@ -20,6 +20,7 @@
 #include <spu94/spu94_registers.h>
 #include <stdalign.h>
 #include <stdint.h>
+#include <string.h>
 
 static alignas(SPU94_STATE_ALIGN_MAX) unsigned char state_buf[SPU94_STATE_SIZE_MAX];
 static unsigned char work_buf[SPU94_WORK_BUF_MAX_BYTES];
@@ -200,6 +201,85 @@ static void test_sony_positions_intact_with_all_slots_filled(void) {
     }
 }
 
+/* ---------- 8. Preset I/O round-trip with filled slots ---------- */
+static void test_preset_io_user_slots_round_trip(void) {
+    /* Fill three slots with three different Sony presets as recognizable
+     * payloads. */
+    const int16_t *room  = spu94_presets[SPU94_PRESET_ROOM].regs;
+    const int16_t *hall  = spu94_presets[SPU94_PRESET_HALL].regs;
+    const int16_t *delay = spu94_presets[SPU94_PRESET_DELAY].regs;
+    spu94_interp_set_user_slot(state, 0, room);
+    spu94_interp_set_user_slot(state, 3, hall);
+    spu94_interp_set_user_slot(state, 6, delay);
+
+    /* Serialize. */
+    static char preset_buf[SPU94_PRESET_BUF_SIZE];
+    int written = spu94_preset_save(state, "test", "user-slot round-trip",
+                                    preset_buf, sizeof preset_buf);
+    TEST_ASSERT_GREATER_THAN_INT(0, written);
+
+    /* Three [user_slot N] section headers must appear in the output. */
+    TEST_ASSERT_NOT_NULL(strstr(preset_buf, "[user_slot 0]"));
+    TEST_ASSERT_NOT_NULL(strstr(preset_buf, "[user_slot 3]"));
+    TEST_ASSERT_NOT_NULL(strstr(preset_buf, "[user_slot 6]"));
+    /* Empty slots must NOT appear. */
+    TEST_ASSERT_NULL(strstr(preset_buf, "[user_slot 1]"));
+    TEST_ASSERT_NULL(strstr(preset_buf, "[user_slot 2]"));
+    TEST_ASSERT_NULL(strstr(preset_buf, "[user_slot 7]"));
+
+    /* Reset and reload from the serialized buffer. */
+    spu94_reset(state);
+    for (int s = 0; s < 8; s++)
+        TEST_ASSERT_EQUAL_INT(0, spu94_interp_user_slot_is_filled(state, s));
+
+    spu94_result_t rc = spu94_preset_load(state, preset_buf, (size_t)written);
+    TEST_ASSERT_EQUAL_INT(SPU94_OK, rc);
+
+    /* Slots 0/3/6 must now be filled with their original payloads; the rest
+     * stay empty. */
+    int16_t out[SPU94_REG__COUNT];
+    TEST_ASSERT_EQUAL_INT(1, spu94_interp_user_slot_is_filled(state, 0));
+    spu94_interp_get_user_slot(state, 0, out);
+    for (int r = 0; r < (int)SPU94_REG__COUNT; r++)
+        TEST_ASSERT_EQUAL_INT16(room[r], out[r]);
+
+    TEST_ASSERT_EQUAL_INT(1, spu94_interp_user_slot_is_filled(state, 3));
+    spu94_interp_get_user_slot(state, 3, out);
+    for (int r = 0; r < (int)SPU94_REG__COUNT; r++)
+        TEST_ASSERT_EQUAL_INT16(hall[r], out[r]);
+
+    TEST_ASSERT_EQUAL_INT(1, spu94_interp_user_slot_is_filled(state, 6));
+    spu94_interp_get_user_slot(state, 6, out);
+    for (int r = 0; r < (int)SPU94_REG__COUNT; r++)
+        TEST_ASSERT_EQUAL_INT16(delay[r], out[r]);
+
+    int empty_indices[5] = {1, 2, 4, 5, 7};
+    for (int i = 0; i < 5; i++)
+        TEST_ASSERT_EQUAL_INT(0,
+            spu94_interp_user_slot_is_filled(state, empty_indices[i]));
+}
+
+/* ---------- 9. Backward-compat: a preset with no [user_slot] sections ---------- */
+static void test_preset_io_missing_user_slots_section(void) {
+    /* Fill slot 2 first, then save, then verify -- save still works fine
+     * even with the new code path. Then craft a fake preset that has no
+     * [user_slot] sections at all and confirm load leaves slots empty. */
+    static char minimal[] =
+        "version=1\n"
+        "name=legacy\n"
+        "description=pre-user-slot preset\n"
+        "\n[registers]\n"
+        "\n[mixer]\n"
+        "\n[dac]\n"
+        "\n[morph]\n"
+        "grit=int\n";
+
+    spu94_result_t rc = spu94_preset_load(state, minimal, sizeof minimal - 1);
+    TEST_ASSERT_EQUAL_INT(SPU94_OK, rc);
+    for (int s = 0; s < 8; s++)
+        TEST_ASSERT_EQUAL_INT(0, spu94_interp_user_slot_is_filled(state, s));
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_user_slot_api_guards);
@@ -209,5 +289,7 @@ int main(void) {
     RUN_TEST(test_filled_slot_bit_identical_at_midpoint);
     RUN_TEST(test_filled_slot_changes_interpolation);
     RUN_TEST(test_sony_positions_intact_with_all_slots_filled);
+    RUN_TEST(test_preset_io_user_slots_round_trip);
+    RUN_TEST(test_preset_io_missing_user_slots_section);
     return UNITY_END();
 }

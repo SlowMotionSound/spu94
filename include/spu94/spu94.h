@@ -487,9 +487,10 @@ spu94_result_t spu94_load_preset(spu94_state *state, spu94_preset_id_t id);
 /* User-preset serialization (Phase 13, PRE-01..PRE-05)                      */
 /* ------------------------------------------------------------------------- */
 
-/* Upper bound on spu94_preset_save output. Generous: worst-case ~1400 bytes;
- * 4096 leaves room for future field additions without a version bump.         */
-#define SPU94_PRESET_BUF_SIZE 4096u
+/* Upper bound on spu94_preset_save output. Worst case with all 8 user
+ * waypoint slots filled is ~5900 bytes (base preset ~1400 + ~560 per slot);
+ * 8192 leaves room for future field additions without a version bump.        */
+#define SPU94_PRESET_BUF_SIZE 8192u
 
 /* Serialize the full engine state (35 registers + 6 mixer faders +
  * latency_comp toggle + 4 DAC toggles = 46 fields) to a human-readable

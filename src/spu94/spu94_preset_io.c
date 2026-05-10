@@ -108,6 +108,23 @@ int spu94_preset_save(const spu94_state *state,
     EMIT("grit=%s\n",
          spu94_get_morph_grit(state) == SPU94_GRIT_FRACT ? "fract" : "int");
 
+    /* ---- [user_slot N] sections (one per filled slot) ----
+     * Empty slots are omitted entirely so existing presets without user
+     * customization stay byte-identical to their pre-feature serializations
+     * (loader treats a missing section as "all empty"). */
+    for (int s = 0; s < SPU94_INTERP_USER_SLOT_COUNT; s++) {
+        if (!spu94_interp_user_slot_is_filled(state, s)) continue;
+        int16_t slot_regs[SPU94_REG__COUNT];
+        spu94_interp_get_user_slot(state, s, slot_regs);
+        EMIT("\n[user_slot %d]\n", s);
+        EMIT("# User waypoint slot %d (morph position %d/16)\n", s, 2 * s + 1);
+        for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
+            EMIT("%s=0x%04X\n",
+                 spu94_reg_name((spu94_reg_t)r),
+                 (unsigned)(uint16_t)slot_regs[r]);
+        }
+    }
+
 #undef EMIT
 
     buf[pos] = '\0';
@@ -124,8 +141,19 @@ typedef enum {
     SECTION_REGISTERS,
     SECTION_MIXER,
     SECTION_DAC,
-    SECTION_MORPH
+    SECTION_MORPH,
+    SECTION_USER_SLOT
 } preset_section_t;
+
+/* Parse a "[user_slot N]" header. Returns slot index 0..7 on success,
+ * -1 if the line is not a user_slot header or N is out of range. */
+static int parse_user_slot_header(const char *line)
+{
+    int slot = -1;
+    if (sscanf(line, "[user_slot %d]", &slot) != 1) return -1;
+    if (slot < 0 || slot >= SPU94_INTERP_USER_SLOT_COUNT) return -1;
+    return slot;
+}
 
 /* Parse a boolean "0" or "1" value. Returns 0 or 1 on success, -1 on
  * invalid input (anything other than a single 0/1 digit). */
@@ -149,6 +177,22 @@ spu94_result_t spu94_preset_load(spu94_state *state,
     const char *end = buf + buf_len;
     preset_section_t section = SECTION_NONE;
     char line[512];
+
+    /* User-slot section state. While we are inside a [user_slot N] block,
+     * register lines accumulate into user_slot_scratch and only commit to the
+     * engine when the section ends (next section header or end of buffer).
+     * This batches the slot write so it goes through the public API exactly
+     * once, marking the slot filled atomically. */
+    int     pending_user_slot = -1;
+    int16_t user_slot_scratch[SPU94_REG__COUNT];
+
+#define FLUSH_USER_SLOT() do {                                              \
+    if (pending_user_slot >= 0) {                                           \
+        spu94_interp_set_user_slot(state, pending_user_slot,                \
+                                   user_slot_scratch);                      \
+        pending_user_slot = -1;                                             \
+    }                                                                       \
+} while (0)
 
     while (p < end) {
         /* Find end of current line */
@@ -176,22 +220,40 @@ spu94_result_t spu94_preset_load(spu94_state *state,
         /* Skip comment lines */
         if (line[0] == '#') continue;
 
-        /* Check for section headers */
+        /* Check for section headers. Any header transition flushes a
+         * pending user-slot section to the engine. */
         if (strcmp(line, "[registers]") == 0) {
+            FLUSH_USER_SLOT();
             section = SECTION_REGISTERS;
             continue;
         }
         if (strcmp(line, "[mixer]") == 0) {
+            FLUSH_USER_SLOT();
             section = SECTION_MIXER;
             continue;
         }
         if (strcmp(line, "[dac]") == 0) {
+            FLUSH_USER_SLOT();
             section = SECTION_DAC;
             continue;
         }
         if (strcmp(line, "[morph]") == 0) {
+            FLUSH_USER_SLOT();
             section = SECTION_MORPH;
             continue;
+        }
+        {
+            int slot = parse_user_slot_header(line);
+            if (slot >= 0) {
+                FLUSH_USER_SLOT();
+                section = SECTION_USER_SLOT;
+                pending_user_slot = slot;
+                /* Zero-init scratch so registers we don't see in the file
+                 * default to 0 (matches the engine's clear-slot semantics). */
+                for (int i = 0; i < (int)SPU94_REG__COUNT; i++)
+                    user_slot_scratch[i] = 0;
+                continue;
+            }
         }
 
         /* Find the '=' separator */
@@ -274,8 +336,25 @@ spu94_result_t spu94_preset_load(spu94_state *state,
             }
             /* else: unknown key, silently ignored (D-09) */
             break;
+
+        case SECTION_USER_SLOT:
+            /* Register lines accumulate into scratch; commit happens on
+             * section transition (FLUSH_USER_SLOT) or end of buffer. */
+            if (pending_user_slot < 0) break;
+            for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
+                if (strcmp(key, spu94_reg_name((spu94_reg_t)r)) == 0) {
+                    user_slot_scratch[r] = (int16_t)parse_hex_u16(value);
+                    break;
+                }
+            }
+            /* Unknown register names silently ignored (D-09). */
+            break;
         }
     }
+
+    /* End of buffer: commit any in-flight user slot. */
+    FLUSH_USER_SLOT();
+#undef FLUSH_USER_SLOT
 
     return SPU94_OK;
 }
