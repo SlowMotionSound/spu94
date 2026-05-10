@@ -1,43 +1,49 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-09T23:13:42Z",
+  "timestamp": "2026-05-10T21:01:16Z",
   "phase": null,
-  "phase_name": "Exploratory: morph speed slew + dead-end pruning (post-v1.5 main branch)",
+  "phase_name": "Exploratory: user-programmable waypoints (post-v1.5 main branch)",
   "phase_dir": null,
   "plan": null,
   "task": null,
   "total_tasks": null,
   "status": "paused",
   "branch": "main",
-  "branch_note": "main branched from v1.5 on 2026-05-08. master branch preserves all 31 post-v1.5 commits as a cherry-pick library (crackle fix, morph speed knob+waypoints, Error Accumulator prototype).",
+  "branch_note": "main branched from v1.5 on 2026-05-08. Feature complete pending real-world user testing.",
   "completed_tasks": [
-    {"id": 1, "name": "readonly-slave shared-buffer experiment for dual-engine combing", "status": "tried_reverted", "outcome": "Sounded bad (crackling, instant engine character changed). Reverted before commit. Confirmed shared work_buf with snap-register reader can't avoid corrupting the reader's reflection computation."},
-    {"id": 2, "name": "collapse to single SPU engine; rename engineBlend -> morphSpeed", "status": "done", "commit": "d8c97ba"},
-    {"id": 3, "name": "strip granular haze + freeze layer (failed experiment)", "status": "done", "commit": "d8c97ba", "rationale": "Granular texture sat audibly separate from reverb tail; APF diffusion + LP matching couldn't integrate it."},
-    {"id": 4, "name": "spu94_set_slew_duration() C-core API + cubic ease-out slew", "status": "done", "commit": "d8c97ba"},
-    {"id": 5, "name": "Morph Speed knob moved into MorphPanel (PS1 mauve, bottom of viewport)", "status": "done", "commit": "d8c97ba"},
-    {"id": 6, "name": "A/B-tested slew curves: linear, smoothstep, cubic, quartic, quintic, true exponential, vIIR three-phase hold", "status": "done", "commit": "d8c97ba", "outcome": "All 7 variants A/B-indistinguishable in audio; trajectories verified via diagnostic to match their designs. Audible bottleneck is downstream of slew (reverb network integration time)."},
-    {"id": 7, "name": "Clean up: removed slew_inc dead field, three-phase vIIR branch, diagnostic tool", "status": "done", "commit": "d8c97ba"}
+    {"id": 1, "name": "C-core: 8 user slots + 17-position interp + 7 unit tests", "status": "done", "commit": "ba22323"},
+    {"id": 2, "name": "UI: 8 ticks + 17-detent snap + filled-vs-empty colors", "status": "done", "commit": "ddfd39d"},
+    {"id": 3, "name": "EDIT button + SAVE/REVERT flow; old Advanced toggle removed", "status": "done", "commit": "4c4737c"},
+    {"id": 4, "name": "Preset I/O: [user_slot N] sections, round-trip + back-compat tests", "status": "done", "commit": "80fd56e"},
+    {"id": 5, "name": "Layout polish: SAVE/REVERT visibility + position, tick placement", "status": "done", "commit": "8c433ce"},
+    {"id": 6, "name": "Per-tick EDIT/EXPORT/LOAD ops + always-on engine state mirroring", "status": "done", "commit": "b648e43"},
+    {"id": 7, "name": "user_slots mirroring to engines[1] + flush pending on SAVE + Morph Speed default 0.5", "status": "done", "commit": "fdd1f71"}
   ],
   "remaining_tasks": [
-    {"id": 8, "name": "Optional: cherry-pick b65b8a2 (Phase 18 crackle fix from master)", "status": "available_on_master"},
-    {"id": 9, "name": "Optional: forward-port Phase 19 Error Accumulator prototype from master (Memory Slip, Clock Drift, S&H, envelope follower)", "status": "available_on_master"},
-    {"id": 10, "name": "Open creative direction: attack morph character at audio level instead of register level (filter sweep / wet duck / dry-wet ramp during morph)", "status": "deferred_idea"},
-    {"id": 11, "name": "License pick (MIT vs Apache-2.0)", "status": "deferred_per_memory_do_not_raise"}
+    {"id": 8, "name": "Real-world user testing of full flow (EDIT/EXPORT/LOAD/SAVE/REVERT, slot persistence, beta-tester slot-file sharing)", "status": "deferred_to_user"}
   ],
   "blockers": [],
-  "human_actions_pending": [],
+  "human_actions_pending": [
+    {"action": "Real-world testing by user", "context": "User explicitly said 'I'll do actual in use testing soon'. Not session-blocking.", "blocking": false}
+  ],
   "decisions": [
-    {"decision": "Single SPU engine, not dual/triple", "rationale": "Two coherent reverbs summed = combing. Decorrelating the inputs defeats the morph idea. Three-engine architecture was an exploration scaffold, not a production pattern. engines[1] kept as silent scratch for morph register snapshots."},
-    {"decision": "Granular haze + freeze permanently abandoned", "rationale": "Texture is fundamentally a separate signal from reverb tail; can't integrate without losing the granular character that motivated it. APF + LP attempts only made it darker, not 'one with' the reverb."},
-    {"decision": "Cubic ease-out slew, all registers same curve", "rationale": "Empirically confirmed via diagnostic that 7 different curve shapes / per-register schedules produce A/B-indistinguishable audio. Reverb network's own integration time dominates. Cubic kept as simplest non-linear option."},
-    {"decision": "Morph Speed knob in MorphPanel viewport, not bottom margin", "rationale": "Originally in bottom margin (40px); moved to MorphPanel at bottom of viewport (60px, PS1 mauve palette) for visual prominence near the morph encoder. Visually separate from mixer/DAC bar."}
+    {"decision": "8 user waypoints at midpoints between Sony's 9 anchors -> 17-position morph dial", "rationale": "Sony anchors stay bit-identical (INTERP-04 preserved); user slots add segment breaks where filled, transparent where empty (fresh project = bit-identical to v1.5)."},
+    {"decision": "Three per-tick action buttons (EDIT, EXPORT, LOAD) stacked top-right of MorphPanel, enabled only when knob parks on a user-slot tick", "rationale": "Rejected dropdown approach after long design loop -- ticks are visual-only, dedicated buttons invite the curiosity-driven 'I wonder what these do?' moment. EXPORT additionally requires the slot to be filled. LOAD stamps any single-slot file onto current tick (file's slot index ignored)."},
+    {"decision": "REVERT semantics = 'clear this slot entirely' (not just discard edits)", "rationale": "User-requested emergency clear. After REVERT the slot reverts to empty (tick goes dim) and the engine writes the v1.5 transparent-interp Sony state."},
+    {"decision": "Morph Speed default lowered 1.0 -> 0.5 (mid-glide)", "rationale": "Polished launch default sits between hardware-faithful snap and v1.6 full glide."},
+    {"decision": "user_slots stored per-engine state -- saveUserSlot/clearUserSlot/load mirror to engines[1] (the scratch engine the glide path uses for spu94_interp_set_morph)", "rationale": "Without mirroring, the glide path treats every slot as empty, ignoring user saves. Discovered through user testing -- audible bug where saved waypoints sounded generic in Macro view but correct in Advanced."},
+    {"decision": "All state management (preset drains, morph re-apply, mixer/DAC pushes, shadow syncs) hoisted before the audio-I/O gate", "rationale": "Sliders + tick colors must reflect engine state regardless of WAV/playback status. Original processBlock skipped state mgmt when no audio playing."},
+    {"decision": "Forced re-applies (LOAD, SAVE, REVERT) snap regardless of Morph Speed knob", "rationale": "Action buttons need instantaneous feedback, not glide."},
+    {"decision": "Glide-path morph re-apply syncs shadows from engines[1] (target) instead of engines[0] (mid-slew)", "rationale": "Sliders show the destination state, not the in-flight state."},
+    {"decision": "Custom GritButtonLookAndFeel for Int/Fract toggle (focus-stable saturation)", "rationale": "JUCE's LookAndFeel_V4 desaturates buttons without keyboard focus; the Int button rendered as lighter coral until clicked. Override always uses the focused saturation multiplier."}
   ],
   "uncommitted_files": [],
-  "next_action": "Decide whether to bring forward functional pieces from master (crackle fix at b65b8a2, Error Accumulator at Phase 19), or attack morph character at the audio level (filter sweep / wet duck / dry-wet ramp during morph) instead of register level. The slew machinery is now stable and proven correct — further perceptual gains on morph feel will require working outside the SPU register path.",
+  "next_action": "User performs real-world testing. If issues surface, investigate based on their report. If no issues after testing, consider promoting this exploratory work to a proper phase/milestone (e.g. v1.7 user waypoints) and update ROADMAP.md / MILESTONES.md.",
   "anti_patterns_discovered_this_session": [
-    {"pattern": "Sum two coherent reverbs, then try to fix the comb with shared memory or readonly slaves", "severity": "blocking", "mitigation": "The math doesn't allow it. Two near-identical reverbs on identical input ARE a comb filter. Decorrelating inputs (different EQ, predelay) defeats the morph idea. If layered character is wanted, must accept the comb as a sound; if clean morph is wanted, must use one engine."},
-    {"pattern": "Iterate on slew curve shape without first verifying the curve change actually produces a different register trajectory", "severity": "advisory", "mitigation": "Write a diagnostic (like tools/slew_trace.c was) before tuning curves. Confirm the C core is doing what you think it is. We wasted 7 variant cycles before measuring."}
+    {"pattern": "Per-engine state without explicit mirroring", "severity": "blocking", "mitigation": "user_slots[][] live on the spu94_state struct, so engines[0] and engines[1] each have their own copy. Any operation that mutates user_slots on engines[0] (saveUserSlot, clearUserSlot, per-slot LOAD, full preset LOAD) MUST mirror the change to engines[1] -- otherwise the glide path's spu94_interp_set_morph(engines[1], pos) sees empty slots and produces transparent Sony interp instead of the user's saved values. Audible-but-silent-on-the-snap-path bug; very hard to diagnose without knowing the engine architecture."},
+    {"pattern": "Synchronous spu94_apply_pending_writes from GUI thread mid-frame", "severity": "advisory", "mitigation": "spu94_apply_pending_writes is documented to be called from EXACTLY ONE location (the first line of spu94_tick). Calling it from the GUI thread or from a different audio-thread point can cause audible blips when engines[0] differs from the just-written morph target. Prefer requesting a re-apply via morphReapplyPending and letting the audio thread handle it through its normal slew/snap path. SAVE flush to apply_pending_writes is the one acknowledged exception (without it, snapshot misses freshly-edited m/d-prefix values)."},
+    {"pattern": "Audio I/O gate above state management", "severity": "advisory", "mitigation": "processBlock's loaded/playing early-return originally skipped morph re-apply, shadow sync, and preset drains when no WAV was loaded. State mgmt MUST run unconditionally so the GUI mirrors engine state at all times. Only the actual sample-read + spu94_process + output-mix loop is gated on loaded/playing."},
+    {"pattern": "TICK_LATCHED snapshot races", "severity": "advisory", "mitigation": "spu94_snapshot_registers reads only active reg_values[]. m/d-prefix register edits are TICK_LATCHED -- staged into pending_values[] until spu94_tick commits them. Snapshot taken before tick fires misses recent edits. saveUserSlot now flushes pending before snapshot to address this."}
   ],
-  "context_notes": "Substantial cleanup session. Started by reverting the readonly-slave dual-engine experiment (sounded bad). Then collapsed three-engine architecture to one, stripped haze/freeze granular layer, renamed engineBlend -> morphSpeed, moved the knob into MorphPanel with PS1 styling, added spu94_set_slew_duration() C-core API. Then went down a 7-variant rabbit hole on slew curve shape — all sounded the same. Diagnostic confirmed all curves produced their designed register trajectories; lesson is that at slew durations <500ms, register-level curve choice is below audible threshold and the reverb network's own integration time dominates. Cleaned up dead code from the rabbit hole. Net session diff: -106 lines, mostly from granular cleanup. Plugin running PID 91900 with the final cubic build."
+  "context_notes": "Substantial feature-build session. Started by recovering session context after a computer crash (the prior session at 2026-05-09T23:13:42Z had laid out a 4-milestone implementation plan but never executed). Built all 4 milestones cleanly (commits ba22323, ddfd39d, 4c4737c, 80fd56e), then went through several rounds of user-driven UX refinement (button placement, dropdown design loop, REVERT semantics) culminating in the per-tick three-button design (b648e43). Final round of bug-squashing (fdd1f71) fixed three audible/visible bugs all rooted in stale or per-engine state. Plugin running PID 49861. 12/12 user_slot tests pass, 7/7 preset regression tests pass."
 }
