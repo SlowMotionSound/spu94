@@ -36,6 +36,11 @@ void spu94_tick(spu94_state *state) {
     if (state == (spu94_state *)0) {
         return;
     }
+    /* Step 0: advance register slew. Runs once per reverb tick so register
+     * changes are observed 1:1 by the reverb body. Writes reg_values and
+     * clears pending_mask bits for slewed registers, so apply_pending_writes
+     * below is effectively a no-op for those bits. */
+    spu94_slew_tick(state);
     /* Step 1: flush pending writes BEFORE any algorithm step reads a
      * register value, so the L and R half-cycles of this tick observe a
      * consistent set of address/delay registers. */

@@ -39,7 +39,9 @@ void spu94_process(spu94_state *state,
                    uint32_t num_samples) {
     if (state == NULL) return;
     for (uint32_t i = 0; i < num_samples; i++) {
-        spu94_slew_tick(state);
+        /* spu94_slew_tick moved to spu94_tick (22.05 kHz) so register
+         * slew steps align 1:1 with reverb body executions. Running here
+         * at 44.1 kHz produced 2-step register jumps per reverb tick. */
 
         int16_t l = (L_in != NULL) ? L_in[i] : (int16_t)0;
         int16_t r = (R_in != NULL) ? R_in[i] : (int16_t)0;

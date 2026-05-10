@@ -261,9 +261,12 @@ void spu94_reverb_same_iir(spu94_state *state,
     {
         float    dLSAME_f = get_reg_frac(state, SPU94_REG_dLSAME);
         uint16_t mLSAME   = spu94_get_reg_u16(state, SPU94_REG_mLSAME);
-        float    mLSAME_f = get_reg_frac(state, SPU94_REG_mLSAME);
         int16_t  tap_d    = reverb_buf_read_interp(state, dLSAME_f);
-        int16_t  tap_prev = reverb_buf_read_interp(state, mLSAME_f - 2.0f);
+        /* Feedback tap: integer read matches integer write at [mLSAME].
+         * Fractional reads here cause +-0.5 halfword feedback-delay
+         * modulation during morph (audible as crackle on aggressive
+         * gestures). uint16_t subtraction wraps for ring-buffer addressing. */
+        int16_t  tap_prev = reverb_buf_read(state, (uint16_t)(mLSAME - 2u));
 
         int16_t err = 0;
         int16_t wall_prod = q15_mul_truncate_with_err(tap_d, vWALL_snap, &err);
@@ -292,9 +295,8 @@ void spu94_reverb_same_iir(spu94_state *state,
     {
         float    dRSAME_f = get_reg_frac(state, SPU94_REG_dRSAME);
         uint16_t mRSAME   = spu94_get_reg_u16(state, SPU94_REG_mRSAME);
-        float    mRSAME_f = get_reg_frac(state, SPU94_REG_mRSAME);
         int16_t  tap_d    = reverb_buf_read_interp(state, dRSAME_f);
-        int16_t  tap_prev = reverb_buf_read_interp(state, mRSAME_f - 2.0f);
+        int16_t  tap_prev = reverb_buf_read(state, (uint16_t)(mRSAME - 2u));
 
         int16_t err = 0;
         int16_t wall_prod = q15_mul_truncate_with_err(tap_d, vWALL_snap, &err);
@@ -341,9 +343,8 @@ void spu94_reverb_diff_iir(spu94_state *state,
     {
         float    dRDIFF_f = get_reg_frac(state, SPU94_REG_dRDIFF);
         uint16_t mLDIFF   = spu94_get_reg_u16(state, SPU94_REG_mLDIFF);
-        float    mLDIFF_f = get_reg_frac(state, SPU94_REG_mLDIFF);
         int16_t  tap_d    = reverb_buf_read_interp(state, dRDIFF_f);
-        int16_t  tap_prev = reverb_buf_read_interp(state, mLDIFF_f - 2.0f);
+        int16_t  tap_prev = reverb_buf_read(state, (uint16_t)(mLDIFF - 2u));
 
         int16_t err = 0;
         int16_t wall_prod = q15_mul_truncate_with_err(tap_d, vWALL_snap, &err);
@@ -369,9 +370,8 @@ void spu94_reverb_diff_iir(spu94_state *state,
     {
         float    dLDIFF_f = get_reg_frac(state, SPU94_REG_dLDIFF);
         uint16_t mRDIFF   = spu94_get_reg_u16(state, SPU94_REG_mRDIFF);
-        float    mRDIFF_f = get_reg_frac(state, SPU94_REG_mRDIFF);
         int16_t  tap_d    = reverb_buf_read_interp(state, dLDIFF_f);
-        int16_t  tap_prev = reverb_buf_read_interp(state, mRDIFF_f - 2.0f);
+        int16_t  tap_prev = reverb_buf_read(state, (uint16_t)(mRDIFF - 2u));
 
         int16_t err = 0;
         int16_t wall_prod = q15_mul_truncate_with_err(tap_d, vWALL_snap, &err);
@@ -505,8 +505,9 @@ void spu94_reverb_apf1(spu94_state *state,
     /* L side: feedback through mLAPF1 / dAPF1 offsets. */
     {
         uint16_t mLAPF1 = spu94_get_reg_u16(state, SPU94_REG_mLAPF1);
-        float mLAPF1_f = get_reg_frac(state, SPU94_REG_mLAPF1);
-        int16_t tap_delayed = reverb_buf_read_interp(state, mLAPF1_f - (float)dAPF1_snap);
+        /* Feedback tap: integer read matches integer write at [mLAPF1].
+         * See SAME IIR comment for the morph-crackle rationale. */
+        int16_t tap_delayed = reverb_buf_read(state, (uint16_t)(mLAPF1 - dAPF1_snap));
         int16_t Lin = *Lout_inout;
 
         int16_t e = 0;
@@ -532,8 +533,7 @@ void spu94_reverb_apf1(spu94_state *state,
     /* R side: mirror with mRAPF1 / dAPF1. */
     {
         uint16_t mRAPF1 = spu94_get_reg_u16(state, SPU94_REG_mRAPF1);
-        float mRAPF1_f = get_reg_frac(state, SPU94_REG_mRAPF1);
-        int16_t tap_delayed = reverb_buf_read_interp(state, mRAPF1_f - (float)dAPF1_snap);
+        int16_t tap_delayed = reverb_buf_read(state, (uint16_t)(mRAPF1 - dAPF1_snap));
         int16_t Rin = *Rout_inout;
 
         int16_t e = 0;
@@ -568,8 +568,7 @@ void spu94_reverb_apf2(spu94_state *state,
     /* L side. */
     {
         uint16_t mLAPF2 = spu94_get_reg_u16(state, SPU94_REG_mLAPF2);
-        float mLAPF2_f = get_reg_frac(state, SPU94_REG_mLAPF2);
-        int16_t tap_delayed = reverb_buf_read_interp(state, mLAPF2_f - (float)dAPF2_snap);
+        int16_t tap_delayed = reverb_buf_read(state, (uint16_t)(mLAPF2 - dAPF2_snap));
         int16_t Lin = *Lout_inout;
 
         int16_t e = 0;
@@ -590,8 +589,7 @@ void spu94_reverb_apf2(spu94_state *state,
     /* R side. */
     {
         uint16_t mRAPF2 = spu94_get_reg_u16(state, SPU94_REG_mRAPF2);
-        float mRAPF2_f = get_reg_frac(state, SPU94_REG_mRAPF2);
-        int16_t tap_delayed = reverb_buf_read_interp(state, mRAPF2_f - (float)dAPF2_snap);
+        int16_t tap_delayed = reverb_buf_read(state, (uint16_t)(mRAPF2 - dAPF2_snap));
         int16_t Rin = *Rout_inout;
 
         int16_t e = 0;
