@@ -1,5 +1,50 @@
 # Milestones
 
+## v1.6 User Programmable Waypoints (Shipped: 2026-05-10)
+
+**Phases completed:** 3 phases, 4 plans
+**Tag:** `v1.6`
+**Requirements:** 17/17 complete (USLOT-01..17)
+
+**What shipped:**
+
+8 user-programmable waypoint slots between Sony's 9 factory anchors. Empty slots are transparent (audio bit-identical to v1.5); filled slots act as new interpolation breakpoints, turning the morph dial from a 9-position perceptual continuum into a user-customisable 17-position continuum. Per-tick EDIT / EXPORT / LOAD action buttons stacked top-right of MorphPanel; SAVE (PS1 teal) / REVERT (PS1 coral) edit-flow band hidden until an edit is active. Filled slots persist in the `.spu94` preset format as `[user_slot N]` sections; empty slots are omitted so legacy presets stay byte-identical and pre-feature `.spu94` files load cleanly with all slots empty. Single-slot EXPORT files enable drop-anywhere copy/paste between beta-tester slot files (LOAD ignores the file's slot index and stamps onto the currently-parked tick). Engine state mirroring overhaul: sliders + tick colors now reflect engine state regardless of WAV load, playback state, or slew progress.
+
+**Key accomplishments:**
+
+1. `spu94_interp_set_user_slot` / `_clear_user_slot` / `_get_user_slot` / `_user_slot_is_filled` — public C API for 8-slot waypoint storage at midpoint positions 1/16..15/16, INTERP-04 bit-identity carve-out extended to filled slots
+2. 17-detent morph knob with user-slot ticks rendered between the knob's outer edge and the Sony dot ring (PS1 blue = filled, dim grey = empty)
+3. Per-tick action stack (EDIT / EXPORT / LOAD) replacing the floating Sony-preset dropdown after a long design loop; SAVE/REVERT band anchored top of Advanced viewport, hidden via `addChildComponent`
+4. `spu94_export_user_slot` / `spu94_load_user_slot` for single-slot `.spu94` file I/O with drop-anywhere semantics; 3 added unit tests
+5. Preset persistence: `[user_slot N]` sections, byte-identical back-compat for pre-feature presets, 2 added unit tests; `SPU94_PRESET_BUF_SIZE` bumped 4096 → 8192
+6. Engine state mirroring overhaul — state management hoisted above audio-I/O gate, forced re-applies (LOAD/SAVE/REVERT) snap regardless of Morph Speed, shadow sync reads engines[1] (target) not engines[0] (mid-slew)
+7. Final bug pass: `saveUserSlot` mirrors writes to engines[1] (scratch engine), `spu94_apply_pending_writes` flushes TICK_LATCHED edits before snapshot, default Morph Speed lowered 1.0 → 0.5
+
+**Key decisions:**
+
+- 8 slots at midpoint positions (1/16, 3/16, ..., 15/16) — preserves Sony anchors as the visible coarse grid and adds fine detail between them
+- Empty = transparent — fresh project remains bit-identical to v1.5
+- User slot state lives on `spu94_state` (per-engine); multi-engine consumers MUST mirror writes (the audible-glide root cause)
+- Three per-tick action buttons (EDIT/EXPORT/LOAD) over dropdown — invites curiosity, dedicated affordance
+- REVERT = clear slot entirely (not 'discard edits') — user-requested emergency clear
+- LOAD ignores file's slot index — enables drop-anywhere copy/paste between beta-tester slot files
+- State management above audio-I/O gate — sliders/ticks reflect engine state regardless of WAV/playback
+- Forced re-applies snap regardless of Morph Speed — action buttons need instantaneous feedback
+- Empty slots omitted from preset serialization — byte-identical back-compat with pre-feature presets
+
+**Anti-patterns captured:**
+
+- Per-engine state without explicit mirroring (blocking — audible glide bug)
+- Synchronous `spu94_apply_pending_writes` from GUI thread mid-frame (advisory)
+- Audio I/O gate above state management (advisory — sliders go stale without WAV loaded)
+- TICK_LATCHED snapshot races (advisory — SAVE misses fresh m/d-prefix edits without pending-writes flush)
+
+**Issues deferred:** None — clean close. Real-world user testing will surface anything not caught here; raised as a normal bug if so.
+
+**Archived to:** `.planning/milestones/v1.6-ROADMAP.md`, `.planning/milestones/v1.6-REQUIREMENTS.md`, `.planning/milestones/v1.6-user-waypoints-HANDOFF.json`
+
+---
+
 ## v1.0 Reverb Core (Shipped: 2026-04-25)
 
 **Phases completed:** 7 phases, 33 plans, 58 tasks

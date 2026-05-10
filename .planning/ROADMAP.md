@@ -1,10 +1,11 @@
 # Roadmap: SPU-94
 
-**Updated:** 2026-05-06
+**Updated:** 2026-05-10
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
 
 ## Milestones
 
+- ✅ **v1.6 User Programmable Waypoints** -- Phases 18-20 (shipped 2026-05-10, tag `v1.6`)
 - ✅ **v1.5 Preset Interpolation Engine** -- Phases 16-17 (shipped 2026-05-06, tag `v1.5`)
 - ✅ **v1.4 Preset System** -- Phases 13-15 (shipped 2026-05-02, tag `v1.4`)
 - ✅ **v1.3 True Oversampled DAC** -- Phases 10-12 (shipped 2026-05-01, tag `v1.3`)
@@ -17,6 +18,9 @@
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
+| 18. User Slots Core | v1.6 | 1/1 | Complete | 2026-05-10 |
+| 19. Waypoint GUI | v1.6 | 2/2 | Complete | 2026-05-10 |
+| 20. User Slot Persistence | v1.6 | 1/1 | Complete | 2026-05-10 |
 | 16. Interpolation Engine | v1.5 | 1/1 | Complete | 2026-05-06 |
 | 17. Morph Knob GUI | v1.5 | 2/2 | Complete | 2026-05-06 |
 | 13-15 | v1.4 | 5/5 | Complete | 2026-05-02 |
@@ -25,6 +29,17 @@
 | 1-4 | v1.1 | 10/10 | Complete | 2026-04-27 |
 
 ## Previous Milestone Archives
+
+<details>
+<summary>v1.6 User Programmable Waypoints (Phases 18-20) -- SHIPPED 2026-05-10</summary>
+
+8 programmable waypoint slots between Sony's 9 factory anchors, turning the morph dial from a 9-position perceptual continuum into a user-customisable 17-position continuum. Per-tick EDIT / EXPORT / LOAD action buttons on MorphPanel; SAVE/REVERT edit flow; preset persistence with byte-identical back-compat for pre-feature files. Engine state mirroring overhaul so sliders always reflect engine state regardless of WAV/playback. 3 phases, 4 plans.
+
+- [x] Phase 18: User Slots Core (1/1 plans) -- completed 2026-05-10
+- [x] Phase 19: Waypoint GUI (2/2 plans) -- completed 2026-05-10
+- [x] Phase 20: User Slot Persistence (1/1 plans) -- completed 2026-05-10
+
+</details>
 
 <details>
 <summary>v1.5 Preset Interpolation Engine (Phases 16-17) -- SHIPPED 2026-05-06</summary>
@@ -98,4 +113,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-06 -- v1.5 milestone archived*
+*Last updated: 2026-05-10 -- v1.6 milestone archived*
