@@ -117,7 +117,7 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
     speedKnob.setSliderStyle(juce::Slider::Rotary);
     speedKnob.setTextBoxStyle(juce::Slider::NoTextBox, true, 0, 0);
     speedKnob.setRange(0.0, 1.0, 0.01);
-    speedKnob.setValue(1.0, juce::dontSendNotification);
+    speedKnob.setValue(0.5, juce::dontSendNotification);
     speedKnob.setColour(juce::Slider::rotarySliderOutlineColourId, psxDarkGray);
     speedKnob.setColour(juce::Slider::rotarySliderFillColourId, psxMauve.withAlpha(0.5f));
     speedKnob.setColour(juce::Slider::thumbColourId, psxMauve);

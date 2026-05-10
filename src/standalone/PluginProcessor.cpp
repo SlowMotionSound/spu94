@@ -152,9 +152,26 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             // post-reapply sync below will then capture the updated state.
             spu94_load_user_slot(engines[0], targetSlot,
                                  pendingPresetBuf.data(), len);
+            // Mirror to engines[1] -- the scratch engine the glide path uses
+            // for set_morph reads its OWN user_slots[]; without this mirror
+            // glided morph movements would treat the slot as empty.
+            spu94_load_user_slot(engines[1], targetSlot,
+                                 pendingPresetBuf.data(), len);
             morphReapplyPending.store(true, std::memory_order_relaxed);
         } else {
             spu94_preset_load(engines[0], pendingPresetBuf.data(), len);
+            // Mirror just the user_slots block to engines[1] (the rest of
+            // engines[1] is scratch; only its user_slots[] are read via
+            // set_morph in the glide path).
+            for (int s = 0; s < SPU94_INTERP_USER_SLOT_COUNT; s++) {
+                if (spu94_interp_user_slot_is_filled(engines[0], s)) {
+                    int16_t regs[SPU94_REG__COUNT];
+                    spu94_interp_get_user_slot(engines[0], s, regs);
+                    spu94_interp_set_user_slot(engines[1], s, regs);
+                } else {
+                    spu94_interp_clear_user_slot(engines[1], s);
+                }
+            }
             registerBridge.syncShadowsFromSPU(engines[0]);
             shadowSyncCompletedCount.fetch_add(1, std::memory_order_release);
         }
@@ -185,22 +202,14 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         registerBridge.pushPendingRegisterWrites(engines[0]);
     }
 
-    // Sync shadows when entering Advanced view. We don't just sync from
-    // whatever state engines[0] currently holds -- it could be mid-slew (no
-    // audio playing means the slew never advances) or carry stale post-edit
-    // values from a previous Advanced session. Instead, recompute the morph
-    // target at the current knob position and write it directly to engines[0].
-    // This guarantees:
-    //   - sliders reflect EXACTLY what the morph would produce at this position
-    //   - engines[0] is the correct baseline for a subsequent SAVE snapshot
-    //     (non-edited registers come from the morph target, not stale state)
+    // DIAGNOSTIC: sync shadows directly from engines[0] without rewriting
+    // morph target. If the sliders end up showing the same wrong values as
+    // the Macro audio sounds, that's direct evidence the slew path leaves
+    // engines[0] off-target. If sliders show the right values, the bug is
+    // somewhere else.
     if (needShadowSync.exchange(false, std::memory_order_relaxed)) {
-        const float pos = morphPosition.load(std::memory_order_relaxed);
-        spu94_interp_set_morph(engines[0], pos);
-        spu94_apply_pending_writes(engines[0]);
         registerBridge.syncShadowsFromSPU(engines[0]);
         shadowSyncCompletedCount.fetch_add(1, std::memory_order_release);
-        morphInitialized = true;
     }
 
     // 3. ADPCM coloration toggle (ADPCM-IO-06, D-06): read GUI atomic,
@@ -515,21 +524,35 @@ void SPU94AudioProcessor::saveUserSlot(int slot)
     if (!engines[0]) return;
     if (slot < 0 || slot >= SPU94_INTERP_USER_SLOT_COUNT) return;
 
-    // Snapshot the active 35 reverb registers from engines[0] and install them
-    // as the user slot. Both calls are rt-safe (no heap, no locks); racing
-    // with processBlock is benign because saveUserSlot is invoked while
-    // morphActive == false, so the audio thread is not concurrently writing
-    // these registers.
+    // Force-flush any pending m/d-prefix writes BEFORE snapshotting -- those
+    // are TICK_LATCHED and would otherwise be missed by snapshot_registers
+    // (which reads only active reg_values[]). Without this, a freshly-edited
+    // address-register value can be in pending but not yet committed by
+    // spu94_tick when SAVE fires.
+    spu94_apply_pending_writes(engines[0]);
+
     int16_t snapshot[SPU94_REG__COUNT] = {};
     spu94_snapshot_registers(engines[0], snapshot);
+
+    // CRITICAL: install the slot on BOTH engines. engines[1] is the scratch
+    // engine the glide path uses for spu94_interp_set_morph -- if its
+    // user_slots[] aren't kept in sync, the glide path treats the slot as
+    // empty and falls through to transparent Sony interp, ignoring the user
+    // save. The Advanced-entry path (which uses engines[0] directly) would
+    // then disagree with what gliding to the slot produces.
     spu94_interp_set_user_slot(engines[0], slot, snapshot);
+    if (engines[1])
+        spu94_interp_set_user_slot(engines[1], slot, snapshot);
 }
 
 void SPU94AudioProcessor::clearUserSlot(int slot)
 {
     if (!engines[0]) return;
     if (slot < 0 || slot >= SPU94_INTERP_USER_SLOT_COUNT) return;
+    // Mirror the clear to engines[1] for the same reason as saveUserSlot.
     spu94_interp_clear_user_slot(engines[0], slot);
+    if (engines[1])
+        spu94_interp_clear_user_slot(engines[1], slot);
 }
 
 juce::AudioProcessorEditor* SPU94AudioProcessor::createEditor()

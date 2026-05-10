@@ -178,8 +178,9 @@ private:
 
     // Morph Speed — 0.0 = Instant Snap (no slew), 1.0 = Glide (full slew
     // duration). Continuous in between scales the slew sample budget.
-    // Default 1.0 = full Glide character (the polished v1.6 default).
-    std::atomic<float> morphSpeed{1.0f};
+    // Default 0.5 (mid-glide) -- the polished launch default sits between
+    // hardware-faithful snap and v1.6 full glide.
+    std::atomic<float> morphSpeed{0.5f};
 
     // Morph Grit (see getMorphGrit for full docs).
     // Default 0 = Int — all reads integer, PS1 hardware faithful.
