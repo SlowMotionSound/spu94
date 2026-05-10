@@ -242,7 +242,9 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     if (morphActive.load(std::memory_order_relaxed))
     {
         float pos = morphPosition.load(std::memory_order_relaxed);
-        if (pos != lastMorphPosition)
+        const bool forceReapply =
+            morphReapplyPending.exchange(false, std::memory_order_relaxed);
+        if (pos != lastMorphPosition || forceReapply)
         {
             lastMorphPosition = pos;
 
@@ -416,6 +418,28 @@ bool SPU94AudioProcessor::isUserSlotFilled(int slot) const
 {
     if (!engines[0]) return false;
     return spu94_interp_user_slot_is_filled(engines[0], slot) != 0;
+}
+
+void SPU94AudioProcessor::saveUserSlot(int slot)
+{
+    if (!engines[0]) return;
+    if (slot < 0 || slot >= SPU94_INTERP_USER_SLOT_COUNT) return;
+
+    // Snapshot the active 35 reverb registers from engines[0] and install them
+    // as the user slot. Both calls are rt-safe (no heap, no locks); racing
+    // with processBlock is benign because saveUserSlot is invoked while
+    // morphActive == false, so the audio thread is not concurrently writing
+    // these registers.
+    int16_t snapshot[SPU94_REG__COUNT] = {};
+    spu94_snapshot_registers(engines[0], snapshot);
+    spu94_interp_set_user_slot(engines[0], slot, snapshot);
+}
+
+void SPU94AudioProcessor::clearUserSlot(int slot)
+{
+    if (!engines[0]) return;
+    if (slot < 0 || slot >= SPU94_INTERP_USER_SLOT_COUNT) return;
+    spu94_interp_clear_user_slot(engines[0], slot);
 }
 
 juce::AudioProcessorEditor* SPU94AudioProcessor::createEditor()

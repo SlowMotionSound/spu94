@@ -15,6 +15,10 @@ public:
     // Called from editor timer to sync knob position from processor state
     void updateKnobPosition();
 
+    // PluginEditor sets this to be notified when the user clicks EDIT while
+    // the knob is parked on a user-slot detent. Slot index is 0..7.
+    std::function<void(int slot)> onEditSlotClicked;
+
 private:
     SPU94AudioProcessor& processorRef;
 
@@ -40,9 +44,18 @@ private:
     juce::Label gritLabel;
     void setMorphGrit(int grit); // syncs button state + processor atomic
 
+    // EDIT button — opens Advanced view for the user slot the knob is parked
+    // on. Disabled when the knob isn't on a user-slot detent.
+    juce::TextButton editButton{"EDIT"};
+
     bool isUpdatingFromTimer = false;
 
     void updateLabelText(double value);
+    // Returns the user-slot index (0..7) if the knob is parked on a user
+    // detent within the snap threshold, or -1 otherwise. Drives editButton
+    // enabled state.
+    int  currentUserSlotAtKnob() const;
+    void updateEditButtonState();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MorphPanel)
 };

@@ -94,6 +94,22 @@ public:
     //     Sony's 9 anchors; slot N at morph position (2N+1)/16). ---
     bool isUserSlotFilled(int slot) const;
 
+    // -1 when not editing; 0..7 while Advanced view is open for that slot.
+    std::atomic<int>& getCurrentEditingSlot() { return currentEditingSlot; }
+
+    // Snapshot the engine's current 35 reverb registers into user_slots[slot]
+    // and mark it filled. Safe to call from the message thread; the underlying
+    // C API is rt-safe (no heap, no locks).
+    void saveUserSlot(int slot);
+
+    // Mark a user slot empty.
+    void clearUserSlot(int slot);
+
+    // Force the next processBlock to re-run spu94_interp_set_morph for the
+    // current position even if the position atomic hasn't changed. Used after
+    // SAVE so a new slot's contents take effect immediately.
+    void requestMorphReapply() { morphReapplyPending.store(true, std::memory_order_relaxed); }
+
     // --- File preset save/load (Phase 14, PRE-08/PRE-09) ---
 
     // Message thread: serialize current engine state to a .spu94 text buffer.
@@ -137,6 +153,8 @@ private:
     std::atomic<float> morphPosition{0.625f};
     std::atomic<bool> morphActive{true}; // true = morph engine owns reverb registers
     std::atomic<bool> needShadowSync{false}; // GUI requests shadow sync on mode switch
+    std::atomic<int>  currentEditingSlot{-1}; // -1 = not editing; 0..7 = slot under edit
+    std::atomic<bool> morphReapplyPending{false}; // GUI forces morph re-apply on next block
     float lastMorphPosition{-1.0f}; // audio-thread only: tracks last applied position
 
     // Per-sample register slewing (Phase 18)

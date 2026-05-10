@@ -51,6 +51,7 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
             static_cast<float>(morphKnob.getValue()),
             std::memory_order_relaxed);
         updateLabelText(morphKnob.getValue());
+        updateEditButtonState();
     };
 
     // Configure dynamic label below the knob
@@ -124,8 +125,47 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
     gritLabel.setFont(juce::FontOptions(11.0f));
     addAndMakeVisible(gritLabel);
 
+    // EDIT button — entry point into Advanced view for the user slot the
+    // knob is parked on. Disabled when knob is between detents or sitting
+    // on a Sony anchor; lights up when parked on a user-slot tick. The
+    // PluginEditor wires the click via onEditSlotClicked.
+    editButton.setButtonText("EDIT");
+    editButton.setColour(juce::TextButton::buttonColourId, psxDarkGray);
+    editButton.setColour(juce::TextButton::buttonOnColourId, psxBlue);
+    editButton.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
+    editButton.setColour(juce::TextButton::textColourOffId, psxLightGray);
+    editButton.setTooltip("Edit the user slot the knob is parked on");
+    editButton.onClick = [this]()
+    {
+        const int slot = currentUserSlotAtKnob();
+        if (slot >= 0 && onEditSlotClicked)
+            onEditSlotClicked(slot);
+    };
+    addAndMakeVisible(editButton);
+
     // Set initial label to "Hall" (matching default morph position 0.625)
     updateLabelText(0.625);
+    updateEditButtonState();
+}
+
+//==============================================================================
+int MorphPanel::currentUserSlotAtKnob() const
+{
+    constexpr double snapThreshold = 0.01;
+    const double v = morphKnob.getValue();
+    for (int k = 0; k < 8; ++k)
+    {
+        const double midpoint = static_cast<double>(2 * k + 1) / 16.0;
+        if (std::abs(v - midpoint) < snapThreshold)
+            return k;
+    }
+    return -1;
+}
+
+void MorphPanel::updateEditButtonState()
+{
+    const int slot = currentUserSlotAtKnob();
+    editButton.setEnabled(slot >= 0);
 }
 
 //==============================================================================
@@ -181,6 +221,7 @@ void MorphPanel::updateKnobPosition()
         processorRef.getMorphPosition().load(std::memory_order_relaxed));
     morphKnob.setValue(pos, juce::dontSendNotification);
     updateLabelText(pos);
+    updateEditButtonState();
     isUpdatingFromTimer = false;
 }
 
@@ -287,4 +328,14 @@ void MorphPanel::resized()
     gritIntButton  .setBounds(stripX,             stripY, gritBtnW, gritBtnH);
     gritFractButton.setBounds(stripX + gritBtnW,  stripY, gritBtnW, gritBtnH);
     gritLabel.setBounds(stripX - 20, rowY + speedSize, gritStripW + 40, controlLabelH);
+
+    // EDIT button — top-right corner of the panel, deliberately spare so
+    // a curious user notices it and wonders what it does. Vertically aligned
+    // with the morph knob's top edge.
+    constexpr int editBtnW = 70;
+    constexpr int editBtnH = 28;
+    constexpr int editMargin = 12;
+    editButton.setBounds(area.getRight() - editBtnW - editMargin,
+                         startY + editMargin,
+                         editBtnW, editBtnH);
 }

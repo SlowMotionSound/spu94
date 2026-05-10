@@ -43,7 +43,14 @@ private:
     RegisterPanel registerPanel;
     juce::Viewport registerViewport;
     MorphPanel morphPanel;
-    juce::TextButton advancedToggle{"Advanced"};
+    // SAVE / REVERT — visible only when in Advanced view editing a user slot.
+    // Symmetric pair: SAVE captures current registers into the slot, REVERT
+    // discards. Both close Advanced view.
+    juce::TextButton saveButton{"SAVE"};
+    juce::TextButton revertButton{"REVERT"};
+
+    void enterAdvancedView(int slot);
+    void exitAdvancedView(bool save);
     juce::ComboBox presetSelector;
     juce::Label presetLabel{"", "Preset:"};
 

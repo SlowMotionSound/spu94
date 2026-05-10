@@ -282,22 +282,25 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     // Start with macro view: morph panel visible, register panel hidden
     registerViewport.setVisible(false);
 
-    // Advanced toggle -- swaps between morph knob and raw register view (D-01)
-    addAndMakeVisible(advancedToggle);
-    advancedToggle.onClick = [this] {
-        bool showAdvanced = !registerViewport.isVisible();
-        morphPanel.setVisible(!showAdvanced);
-        registerViewport.setVisible(showAdvanced);
-        advancedToggle.setButtonText(showAdvanced ? "Macro" : "Advanced");
+    // EDIT-flow buttons (D-01 superseded). User clicks EDIT in MorphPanel
+    // while parked on a user-slot detent; we swap to Advanced view with the
+    // sliders pre-loaded. SAVE captures the edits into the slot; REVERT
+    // discards them. Both close Advanced view.
+    morphPanel.onEditSlotClicked = [this](int slot) { enterAdvancedView(slot); };
 
-        // Gate which write path owns the 30 reverb registers
-        processorRef.getMorphActive().store(!showAdvanced, std::memory_order_relaxed);
+    saveButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF6FD8CE)); // PS1 teal
+    saveButton.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
+    saveButton.setColour(juce::TextButton::textColourOffId, juce::Colours::black);
+    saveButton.setVisible(false);
+    saveButton.onClick = [this] { exitAdvancedView(true); };
+    addAndMakeVisible(saveButton);
 
-        if (showAdvanced) {
-            // Request audio-thread shadow sync so sliders reflect morph state
-            processorRef.requestShadowSync();
-        }
-    };
+    revertButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFFE8736E)); // PS1 coral
+    revertButton.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
+    revertButton.setColour(juce::TextButton::textColourOffId, juce::Colours::black);
+    revertButton.setVisible(false);
+    revertButton.onClick = [this] { exitAdvancedView(false); };
+    addAndMakeVisible(revertButton);
 
     // Sync slider positions to the initial preset (Hall).
     registerPanel.updateFromShadows();
@@ -439,10 +442,13 @@ void SPU94AudioProcessorEditor::resized()
     dacNoiseToggle.setBounds(625, bottomY + 15, 60, 30);
     dacOversampleToggle.setBounds(690, bottomY + 15, 50, 30);
 
-    // Advanced/Macro toggle (D-01) — centered between 8x toggle right edge
-    // (x=740) and window right edge (x=w-10). 90-wide button → left edge at
-    // ((740 + (w-10))/2) - 45 = (w + 640) / 2.
-    advancedToggle.setBounds((w + 640) / 2, bottomY + 15, 90, 30);
+    // SAVE / REVERT buttons sit in the same horizontal band the old Advanced
+    // toggle occupied, but as a centered pair. Visible only while editing.
+    constexpr int savW = 90, savH = 30, savGap = 10;
+    const int pairW = savW * 2 + savGap;
+    const int pairX = (w - pairW) / 2;
+    saveButton.setBounds(pairX,                    bottomY + 15, savW, savH);
+    revertButton.setBounds(pairX + savW + savGap,  bottomY + 15, savW, savH);
 }
 
 void SPU94AudioProcessorEditor::showPresetNamePrompt()
@@ -598,4 +604,60 @@ void SPU94AudioProcessorEditor::syncMixerKnobsFromProcessor()
     dacOversampleToggle.setToggleState(
         processorRef.getDacTrueOversample().load(std::memory_order_relaxed),
         juce::dontSendNotification);
+}
+
+//==============================================================================
+// User-slot edit flow.
+//
+// Entry: MorphPanel calls onEditSlotClicked when its EDIT button fires while
+// the knob is parked on a user-slot detent. We hand register ownership from
+// the morph engine to the GUI sliders, snapshot the current interpolated
+// state into the slider shadows, and reveal SAVE / REVERT.
+//
+// Exit (SAVE): capture the edited registers into user_slots[slot], hand
+// register ownership back to the morph engine, force a morph re-apply so the
+// new slot contents take effect at the current position. The bit-identity
+// carve-out at the slot midpoint means SAVE itself produces no audible glitch
+// -- the registers the morph engine writes back match what was just captured.
+//
+// Exit (REVERT): same teardown without the snapshot. The morph re-apply
+// overwrites the slider edits with the v1.5 transparent-slot interpolation.
+//==============================================================================
+void SPU94AudioProcessorEditor::enterAdvancedView(int slot)
+{
+    if (slot < 0 || slot >= SPU94_INTERP_USER_SLOT_COUNT) return;
+
+    // Knob is already parked on the slot's midpoint (the EDIT button is only
+    // enabled at user-slot detents), so the morph engine has already applied
+    // set_morph at this position -- engines[0] regs reflect that state.
+    processorRef.getCurrentEditingSlot().store(slot, std::memory_order_relaxed);
+    processorRef.getMorphActive().store(false, std::memory_order_relaxed);
+    processorRef.requestShadowSync();
+
+    morphPanel.setVisible(false);
+    registerViewport.setVisible(true);
+    saveButton.setVisible(true);
+    revertButton.setVisible(true);
+}
+
+void SPU94AudioProcessorEditor::exitAdvancedView(bool save)
+{
+    const int slot = processorRef.getCurrentEditingSlot().load(std::memory_order_relaxed);
+    if (save && slot >= 0)
+        processorRef.saveUserSlot(slot);
+
+    processorRef.getCurrentEditingSlot().store(-1, std::memory_order_relaxed);
+
+    // Hand registers back to the morph engine and force re-apply at the
+    // current (still-midpoint) position. After SAVE the slot is freshly
+    // filled, so the bit-identity carve-out writes the captured regs back
+    // -- audibly silent transition. After REVERT the slot stays empty and
+    // the engine writes the transparent-slot interpolated state.
+    processorRef.getMorphActive().store(true, std::memory_order_relaxed);
+    processorRef.requestMorphReapply();
+
+    saveButton.setVisible(false);
+    revertButton.setVisible(false);
+    registerViewport.setVisible(false);
+    morphPanel.setVisible(true);
 }
