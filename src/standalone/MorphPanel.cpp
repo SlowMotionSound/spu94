@@ -262,12 +262,17 @@ void MorphPanel::paint(juce::Graphics& g)
     }
 
     // Draw user-slot ticks at the 8 midpoint positions (1/16, 3/16, ..., 15/16).
-    // Filled slot = PS1 blue, empty slot = dim grey. Tick is a short radial
-    // line segment, inner end at dotRadius, outer end at dotRadius + tickLen.
+    // Ticks sit BETWEEN the encoder ring and the Sony dot ring -- visually
+    // tucked close to the knob, leaving the dots as the outer "anchor" ring.
+    // Filled slot = PS1 blue, empty slot = dim grey.
+    //   knob outer edge:           knob_r
+    //   tick range:                knob_r + 3  ..  knob_r + 9   (this band)
+    //   Sony dots (centered):      knob_r + 12 (unchanged)
     constexpr int   numUserSlots = 8;
-    constexpr float tickInner    = 2.0f;   // gap between dot ring and tick
-    constexpr float tickLen      = 10.0f;
+    constexpr float tickInner    = 3.0f;   // gap between knob edge and tick
+    constexpr float tickLen      = 6.0f;
     constexpr float tickWidth    = 2.0f;
+    const float knobRadius = knobBounds.getWidth() * 0.5f;
     const juce::Colour filledColour = psxBlue;
     const juce::Colour emptyColour  = psxLightGray.withAlpha(0.25f);
 
@@ -278,8 +283,8 @@ void MorphPanel::paint(juce::Graphics& g)
         float ang   = angle - juce::MathConstants<float>::halfPi;
         float ux    = std::cos(ang);
         float uy    = std::sin(ang);
-        float r0    = dotRadius + tickInner;
-        float r1    = dotRadius + tickInner + tickLen;
+        float r0    = knobRadius + tickInner;
+        float r1    = knobRadius + tickInner + tickLen;
         float x0 = cx + r0 * ux, y0 = cy + r0 * uy;
         float x1 = cx + r1 * ux, y1 = cy + r1 * uy;
 

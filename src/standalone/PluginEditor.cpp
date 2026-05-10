@@ -291,16 +291,16 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     saveButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF6FD8CE)); // PS1 teal
     saveButton.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
     saveButton.setColour(juce::TextButton::textColourOffId, juce::Colours::black);
-    saveButton.setVisible(false);
     saveButton.onClick = [this] { exitAdvancedView(true); };
-    addAndMakeVisible(saveButton);
+    // addChildComponent (not addAndMakeVisible) so the button starts hidden
+    // and only appears when entering Advanced view.
+    addChildComponent(saveButton);
 
     revertButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFFE8736E)); // PS1 coral
     revertButton.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
     revertButton.setColour(juce::TextButton::textColourOffId, juce::Colours::black);
-    revertButton.setVisible(false);
     revertButton.onClick = [this] { exitAdvancedView(false); };
-    addAndMakeVisible(revertButton);
+    addChildComponent(revertButton);
 
     // Sync slider positions to the initial preset (Hall).
     registerPanel.updateFromShadows();
@@ -442,13 +442,15 @@ void SPU94AudioProcessorEditor::resized()
     dacNoiseToggle.setBounds(625, bottomY + 15, 60, 30);
     dacOversampleToggle.setBounds(690, bottomY + 15, 50, 30);
 
-    // SAVE / REVERT buttons sit in the same horizontal band the old Advanced
-    // toggle occupied, but as a centered pair. Visible only while editing.
+    // SAVE / REVERT hover at the TOP of the Advanced viewport (matching
+    // where the master-branch Abort button lived). Floats over the top
+    // of the register sliders so it's always visible during edit.
     constexpr int savW = 90, savH = 30, savGap = 10;
     const int pairW = savW * 2 + savGap;
     const int pairX = (w - pairW) / 2;
-    saveButton.setBounds(pairX,                    bottomY + 15, savW, savH);
-    revertButton.setBounds(pairX + savW + savGap,  bottomY + 15, savW, savH);
+    const int savY = registerTop + 5;
+    saveButton.setBounds(pairX,                    savY, savW, savH);
+    revertButton.setBounds(pairX + savW + savGap,  savY, savW, savH);
 }
 
 void SPU94AudioProcessorEditor::showPresetNamePrompt()
