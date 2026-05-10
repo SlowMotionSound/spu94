@@ -19,6 +19,7 @@
  */
 #include <spu94/spu94.h>
 #include <spu94/spu94_registers.h>
+#include "spu94_state_internal.h"
 #include <stdint.h>
 #include <stddef.h>
 
@@ -52,6 +53,25 @@ static int spu94_interp_is_fixed(spu94_reg_t r) {
 }
 
 /* -------------------------------------------------------------------------
+ * Waypoint accessors keyed by 1/16ths-of-the-dial index (0..16).
+ *   Even idx (0,2,...,16) -> Sony anchor at spu94_interp_waypoints[idx/2].
+ *   Odd  idx (1,3,...,15) -> User slot at user_slots[(idx-1)/2], present
+ *                            only when user_slot_filled[(idx-1)/2] != 0.
+ * Sony anchors guarantee termination of the left/right walks below.
+ * ------------------------------------------------------------------------- */
+static int spu94_interp_waypoint_is_filled(const spu94_state *state, int idx16) {
+    if ((idx16 & 1) == 0) return 1;
+    return state->user_slot_filled[(idx16 - 1) >> 1] != 0;
+}
+
+static const int16_t *spu94_interp_waypoint_regs(const spu94_state *state, int idx16) {
+    if ((idx16 & 1) == 0) {
+        return spu94_presets[spu94_interp_waypoints[idx16 >> 1]].regs;
+    }
+    return state->user_slots[(idx16 - 1) >> 1];
+}
+
+/* -------------------------------------------------------------------------
  * spu94_interp_set_morph -- the interpolation engine entry point.
  * ------------------------------------------------------------------------- */
 void spu94_interp_set_morph(spu94_state *state, float position) {
@@ -65,22 +85,31 @@ void spu94_interp_set_morph(spu94_state *state, float position) {
     if (!(position >= 0.0f)) position = 0.0f;
     if (!(position <= 1.0f)) position = 1.0f;
 
-    /* Map position to segment index and fractional distance within segment.
-     * 9 waypoints define 8 segments (indices 0..7). */
-    float scaled = position * (float)(SPU94_INTERP_WAYPOINT_COUNT - 1); /* 0..8 */
-    int seg = (int)scaled;          /* segment index 0..7 (or 8 at endpoint) */
-    float frac = scaled - (float)seg; /* fractional distance within segment */
+    /* Work in 1/16ths-of-the-dial space: 17 possible waypoints (9 Sony +
+     * 8 user slots interleaved). Sony anchors at even indices are always
+     * present; user slots at odd indices are present only when filled. */
+    float scaled = position * 16.0f;            /* 0..16 */
+    int   left   = (int)scaled;                  /* 0..16 */
+    if (left >= 16) left = 16;                   /* clamp endpoint */
+    int   right  = left + 1;
+    if (right > 16) right = 16;
 
-    /* Clamp segment to valid range (handles position == 1.0 exactly,
-     * where scaled == 8.0 and seg == 8). */
-    if (seg >= SPU94_INTERP_WAYPOINT_COUNT - 1) {
-        seg = SPU94_INTERP_WAYPOINT_COUNT - 2;  /* last valid segment = 7 */
-        frac = 1.0f;
+    /* Walk to the nearest filled waypoints. Index 0 and 16 are Sony anchors
+     * (always filled), so the walks always terminate. */
+    while (!spu94_interp_waypoint_is_filled(state, left))  left--;
+    while (right <= 16 && !spu94_interp_waypoint_is_filled(state, right)) right++;
+
+    float frac;
+    if (left == right) {
+        /* Position exactly at the endpoint (1.0): write the single waypoint
+         * directly via the frac == 0 carve-out below. */
+        frac = 0.0f;
+    } else {
+        frac = (scaled - (float)left) / (float)(right - left);
     }
 
-    /* Get pointers to the two adjacent preset register arrays. */
-    const int16_t *a = spu94_presets[spu94_interp_waypoints[seg]].regs;
-    const int16_t *b = spu94_presets[spu94_interp_waypoints[seg + 1]].regs;
+    const int16_t *a = spu94_interp_waypoint_regs(state, left);
+    const int16_t *b = spu94_interp_waypoint_regs(state, right);
 
     /* Iterate all 35 registers. */
     for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
@@ -98,9 +127,9 @@ void spu94_interp_set_morph(spu94_state *state, float position) {
             continue;
         }
 
-        /* INTERP-04: At exact waypoint positions (frac == 0.0 or 1.0),
-         * write the preset value directly to avoid floating-point rounding
-         * drift. This guarantees bit-identical output at waypoints. */
+        /* INTERP-04 (extended): At exact waypoint positions (frac == 0.0 or
+         * 1.0) write the source value directly to avoid floating-point drift.
+         * Now applies at any filled waypoint -- Sony anchor or user slot. */
         if (frac == 0.0f) {
             if (spu94_reg_type(reg) == SPU94_REG_TYPE_I16) {
                 spu94_set_reg_i16(state, reg, a[r]);
@@ -142,5 +171,42 @@ void spu94_interp_set_morph(spu94_state *state, float position) {
             if (interp < 0) interp = 0;
             spu94_set_reg_u16(state, reg, (uint16_t)interp);
         }
+    }
+}
+
+/* -------------------------------------------------------------------------
+ * User-programmable waypoint slot accessors.
+ * ------------------------------------------------------------------------- */
+void spu94_interp_set_user_slot(spu94_state *state, int slot,
+                                const int16_t regs[SPU94_REG__COUNT]) {
+    if (!state || !regs) return;
+    if (slot < 0 || slot >= SPU94_INTERP_USER_SLOT_COUNT) return;
+    for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
+        state->user_slots[slot][r] = regs[r];
+    }
+    state->user_slot_filled[slot] = 1u;
+}
+
+void spu94_interp_clear_user_slot(spu94_state *state, int slot) {
+    if (!state) return;
+    if (slot < 0 || slot >= SPU94_INTERP_USER_SLOT_COUNT) return;
+    state->user_slot_filled[slot] = 0u;
+    for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
+        state->user_slots[slot][r] = 0;
+    }
+}
+
+int spu94_interp_user_slot_is_filled(const spu94_state *state, int slot) {
+    if (!state) return 0;
+    if (slot < 0 || slot >= SPU94_INTERP_USER_SLOT_COUNT) return 0;
+    return state->user_slot_filled[slot] != 0u;
+}
+
+void spu94_interp_get_user_slot(const spu94_state *state, int slot,
+                                int16_t out[SPU94_REG__COUNT]) {
+    if (!state || !out) return;
+    if (slot < 0 || slot >= SPU94_INTERP_USER_SLOT_COUNT) return;
+    for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
+        out[r] = state->user_slots[slot][r];
     }
 }

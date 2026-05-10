@@ -249,6 +249,15 @@ struct spu94_state {
      *     between integer halfword positions; the +-0.5 read/write
      *     mismatch in feedback loops also produces a textured patina. */
     uint8_t        morph_grit;
+
+    /* User-programmable waypoints: 8 slots at the midpoints between Sony's
+     * 9 anchors (positions 1/16, 3/16, ..., 15/16). When user_slot_filled[k]
+     * is non-zero, the morph engine treats position (2k+1)/16 as a real
+     * waypoint with registers from user_slots[k]. Empty slots are transparent:
+     * interpolation passes through them as if they did not exist, so a fresh
+     * project's audio is bit-identical to the v1.5 Sony-only path. */
+    int16_t        user_slots[8][SPU94_REG__COUNT];
+    uint8_t        user_slot_filled[8];
 };
 
 /* Pin the shell-type bounds. A future plan that grows the struct past these

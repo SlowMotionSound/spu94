@@ -526,6 +526,31 @@ spu94_result_t spu94_preset_load(spu94_state *state,
  *   5: Hall, 6: Space Echo, 7: Echo, 8: Delay.                              */
 #define SPU94_INTERP_WAYPOINT_COUNT 9
 
+/* Number of user-programmable waypoint slots. Slots sit at the midpoints
+ * between Sony's 9 anchors -- slot k occupies morph position (2k+1)/16. */
+#define SPU94_INTERP_USER_SLOT_COUNT 8
+
+/* Install register values into user slot `slot` (0..7) and mark it filled.
+ * The morph engine immediately treats position (2*slot+1)/16 as a waypoint;
+ * subsequent spu94_interp_set_morph calls interpolate through it. NULL state,
+ * NULL regs, or out-of-range slot index are no-ops. */
+void spu94_interp_set_user_slot(spu94_state *state, int slot,
+                                const int16_t regs[SPU94_REG__COUNT]);
+
+/* Mark user slot `slot` empty. The morph engine reverts to interpolating
+ * straight across that midpoint as if the slot were never filled. NULL state
+ * or out-of-range index are no-ops. */
+void spu94_interp_clear_user_slot(spu94_state *state, int slot);
+
+/* Returns 1 if slot is filled, 0 otherwise (or on NULL/out-of-range). */
+int  spu94_interp_user_slot_is_filled(const spu94_state *state, int slot);
+
+/* Copy slot contents into out[]. Slot need not be filled (returns the stored
+ * bytes, which are zero for never-filled slots). NULL inputs / out-of-range
+ * slot are no-ops; out[] is unchanged in that case. */
+void spu94_interp_get_user_slot(const spu94_state *state, int slot,
+                                int16_t out[SPU94_REG__COUNT]);
+
 /* Set the morph position and write interpolated register values to state.
  *
  * position: 0.0 = first waypoint (Half Echo), 1.0 = last (Delay).
