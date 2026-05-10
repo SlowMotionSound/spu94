@@ -85,6 +85,11 @@ public:
     //     1.0 = Glide (full slew duration). In between scales slew duration. ---
     std::atomic<float>& getMorphSpeed() { return morphSpeed; }
 
+    // --- Morph Grit (binary):
+    //     0 = Int (default — all integer reads, hardware-faithful, "alive")
+    //     1 = Fract (all fractional reads, smoothed) ---
+    std::atomic<int>& getMorphGrit() { return morphGrit; }
+
     // --- File preset save/load (Phase 14, PRE-08/PRE-09) ---
 
     // Message thread: serialize current engine state to a .spu94 text buffer.
@@ -104,7 +109,7 @@ public:
     int getFilePresetAppliedCount() const;
 
 private:
-    std::atomic<float> inputLevel{0.25f}; // [0.0 = silence, 1.0 = unity gain]
+    std::atomic<float> inputLevel{0.50f}; // [0.0 = silence, 1.0 = unity gain]
     std::atomic<bool> adpcmEnabled{false}; // ADPCM coloration toggle (D-06)
 
     // Mixer faders (0.0-1.0 float, converted to Q15 at processBlock boundary)
@@ -138,6 +143,11 @@ private:
     // duration). Continuous in between scales the slew sample budget.
     // Default 1.0 = full Glide character (the polished v1.6 default).
     std::atomic<float> morphSpeed{1.0f};
+
+    // Morph Grit (see getMorphGrit for full docs).
+    // Default 0 = Int — all reads integer, PS1 hardware faithful.
+    // Reflects the project's north star: fixed-point quirks are the point.
+    std::atomic<int> morphGrit{0};
 
     // File preset pending load mechanism (message -> audio thread handoff)
     std::array<char, 4096> pendingPresetBuf{};

@@ -32,6 +32,14 @@ private:
     juce::Slider speedKnob;
     juce::Label speedLabel;
 
+    // Morph Grit: binary radio strip [Int][Fract.].
+    // Coral PS1 palette differentiates from Morph Speed's mauve. The
+    // selected button lights coral; the other sits dark gray.
+    juce::TextButton gritIntButton;
+    juce::TextButton gritFractButton;
+    juce::Label gritLabel;
+    void setMorphGrit(int grit); // syncs button state + processor atomic
+
     bool isUpdatingFromTimer = false;
 
     void updateLabelText(double value);

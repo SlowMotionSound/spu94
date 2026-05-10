@@ -237,6 +237,18 @@ struct spu94_state {
      * Curve choice rationale documented in spu94_slew.c. */
     float          slew_start_frac[SPU94_REG__COUNT];
     int32_t        slew_total_samples;
+
+    /* Morph Grit (binary):
+     *   SPU94_GRIT_INT   (0, default) -- all reverb-body reads use integer
+     *     halfword addressing. Faithful to PS1 hardware (no fractional
+     *     addressing exists in the original silicon). Halfword stepping
+     *     during morph excites the comb network's modes, producing the
+     *     project's "alive" character.
+     *   SPU94_GRIT_FRACT (1) -- all reads use linear interpolation between
+     *     adjacent halfwords. Smoothes morph transitions by reading
+     *     between integer halfword positions; the +-0.5 read/write
+     *     mismatch in feedback loops also produces a textured patina. */
+    uint8_t        morph_grit;
 };
 
 /* Pin the shell-type bounds. A future plan that grows the struct past these

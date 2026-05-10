@@ -126,7 +126,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     inputLevelKnob.setSliderStyle(juce::Slider::Rotary);
     inputLevelKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
     inputLevelKnob.setRange(0.0, 1.0, 0.01);
-    inputLevelKnob.setValue(0.25, juce::dontSendNotification);
+    inputLevelKnob.setValue(0.50, juce::dontSendNotification);
 
     inputLevelKnob.onValueChange = [this] {
         processorRef.getInputLevel().store(

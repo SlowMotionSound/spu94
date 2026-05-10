@@ -79,8 +79,52 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
     speedLabel.setFont(juce::FontOptions(11.0f));
     addAndMakeVisible(speedLabel);
 
+    // Morph Grit: binary radio strip [Int][Fract.].
+    // Default Int = all reads integer, hardware-faithful, the project's
+    // north-star setting. Coral PS1 palette to differentiate from the
+    // speed knob's mauve.
+    auto configureGritButton = [this](juce::TextButton& b, const char* label) {
+        b.setClickingTogglesState(true);
+        b.setRadioGroupId(0xC0DE); // shared id makes them mutually exclusive
+        b.setButtonText(label);
+        b.setColour(juce::TextButton::buttonColourId, psxDarkGray);
+        b.setColour(juce::TextButton::buttonOnColourId, psxCoral);
+        b.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
+        b.setColour(juce::TextButton::textColourOffId, psxLightGray);
+        addAndMakeVisible(b);
+    };
+    configureGritButton(gritIntButton,   "Int");
+    configureGritButton(gritFractButton, "Fract.");
+    // Connect the two adjacent edges so the strip reads as one control.
+    gritIntButton.setConnectedEdges(juce::Button::ConnectedOnRight);
+    gritFractButton.setConnectedEdges(juce::Button::ConnectedOnLeft);
+
+    gritIntButton.setTooltip("All reads integer — hardware-faithful PS1 character (default)");
+    gritFractButton.setTooltip("All reads fractional — smoothed morph with feedback patina");
+
+    gritIntButton.onClick   = [this]() { setMorphGrit(0); };
+    gritFractButton.onClick = [this]() { setMorphGrit(1); };
+
+    // Initialize toggle state from processor (preserves preset/project recall).
+    setMorphGrit(processorRef.getMorphGrit().load(std::memory_order_relaxed));
+
+    gritLabel.setText("Morph Grit", juce::dontSendNotification);
+    gritLabel.setJustificationType(juce::Justification::centred);
+    gritLabel.setColour(juce::Label::textColourId, psxLightGray.withAlpha(0.7f));
+    gritLabel.setFont(juce::FontOptions(11.0f));
+    addAndMakeVisible(gritLabel);
+
     // Set initial label to "Hall" (matching default morph position 0.625)
     updateLabelText(0.625);
+}
+
+//==============================================================================
+void MorphPanel::setMorphGrit(int grit)
+{
+    if (grit != 0 && grit != 1) grit = 0; // fall back to Int (default)
+    gritIntButton  .setToggleState(grit == 0, juce::dontSendNotification);
+    gritFractButton.setToggleState(grit == 1, juce::dontSendNotification);
+    processorRef.getMorphGrit().store(grit, std::memory_order_relaxed);
 }
 
 //==============================================================================
@@ -179,14 +223,30 @@ void MorphPanel::resized()
     morphKnob.setBounds(startX, startY, knobSize, knobSize);
     morphLabel.setBounds(startX, startY + knobSize + 8, knobSize, labelHeight);
 
-    // Speed knob: anchored to the bottom of the viewport (just above the
-    // mixer/DAC bar), centered horizontally, with its label below it.
-    // Visually separated from the main morph knob — its own row.
+    // Speed knob + 2-button Grit strip: paired row at the bottom of the
+    // viewport, centered horizontally with a gap between them. Each has
+    // its label below at the same baseline so the labels align.
     constexpr int speedSize = 60;
-    constexpr int speedLabelH = 14;
-    constexpr int speedBottomMargin = 4;
-    int speedX = (area.getWidth() - speedSize) / 2;
-    int speedY = area.getHeight() - speedSize - speedLabelH - speedBottomMargin;
-    speedKnob.setBounds(speedX, speedY, speedSize, speedSize);
-    speedLabel.setBounds(speedX - 40, speedY + speedSize, speedSize + 80, speedLabelH);
+    constexpr int gritBtnW = 60;
+    constexpr int gritBtnH = 28;
+    constexpr int gritStripW = gritBtnW * 2; // buttons share edges, no inter-gap
+    constexpr int controlLabelH = 14;
+    constexpr int bottomMargin = 4;
+    constexpr int gap = 32;
+
+    int rowY = area.getHeight() - speedSize - controlLabelH - bottomMargin;
+
+    int pairW = speedSize + gap + gritStripW;
+    int pairX = (area.getWidth() - pairW) / 2;
+
+    int speedX = pairX;
+    speedKnob.setBounds(speedX, rowY, speedSize, speedSize);
+    speedLabel.setBounds(speedX - 20, rowY + speedSize, speedSize + 40, controlLabelH);
+
+    // Grit strip vertically centered on the speed-knob row.
+    int stripX = pairX + speedSize + gap;
+    int stripY = rowY + (speedSize - gritBtnH) / 2;
+    gritIntButton  .setBounds(stripX,             stripY, gritBtnW, gritBtnH);
+    gritFractButton.setBounds(stripX + gritBtnW,  stripY, gritBtnW, gritBtnH);
+    gritLabel.setBounds(stripX - 20, rowY + speedSize, gritStripW + 40, controlLabelH);
 }

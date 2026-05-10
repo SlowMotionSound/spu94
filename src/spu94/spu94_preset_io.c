@@ -102,6 +102,12 @@ int spu94_preset_save(const spu94_state *state,
     EMIT("dac_noise_enabled=%d\n",    spu94_get_dac_noise_enabled(state));
     EMIT("dac_true_oversample=%d\n",  spu94_get_dac_true_oversample(state));
 
+    /* ---- [morph] section ---- */
+    EMIT("\n[morph]\n");
+    EMIT("# Morph Grit: int (default, hardware-faithful) or fract (smoothed)\n");
+    EMIT("grit=%s\n",
+         spu94_get_morph_grit(state) == SPU94_GRIT_FRACT ? "fract" : "int");
+
 #undef EMIT
 
     buf[pos] = '\0';
@@ -117,7 +123,8 @@ typedef enum {
     SECTION_NONE = 0,
     SECTION_REGISTERS,
     SECTION_MIXER,
-    SECTION_DAC
+    SECTION_DAC,
+    SECTION_MORPH
 } preset_section_t;
 
 /* Parse a boolean "0" or "1" value. Returns 0 or 1 on success, -1 on
@@ -180,6 +187,10 @@ spu94_result_t spu94_preset_load(spu94_state *state,
         }
         if (strcmp(line, "[dac]") == 0) {
             section = SECTION_DAC;
+            continue;
+        }
+        if (strcmp(line, "[morph]") == 0) {
+            section = SECTION_MORPH;
             continue;
         }
 
@@ -249,6 +260,17 @@ spu94_result_t spu94_preset_load(spu94_state *state,
             } else if (strcmp(key, "dac_true_oversample") == 0) {
                 int b = parse_bool(value);
                 if (b >= 0) spu94_set_dac_true_oversample(state, b);
+            }
+            /* else: unknown key, silently ignored (D-09) */
+            break;
+
+        case SECTION_MORPH:
+            if (strcmp(key, "grit") == 0) {
+                /* "int" or "fract" (case-sensitive); anything else
+                 * silently falls back to INT via spu94_set_morph_grit. */
+                spu94_set_morph_grit(state,
+                    strcmp(value, "fract") == 0
+                        ? SPU94_GRIT_FRACT : SPU94_GRIT_INT);
             }
             /* else: unknown key, silently ignored (D-09) */
             break;

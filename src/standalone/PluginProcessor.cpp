@@ -157,6 +157,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         dacFirEnabled.store(spu94_get_dac_fir_enabled(engines[0]) != 0, std::memory_order_relaxed);
         dacNoiseEnabled.store(spu94_get_dac_noise_enabled(engines[0]) != 0, std::memory_order_relaxed);
         dacTrueOversample.store(spu94_get_dac_true_oversample(engines[0]) != 0, std::memory_order_relaxed);
+        morphGrit.store(spu94_get_morph_grit(engines[0]), std::memory_order_relaxed);
     }
 
     // 2. Push register values: morph engine OR register bridge, never both.
@@ -228,6 +229,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         dacNoiseEnabled.load(std::memory_order_relaxed) ? 1 : 0);
     spu94_set_dac_true_oversample(engines[0],
         dacTrueOversample.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_morph_grit(engines[0],
+        morphGrit.load(std::memory_order_relaxed));
 
     // Morph position. The Register Behavior knob picks one of two paths:
     //   knob ≈ 0  → direct write (snap): registers latch at next tick.
@@ -340,6 +343,8 @@ juce::String SPU94AudioProcessor::savePresetToString(
         dacNoiseEnabled.load(std::memory_order_relaxed) ? 1 : 0);
     spu94_set_dac_true_oversample(engines[0],
         dacTrueOversample.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_morph_grit(engines[0],
+        morphGrit.load(std::memory_order_relaxed));
 
     char buf[SPU94_PRESET_BUF_SIZE];
     int written = spu94_preset_save(
