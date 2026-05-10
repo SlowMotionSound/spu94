@@ -273,7 +273,7 @@ spu94_result_t spu94_preset_load(spu94_state *state,
             break;
 
         case SECTION_REGISTERS:
-            /* Match key against the register name table */
+/* Match key against the register name table */
             for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
                 if (strcmp(key, spu94_reg_name((spu94_reg_t)r)) == 0) {
                     uint16_t val = parse_hex_u16(value);
@@ -290,7 +290,7 @@ spu94_result_t spu94_preset_load(spu94_state *state,
             break;
 
         case SECTION_MIXER:
-            if (strcmp(key, "input_gain") == 0)
+if (strcmp(key, "input_gain") == 0)
                 spu94_set_input_gain(state, (int16_t)parse_hex_u16(value));
             else if (strcmp(key, "dry_fader") == 0)
                 spu94_set_dry_fader(state, (int16_t)parse_hex_u16(value));
@@ -310,7 +310,7 @@ spu94_result_t spu94_preset_load(spu94_state *state,
             break;
 
         case SECTION_DAC:
-            if (strcmp(key, "dac_enabled") == 0) {
+if (strcmp(key, "dac_enabled") == 0) {
                 int b = parse_bool(value);
                 if (b >= 0) spu94_set_dac_enabled(state, b);
             } else if (strcmp(key, "dac_fir_enabled") == 0) {
@@ -327,7 +327,7 @@ spu94_result_t spu94_preset_load(spu94_state *state,
             break;
 
         case SECTION_MORPH:
-            if (strcmp(key, "grit") == 0) {
+if (strcmp(key, "grit") == 0) {
                 /* "int" or "fract" (case-sensitive); anything else
                  * silently falls back to INT via spu94_set_morph_grit. */
                 spu94_set_morph_grit(state,
@@ -357,4 +357,124 @@ spu94_result_t spu94_preset_load(spu94_state *state,
 #undef FLUSH_USER_SLOT
 
     return SPU94_OK;
+}
+
+/* -----------------------------------------------------------------------
+ * spu94_export_user_slot — emit a single user waypoint slot's regs
+ * ----------------------------------------------------------------------- */
+
+int spu94_export_user_slot(const spu94_state *state, int slot,
+                           const char *name, const char *description,
+                           char *buf, size_t buf_size)
+{
+    if (!state || !buf || buf_size == 0) return -1;
+    if (slot < 0 || slot >= SPU94_INTERP_USER_SLOT_COUNT) return -1;
+    if (!spu94_interp_user_slot_is_filled(state, slot)) return -3;
+
+    int16_t slot_regs[SPU94_REG__COUNT];
+    spu94_interp_get_user_slot(state, slot, slot_regs);
+
+    int pos = 0;
+    int n;
+
+#define EMIT(...)                                                          \
+    do {                                                                   \
+        n = snprintf(buf + pos, buf_size - (size_t)pos, __VA_ARGS__);      \
+        if (n < 0 || (size_t)(pos + n) >= buf_size) return -2;             \
+        pos += n;                                                          \
+    } while (0)
+
+    EMIT("version=1\n");
+    EMIT("name=%.64s\n", name ? name : "");
+    EMIT("description=%.256s\n", description ? description : "");
+    EMIT("type=user_slot\n");
+    EMIT("\n[user_slot %d]\n", slot);
+    EMIT("# User waypoint slot %d (morph position %d/16)\n", slot, 2 * slot + 1);
+    for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
+        EMIT("%s=0x%04X\n",
+             spu94_reg_name((spu94_reg_t)r),
+             (unsigned)(uint16_t)slot_regs[r]);
+    }
+
+#undef EMIT
+
+    buf[pos] = '\0';
+    return pos;
+}
+
+/* -----------------------------------------------------------------------
+ * spu94_load_user_slot — install one slot from buf into target_slot
+ *
+ * Parses the buffer for the FIRST [user_slot N] section found and writes
+ * its register values into target_slot, regardless of the section's own N.
+ * No other engine state (registers, mixer, DAC, morph, other user slots)
+ * is touched. ----------------------------------------------------------- */
+
+spu94_result_t spu94_load_user_slot(spu94_state *state, int target_slot,
+                                    const char *buf, size_t buf_len)
+{
+    if (!state) return SPU94_INVALID_STATE;
+    if (!buf || buf_len == 0) return SPU94_INVALID_ARG;
+    if (target_slot < 0 || target_slot >= SPU94_INTERP_USER_SLOT_COUNT)
+        return SPU94_INVALID_ARG;
+
+    const char *p = buf;
+    const char *end = buf + buf_len;
+    char line[512];
+
+    int     in_slot_section = 0;
+    int     found_any       = 0;
+    int16_t scratch[SPU94_REG__COUNT];
+    for (int i = 0; i < (int)SPU94_REG__COUNT; i++) scratch[i] = 0;
+
+    while (p < end) {
+        const char *nl = p;
+        while (nl < end && *nl != '\n') nl++;
+        size_t line_len = (size_t)(nl - p);
+        if (line_len >= sizeof line) line_len = sizeof line - 1;
+        memcpy(line, p, line_len);
+        line[line_len] = '\0';
+        p = (nl < end) ? nl + 1 : end;
+        if (line_len > 0 && line[line_len - 1] == '\r') {
+            line_len--;
+            line[line_len] = '\0';
+        }
+        if (line[0] == '\0' || line[0] == '#') continue;
+
+        /* Section header? */
+        if (line[0] == '[') {
+            if (in_slot_section) {
+                /* We just finished the first [user_slot] section -- commit. */
+                spu94_interp_set_user_slot(state, target_slot, scratch);
+                return SPU94_OK;
+            }
+            int parsed_slot = parse_user_slot_header(line);
+            if (parsed_slot >= 0) {
+                in_slot_section = 1;
+                found_any = 1;
+            }
+            continue;
+        }
+
+        if (!in_slot_section) continue;
+
+        char *eq = strchr(line, '=');
+        if (!eq) continue;
+        *eq = '\0';
+        const char *key = line;
+        const char *value = eq + 1;
+        for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
+            if (strcmp(key, spu94_reg_name((spu94_reg_t)r)) == 0) {
+                scratch[r] = (int16_t)parse_hex_u16(value);
+                break;
+            }
+        }
+    }
+
+    /* End of buffer: commit if we were inside a slot section. */
+    if (in_slot_section) {
+        spu94_interp_set_user_slot(state, target_slot, scratch);
+        return SPU94_OK;
+    }
+    return found_any ? SPU94_OK : SPU94_INVALID_ARG;
 }

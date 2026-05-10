@@ -15,9 +15,11 @@ public:
     // Called from editor timer to sync knob position from processor state
     void updateKnobPosition();
 
-    // PluginEditor sets this to be notified when the user clicks EDIT while
-    // the knob is parked on a user-slot detent. Slot index is 0..7.
+    // PluginEditor wires these to the corresponding action when the user
+    // clicks while parked on a user-slot detent. Slot index is 0..7.
     std::function<void(int slot)> onEditSlotClicked;
+    std::function<void(int slot)> onExportSlotClicked;
+    std::function<void(int slot)> onLoadSlotClicked;
 
 private:
     SPU94AudioProcessor& processorRef;
@@ -44,9 +46,14 @@ private:
     juce::Label gritLabel;
     void setMorphGrit(int grit); // syncs button state + processor atomic
 
-    // EDIT button — opens Advanced view for the user slot the knob is parked
-    // on. Disabled when the knob isn't on a user-slot detent.
+    // Per-tick action buttons — stacked top-right. All three share an
+    // enabled state: lit when the knob is parked on a user-slot detent,
+    // dimmed otherwise. EDIT opens the slot for editing; EXPORT writes
+    // the slot's current contents to a file; LOAD reads a single-slot
+    // file and stamps it into the parked tick.
     juce::TextButton editButton{"EDIT"};
+    juce::TextButton exportButton{"EXPORT"};
+    juce::TextButton loadButton{"LOAD"};
 
     bool isUpdatingFromTimer = false;
 

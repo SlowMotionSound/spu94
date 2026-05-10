@@ -66,58 +66,13 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
                 auto text = result.loadFileAsString();
                 if (text.isEmpty()) return;
 
-                if (processorRef.loadPresetFromString(text))
-                {
-                    // Extract name from the .spu94 file for dropdown display.
-                    // Parse the name= line (between first newline-separated lines).
-                    juce::String loadedName;
-                    for (auto line : juce::StringArray::fromLines(text))
-                    {
-                        if (line.startsWith("name="))
-                        {
-                            loadedName = line.fromFirstOccurrenceOf("name=", false, false).trim();
-                            break;
-                        }
-                    }
-                    // Fall back to filename if no name in file (D-09)
-                    if (loadedName.isEmpty())
-                        loadedName = result.getFileNameWithoutExtension();
-
-                    customPresetName = loadedName;
-                }
+                processorRef.loadPresetFromString(text);
             });
     };
 
-    // Preset selector -- flat dropdown with all 10 PS1 factory presets.
-    addAndMakeVisible(presetLabel);
-    addAndMakeVisible(presetSelector);
-    for (int i = 0; i < SPU94_PRESET__COUNT; ++i)
-        presetSelector.addItem(juce::String(spu94_presets[i].name), i + 1);
-    // JUCE ComboBox IDs are 1-based; default to Hall (matches prepareToPlay).
-    presetSelector.setSelectedId(SPU94_PRESET_HALL + 1, juce::dontSendNotification);
-
-    presetSelector.onChange = [this] {
-        const int id = presetSelector.getSelectedId();
-        if (id == kCustomPresetId)
-            return;  // Custom entry selected -- no action needed
-
-        // D-10: Selecting a factory preset clears the custom entry
-        if (presetSelector.indexOfItemId(kCustomPresetId) >= 0)
-        {
-            presetSelector.clear(juce::dontSendNotification);
-            for (int i = 0; i < SPU94_PRESET__COUNT; ++i)
-                presetSelector.addItem(juce::String(spu94_presets[i].name), i + 1);
-            customPresetName = {};
-            modifiedState = false;
-        }
-
-        const int pid = id - 1;  // back to 0-based
-        if (pid >= 0 && pid < SPU94_PRESET__COUNT)
-        {
-            processorRef.getPresetQueue().requestPreset(
-                static_cast<spu94_preset_id_t>(pid));
-        }
-    };
+    // Per-tick EXPORT / LOAD wired through MorphPanel (see callbacks below).
+    morphPanel.onExportSlotClicked = [this](int slot) { exportSingleSlot(slot); };
+    morphPanel.onLoadSlotClicked   = [this](int slot) { loadSingleSlot(slot); };
 
     // ---- ZONE 1: Toolbar controls ----
 
@@ -305,9 +260,9 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     // Sync slider positions to the initial preset (Hall).
     registerPanel.updateFromShadows();
 
-    // 30 Hz timer to detect preset-switch completion and sync sliders.
-    lastAppliedCount = processorRef.getPresetQueue().getAppliedCount();
+    // 30 Hz timer to detect file-preset load completion and shadow syncs.
     lastFilePresetCount = processorRef.getFilePresetAppliedCount();
+    lastShadowSyncCount = processorRef.getShadowSyncCount();
     startTimerHz(30);
 
     captureBaseline();
@@ -323,53 +278,30 @@ SPU94AudioProcessorEditor::~SPU94AudioProcessorEditor()
 
 void SPU94AudioProcessorEditor::timerCallback()
 {
-    const int current = processorRef.getPresetQueue().getAppliedCount();
-    if (current != lastAppliedCount)
-    {
-        lastAppliedCount = current;
-        registerPanel.updateFromShadows();
-        const int appliedId = processorRef.getPresetQueue().getAppliedId();
-
-        // Reset all preset names to clean state (clears asterisks and custom entries)
-        presetSelector.clear(juce::dontSendNotification);
-        for (int i = 0; i < SPU94_PRESET__COUNT; ++i)
-            presetSelector.addItem(juce::String(spu94_presets[i].name), i + 1);
-        customPresetName = {};
-
-        presetSelector.setSelectedId(appliedId + 1, juce::dontSendNotification);
-        captureBaseline();
-        modifiedState = false;
-    }
-
-    // Detect file-preset load completion
+    // Detect file-preset load completion (Save Preset / Load Preset buttons).
     const int fileCount = processorRef.getFilePresetAppliedCount();
     if (fileCount != lastFilePresetCount)
     {
         lastFilePresetCount = fileCount;
-        registerPanel.updateFromShadows();
         syncMixerKnobsFromProcessor();
-
-        // D-09: Show custom preset entry in dropdown
-        if (presetSelector.getNumItems() == SPU94_PRESET__COUNT)
-        {
-            // Add custom entry (appends at end; JUCE doesn't support insert-at-position)
-            presetSelector.addItem(juce::String::charToString(0x25C6) + " " + customPresetName,
-                                   kCustomPresetId);
-        }
-        else
-        {
-            // Update existing custom entry text
-            presetSelector.changeItemText(kCustomPresetId,
-                juce::String::charToString(0x25C6) + " " + customPresetName);
-        }
-        presetSelector.setSelectedId(kCustomPresetId, juce::dontSendNotification);
-        captureBaseline();  // D-12: file load resets baseline
+        captureBaseline();
     }
 
-    // D-11: check for modified state and update asterisk
-    updatePresetDisplayName();
+    // Detect shadow syncs from the audio thread. Fires on every morph
+    // re-apply (knob movement, LOAD, SAVE/REVERT, full preset load) and
+    // on view switches. Refreshing both the slider positions AND the
+    // MorphPanel tick colors here keeps the GUI honest about what is
+    // actually playing -- and crucially, makes a slot fill/unfill visible
+    // immediately on the encoder.
+    const int shadowCount = processorRef.getShadowSyncCount();
+    if (shadowCount != lastShadowSyncCount)
+    {
+        lastShadowSyncCount = shadowCount;
+        registerPanel.updateFromShadows();
+        morphPanel.repaint();  // tick colors (filled vs empty) re-render
+    }
 
-    // Sync morph panel knob position when visible (Phase 17)
+    // Sync morph panel knob position when visible (Phase 17).
     if (morphPanel.isVisible())
     {
         morphPanel.updateKnobPosition();
@@ -401,8 +333,7 @@ void SPU94AudioProcessorEditor::resized()
     stopButton.setBounds(190, 10, 70, 30);
     savePresetButton.setBounds(270, 10, 55, 30);
     loadPresetButton.setBounds(330, 10, 55, 30);
-    presetLabel.setBounds(395, 10, 50, 30);
-    presetSelector.setBounds(448, 10, 180, 30);
+    // (Toolbar slot is empty -- per-tick EXPORT/LOAD live in MorphPanel.)
 
     // Three equal-sized knobs: Input Gain, ADPCM Send, Dry Send
     inputLevelLabel.setBounds(640, 2, 80, 16);
@@ -455,15 +386,7 @@ void SPU94AudioProcessorEditor::resized()
 
 void SPU94AudioProcessorEditor::showPresetNamePrompt()
 {
-    juce::String defaultName;
-    if (customPresetName.isNotEmpty())
-        defaultName = customPresetName;
-    else
-    {
-        const int pid = processorRef.getPresetQueue().getAppliedId();
-        if (pid >= 0 && pid < SPU94_PRESET__COUNT)
-            defaultName = juce::String(spu94_presets[pid].name);
-    }
+    juce::String defaultName = "preset";
 
     auto suggestedFile = juce::File::getSpecialLocation(
         juce::File::userDocumentsDirectory)
@@ -495,10 +418,7 @@ void SPU94AudioProcessorEditor::showPresetNamePrompt()
             auto name = chosen.getFileNameWithoutExtension();
             auto text = processorRef.savePresetToString(name, {});
             if (text.isNotEmpty())
-            {
                 chosen.replaceWithText(text);
-                customPresetName = name;
-            }
         });
 }
 
@@ -544,31 +464,6 @@ bool SPU94AudioProcessorEditor::checkModified() const
     if (p.getDacNoiseEnabled().load(std::memory_order_relaxed) != baseline.dacNoise) return true;
     if (p.getDacTrueOversample().load(std::memory_order_relaxed) != baseline.dacOversample) return true;
     return false;
-}
-
-void SPU94AudioProcessorEditor::updatePresetDisplayName()
-{
-    bool nowModified = checkModified();
-    if (nowModified == modifiedState) return;  // no change
-    modifiedState = nowModified;
-
-    const int selectedId = presetSelector.getSelectedId();
-    if (selectedId == kCustomPresetId)
-    {
-        juce::String display = juce::String::charToString(0x25C6) + " " + customPresetName;
-        if (nowModified) display += " *";
-        presetSelector.changeItemText(kCustomPresetId, display);
-        // Force visual refresh
-        presetSelector.setSelectedId(kCustomPresetId, juce::dontSendNotification);
-    }
-    else if (selectedId >= 1 && selectedId <= SPU94_PRESET__COUNT)
-    {
-        const int pid = selectedId - 1;
-        juce::String display(spu94_presets[pid].name);
-        if (nowModified) display += " *";
-        presetSelector.changeItemText(selectedId, display);
-        presetSelector.setSelectedId(selectedId, juce::dontSendNotification);
-    }
 }
 
 void SPU94AudioProcessorEditor::syncMixerKnobsFromProcessor()
@@ -642,21 +537,88 @@ void SPU94AudioProcessorEditor::enterAdvancedView(int slot)
     revertButton.setVisible(true);
 }
 
+void SPU94AudioProcessorEditor::exportSingleSlot(int slot)
+{
+    if (slot < 0 || slot >= SPU94_INTERP_USER_SLOT_COUNT) return;
+    if (!processorRef.isUserSlotFilled(slot)) return;  // nothing to export
+
+    auto suggestedFile = juce::File::getSpecialLocation(
+        juce::File::userDocumentsDirectory)
+        .getChildFile(juce::String("slot_") + juce::String(slot + 1) + ".spu94");
+    if (!suggestedFile.exists()) suggestedFile.create();
+
+    fileChooser = std::make_unique<juce::FileChooser>(
+        "Export Slot",
+        suggestedFile,
+        "*.spu94");
+
+    fileChooser->launchAsync(
+        juce::FileBrowserComponent::saveMode |
+        juce::FileBrowserComponent::canSelectFiles |
+        juce::FileBrowserComponent::warnAboutOverwriting,
+        [this, slot, suggestedFile](const juce::FileChooser& fc) {
+            auto chosen = fc.getResult();
+            if (suggestedFile.getSize() == 0 && suggestedFile != chosen)
+                suggestedFile.deleteFile();
+            if (chosen == juce::File()) return;
+            if (chosen.getFileExtension().isEmpty())
+                chosen = chosen.withFileExtension("spu94");
+            auto name = chosen.getFileNameWithoutExtension();
+            auto text = processorRef.exportUserSlotToString(
+                slot, name, juce::String());
+            if (text.isNotEmpty())
+                chosen.replaceWithText(text);
+        });
+}
+
+void SPU94AudioProcessorEditor::loadSingleSlot(int slot)
+{
+    if (slot < 0 || slot >= SPU94_INTERP_USER_SLOT_COUNT) return;
+
+    fileChooser = std::make_unique<juce::FileChooser>(
+        "Load Slot",
+        juce::File::getSpecialLocation(juce::File::userDocumentsDirectory),
+        "*.spu94");
+
+    fileChooser->launchAsync(
+        juce::FileBrowserComponent::openMode |
+        juce::FileBrowserComponent::canSelectFiles,
+        [this, slot](const juce::FileChooser& fc) {
+            auto result = fc.getResult();
+            if (!result.existsAsFile()) return;
+            auto text = result.loadFileAsString();
+            if (text.isEmpty()) return;
+            processorRef.loadUserSlotFromString(slot, text);
+        });
+}
+
 void SPU94AudioProcessorEditor::exitAdvancedView(bool save)
 {
     const int slot = processorRef.getCurrentEditingSlot().load(std::memory_order_relaxed);
-    if (save && slot >= 0)
-        processorRef.saveUserSlot(slot);
+    if (slot >= 0) {
+        if (save) {
+            processorRef.saveUserSlot(slot);
+        } else {
+            // REVERT semantics: not just "discard in-session edits" but
+            // "clear this slot entirely" -- emergency reset for when the
+            // user wants out. The morph re-apply below at the (now-empty)
+            // slot's midpoint writes the v1.5 transparent-interp Sony[k] /
+            // Sony[k+1] state back into the engine, and the tick reverts
+            // to its empty visual.
+            processorRef.clearUserSlot(slot);
+        }
+    }
 
     processorRef.getCurrentEditingSlot().store(-1, std::memory_order_relaxed);
 
     // Hand registers back to the morph engine and force re-apply at the
-    // current (still-midpoint) position. After SAVE the slot is freshly
-    // filled, so the bit-identity carve-out writes the captured regs back
-    // -- audibly silent transition. After REVERT the slot stays empty and
-    // the engine writes the transparent-slot interpolated state.
-    processorRef.getMorphActive().store(true, std::memory_order_relaxed);
+    // current (still-midpoint) position. ORDER MATTERS: set the reapply flag
+    // FIRST, then flip morphActive=true. Otherwise an audio block scheduled
+    // between the two stores would see morphActive=true && forceReapply=false
+    // && pos==lastMorphPos and skip the re-apply entirely, leaving engines[0]
+    // at the user's pre-REVERT edited register values.
     processorRef.requestMorphReapply();
+    processorRef.getMorphActive().store(true, std::memory_order_release);
 
     saveButton.setVisible(false);
     revertButton.setVisible(false);

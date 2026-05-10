@@ -122,9 +122,12 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         newWavReady.store(false, std::memory_order_release);
     }
 
-    if (!wavSource.loaded.load(std::memory_order_acquire) ||
-        !wavSource.playing.load(std::memory_order_relaxed) ||
-        engines[0] == nullptr || engines[1] == nullptr)
+    // STATE MANAGEMENT runs unconditionally (presets, file loads, morph
+    // re-apply, shadow syncs) so the GUI always reflects current engine
+    // state -- even with no WAV loaded and no playback. Only the actual
+    // audio I/O (sample reads + spu94_process + output mixing) is gated
+    // on loaded/playing below.
+    if (engines[0] == nullptr || engines[1] == nullptr)
     {
         buffer.clear();
         return;
@@ -134,14 +137,27 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     if (presetQueue.drain(engines[0]))
     {
         registerBridge.syncShadowsFromSPU(engines[0]);
+        shadowSyncCompletedCount.fetch_add(1, std::memory_order_release);
     }
 
     // 1b. Drain file-preset load request (GUI thread may have loaded a .spu94 file)
     if (filePresetReady.load(std::memory_order_acquire))
     {
         size_t len = pendingPresetLen.load(std::memory_order_relaxed);
-        spu94_preset_load(engines[0], pendingPresetBuf.data(), len);
-        registerBridge.syncShadowsFromSPU(engines[0]);
+        const int targetSlot = pendingTargetSlot.load(std::memory_order_relaxed);
+        if (targetSlot >= 0) {
+            // Per-slot load mutates user_slots[targetSlot] only -- engines[0]
+            // active regs are unchanged. Force a morph re-apply so the slot's
+            // contents take effect at the current (midpoint) position; the
+            // post-reapply sync below will then capture the updated state.
+            spu94_load_user_slot(engines[0], targetSlot,
+                                 pendingPresetBuf.data(), len);
+            morphReapplyPending.store(true, std::memory_order_relaxed);
+        } else {
+            spu94_preset_load(engines[0], pendingPresetBuf.data(), len);
+            registerBridge.syncShadowsFromSPU(engines[0]);
+            shadowSyncCompletedCount.fetch_add(1, std::memory_order_release);
+        }
         filePresetReady.store(false, std::memory_order_release);
         filePresetAppliedCount.fetch_add(1, std::memory_order_release);
 
@@ -169,9 +185,23 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         registerBridge.pushPendingRegisterWrites(engines[0]);
     }
 
-    // Sync shadows from SPU when switching from morph to advanced mode
-    if (needShadowSync.exchange(false, std::memory_order_relaxed))
+    // Sync shadows when entering Advanced view. We don't just sync from
+    // whatever state engines[0] currently holds -- it could be mid-slew (no
+    // audio playing means the slew never advances) or carry stale post-edit
+    // values from a previous Advanced session. Instead, recompute the morph
+    // target at the current knob position and write it directly to engines[0].
+    // This guarantees:
+    //   - sliders reflect EXACTLY what the morph would produce at this position
+    //   - engines[0] is the correct baseline for a subsequent SAVE snapshot
+    //     (non-edited registers come from the morph target, not stale state)
+    if (needShadowSync.exchange(false, std::memory_order_relaxed)) {
+        const float pos = morphPosition.load(std::memory_order_relaxed);
+        spu94_interp_set_morph(engines[0], pos);
+        spu94_apply_pending_writes(engines[0]);
         registerBridge.syncShadowsFromSPU(engines[0]);
+        shadowSyncCompletedCount.fetch_add(1, std::memory_order_release);
+        morphInitialized = true;
+    }
 
     // 3. ADPCM coloration toggle (ADPCM-IO-06, D-06): read GUI atomic,
     // push to C API. Takes effect on the next spu94_process block.
@@ -186,27 +216,9 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         spu94_set_adpcm_enabled(engines[0], adpcm_flag);
     }
 
-    const int n = buffer.getNumSamples();
-    const auto numFrames = wavSource.numFrames;
-
-    // Guard against divide-by-zero if numFrames is somehow 0 (CR-03).
-    if (numFrames == 0) { buffer.clear(); return; }
-
-    // Stack-allocated int16 I/O buffers -- no heap in the audio thread.
-    // JUCE block sizes are typically 256-1024; 4096 is a generous ceiling.
-    // If the host delivers an oversized block, clear and bail rather than
-    // silently truncating (WR-02: unwritten tail would be garbage audio).
-    constexpr int kMaxBlock = 4096;
-    jassert(n <= kMaxBlock);
-    if (n > kMaxBlock) { buffer.clear(); return; }
-    const int samplesToProcess = n;
-
-    int16_t tmpL_in[kMaxBlock];
-    int16_t tmpR_in[kMaxBlock];
-    int16_t tmpL_out[kMaxBlock];
-    int16_t tmpR_out[kMaxBlock];
-
-    // Push mixer/DAC state to the single audio engine.
+    // Push mixer/DAC state to the single audio engine. State management --
+    // runs unconditionally so the GUI's view of engine state is always
+    // current, regardless of WAV/playback status.
     spu94_set_input_gain(engines[0], static_cast<int16_t>(
         inputLevel.load(std::memory_order_relaxed) * 0x7FFF));
     spu94_set_dry_fader(engines[0], static_cast<int16_t>(
@@ -239,16 +251,22 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     //                knob=1.0 reproduces the full Phase 18 glide duration.
     constexpr float kSnapThreshold = 0.001f;
     const float behavior = morphSpeed.load(std::memory_order_relaxed);
-    if (morphActive.load(std::memory_order_relaxed))
+    if (morphActive.load(std::memory_order_acquire))
     {
         float pos = morphPosition.load(std::memory_order_relaxed);
         const bool forceReapply =
             morphReapplyPending.exchange(false, std::memory_order_relaxed);
         if (pos != lastMorphPosition || forceReapply)
         {
+            const bool wasForced = forceReapply;
             lastMorphPosition = pos;
 
-            if (!morphInitialized || behavior <= kSnapThreshold)
+            // Forced re-applies (LOAD, SAVE/REVERT exit) snap regardless of
+            // the Morph Speed knob -- the user just clicked an action button
+            // and expects an instantaneous response, not a glide.
+            const bool tookSnapPath =
+                wasForced || !morphInitialized || behavior <= kSnapThreshold;
+            if (tookSnapPath)
             {
                 // First-time apply OR snap path: write registers directly.
                 spu94_interp_set_morph(engines[0], pos);
@@ -269,8 +287,48 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                         : 1;
                 spu94_set_slew_duration(engines[0], maxDelta);
             }
+            // Sync shadows from the engine that holds the FINAL target
+            // register values: engines[0] in the snap path (immediate),
+            // engines[1] in the glide path (engines[0] is mid-slew and
+            // would give a stale snapshot). Cheap (35*int16 memcpy) and
+            // dontSendNotification on the GUI side keeps it from
+            // interfering with active slider drags in Advanced view.
+            registerBridge.syncShadowsFromSPU(tookSnapPath ? engines[0] : engines[1]);
+            shadowSyncCompletedCount.fetch_add(1, std::memory_order_release);
         }
     }
+
+    // Audio I/O gate: skip the actual sample read + process + output mix
+    // when no WAV is loaded or playback is paused. ALL state management
+    // above has already run, so the engine is up-to-date and the GUI's
+    // sliders/ticks always reflect current engine state -- even with no
+    // audio playing.
+    if (!wavSource.loaded.load(std::memory_order_acquire) ||
+        !wavSource.playing.load(std::memory_order_relaxed))
+    {
+        buffer.clear();
+        return;
+    }
+
+    const int n = buffer.getNumSamples();
+    const auto numFrames = wavSource.numFrames;
+
+    // Guard against divide-by-zero if numFrames is somehow 0 (CR-03).
+    if (numFrames == 0) { buffer.clear(); return; }
+
+    // Stack-allocated int16 I/O buffers -- no heap in the audio thread.
+    // JUCE block sizes are typically 256-1024; 4096 is a generous ceiling.
+    // If the host delivers an oversized block, clear and bail rather than
+    // silently truncating (WR-02: unwritten tail would be garbage audio).
+    constexpr int kMaxBlock = 4096;
+    jassert(n <= kMaxBlock);
+    if (n > kMaxBlock) { buffer.clear(); return; }
+    const int samplesToProcess = n;
+
+    int16_t tmpL_in[kMaxBlock];
+    int16_t tmpR_in[kMaxBlock];
+    int16_t tmpL_out[kMaxBlock];
+    int16_t tmpR_out[kMaxBlock];
 
     // Build the int16 input to the reverb directly from the WAV source.
     auto playPos = wavSource.playPos.load(std::memory_order_relaxed);
@@ -367,8 +425,40 @@ bool SPU94AudioProcessor::loadPresetFromString(const juce::String& presetText)
     std::memcpy(pendingPresetBuf.data(), raw, len);
     pendingPresetBuf[len] = '\0';
     pendingPresetLen.store(len, std::memory_order_relaxed);
+    pendingTargetSlot.store(-1, std::memory_order_relaxed);
     filePresetReady.store(true, std::memory_order_release);
     return true;
+}
+
+bool SPU94AudioProcessor::loadUserSlotFromString(int target_slot,
+                                                 const juce::String& presetText)
+{
+    if (target_slot < 0 || target_slot >= SPU94_INTERP_USER_SLOT_COUNT)
+        return false;
+    if (presetText.isEmpty() || !engines[0]) return false;
+    auto raw = presetText.toRawUTF8();
+    auto len = presetText.getNumBytesAsUTF8();
+    if (len == 0 || len >= sizeof(pendingPresetBuf)) return false;
+    std::memcpy(pendingPresetBuf.data(), raw, len);
+    pendingPresetBuf[len] = '\0';
+    pendingPresetLen.store(len, std::memory_order_relaxed);
+    pendingTargetSlot.store(target_slot, std::memory_order_relaxed);
+    filePresetReady.store(true, std::memory_order_release);
+    return true;
+}
+
+juce::String SPU94AudioProcessor::exportUserSlotToString(
+    int slot, const juce::String& name, const juce::String& description)
+{
+    if (!engines[0]) return {};
+    char buf[SPU94_PRESET_BUF_SIZE];
+    int written = spu94_export_user_slot(
+        engines[0], slot,
+        name.isNotEmpty() ? name.toRawUTF8() : nullptr,
+        description.isNotEmpty() ? description.toRawUTF8() : nullptr,
+        buf, sizeof(buf));
+    if (written < 0) return {};
+    return juce::String(buf, static_cast<size_t>(written));
 }
 
 int SPU94AudioProcessor::getFilePresetAppliedCount() const

@@ -128,6 +128,21 @@ public:
     // getAppliedCount for factory presets).
     int getFilePresetAppliedCount() const;
 
+    // GUI thread: polled by editor timer to know when the audio thread
+    // has just synced shadows from the SPU. Used to refresh slider
+    // positions after view switches and per-slot loads.
+    int getShadowSyncCount() const { return shadowSyncCompletedCount.load(std::memory_order_acquire); }
+
+    // Per-tick user-waypoint export / load. Each operation targets a single
+    // slot (the one the encoder is parked on). exportUserSlot serializes
+    // that slot's regs to text; loadUserSlot reads a single-slot file and
+    // stamps it into target_slot regardless of the file's own slot index.
+    juce::String exportUserSlotToString(int slot,
+                                        const juce::String& name,
+                                        const juce::String& description);
+    bool loadUserSlotFromString(int target_slot,
+                                const juce::String& presetText);
+
 private:
     std::atomic<float> inputLevel{0.50f}; // [0.0 = silence, 1.0 = unity gain]
     std::atomic<bool> adpcmEnabled{false}; // ADPCM coloration toggle (D-06)
@@ -172,10 +187,13 @@ private:
     std::atomic<int> morphGrit{0};
 
     // File preset pending load mechanism (message -> audio thread handoff)
-    std::array<char, 4096> pendingPresetBuf{};
+    std::array<char, SPU94_PRESET_BUF_SIZE> pendingPresetBuf{};
     std::atomic<size_t> pendingPresetLen{0};
     std::atomic<bool> filePresetReady{false};
+    // -1 = full preset load, 0..7 = single-slot load into that target slot.
+    std::atomic<int>  pendingTargetSlot{-1};
     std::atomic<int> filePresetAppliedCount{0};
+    std::atomic<int> shadowSyncCompletedCount{0};
 
     RegisterBridge registerBridge;
     PresetCommandQueue presetQueue;

@@ -31,11 +31,11 @@ private:
     // Name prompt helper
     void showPresetNamePrompt();
 
-    // Currently loaded custom preset name (D-09)
-    juce::String customPresetName;
-
     // Track file-preset load completion for GUI sync
     int lastFilePresetCount = 0;
+    // Track audio-thread shadow syncs so the timer can refresh slider
+    // positions after view switches and per-slot loads.
+    int lastShadowSyncCount = 0;
 
     // Sync all mixer/DAC knobs from processor atomics after file load
     void syncMixerKnobsFromProcessor();
@@ -51,8 +51,11 @@ private:
 
     void enterAdvancedView(int slot);
     void exitAdvancedView(bool save);
-    juce::ComboBox presetSelector;
-    juce::Label presetLabel{"", "Preset:"};
+
+    // Per-tick EXPORT / LOAD callbacks fired by MorphPanel buttons.
+    void exportSingleSlot(int slot);
+    void loadSingleSlot(int slot);
+
 
     juce::Slider inputLevelKnob;
     juce::Label inputLevelLabel;
@@ -80,12 +83,6 @@ private:
 
 
 
-    // Track preset-switch completion for slider sync.
-    int lastAppliedCount = 0;
-
-    // Custom preset dropdown entry (D-09, D-10)
-    static constexpr int kCustomPresetId = SPU94_PRESET__COUNT + 1;  // 11
-
     // Modified-state tracking (D-11, D-12)
     // Baseline snapshot captured on every preset load (factory or custom)
     struct PresetSnapshot {
@@ -101,7 +98,6 @@ private:
 
     void captureBaseline();
     bool checkModified() const;
-    void updatePresetDisplayName();
 
     // FileChooser must outlive the async callback (JUCE requirement).
     std::unique_ptr<juce::FileChooser> fileChooser;

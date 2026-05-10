@@ -201,7 +201,73 @@ static void test_sony_positions_intact_with_all_slots_filled(void) {
     }
 }
 
-/* ---------- 8. Preset I/O round-trip with filled slots ---------- */
+/* ---------- 8. Per-slot export -> per-slot load into different target ---------- */
+static void test_per_slot_export_load_round_trip(void) {
+    /* Fill slot 2 with Hall regs, export it, clear, load into slot 5. */
+    const int16_t *hall = spu94_presets[SPU94_PRESET_HALL].regs;
+    spu94_interp_set_user_slot(state, 2, hall);
+
+    static char buf[SPU94_PRESET_BUF_SIZE];
+    int written = spu94_export_user_slot(state, 2, "hall-stash", "test",
+                                         buf, sizeof buf);
+    TEST_ASSERT_GREATER_THAN_INT(0, written);
+
+    /* The exported file should contain exactly one [user_slot N] section. */
+    TEST_ASSERT_NOT_NULL(strstr(buf, "[user_slot 2]"));
+    TEST_ASSERT_NULL(strstr(buf, "[user_slot 0]"));
+    TEST_ASSERT_NULL(strstr(buf, "[user_slot 5]"));
+
+    /* Reset and load that file into slot 5. The section's own N=2 must be
+     * ignored -- the regs land at the requested target_slot=5. */
+    spu94_reset(state);
+    spu94_result_t rc = spu94_load_user_slot(state, 5, buf, (size_t)written);
+    TEST_ASSERT_EQUAL_INT(SPU94_OK, rc);
+
+    TEST_ASSERT_EQUAL_INT(0, spu94_interp_user_slot_is_filled(state, 2));
+    TEST_ASSERT_EQUAL_INT(1, spu94_interp_user_slot_is_filled(state, 5));
+
+    int16_t out[SPU94_REG__COUNT];
+    spu94_interp_get_user_slot(state, 5, out);
+    for (int r = 0; r < (int)SPU94_REG__COUNT; r++)
+        TEST_ASSERT_EQUAL_INT16(hall[r], out[r]);
+}
+
+/* ---------- 9. Per-slot export of an empty slot returns -3 ---------- */
+static void test_per_slot_export_empty_returns_error(void) {
+    static char buf[SPU94_PRESET_BUF_SIZE];
+    /* Slot 4 is empty by default. */
+    int rc = spu94_export_user_slot(state, 4, "x", "y", buf, sizeof buf);
+    TEST_ASSERT_EQUAL_INT(-3, rc);
+}
+
+/* ---------- 10. Per-slot load leaves other slots untouched ---------- */
+static void test_per_slot_load_preserves_other_slots(void) {
+    /* Fill slot 0 with Room, slot 7 with Delay. Export slot 0. Load that
+     * file into slot 3. Slot 0 should still be Room; slot 7 still Delay;
+     * slot 3 now Room. */
+    const int16_t *room  = spu94_presets[SPU94_PRESET_ROOM].regs;
+    const int16_t *delay = spu94_presets[SPU94_PRESET_DELAY].regs;
+    spu94_interp_set_user_slot(state, 0, room);
+    spu94_interp_set_user_slot(state, 7, delay);
+
+    static char buf[SPU94_PRESET_BUF_SIZE];
+    int written = spu94_export_user_slot(state, 0, "r", "", buf, sizeof buf);
+    TEST_ASSERT_GREATER_THAN_INT(0, written);
+
+    spu94_result_t rc = spu94_load_user_slot(state, 3, buf, (size_t)written);
+    TEST_ASSERT_EQUAL_INT(SPU94_OK, rc);
+
+    TEST_ASSERT_EQUAL_INT(1, spu94_interp_user_slot_is_filled(state, 0));
+    TEST_ASSERT_EQUAL_INT(1, spu94_interp_user_slot_is_filled(state, 3));
+    TEST_ASSERT_EQUAL_INT(1, spu94_interp_user_slot_is_filled(state, 7));
+
+    int16_t out[SPU94_REG__COUNT];
+    spu94_interp_get_user_slot(state, 7, out);
+    for (int r = 0; r < (int)SPU94_REG__COUNT; r++)
+        TEST_ASSERT_EQUAL_INT16(delay[r], out[r]);
+}
+
+/* ---------- legacy bulk round-trip (still useful for spu94_preset_save/_load) ---------- */
 static void test_preset_io_user_slots_round_trip(void) {
     /* Fill three slots with three different Sony presets as recognizable
      * payloads. */
@@ -289,6 +355,9 @@ int main(void) {
     RUN_TEST(test_filled_slot_bit_identical_at_midpoint);
     RUN_TEST(test_filled_slot_changes_interpolation);
     RUN_TEST(test_sony_positions_intact_with_all_slots_filled);
+    RUN_TEST(test_per_slot_export_load_round_trip);
+    RUN_TEST(test_per_slot_export_empty_returns_error);
+    RUN_TEST(test_per_slot_load_preserves_other_slots);
     RUN_TEST(test_preset_io_user_slots_round_trip);
     RUN_TEST(test_preset_io_missing_user_slots_section);
     return UNITY_END();

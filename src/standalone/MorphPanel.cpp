@@ -16,6 +16,56 @@ static const char* kWaypointNames[9] = {
     "Hall", "Space Echo", "Echo", "Delay"
 };
 
+// Custom LookAndFeel that draws the Morph Grit toggle in a focus-stable way.
+// JUCE's LookAndFeel_V4 desaturates buttons that don't have keyboard focus
+// (multipliedSaturation 0.9 vs 1.3), so the Int button's coral would be a
+// lighter shade until the user clicked or tabbed to it. We override the
+// background draw to always use the focused saturation -- consistent on
+// startup, consistent through interaction.
+class GritButtonLookAndFeel : public juce::LookAndFeel_V4 {
+public:
+    void drawButtonBackground(juce::Graphics& g, juce::Button& button,
+                              const juce::Colour& backgroundColour,
+                              bool shouldDrawButtonAsHighlighted,
+                              bool shouldDrawButtonAsDown) override
+    {
+        auto cornerSize = 6.0f;
+        auto bounds = button.getLocalBounds().toFloat().reduced(0.5f, 0.5f);
+
+        auto baseColour = backgroundColour.withMultipliedSaturation(1.3f)
+                                          .withMultipliedAlpha(button.isEnabled() ? 1.0f : 0.5f);
+        if (shouldDrawButtonAsDown || shouldDrawButtonAsHighlighted)
+            baseColour = baseColour.contrasting(shouldDrawButtonAsDown ? 0.2f : 0.05f);
+
+        g.setColour(baseColour);
+
+        const bool flatOnLeft   = button.isConnectedOnLeft();
+        const bool flatOnRight  = button.isConnectedOnRight();
+        const bool flatOnTop    = button.isConnectedOnTop();
+        const bool flatOnBottom = button.isConnectedOnBottom();
+
+        if (flatOnLeft || flatOnRight || flatOnTop || flatOnBottom) {
+            juce::Path path;
+            path.addRoundedRectangle(bounds.getX(), bounds.getY(),
+                                     bounds.getWidth(), bounds.getHeight(),
+                                     cornerSize, cornerSize,
+                                     !(flatOnLeft  || flatOnTop),
+                                     !(flatOnRight || flatOnTop),
+                                     !(flatOnLeft  || flatOnBottom),
+                                     !(flatOnRight || flatOnBottom));
+            g.fillPath(path);
+            g.setColour(button.findColour(juce::ComboBox::outlineColourId));
+            g.strokePath(path, juce::PathStrokeType(1.0f));
+        } else {
+            g.fillRoundedRectangle(bounds, cornerSize);
+            g.setColour(button.findColour(juce::ComboBox::outlineColourId));
+            g.drawRoundedRectangle(bounds, cornerSize, 1.0f);
+        }
+    }
+};
+
+static GritButtonLookAndFeel gritLookAndFeel;
+
 // Full 17-position label table (Sony anchors interleaved with user slots).
 // Index by idx16 = position * 16; even = Sony anchor, odd = user slot.
 static const char* kAllWaypointNames[17] = {
@@ -102,6 +152,7 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
         b.setColour(juce::TextButton::buttonOnColourId, psxCoral);
         b.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
         b.setColour(juce::TextButton::textColourOffId, psxLightGray);
+        b.setLookAndFeel(&gritLookAndFeel);  // focus-stable saturation
         addAndMakeVisible(b);
     };
     configureGritButton(gritIntButton,   "Int");
@@ -125,23 +176,44 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
     gritLabel.setFont(juce::FontOptions(11.0f));
     addAndMakeVisible(gritLabel);
 
-    // EDIT button — entry point into Advanced view for the user slot the
-    // knob is parked on. Disabled when knob is between detents or sitting
-    // on a Sony anchor; lights up when parked on a user-slot tick. The
-    // PluginEditor wires the click via onEditSlotClicked.
-    editButton.setButtonText("EDIT");
-    editButton.setColour(juce::TextButton::buttonColourId, psxDarkGray);
-    editButton.setColour(juce::TextButton::buttonOnColourId, psxBlue);
-    editButton.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
-    editButton.setColour(juce::TextButton::textColourOffId, psxLightGray);
-    editButton.setTooltip("Edit the user slot the knob is parked on");
+    // EDIT / EXPORT / LOAD — three per-tick action buttons stacked top-right.
+    // Same enabled-state logic: lit when the knob is parked on a user-slot
+    // detent. Each fires its callback to PluginEditor with the slot index.
+    auto configureSlotButton = [this](juce::TextButton& b, const char* label,
+                                      const char* tip) {
+        b.setButtonText(label);
+        b.setColour(juce::TextButton::buttonColourId, psxDarkGray);
+        b.setColour(juce::TextButton::buttonOnColourId, psxBlue);
+        b.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
+        b.setColour(juce::TextButton::textColourOffId, psxLightGray);
+        b.setTooltip(tip);
+        addAndMakeVisible(b);
+    };
+    configureSlotButton(editButton,   "EDIT",
+        "Edit the user slot the knob is parked on");
+    configureSlotButton(exportButton, "EXPORT",
+        "Save this user slot's register values to a file");
+    configureSlotButton(loadButton,   "LOAD",
+        "Load a saved slot file and stamp it onto this tick");
+
     editButton.onClick = [this]()
     {
         const int slot = currentUserSlotAtKnob();
         if (slot >= 0 && onEditSlotClicked)
             onEditSlotClicked(slot);
     };
-    addAndMakeVisible(editButton);
+    exportButton.onClick = [this]()
+    {
+        const int slot = currentUserSlotAtKnob();
+        if (slot >= 0 && onExportSlotClicked)
+            onExportSlotClicked(slot);
+    };
+    loadButton.onClick = [this]()
+    {
+        const int slot = currentUserSlotAtKnob();
+        if (slot >= 0 && onLoadSlotClicked)
+            onLoadSlotClicked(slot);
+    };
 
     // Set initial label to "Hall" (matching default morph position 0.625)
     updateLabelText(0.625);
@@ -165,7 +237,11 @@ int MorphPanel::currentUserSlotAtKnob() const
 void MorphPanel::updateEditButtonState()
 {
     const int slot = currentUserSlotAtKnob();
-    editButton.setEnabled(slot >= 0);
+    const bool onTick = (slot >= 0);
+    editButton.setEnabled(onTick);
+    loadButton.setEnabled(onTick);
+    // EXPORT additionally requires the slot to actually have contents.
+    exportButton.setEnabled(onTick && processorRef.isUserSlotFilled(slot));
 }
 
 //==============================================================================
@@ -334,13 +410,16 @@ void MorphPanel::resized()
     gritFractButton.setBounds(stripX + gritBtnW,  stripY, gritBtnW, gritBtnH);
     gritLabel.setBounds(stripX - 20, rowY + speedSize, gritStripW + 40, controlLabelH);
 
-    // EDIT button — top-right corner of the panel, deliberately spare so
-    // a curious user notices it and wonders what it does. Vertically aligned
-    // with the morph knob's top edge.
-    constexpr int editBtnW = 70;
-    constexpr int editBtnH = 28;
-    constexpr int editMargin = 12;
-    editButton.setBounds(area.getRight() - editBtnW - editMargin,
-                         startY + editMargin,
-                         editBtnW, editBtnH);
+    // EDIT / EXPORT / LOAD — stacked top-right corner of the panel. All three
+    // buttons share width/height; the stack is anchored just below the morph
+    // knob's top edge so it doesn't crowd the encoder.
+    constexpr int slotBtnW    = 80;
+    constexpr int slotBtnH    = 28;
+    constexpr int slotBtnGap  = 4;
+    constexpr int slotMargin  = 12;
+    const int slotX = area.getRight() - slotBtnW - slotMargin;
+    int       slotY = startY + slotMargin;
+    editButton  .setBounds(slotX, slotY, slotBtnW, slotBtnH); slotY += slotBtnH + slotBtnGap;
+    exportButton.setBounds(slotX, slotY, slotBtnW, slotBtnH); slotY += slotBtnH + slotBtnGap;
+    loadButton  .setBounds(slotX, slotY, slotBtnW, slotBtnH);
 }

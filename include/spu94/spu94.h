@@ -531,6 +531,22 @@ spu94_result_t spu94_preset_load(spu94_state *state,
  * between Sony's 9 anchors -- slot k occupies morph position (2k+1)/16. */
 #define SPU94_INTERP_USER_SLOT_COUNT 8
 
+/* Export ONE user waypoint slot's register values to a buffer. Emits version
+ * + metadata + a single [user_slot N] section. Returns bytes written, -1 on
+ * bad args, -2 on overflow, -3 if the slot is empty (nothing to export).
+ * Slot must be in [0, SPU94_INTERP_USER_SLOT_COUNT). */
+int spu94_export_user_slot(const spu94_state *state, int slot,
+                           const char *name, const char *description,
+                           char *buf, size_t buf_size);
+
+/* Load ONE user waypoint slot from a buffer into target_slot. Parses the
+ * buffer for the FIRST [user_slot N] section found and installs its registers
+ * into target_slot, regardless of the section's own N. Other engine state
+ * (registers, mixer, DAC, morph) is untouched. Other user slots are also
+ * untouched -- this is a targeted single-slot stamp, not a wholesale load. */
+spu94_result_t spu94_load_user_slot(spu94_state *state, int target_slot,
+                                    const char *buf, size_t buf_len);
+
 /* Install register values into user slot `slot` (0..7) and mark it filled.
  * The morph engine immediately treats position (2*slot+1)/16 as a waypoint;
  * subsequent spu94_interp_set_morph calls interpolate through it. NULL state,
