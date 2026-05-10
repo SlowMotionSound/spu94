@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-10T21:24:03Z",
+  "phase": null,
+  "phase_name": "Between milestones (v1.6 shipped, next milestone unselected)",
+  "phase_dir": null,
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
+  "status": "paused",
+  "branch": "main",
+  "branch_note": "main is at v1.6 tag (commit aaa94f1). Session paused after retroactive v1.6 milestone formalisation. No active phase work in flight.",
+  "completed_tasks": [
+    {"id": 1, "name": "Resume session, recover v1.6 context from HANDOFF.json", "status": "done"},
+    {"id": 2, "name": "User decision: User Programmable Waypoints work gets its own milestone (v1.6)", "status": "done"},
+    {"id": 3, "name": "Phase split decision: 3 phases (18 Core / 19 GUI / 20 Persistence)", "status": "done"},
+    {"id": 4, "name": "Write 11 phase artifacts (PLAN/SUMMARY/VERIFICATION across phases 18, 19, 20)", "status": "done", "commit": "aaa94f1"},
+    {"id": 5, "name": "Update ROADMAP.md (add v1.6 entry + progress rows + archive details)", "status": "done", "commit": "aaa94f1"},
+    {"id": 6, "name": "Update MILESTONES.md (full v1.6 section)", "status": "done", "commit": "aaa94f1"},
+    {"id": 7, "name": "Update STATE.md (v1.6 shipped, ready for next milestone)", "status": "done", "commit": "aaa94f1"},
+    {"id": 8, "name": "Write v1.6-REQUIREMENTS.md and v1.6-ROADMAP.md snapshots", "status": "done", "commit": "aaa94f1"},
+    {"id": 9, "name": "Archive HANDOFF.json -> .planning/milestones/v1.6-user-waypoints-HANDOFF.json", "status": "done", "commit": "aaa94f1"},
+    {"id": 10, "name": "Tag v1.6 on aaa94f1", "status": "done"}
+  ],
+  "remaining_tasks": [
+    {"id": 11, "name": "Pick next milestone direction (DAW plugin, Morph engine bugfixes, Digital Patina engine vision, JUCE volume bug, or something else)", "status": "deferred_to_user"}
+  ],
+  "blockers": [],
+  "human_actions_pending": [
+    {"action": "Pick next milestone direction", "context": "v1.6 cleanly shipped. STATE.md lists carried items (Morph transition artifacting + feedback instability, JUCE standalone volume bug) and a long Deferred Ideas table. No forcing function -- Anthony picks.", "blocking": false}
+  ],
+  "decisions": [
+    {"decision": "User Programmable Waypoints = v1.6, a milestone of its own (not a point release or grab-bag)", "rationale": "Anthony explicitly chose this framing when offered three options."},
+    {"decision": "3-phase split: 18 User Slots Core / 19 Waypoint GUI / 20 User Slot Persistence", "rationale": "Maps cleanly to the actual commit chunks (ba22323 + fdd1f71 = Core; ddfd39d + 4c4737c + 8c433ce + b648e43 = GUI; 80fd56e = Persistence). 19 has 2 plans (ticks+snap, then edit-flow+per-tick-actions). fdd1f71 placed in Phase 18 narratively as a follow-up since its root cause is engine-state architecture, not GUI."},
+    {"decision": "Retroactive PLAN.md files written reflect what would have been planned, derived from commit content", "rationale": "Anthony asked for documentation 'as if we did a formal milestone' -- so each plan gets a backfilled PLAN + SUMMARY + VERIFICATION."}
+  ],
+  "open_observations_not_acted_on": [
+    {"observation": "MILESTONES.md is missing a v1.5 entry entirely -- chronological gap between v1.4 and the v1.6 entry I just added.", "scope_note": "Not in scope of this pause -- Anthony hasn't asked. Flagged in chat."},
+    {"observation": "WIP commit bdd87ed sits mid-history between fdd1f71 and aaa94f1. Not rewritten to keep history honest about how the work flowed.", "scope_note": "Destructive rewrites need explicit ask."},
+    {"observation": "Untracked files in repo root unrelated to v1.6: REVIEW-c-core-audit.md, REVIEW-juce-audit.md, REVIEW-python-cli-audit.md, ColorScheme.jpg, Screenshot_20260503_*.png, Screenshot_20260508_*.png, build_test/, tools/color_swatch.html, tools/dac_compare.png, tools/error_accum_signal_flow.html.", "scope_note": "Not touched -- pre-existing work-in-progress from outside this session."}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Anthony picks next milestone direction. STATE.md Deferred Items + Deferred Ideas tables are the menu. Likely candidates: address Morph engine known issues (transition artifacting + feedback instability), JUCE standalone volume bug, or a forward-looking milestone like the DAW plugin port or Digital Patina engine vision.",
+  "context_notes": "Session restored from prior HANDOFF.json (post-crash 2026-05-09 plan eventually executed in full as 7 waypoint commits). Pause here is clean -- v1.6 shipped, tagged, all paperwork in place. No mental state to preserve beyond 'roadmap is current, next milestone is open.'"
+}
