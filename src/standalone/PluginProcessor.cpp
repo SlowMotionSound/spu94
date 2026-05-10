@@ -412,6 +412,12 @@ bool SPU94AudioProcessor::isLoaded() const
     return wavSource.loaded.load(std::memory_order_relaxed);
 }
 
+bool SPU94AudioProcessor::isUserSlotFilled(int slot) const
+{
+    if (!engines[0]) return false;
+    return spu94_interp_user_slot_is_filled(engines[0], slot) != 0;
+}
+
 juce::AudioProcessorEditor* SPU94AudioProcessor::createEditor()
 {
     return new SPU94AudioProcessorEditor(*this);

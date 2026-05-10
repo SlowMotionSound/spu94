@@ -90,6 +90,10 @@ public:
     //     1 = Fract (all fractional reads, smoothed) ---
     std::atomic<int>& getMorphGrit() { return morphGrit; }
 
+    // --- User-programmable waypoint slots (8 slots at midpoints between
+    //     Sony's 9 anchors; slot N at morph position (2N+1)/16). ---
+    bool isUserSlotFilled(int slot) const;
+
     // --- File preset save/load (Phase 14, PRE-08/PRE-09) ---
 
     // Message thread: serialize current engine state to a .spu94 text buffer.

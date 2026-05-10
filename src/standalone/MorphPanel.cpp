@@ -16,6 +16,16 @@ static const char* kWaypointNames[9] = {
     "Hall", "Space Echo", "Echo", "Delay"
 };
 
+// Full 17-position label table (Sony anchors interleaved with user slots).
+// Index by idx16 = position * 16; even = Sony anchor, odd = user slot.
+static const char* kAllWaypointNames[17] = {
+    "Half Echo",  "User 1", "Room",      "User 2",
+    "Studio A",   "User 3", "Studio B",  "User 4",
+    "Studio C",   "User 5", "Hall",      "User 6",
+    "Space Echo", "User 7", "Echo",      "User 8",
+    "Delay"
+};
+
 //==============================================================================
 MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
     : processorRef(processor)
@@ -130,11 +140,13 @@ void MorphPanel::setMorphGrit(int grit)
 //==============================================================================
 double MorphPanel::MorphSlider::snapValue(double attemptedValue, DragMode)
 {
-    constexpr int numWaypoints = 9;  // SPU94_INTERP_WAYPOINT_COUNT
+    // 17 detents: 9 Sony anchors at i/8, 8 user-slot midpoints at (2k+1)/16.
+    // All snap with the same threshold so the encoder feel is uniform.
+    constexpr int numDetents = 17;
     constexpr double snapThreshold = 0.01;
-    for (int i = 0; i < numWaypoints; ++i)
+    for (int i = 0; i < numDetents; ++i)
     {
-        double wp = static_cast<double>(i) / 8.0;
+        double wp = static_cast<double>(i) / 16.0;
         if (std::abs(attemptedValue - wp) < snapThreshold)
             return wp;
     }
@@ -144,14 +156,14 @@ double MorphPanel::MorphSlider::snapValue(double attemptedValue, DragMode)
 //==============================================================================
 void MorphPanel::updateLabelText(double value)
 {
-    constexpr int numWaypoints = 9;
+    constexpr int numDetents = 17;
     constexpr double snapThreshold = 0.01;
-    for (int i = 0; i < numWaypoints; ++i)
+    for (int i = 0; i < numDetents; ++i)
     {
-        double wp = static_cast<double>(i) / 8.0;
+        double wp = static_cast<double>(i) / 16.0;
         if (std::abs(value - wp) < snapThreshold)
         {
-            morphLabel.setText(juce::String(kWaypointNames[i]),
+            morphLabel.setText(juce::String(kAllWaypointNames[i]),
                                juce::dontSendNotification);
             return;
         }
@@ -206,6 +218,32 @@ void MorphPanel::paint(juce::Graphics& g)
 
         g.setColour(dotColors[i % 4]);
         g.fillEllipse(dx - dotSize * 0.5f, dy - dotSize * 0.5f, dotSize, dotSize);
+    }
+
+    // Draw user-slot ticks at the 8 midpoint positions (1/16, 3/16, ..., 15/16).
+    // Filled slot = PS1 blue, empty slot = dim grey. Tick is a short radial
+    // line segment, inner end at dotRadius, outer end at dotRadius + tickLen.
+    constexpr int   numUserSlots = 8;
+    constexpr float tickInner    = 2.0f;   // gap between dot ring and tick
+    constexpr float tickLen      = 10.0f;
+    constexpr float tickWidth    = 2.0f;
+    const juce::Colour filledColour = psxBlue;
+    const juce::Colour emptyColour  = psxLightGray.withAlpha(0.25f);
+
+    for (int k = 0; k < numUserSlots; ++k)
+    {
+        float t = static_cast<float>(2 * k + 1) / 16.0f;  // (2k+1)/16
+        float angle = startAngle + t * (endAngle - startAngle);
+        float ang   = angle - juce::MathConstants<float>::halfPi;
+        float ux    = std::cos(ang);
+        float uy    = std::sin(ang);
+        float r0    = dotRadius + tickInner;
+        float r1    = dotRadius + tickInner + tickLen;
+        float x0 = cx + r0 * ux, y0 = cy + r0 * uy;
+        float x1 = cx + r1 * ux, y1 = cy + r1 * uy;
+
+        g.setColour(processorRef.isUserSlotFilled(k) ? filledColour : emptyColour);
+        g.drawLine(x0, y0, x1, y1, tickWidth);
     }
 }
 
