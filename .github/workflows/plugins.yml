@@ -1,0 +1,284 @@
+# .github/workflows/plugins.yml
+# Phase 21 / Task 4: 3-OS x multi-format plugin build matrix + builds-and-loads smoke.
+# Separate from ci.yml (which handles the C core's static analysis / UBSan / grep-guard /
+# flag verification). This workflow exists so Phases 22-26 ship green-on-three-OSes
+# rather than working blind on Linux.
+#
+# Every third-party action is pinned to a full commit SHA (matches ci.yml discipline).
+# SHA pin lookup at implementation time (2026-05-11):
+#   actions/checkout         v4.2.2 -> 11bd71901bbe5b1630ceea73d27597364c9af683
+#   actions/cache            v4.2.0 -> 1bd1e32a3bdc45362d1e726936510720a7c30a57
+#   actions/upload-artifact  v4.4.3 -> b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+#   actions/download-artifact v4.1.8 -> fa0a91b85d4f404e444e00e005971372dc801d16
+#
+# pluginval is downloaded directly from the Tracktion/pluginval release page (pinned
+# release tag v1.0.4, the latest stable at implementation time). Not a GitHub Action,
+# so SHA-pin doesn't apply -- but the release tag is pinned and the binary hash can be
+# verified before promoting strictness-7 to a hard gate in Phase 25.
+
+name: plugins
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PLUGINVAL_VERSION: "v1.0.4"
+  PLUGIN_ARTEFACTS_DIR: "build/src/plugin/spu94_plugin_artefacts/Release"
+
+jobs:
+  build-plugins:
+    name: build-${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, name: linux }
+          - { os: macos-14,     name: macos }
+          - { os: windows-2022, name: windows }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: recursive
+
+      # -- Per-OS dependencies --------------------------------------------------
+      - name: Install Linux deps
+        if: matrix.name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build ccache \
+            libasound2-dev libjack-jackd2-dev \
+            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
+            libwebkit2gtk-4.1-dev libcurl4-openssl-dev \
+            unzip
+
+      - name: Install macOS deps
+        if: matrix.name == 'macos'
+        run: |
+          brew install ninja ccache
+
+      - name: Install Windows deps
+        if: matrix.name == 'windows'
+        run: |
+          choco install ninja -y
+
+      # -- Read the JUCE + clap-juce-extensions SHAs for cache keys -------------
+      - name: Compute FetchContent cache key
+        id: fc_key
+        shell: bash
+        run: |
+          JUCE_SHA=$(grep -E 'GIT_TAG[[:space:]]+[0-9a-f]{40}' CMakeLists.txt | awk '{print $2}' | head -1)
+          CJE_SHA=$(grep -E 'GIT_TAG[[:space:]]+[0-9a-f]{40}' cmake/clap_juce_extensions.cmake | awk '{print $2}' | head -1)
+          echo "juce=$JUCE_SHA"  >> "$GITHUB_OUTPUT"
+          echo "cje=$CJE_SHA"    >> "$GITHUB_OUTPUT"
+          echo "combined=${JUCE_SHA}-${CJE_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache FetchContent (_deps)
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: build/_deps
+          key: ${{ runner.os }}-fetchcontent-${{ steps.fc_key.outputs.combined }}
+          restore-keys: |
+            ${{ runner.os }}-fetchcontent-
+
+      - name: Cache ccache (Linux + macOS)
+        if: matrix.name != 'windows'
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: ~/.ccache
+          key: ${{ runner.os }}-ccache-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-
+
+      # -- Configure + build ----------------------------------------------------
+      - name: Configure (Linux/macOS)
+        if: matrix.name != 'windows'
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Configure (Windows)
+        if: matrix.name == 'windows'
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build (Linux/macOS)
+        if: matrix.name != 'windows'
+        run: cmake --build build --config Release
+
+      - name: Build (Windows)
+        if: matrix.name == 'windows'
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cmake --build build --config Release
+
+      # -- Install pluginval (per-OS prebuilt) ----------------------------------
+      - name: Install pluginval (Linux)
+        if: matrix.name == 'linux'
+        run: |
+          curl -fsSL -o /tmp/pluginval.zip \
+            "https://github.com/Tracktion/pluginval/releases/download/${PLUGINVAL_VERSION}/pluginval_Linux.zip"
+          mkdir -p "$HOME/bin"
+          unzip -o /tmp/pluginval.zip -d "$HOME/bin"
+          chmod +x "$HOME/bin/pluginval"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Install pluginval (macOS)
+        if: matrix.name == 'macos'
+        run: |
+          curl -fsSL -o /tmp/pluginval.zip \
+            "https://github.com/Tracktion/pluginval/releases/download/${PLUGINVAL_VERSION}/pluginval_macOS.zip"
+          mkdir -p "$HOME/bin"
+          unzip -o /tmp/pluginval.zip -d "$HOME/bin"
+          # The macOS zip contains pluginval.app; expose the inner CLI on PATH.
+          ln -sf "$HOME/bin/pluginval.app/Contents/MacOS/pluginval" "$HOME/bin/pluginval"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Install pluginval (Windows)
+        if: matrix.name == 'windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/Tracktion/pluginval/releases/download/$env:PLUGINVAL_VERSION/pluginval_Windows.zip" -OutFile "$env:TEMP\pluginval.zip"
+          Expand-Archive -Path "$env:TEMP\pluginval.zip" -DestinationPath "$env:USERPROFILE\bin" -Force
+          Add-Content -Path $env:GITHUB_PATH -Value "$env:USERPROFILE\bin"
+
+      # -- Smoke: builds-and-loads per format -----------------------------------
+      - name: Smoke (Linux plugin formats)
+        if: matrix.name == 'linux'
+        run: |
+          set -e
+          pluginval --validate-in-process --strictness-level 1 \
+            "${PLUGIN_ARTEFACTS_DIR}/VST3/SPU-94.vst3"
+          pluginval --validate-in-process --strictness-level 1 \
+            "${PLUGIN_ARTEFACTS_DIR}/LV2/SPU-94.lv2"
+          pluginval --validate-in-process --strictness-level 1 \
+            "${PLUGIN_ARTEFACTS_DIR}/CLAP/SPU-94.clap"
+
+      - name: Smoke (macOS plugin formats)
+        if: matrix.name == 'macos'
+        run: |
+          set -e
+          pluginval --validate-in-process --strictness-level 1 \
+            "${PLUGIN_ARTEFACTS_DIR}/VST3/SPU-94.vst3"
+          pluginval --validate-in-process --strictness-level 1 \
+            "${PLUGIN_ARTEFACTS_DIR}/AU/SPU-94.component"
+          pluginval --validate-in-process --strictness-level 1 \
+            "${PLUGIN_ARTEFACTS_DIR}/CLAP/SPU-94.clap"
+
+      - name: Smoke (Windows plugin formats)
+        if: matrix.name == 'windows'
+        shell: pwsh
+        run: |
+          pluginval --validate-in-process --strictness-level 1 `
+            "$env:PLUGIN_ARTEFACTS_DIR\VST3\SPU-94.vst3"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pluginval --validate-in-process --strictness-level 1 `
+            "$env:PLUGIN_ARTEFACTS_DIR\CLAP\SPU-94.clap"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Smoke (Linux/macOS standalone)
+        if: matrix.name != 'windows'
+        run: |
+          set -e
+          BIN_LINUX="${PLUGIN_ARTEFACTS_DIR}/Standalone/SPU-94"
+          BIN_MAC="${PLUGIN_ARTEFACTS_DIR}/Standalone/SPU-94.app/Contents/MacOS/SPU-94"
+          if [ -x "$BIN_LINUX" ]; then BIN="$BIN_LINUX"; else BIN="$BIN_MAC"; fi
+          test -e "$BIN" || { echo "standalone binary not found"; exit 1; }
+          # Construction-and-exit smoke: launch with timeout, accept timeout-kill (124)
+          # as success because the GUI window came up and stayed alive until killed.
+          # No DSP correctness asserted here -- Phase 22+ adds round-trip tests.
+          set +e
+          if [ "${RUNNER_OS}" = "Linux" ]; then
+            xvfb-run -a timeout 5 "$BIN" >/tmp/spu94-smoke.log 2>&1
+          else
+            timeout 5 "$BIN" >/tmp/spu94-smoke.log 2>&1 || true
+          fi
+          ec=$?
+          # 124 = timeout-kill (process was alive); 0 = clean exit; others = crash.
+          if [ "$ec" -ne 0 ] && [ "$ec" -ne 124 ]; then
+            echo "standalone exited with $ec (expected 0 or 124)"
+            tail -20 /tmp/spu94-smoke.log || true
+            exit 1
+          fi
+
+      - name: Install xvfb (Linux only, for standalone smoke)
+        if: matrix.name == 'linux'
+        run: sudo apt-get install -y --no-install-recommends xvfb
+
+      - name: Smoke (Windows standalone)
+        if: matrix.name == 'windows'
+        shell: pwsh
+        run: |
+          $bin = "$env:PLUGIN_ARTEFACTS_DIR\Standalone\SPU-94.exe"
+          if (-not (Test-Path $bin)) { Write-Error "standalone binary not found"; exit 1 }
+          $p = Start-Process -FilePath $bin -PassThru
+          Start-Sleep -Seconds 5
+          if ($p.HasExited -and $p.ExitCode -ne 0) {
+            Write-Error "standalone exited early with $($p.ExitCode)"
+            exit 1
+          }
+          if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+
+      # -- Upload built bundles for downstream phases ---------------------------
+      - name: Upload artefacts
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: spu94-${{ matrix.name }}
+          path: ${{ env.PLUGIN_ARTEFACTS_DIR }}
+          if-no-files-found: error
+          retention-days: 14
+
+  # -----------------------------------------------------------------------------
+  # Optional non-blocking pluginval --strictness-level 7 on the Linux VST3.
+  # Advisory only -- a regression here shows as a yellow check, not a red one,
+  # and does NOT block merge to main. Phase 25 promotes this to a hard gate.
+  # -----------------------------------------------------------------------------
+  pluginval-early-warning:
+    name: pluginval-strictness-7 (advisory)
+    needs: build-plugins
+    runs-on: ubuntu-22.04
+    continue-on-error: true
+    steps:
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libasound2 libxinerama1 libxext6 libxrandr2 libxcursor1 \
+            libfreetype6 libfontconfig1 libglu1-mesa libx11-6 \
+            libwebkit2gtk-4.1-0 libcurl4 xvfb unzip
+
+      - name: Download Linux artefact
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: spu94-linux
+          path: artefact
+
+      - name: Install pluginval
+        run: |
+          curl -fsSL -o /tmp/pluginval.zip \
+            "https://github.com/Tracktion/pluginval/releases/download/${PLUGINVAL_VERSION}/pluginval_Linux.zip"
+          mkdir -p "$HOME/bin"
+          unzip -o /tmp/pluginval.zip -d "$HOME/bin"
+          chmod +x "$HOME/bin/pluginval"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Run pluginval --strictness-level 7 on Linux VST3
+        run: |
+          xvfb-run -a pluginval --validate-in-process --strictness-level 7 \
+            "artefact/VST3/SPU-94.vst3"
