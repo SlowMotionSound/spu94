@@ -1,56 +1,67 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-11T13:49:49Z",
-  "milestone": "v1.7",
-  "milestone_name": "DAW Plugin Port",
-  "phase": null,
-  "phase_name": "Research complete -- awaiting requirements drafting",
-  "phase_dir": null,
-  "plan": null,
-  "task": null,
-  "total_tasks": null,
-  "status": "paused",
-  "branch": "main",
-  "branch_note": "main at commit 6f562bb (docs: v1.7 research bundle). Research phase complete; requirements not yet started. No code in flight.",
+  "timestamp": "2026-05-11T22:09:10.150Z",
+  "phase": "22",
+  "phase_name": "src-latency-reporting",
+  "phase_dir": ".planning/phases/22-src-latency-reporting",
+  "plan": 1,
+  "task": 4,
+  "total_tasks": 4,
+  "status": "phase_complete",
   "completed_tasks": [
-    {"id": 1, "name": "Resume session; verified gsd-sdk v1.41.2 on PATH (prior blocker cleared)", "status": "done"},
-    {"id": 2, "name": "Locked research-first vs skip-research decision -- chose research-first", "status": "done"},
-    {"id": 3, "name": "Spawned 4 parallel gsd-project-researcher agents (Stack/Features/Architecture/Pitfalls)", "status": "done"},
-    {"id": 4, "name": "Wrote STACK-v1.7.md, FEATURES-v1.7.md, ARCHITECTURE-v1.7.md, PITFALLS-v1.7.md", "status": "done", "commit": "6f562bb"},
-    {"id": 5, "name": "Synthesized to SUMMARY-v1.7.md (synthesizer was Write-blocked; orchestrator wrote the file)", "status": "done", "commit": "6f562bb"}
+    {"id": 1, "name": "libsamplerate FetchContent shim (PLUG-09)", "status": "done", "commit": "72660bd"},
+    {"id": 2, "name": "SrcChain.{h,cpp} -- bidirectional SRC wrapper (PLUG-10..13)", "status": "done", "commit": "496e7eb"},
+    {"id": 3, "name": "processBlock SRC sandwich + ScopedNoDenormals + setLatencySamples (PLUG-11..16)", "status": "done", "commit": "976553b"},
+    {"id": 4, "name": "PLUG-15 null-test UAT (Ardour 48 kHz)", "status": "done", "commit": "fd50b1d", "note": "Drove a real core bug to ground -- dry path not delayed to match FIR group delay. Fixed via Stage B 58-sample latency_comp on dry+ADPCM buses. Verified by new headless null-test harness: -85 dBFS at 44.1k fast-path, alignment+residual gates pass at 48k."}
   ],
-  "remaining_tasks": [
-    {"id": 6, "name": "Draft REQUIREMENTS.md for v1.7 -- pick conversational drip vs strawman approach", "status": "blocked_on_user", "blocker": "User chose to pause before answering"},
-    {"id": 7, "name": "Resolve the 7 open decisions in SUMMARY-v1.7.md §3 (SRC library, dither policy, automation param surface, drop LV2-on-Win, src split, channel buses, signing scope)", "status": "not_started"},
-    {"id": 8, "name": "Direct ask: confirm beta-tester DAW mix (research assumed Reaper/Logic/Live/FL)", "status": "not_started"},
-    {"id": 9, "name": "REQ-ID prefix decision (PLUG/DAW/PORT candidates)", "status": "not_started"},
-    {"id": 10, "name": "Spawn gsd-roadmapper -> ROADMAP.md continuing phase numbering from 20", "status": "not_started"},
-    {"id": 11, "name": "Begin /gsd-discuss-phase or /gsd-plan-phase on Phase 21 (Build skeleton)", "status": "not_started"}
-  ],
+  "remaining_tasks": [],
   "blockers": [],
   "human_actions_pending": [
-    {"action": "Decide conversational drip vs strawman REQUIREMENTS approach", "context": "Last assistant message asked this; user paused before answering. Research surfaced 7 open decisions plus 12 unknowns -- some are DSP-character calls (dither, SRC quality) that may deserve their own conversations.", "blocking": true},
-    {"action": "Confirm beta-tester DAW mix", "context": "Research assumed Reaper/Logic/Live/FL Studio. Phase 26 UAT scope depends on this.", "blocking": false}
+    {
+      "action": "Phase 22 closeout commits ready; advance to Phase 23 when ready",
+      "context": "Phase 23 = bit-depth conversion / explicit float<->int16 BoundaryConverter inside the SRC sandwich (per Phase 22 plan).",
+      "blocking": false
+    }
+  ],
+  "deferred_followups": [
+    {
+      "item": "Hide preset Save/Load buttons in plugin formats",
+      "where": "src/plugin/PluginEditor.cpp lines 55-80 (savePresetButton, loadPresetButton)",
+      "fix": "wrap addAndMakeVisible(...) in the existing 'if (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)' block, same pattern as PLUG-49 WAV-loader gate at line 15",
+      "scope": "small, ~1 commit, can fold into next UI-touching phase"
+    },
+    {
+      "item": "Plugin GUI loses parameter state when window closed/reopened (Ardour LV2)",
+      "where": "PluginEditor + PluginProcessor APVTS wiring",
+      "context": "Params live in the processor (atomics); editor should reflect existing state on construction, not reset to defaults. Likely missing APVTS slider attachments or editor reads defaults instead of current values. Repro in Ardour LV2.",
+      "scope": "small fix, separate phase or rolled into next plugin-UI phase"
+    }
   ],
   "decisions": [
-    {"decision": "Research-first over skip-research for v1.7", "rationale": "First plugin port; 10-binary matrix; gotcha density (auval, host caches, signing, SRC RT-safety). Anthony picked option 1."},
-    {"decision": "4 parallel researchers split as Stack/Features/Architecture/Pitfalls", "rationale": "Standard gsd-new-milestone research split; matches prior milestones' naming convention (FEATURES.md, STACK.md, etc.)."},
-    {"decision": "Research artifacts versioned with -v1.7 suffix", "rationale": "Prior milestones' research lives in .planning/research/ unversioned and with -v1.2/-v1.3 suffixes. v1.7 follows the suffix convention."}
+    {
+      "decision": "C core latency_comp now has two stages: Stage A (28-sample ADPCM-match delay on dry going into reverb send, gated on latency_comp + adpcm_enabled, unchanged) and Stage B (58-sample FIR-match delay on dry+ADPCM buses before master mixer, gated on latency_comp only, NEW).",
+      "rationale": "Pre-fix, the plugin reported the FIR group delay through setLatencySamples but the dry path wasn't actually delayed by it. Host PDC over-compensated by 58-65 samples; passthrough configs couldn't null and dry+reverb mixes had 58 samples of transient pre-echo. Stage B aligns all three master-mix paths (dry/ADPCM/reverb) to the FIR group delay so the reported latency is accurate.",
+      "phase": "22"
+    },
+    {
+      "decision": "Bit-faithful PS1 SPU behaviour preserved when latency_comp is OFF -- both stages no-op, dry races ahead of reverb (historically authentic smear). The Latency Comp toggle is the user-visible opt-in for modern-DAW correctness vs hardware fidelity.",
+      "rationale": "Project North Star -- fixed-point quirks ARE the product; smoothing is opt-in. latency_comp default ON for modern DAW use, OFF for period-accurate testbed work.",
+      "phase": "22"
+    },
+    {
+      "decision": "PLUG-15 closure used a headless null-test harness (tests/plugin/test_null_passthrough) at two host SRs (44.1k strict gate, 48k alignment+residual gates) rather than a continued Ardour GUI session.",
+      "rationale": "Ardour's integer-only PDC can't null a 0.13-host-sample fractional misalignment with broadband content; that's a host limitation, not a plugin defect. The headless harness measures the plugin's actual properties (best-alignment cross-correlation, residual vs reported latency, fast-path strict null) which are what PLUG-15 cares about.",
+      "phase": "22"
+    }
   ],
-  "research_findings": [
-    {"finding": "v1.7 is materially smaller than the milestone framing implied", "source": "ARCHITECTURE-v1.7.md §0", "detail": "Standalone is already a juce::AudioProcessor with canonical threading. v1.7 = expand FORMATS + add SRC + add float<->int16 + fill two empty getStateInformation stubs."},
-    {"finding": "JUCE 8 has no native CLAP support", "source": "STACK-v1.7.md §1", "detail": "Need clap-juce-extensions shim until JUCE 9 (no public release date)."},
-    {"finding": "SRC library pick is the single biggest engineering decision", "source": "SUMMARY-v1.7.md §3.1", "detail": "Leaning libsamplerate Sinc-Medium (BSD-2). r8brain-free (MIT) as fallback. zita-resampler disqualified (GPL-3). Cascades into RT-safety, PDC, CPU, licensing."},
-    {"finding": "Dither at float->int16 input is a DSP-character decision", "source": "SUMMARY-v1.7.md §3.2", "detail": "Leaning no-dither per North Star (period-faithful sources arrived as int16 PCM; dither is a modern courtesy SPU never had). TPDF defensible alternative."},
-    {"finding": "Proposed 6 firm phases + 1 conditional (21-26 + optional 27 signing)", "source": "SUMMARY-v1.7.md §4", "detail": "21 build skeleton, 22 SRC, 23 float<->int16, 24 state+automation, 25 channel buses+validation, 26 packaging+UAT, 27 signing if friction."},
-    {"finding": "Top risks: SRC group-delay measurement at integration, auval failure, stale host caches in beta, locale-dependent state-restore bug, channel-layout mismatch", "source": "SUMMARY-v1.7.md §5", "detail": "Five severity-ranked risks pulled from PITFALLS-v1.7.md."}
+  "uncommitted_files": [
+    ".planning/REVIEW-c-core-audit.md (untracked)",
+    ".planning/REVIEW-juce-audit.md (untracked)",
+    ".planning/REVIEW-python-cli-audit.md (untracked)",
+    "tools/null_test_noise_48k.wav (untracked -- generated for UAT, reproducible)",
+    "Screenshot_*.png, ColorScheme.jpg, tools/*.html, tools/dac_compare.png (untracked, pre-existing dev artefacts)",
+    "build_test/ (untracked build directory)"
   ],
-  "open_observations_not_acted_on": [
-    {"observation": "12 known unknowns catalogued in SUMMARY-v1.7.md §6", "scope_note": "Requirements step resolves or defers each. Two high-leverage: JUCE 9 / CLAP-native release date (affects whether clap-juce-extensions stays needed), and macOS Sequoia Gatekeeper UX for unsigned plugins."},
-    {"observation": ".planning/milestones/v1.6-phases/ archive still contains abandoned macro work, not live v1.6 phases", "scope_note": "Flagged in STATE.md Deferred Items. Separate cleanup pass; not touched during v1.7 work."},
-    {"observation": "Pre-existing untracked files: REVIEW-c-core-audit.md, REVIEW-juce-audit.md, REVIEW-python-cli-audit.md (in .planning/), ColorScheme.jpg, Screenshot_*.png, build_test/, tools/*.html, .claude/scheduled_tasks.lock", "scope_note": "Pre-existing from before this session. Not touched."}
-  ],
-  "uncommitted_files": [],
-  "next_action": "Open new session -> /gsd-resume-work. Detect: v1.7 / planning / research-complete / awaiting requirements. Answer the pending question: conversational drip vs strawman REQUIREMENTS.md draft. Then walk through the 7 open decisions in SUMMARY-v1.7.md §3 and the 12 unknowns in §6.",
-  "context_notes": "Session resumed cleanly: gsd-sdk shim is now on PATH (prior session's blocker, now resolved at v1.41.2). Research bundle landed without surprises. The architecture finding (standalone is already an AudioProcessor) is the load-bearing claim of the milestone; if true at execution time, v1.7's scope is much smaller than originally framed. Anthony's working style: drip one decision at a time, define abbreviations, plain language with surprising analogies welcome. SUMMARY-v1.7.md is the requirements step's single input doc."
+  "next_action": "Phase 22 is complete and all 8 PLUG-09..16 requirements pass. The natural next step is /gsd-plan-phase 23 (bit-depth conversion / explicit float<->int16 BoundaryConverter inside the SRC sandwich; the int16 boundary is currently inside SrcChain's processIn/processOut, Phase 23 makes it an explicit module). Alternatively, address one of the two deferred UI follow-ups first if a smaller bite is preferred.",
+  "context_notes": "Phase 22 was the v1.7 engineering risk hotspot per PITFALLS-v1.7.md: B1 RT-safety, B6 PDC alignment, C3 denormals. All three landed correctly. The Stage B latency_comp fix is a real product-quality improvement that affects all dry+reverb mixes in real DAWs (no more 58-sample pre-echo on dry transients), not just the null test. The headless null-test harness is a permanent regression gate; running it after any C core or SrcChain edit is the cheap way to catch latency-reporting drift."
 }
