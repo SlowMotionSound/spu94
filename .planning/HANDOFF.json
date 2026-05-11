@@ -1,45 +1,61 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-10T21:24:03Z",
+  "timestamp": "2026-05-10T23:30:00Z",
+  "milestone": "v1.7",
+  "milestone_name": "DAW Plugin Port",
   "phase": null,
-  "phase_name": "Between milestones (v1.6 shipped, next milestone unselected)",
+  "phase_name": "Milestone opened -- defining requirements",
   "phase_dir": null,
   "plan": null,
   "task": null,
   "total_tasks": null,
   "status": "paused",
   "branch": "main",
-  "branch_note": "main is at v1.6 tag (commit aaa94f1). Session paused after retroactive v1.6 milestone formalisation. No active phase work in flight.",
+  "branch_note": "main at commit 04df431 (docs: start milestone v1.7 DAW Plugin Port). PROJECT.md, STATE.md, MILESTONES.md all current. No code in flight; v1.7 is paused right after PROJECT/STATE were updated for the new milestone, before requirements are defined.",
   "completed_tasks": [
-    {"id": 1, "name": "Resume session, recover v1.6 context from HANDOFF.json", "status": "done"},
-    {"id": 2, "name": "User decision: User Programmable Waypoints work gets its own milestone (v1.6)", "status": "done"},
-    {"id": 3, "name": "Phase split decision: 3 phases (18 Core / 19 GUI / 20 Persistence)", "status": "done"},
-    {"id": 4, "name": "Write 11 phase artifacts (PLAN/SUMMARY/VERIFICATION across phases 18, 19, 20)", "status": "done", "commit": "aaa94f1"},
-    {"id": 5, "name": "Update ROADMAP.md (add v1.6 entry + progress rows + archive details)", "status": "done", "commit": "aaa94f1"},
-    {"id": 6, "name": "Update MILESTONES.md (full v1.6 section)", "status": "done", "commit": "aaa94f1"},
-    {"id": 7, "name": "Update STATE.md (v1.6 shipped, ready for next milestone)", "status": "done", "commit": "aaa94f1"},
-    {"id": 8, "name": "Write v1.6-REQUIREMENTS.md and v1.6-ROADMAP.md snapshots", "status": "done", "commit": "aaa94f1"},
-    {"id": 9, "name": "Archive HANDOFF.json -> .planning/milestones/v1.6-user-waypoints-HANDOFF.json", "status": "done", "commit": "aaa94f1"},
-    {"id": 10, "name": "Tag v1.6 on aaa94f1", "status": "done"}
+    {"id": 1, "name": "Clean up MILESTONES.md (chronological order, backfill v1.5, expand v1.0/v1.2/v1.3 from archives)", "status": "done", "commit": "ec2537d"},
+    {"id": 2, "name": "Prune stale Bugfix carries from STATE.md (Morph artifacting + JUCE volume bug -- not real on post-v1.6 main)", "status": "done", "commit": "ec2537d"},
+    {"id": 3, "name": "User invokes /gsd-new-milestone for DAW plugin port", "status": "done"},
+    {"id": 4, "name": "User locks 3 foundational decisions: all 4 plugin formats (VST3+AU+LV2+CLAP), all 3 OSes (Linux+macOS+Windows), real-time SR/BD wrapper around untouchable bit-faithful core", "status": "done"},
+    {"id": 5, "name": "Update PROJECT.md (Shipped: add v1.5/v1.6; Current Milestone: v1.5 -> v1.7; Out of Scope: plugin + Win/Mac move to ACTIVE; key decision row moved into table; footer)", "status": "done", "commit": "04df431"},
+    {"id": 6, "name": "Reset STATE.md frontmatter + body for v1.7 / planning / 0%", "status": "done", "commit": "04df431"}
   ],
   "remaining_tasks": [
-    {"id": 11, "name": "Pick next milestone direction (DAW plugin, Morph engine bugfixes, Digital Patina engine vision, JUCE volume bug, or something else)", "status": "deferred_to_user"}
+    {"id": 7, "name": "Install/update GSD so gsd-sdk shim is on PATH (workflow needs `gsd-sdk query ...` for state.milestone-switch, init.new-milestone, etc.)", "status": "blocked_on_user"},
+    {"id": 8, "name": "Resolve research-vs-skip decision for v1.7 (recommended: research-first, spawn 4 parallel gsd-project-researcher agents on Stack/Features/Architecture/Pitfalls)", "status": "blocked_on_user"},
+    {"id": 9, "name": "Define REQUIREMENTS.md for v1.7 (REQ-ID prefix TBD -- candidates: PLUG, DAW, PORT)", "status": "not_started"},
+    {"id": 10, "name": "Spawn gsd-roadmapper to create ROADMAP.md continuing phase numbering from 20 (last completed v1.6 phase)", "status": "not_started"},
+    {"id": 11, "name": "Begin /gsd-discuss-phase or /gsd-plan-phase on the first v1.7 phase", "status": "not_started"}
   ],
-  "blockers": [],
+  "blockers": [
+    {
+      "name": "gsd-sdk shim missing on PATH",
+      "description": "Local install ~/.claude/get-shit-done/ is version 1.41.0 with only gsd-tools.cjs in bin/. Latest published is 1.41.2 and the npm package declares both `gsd-sdk` and `gsd-tools` bin shims pointing at bin/gsd-sdk.js. The new-milestone workflow uses `gsd-sdk query init.new-milestone`, `gsd-sdk query state.milestone-switch`, `gsd-sdk query commit`, etc. -- none of which work locally. User is restarting session to run /gsd-update.",
+      "severity": "blocking_workflow_automation",
+      "workaround": "Steps 5-6 of the new-milestone workflow (PROJECT/STATE writes + commit) were done by hand without the SDK. State is consistent. Research spawning + REQUIREMENTS + ROADMAP still need the SDK *or* manual equivalents -- prefer SDK once /gsd-update lands."
+    }
+  ],
   "human_actions_pending": [
-    {"action": "Pick next milestone direction", "context": "v1.6 cleanly shipped. STATE.md lists carried items (Morph transition artifacting + feedback instability, JUCE standalone volume bug) and a long Deferred Ideas table. No forcing function -- Anthony picks.", "blocking": false}
+    {"action": "Run /gsd-update in the new session to install gsd-sdk shim", "context": "Diagnosis confirmed local 1.41.0 missing the SDK entry point that 1.41.2 ships. /gsd-update is the right path (skill exists). Could alternatively run `npx get-shit-done-cc@latest --global` but /gsd-update is cleaner.", "blocking": true},
+    {"action": "After update, answer research-vs-skip for v1.7", "context": "Recommended: research-first. First plugin port, multi-format + multi-OS surface, real gotcha density (JUCE-version pin, AU validation, Logic plugin caching, code signing chains, latency reporting, channel layouts, threading rules, pluginval). 4 parallel gsd-project-researcher agents (Stack/Features/Architecture/Pitfalls) writing to .planning/research/.", "blocking": false}
   ],
   "decisions": [
-    {"decision": "User Programmable Waypoints = v1.6, a milestone of its own (not a point release or grab-bag)", "rationale": "Anthony explicitly chose this framing when offered three options."},
-    {"decision": "3-phase split: 18 User Slots Core / 19 Waypoint GUI / 20 User Slot Persistence", "rationale": "Maps cleanly to the actual commit chunks (ba22323 + fdd1f71 = Core; ddfd39d + 4c4737c + 8c433ce + b648e43 = GUI; 80fd56e = Persistence). 19 has 2 plans (ticks+snap, then edit-flow+per-tick-actions). fdd1f71 placed in Phase 18 narratively as a follow-up since its root cause is engine-state architecture, not GUI."},
-    {"decision": "Retroactive PLAN.md files written reflect what would have been planned, derived from commit content", "rationale": "Anthony asked for documentation 'as if we did a formal milestone' -- so each plan gets a backfilled PLAN + SUMMARY + VERIFICATION."}
+    {"decision": "Next milestone is v1.7 DAW Plugin Port (not v2.0)", "rationale": "v1.7 is a continuation of the v1.x series shipping the same product surface in new wrappers; not a breaking redesign."},
+    {"decision": "All 4 plugin formats (VST3 + AU + LV2 + CLAP)", "rationale": "Anthony's call. Covers Reaper/Live/Studio One/Cubase (VST3), Logic (AU), Ardour/Linux-native (LV2), and Bitwig/Reaper-modern (CLAP). AU is macOS-only so 10 unique binaries total across 3 OSes."},
+    {"decision": "All 3 OSes (Linux + macOS + Windows)", "rationale": "Anthony's call. Beta testers skew Mac/Windows for DAW work; Linux-first is preserved but no longer exclusive."},
+    {"decision": "Plugin compatible with any host SR/BD; bit-faithful C core untouchable", "rationale": "Anthony was emphatic about this. SR/BD conversion is a real-time wrapper concern (float<->int16 in/out + SRC to/from 44.1k). Same architectural principle as the standalone WAV loader, just real-time. Verified by golden regression."},
+    {"decision": "Standalone (v1.6) continues to ship alongside plugin formats, not in place of them", "rationale": "Existing user base; standalone is its own valuable surface."},
+    {"decision": "Beta-tester preset return-loop OUT of scope for v1.7", "rationale": "Anthony explicitly confirmed. Whatever channel he already uses (Discord, email, GitHub issues with attachments) handles preset return; no in-app submission UI needed."},
+    {"decision": "Custom plugin UI redesign OUT of scope for v1.7", "rationale": "Reuse current standalone GUI in the plugin window. UI work is a separate later milestone candidate."},
+    {"decision": "Code signing / notarization can defer for beta", "rationale": "Beta testers can override Gatekeeper/SmartScreen warnings; revisit if install friction is reported."}
   ],
   "open_observations_not_acted_on": [
-    {"observation": "MILESTONES.md is missing a v1.5 entry entirely -- chronological gap between v1.4 and the v1.6 entry I just added.", "scope_note": "Not in scope of this pause -- Anthony hasn't asked. Flagged in chat."},
-    {"observation": "WIP commit bdd87ed sits mid-history between fdd1f71 and aaa94f1. Not rewritten to keep history honest about how the work flowed.", "scope_note": "Destructive rewrites need explicit ask."},
-    {"observation": "Untracked files in repo root unrelated to v1.6: REVIEW-c-core-audit.md, REVIEW-juce-audit.md, REVIEW-python-cli-audit.md, ColorScheme.jpg, Screenshot_20260503_*.png, Screenshot_20260508_*.png, build_test/, tools/color_swatch.html, tools/dac_compare.png, tools/error_accum_signal_flow.html.", "scope_note": "Not touched -- pre-existing work-in-progress from outside this session."}
+    {"observation": ".planning/milestones/v1.6-phases/ archive contains the ABANDONED master-branch macro work (phases 20-23: macro-engine-safety-core, macro-controls, echo-speed-diffusion-snap, gui-overlay-display), NOT the live v1.6 user-waypoint phases. The live v1.6 phases (18-20) sit in .planning/phases/ along with v1.3-v1.5 phases (10-17). MILESTONES.md v1.6 entry currently points to v1.6-phases/ as if it were the user-waypoint archive -- it isn't.", "scope_note": "Flagged in STATE.md Deferred Items. Separate cleanup pass; do not touch during v1.7 work without explicit ask."},
+    {"observation": "v1.3 has no archive in .planning/milestones/ at all. v1.4 has REQUIREMENTS+ROADMAP archived but no phases dir.", "scope_note": "Mentioned in MILESTONES.md v1.3 entry. Separate cleanup pass."},
+    {"observation": "Untracked files in repo root: REVIEW-c-core-audit.md, REVIEW-juce-audit.md, REVIEW-python-cli-audit.md, ColorScheme.jpg, Screenshot_*.png, build_test/, tools/color_swatch.html, tools/dac_compare.png, tools/error_accum_signal_flow.html, .claude/scheduled_tasks.lock", "scope_note": "Pre-existing from before this session. Not touched. Anthony will surface if/when relevant."},
+    {"observation": "Stale .planning/.continue-here.md from the pre-v1.7 session was rewritten by this handoff write step to point to v1.7-paused state.", "scope_note": "Bookkeeping."}
   ],
   "uncommitted_files": [],
-  "next_action": "Anthony picks next milestone direction. STATE.md Deferred Items + Deferred Ideas tables are the menu. Likely candidates: address Morph engine known issues (transition artifacting + feedback instability), JUCE standalone volume bug, or a forward-looking milestone like the DAW plugin port or Digital Patina engine vision.",
-  "context_notes": "Session restored from prior HANDOFF.json (post-crash 2026-05-09 plan eventually executed in full as 7 waypoint commits). Pause here is clean -- v1.6 shipped, tagged, all paperwork in place. No mental state to preserve beyond 'roadmap is current, next milestone is open.'"
+  "next_action": "Open new session -> /gsd-resume-work -> session should detect v1.7 / planning / paused-at-research-decision. After running /gsd-update so gsd-sdk is on PATH, answer the research-vs-skip question. If research-first: spawn 4 parallel gsd-project-researcher agents (Stack/Features/Architecture/Pitfalls), then synthesizer, then proceed to REQUIREMENTS. If skip: gather requirements conversationally from PROJECT.md + the 8 locked decisions above.",
+  "context_notes": "Session built on top of the prior /gsd-resume-work entry. Two failed branch-detection attempts at session start (main vs master vs unknown) -- root cause: did not read PROJECT.md's Context paragraph explaining the archive/v1.5-v1.6-macro-approach pivot. main is correct. Once branch was settled, MILESTONES.md cleanup was substantial (v1.0 corruption, missing v1.5, stub-thin v1.2/v1.3) but landed cleanly. v1.7 milestone surfacing was the user's call. Tone: Anthony pushes back hard on guesses and on docs being out of sync -- always verify by reading actual files before asserting state."
 }
