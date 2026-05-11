@@ -2,6 +2,7 @@
 #include "PluginEditor.h"
 #include "WavLoader.h"
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <memory>
 
@@ -45,7 +46,7 @@ const juce::String SPU94AudioProcessor::getName() const
     return juce::String("SPU-94");
 }
 
-void SPU94AudioProcessor::prepareToPlay(double /*sampleRate*/, int /*samplesPerBlock*/)
+void SPU94AudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     // Tear down both engines before reinitializing (WR-03 extended)
     for (int e = 0; e < 2; ++e)
@@ -89,6 +90,26 @@ void SPU94AudioProcessor::prepareToPlay(double /*sampleRate*/, int /*samplesPerB
     spu94_set_patina_send(engines[0], 0x7FFF);
     spu94_set_dac_enabled(engines[0], 1);
     spu94_set_latency_comp(engines[0], 1);
+
+    // Phase 22: bidirectional libsamplerate SRC sandwich. All allocation
+    // and the impulse-based group-delay measurement happen here in
+    // prepareToPlay -- processBlock is allocation-free (PLUG-12).
+    hostSampleRate_ = sampleRate;
+    constexpr int kMaxBlock = 4096;
+    const int maxBlock = juce::jmin(samplesPerBlock, kMaxBlock);
+    srcChain_.prepare(sampleRate, maxBlock, /*numChannels=*/2);
+
+    // Latency reporting (PLUG-14). Core latency lives at 44.1 kHz; scale
+    // to host samples with ceil() so we over-report by at most 1 sample
+    // (under-reporting drifts wet AHEAD of dry, which is the bad direction
+    // -- PITFALLS B6). Add the measured input+output SRC group delay.
+    // Calling setLatencySamples every prepareToPlay is the only correct
+    // policy: some hosts re-poll on transport start; others ignore mid-
+    // stream changes; the consistent rule is "always report current".
+    const uint32_t coreLatency44k = spu94_get_total_latency_samples(engines[0]);
+    const int coreLatencyHostSamples = static_cast<int>(
+        std::ceil(static_cast<double>(coreLatency44k) * (sampleRate / 44100.0)));
+    setLatencySamples(srcChain_.getMeasuredLatencyHostSamples() + coreLatencyHostSamples);
 }
 
 void SPU94AudioProcessor::releaseResources()
@@ -101,11 +122,23 @@ void SPU94AudioProcessor::releaseResources()
             engines[e] = nullptr;
         }
     }
+    srcChain_.release();
 }
 
 void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                                         juce::MidiBuffer& /*midiMessages*/)
 {
+    // Phase 22 / PLUG-16 (R3): denormals OFF for the entire block.
+    // RAII guarantees DAZ/FTZ remain set through the SRC sandwich and the
+    // SPU core call, so reverb tails (which routinely produce subnormal
+    // floats) don't trigger microcode-trap stalls on Intel CPUs. This
+    // MUST be the first statement of processBlock.
+    juce::ScopedNoDenormals noDenormals;
+
+    // R4 (fast-path slip verification): clear the SRC-call counter so the
+    // Task-3 verify step can read a clean per-block number.
+    srcChain_.resetSrcCallbacksCounter();
+
     // Check if new WAV data is ready from the message thread.
     // Double-buffer swap (CR-01): read from whichever slot the message
     // thread last wrote.  Old wavSource vectors are moved into the
@@ -307,78 +340,143 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         }
     }
 
-    // Audio I/O gate: skip the actual sample read + process + output mix
-    // when no WAV is loaded or playback is paused. ALL state management
-    // above has already run, so the engine is up-to-date and the GUI's
-    // sliders/ticks always reflect current engine state -- even with no
-    // audio playing.
-    if (!wavSource.loaded.load(std::memory_order_acquire) ||
-        !wavSource.playing.load(std::memory_order_relaxed))
-    {
-        buffer.clear();
-        return;
-    }
-
+    // ------------------------------------------------------------------
+    // AUDIO I/O -- split into standalone (v1.6 WavSource testbed) and
+    // plugin (Phase 22 SRC sandwich on the host buffer) branches.
+    // ------------------------------------------------------------------
     const int n = buffer.getNumSamples();
-    const auto numFrames = wavSource.numFrames;
-
-    // Guard against divide-by-zero if numFrames is somehow 0 (CR-03).
-    if (numFrames == 0) { buffer.clear(); return; }
-
-    // Stack-allocated int16 I/O buffers -- no heap in the audio thread.
-    // JUCE block sizes are typically 256-1024; 4096 is a generous ceiling.
-    // If the host delivers an oversized block, clear and bail rather than
-    // silently truncating (WR-02: unwritten tail would be garbage audio).
     constexpr int kMaxBlock = 4096;
     jassert(n <= kMaxBlock);
     if (n > kMaxBlock) { buffer.clear(); return; }
-    const int samplesToProcess = n;
 
-    int16_t tmpL_in[kMaxBlock];
-    int16_t tmpR_in[kMaxBlock];
-    int16_t tmpL_out[kMaxBlock];
-    int16_t tmpR_out[kMaxBlock];
+    // Side-channel limiter constants (unchanged from v1.6 standalone).
+    // Tanh-shape ceiling on the L-R difference; mid (L+R)/2 is preserved.
+    constexpr float kSideKnee    = 0.125f;
+    constexpr float kSideCeiling = 0.06f;
 
-    // Build the int16 input to the reverb directly from the WAV source.
-    auto playPos = wavSource.playPos.load(std::memory_order_relaxed);
-    for (int i = 0; i < samplesToProcess; ++i)
+    const bool isStandalone = (wrapperType == wrapperType_Standalone);
+
+    if (isStandalone)
     {
-        const auto idx = static_cast<size_t>((playPos + static_cast<uint64_t>(i)) % numFrames);
-        tmpL_in[i] = wavSource.L[idx];
-        tmpR_in[i] = wavSource.R[idx];
+        // === STANDALONE PATH (v1.6 back-compat) =========================
+        // wavSource gate: when no WAV is loaded or playback is paused,
+        // emit silence. This preserves the standalone testbed's
+        // Load-Play-Stop behaviour byte-identically with end-of-Phase-21.
+        if (!wavSource.loaded.load(std::memory_order_acquire) ||
+            !wavSource.playing.load(std::memory_order_relaxed))
+        {
+            buffer.clear();
+            return;
+        }
+
+        const auto numFrames = wavSource.numFrames;
+        if (numFrames == 0) { buffer.clear(); return; }
+
+        const int samplesToProcess = n;
+
+        int16_t tmpL_in [kMaxBlock];
+        int16_t tmpR_in [kMaxBlock];
+        int16_t tmpL_out[kMaxBlock];
+        int16_t tmpR_out[kMaxBlock];
+
+        auto playPos = wavSource.playPos.load(std::memory_order_relaxed);
+        for (int i = 0; i < samplesToProcess; ++i)
+        {
+            const auto idx = static_cast<size_t>(
+                (playPos + static_cast<uint64_t>(i)) % numFrames);
+            tmpL_in[i] = wavSource.L[idx];
+            tmpR_in[i] = wavSource.R[idx];
+        }
+
+        spu94_process(engines[0], tmpL_in, tmpR_in, tmpL_out, tmpR_out,
+                      static_cast<uint32_t>(samplesToProcess));
+
+        auto* outL = buffer.getWritePointer(0);
+        auto* outR = (buffer.getNumChannels() > 1) ? buffer.getWritePointer(1) : nullptr;
+        for (int i = 0; i < samplesToProcess; ++i)
+        {
+            const float wetL = tmpL_out[i] / 32768.0f;
+            const float wetR = tmpR_out[i] / 32768.0f;
+            const float mid  = 0.5f * (wetL + wetR);
+            const float side = 0.5f * (wetL - wetR);
+            const float sideLimited = std::tanh(side / kSideKnee) * kSideCeiling;
+            outL[i] = mid + sideLimited;
+            if (outR) outR[i] = mid - sideLimited;
+        }
+
+        wavSource.playPos.store(
+            (playPos + static_cast<uint64_t>(samplesToProcess)) % numFrames,
+            std::memory_order_relaxed);
     }
-
-    // Single reverb engine — Register Behavior is enacted via slew on the
-    // morph register writes above; the per-sample audio path is unchanged.
-    spu94_process(engines[0], tmpL_in, tmpR_in, tmpL_out, tmpR_out,
-                  static_cast<uint32_t>(samplesToProcess));
-
-    // Post-pass: side-channel limiter, emit
-    auto* outL = buffer.getWritePointer(0);
-    auto* outR = (buffer.getNumChannels() > 1) ? buffer.getWritePointer(1) : nullptr;
-    for (int i = 0; i < samplesToProcess; ++i)
+    else
     {
-        const float wetL = tmpL_out[i] / 32768.0f;
-        const float wetR = tmpR_out[i] / 32768.0f;
+        // === PLUGIN PATH (Phase 22: host buffer through SRC sandwich) ===
+        // No WavSource gate -- the plugin processes host-provided audio
+        // every block. setLatencySamples (called from prepareToPlay)
+        // already handed the host the PDC number it needs.
+        //
+        // RT-safety: stack-allocated int16 scratch (32 KiB total at the
+        // 4096-sample ceiling). srcChain_.processIn/processOut hold all
+        // SRC state + float scratch internally; both are allocation-free.
+        int16_t coreInL [kMaxBlock];
+        int16_t coreInR [kMaxBlock];
+        int16_t coreOutL[kMaxBlock];
+        int16_t coreOutR[kMaxBlock];
 
-        // Side-channel soft limiter: bound L/R divergence without affecting
-        // the mono content. Mid passes through unchanged; side gets a tanh
-        // limiter that kicks in around `kSideKnee` and asymptotes well below
-        // it at `kSideCeiling`, pulling hard-panned content noticeably toward
-        // center while leaving the mono level untouched.
-        constexpr float kSideKnee    = 0.125f;  // tanh starts compressing here
-        constexpr float kSideCeiling = 0.06f;   // max side amplitude after limit
-        const float mid = 0.5f * (wetL + wetR);
-        const float side = 0.5f * (wetL - wetR);
-        const float sideLimited = std::tanh(side / kSideKnee) * kSideCeiling;
+        const float* hostInPtrs[2] = {
+            buffer.getReadPointer(0),
+            buffer.getNumChannels() > 1 ? buffer.getReadPointer(1)
+                                        : buffer.getReadPointer(0)
+        };
+        int coreN = 0;
+        srcChain_.processIn(hostInPtrs, n, coreInL, coreInR, coreN);
 
-        outL[i] = mid + sideLimited;
-        if (outR) outR[i] = mid - sideLimited;
+        // Bail out if the input SRC produced no frames (transient corner;
+        // shouldn't happen at kMaxBlock>=64 with hostSR>=44100/5).
+        if (coreN <= 0) { buffer.clear(); return; }
+
+        spu94_process(engines[0], coreInL, coreInR, coreOutL, coreOutR,
+                      static_cast<uint32_t>(coreN));
+
+        float* hostOutPtrs[2] = {
+            buffer.getWritePointer(0),
+            buffer.getNumChannels() > 1 ? buffer.getWritePointer(1) : nullptr
+        };
+        int hostNOut = 0;
+        srcChain_.processOut(coreOutL, coreOutR, coreN, hostOutPtrs, hostNOut);
+
+        // If the output SRC under-produces (off-by-one drift), pad with
+        // the last produced sample held; if it over-produces, the extra
+        // samples beyond the host buffer simply weren't written. The
+        // host's PDC pulls everything back into alignment.
+        if (hostNOut < n)
+        {
+            float* outL = hostOutPtrs[0];
+            float* outR = hostOutPtrs[1];
+            const float lastL = (hostNOut > 0) ? outL[hostNOut - 1] : 0.0f;
+            const float lastR = (outR != nullptr && hostNOut > 0) ? outR[hostNOut - 1] : 0.0f;
+            for (int i = hostNOut; i < n; ++i)
+            {
+                outL[i] = lastL;
+                if (outR != nullptr) outR[i] = lastR;
+            }
+        }
+
+        // Side-channel limiter on the host-rate float output (unchanged
+        // semantics from the standalone path).
+        float* outL = hostOutPtrs[0];
+        float* outR = hostOutPtrs[1];
+        for (int i = 0; i < n; ++i)
+        {
+            const float wetL = outL[i];
+            const float wetR = (outR != nullptr) ? outR[i] : wetL;
+            const float mid  = 0.5f * (wetL + wetR);
+            const float side = 0.5f * (wetL - wetR);
+            const float sideLimited = std::tanh(side / kSideKnee) * kSideCeiling;
+            outL[i] = mid + sideLimited;
+            if (outR != nullptr) outR[i] = mid - sideLimited;
+        }
     }
-
-    // Advance play position (continuous loop).
-    wavSource.playPos.store((playPos + static_cast<uint64_t>(samplesToProcess)) % numFrames,
-                            std::memory_order_relaxed);
 }
 
 // --- File preset save/load (Phase 14, PRE-08/PRE-09) ---

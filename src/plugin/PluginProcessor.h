@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "ParameterBridge.h"
+#include "SrcChain.h"
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -231,6 +232,13 @@ private:
     std::array<PendingWav, 2> pendingSlots;
     std::atomic<int> pendingWriteSlot{0};
     std::atomic<bool> newWavReady{false};
+
+    // Phase 22: bidirectional libsamplerate SRC sandwich around the
+    // SPU-94 core. Allocated in prepareToPlay (via srcChain_.prepare),
+    // released in releaseResources. Runs the impulse-measured group
+    // delay so setLatencySamples reports the correct PDC number.
+    SrcChain srcChain_;
+    double   hostSampleRate_ { 44100.0 };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SPU94AudioProcessor)
 };
