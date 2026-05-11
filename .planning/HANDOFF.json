@@ -1,61 +1,56 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-10T23:30:00Z",
+  "timestamp": "2026-05-11T13:49:49Z",
   "milestone": "v1.7",
   "milestone_name": "DAW Plugin Port",
   "phase": null,
-  "phase_name": "Milestone opened -- defining requirements",
+  "phase_name": "Research complete -- awaiting requirements drafting",
   "phase_dir": null,
   "plan": null,
   "task": null,
   "total_tasks": null,
   "status": "paused",
   "branch": "main",
-  "branch_note": "main at commit 04df431 (docs: start milestone v1.7 DAW Plugin Port). PROJECT.md, STATE.md, MILESTONES.md all current. No code in flight; v1.7 is paused right after PROJECT/STATE were updated for the new milestone, before requirements are defined.",
+  "branch_note": "main at commit 6f562bb (docs: v1.7 research bundle). Research phase complete; requirements not yet started. No code in flight.",
   "completed_tasks": [
-    {"id": 1, "name": "Clean up MILESTONES.md (chronological order, backfill v1.5, expand v1.0/v1.2/v1.3 from archives)", "status": "done", "commit": "ec2537d"},
-    {"id": 2, "name": "Prune stale Bugfix carries from STATE.md (Morph artifacting + JUCE volume bug -- not real on post-v1.6 main)", "status": "done", "commit": "ec2537d"},
-    {"id": 3, "name": "User invokes /gsd-new-milestone for DAW plugin port", "status": "done"},
-    {"id": 4, "name": "User locks 3 foundational decisions: all 4 plugin formats (VST3+AU+LV2+CLAP), all 3 OSes (Linux+macOS+Windows), real-time SR/BD wrapper around untouchable bit-faithful core", "status": "done"},
-    {"id": 5, "name": "Update PROJECT.md (Shipped: add v1.5/v1.6; Current Milestone: v1.5 -> v1.7; Out of Scope: plugin + Win/Mac move to ACTIVE; key decision row moved into table; footer)", "status": "done", "commit": "04df431"},
-    {"id": 6, "name": "Reset STATE.md frontmatter + body for v1.7 / planning / 0%", "status": "done", "commit": "04df431"}
+    {"id": 1, "name": "Resume session; verified gsd-sdk v1.41.2 on PATH (prior blocker cleared)", "status": "done"},
+    {"id": 2, "name": "Locked research-first vs skip-research decision -- chose research-first", "status": "done"},
+    {"id": 3, "name": "Spawned 4 parallel gsd-project-researcher agents (Stack/Features/Architecture/Pitfalls)", "status": "done"},
+    {"id": 4, "name": "Wrote STACK-v1.7.md, FEATURES-v1.7.md, ARCHITECTURE-v1.7.md, PITFALLS-v1.7.md", "status": "done", "commit": "6f562bb"},
+    {"id": 5, "name": "Synthesized to SUMMARY-v1.7.md (synthesizer was Write-blocked; orchestrator wrote the file)", "status": "done", "commit": "6f562bb"}
   ],
   "remaining_tasks": [
-    {"id": 7, "name": "Install/update GSD so gsd-sdk shim is on PATH (workflow needs `gsd-sdk query ...` for state.milestone-switch, init.new-milestone, etc.)", "status": "blocked_on_user"},
-    {"id": 8, "name": "Resolve research-vs-skip decision for v1.7 (recommended: research-first, spawn 4 parallel gsd-project-researcher agents on Stack/Features/Architecture/Pitfalls)", "status": "blocked_on_user"},
-    {"id": 9, "name": "Define REQUIREMENTS.md for v1.7 (REQ-ID prefix TBD -- candidates: PLUG, DAW, PORT)", "status": "not_started"},
-    {"id": 10, "name": "Spawn gsd-roadmapper to create ROADMAP.md continuing phase numbering from 20 (last completed v1.6 phase)", "status": "not_started"},
-    {"id": 11, "name": "Begin /gsd-discuss-phase or /gsd-plan-phase on the first v1.7 phase", "status": "not_started"}
+    {"id": 6, "name": "Draft REQUIREMENTS.md for v1.7 -- pick conversational drip vs strawman approach", "status": "blocked_on_user", "blocker": "User chose to pause before answering"},
+    {"id": 7, "name": "Resolve the 7 open decisions in SUMMARY-v1.7.md §3 (SRC library, dither policy, automation param surface, drop LV2-on-Win, src split, channel buses, signing scope)", "status": "not_started"},
+    {"id": 8, "name": "Direct ask: confirm beta-tester DAW mix (research assumed Reaper/Logic/Live/FL)", "status": "not_started"},
+    {"id": 9, "name": "REQ-ID prefix decision (PLUG/DAW/PORT candidates)", "status": "not_started"},
+    {"id": 10, "name": "Spawn gsd-roadmapper -> ROADMAP.md continuing phase numbering from 20", "status": "not_started"},
+    {"id": 11, "name": "Begin /gsd-discuss-phase or /gsd-plan-phase on Phase 21 (Build skeleton)", "status": "not_started"}
   ],
-  "blockers": [
-    {
-      "name": "gsd-sdk shim missing on PATH",
-      "description": "Local install ~/.claude/get-shit-done/ is version 1.41.0 with only gsd-tools.cjs in bin/. Latest published is 1.41.2 and the npm package declares both `gsd-sdk` and `gsd-tools` bin shims pointing at bin/gsd-sdk.js. The new-milestone workflow uses `gsd-sdk query init.new-milestone`, `gsd-sdk query state.milestone-switch`, `gsd-sdk query commit`, etc. -- none of which work locally. User is restarting session to run /gsd-update.",
-      "severity": "blocking_workflow_automation",
-      "workaround": "Steps 5-6 of the new-milestone workflow (PROJECT/STATE writes + commit) were done by hand without the SDK. State is consistent. Research spawning + REQUIREMENTS + ROADMAP still need the SDK *or* manual equivalents -- prefer SDK once /gsd-update lands."
-    }
-  ],
+  "blockers": [],
   "human_actions_pending": [
-    {"action": "Run /gsd-update in the new session to install gsd-sdk shim", "context": "Diagnosis confirmed local 1.41.0 missing the SDK entry point that 1.41.2 ships. /gsd-update is the right path (skill exists). Could alternatively run `npx get-shit-done-cc@latest --global` but /gsd-update is cleaner.", "blocking": true},
-    {"action": "After update, answer research-vs-skip for v1.7", "context": "Recommended: research-first. First plugin port, multi-format + multi-OS surface, real gotcha density (JUCE-version pin, AU validation, Logic plugin caching, code signing chains, latency reporting, channel layouts, threading rules, pluginval). 4 parallel gsd-project-researcher agents (Stack/Features/Architecture/Pitfalls) writing to .planning/research/.", "blocking": false}
+    {"action": "Decide conversational drip vs strawman REQUIREMENTS approach", "context": "Last assistant message asked this; user paused before answering. Research surfaced 7 open decisions plus 12 unknowns -- some are DSP-character calls (dither, SRC quality) that may deserve their own conversations.", "blocking": true},
+    {"action": "Confirm beta-tester DAW mix", "context": "Research assumed Reaper/Logic/Live/FL Studio. Phase 26 UAT scope depends on this.", "blocking": false}
   ],
   "decisions": [
-    {"decision": "Next milestone is v1.7 DAW Plugin Port (not v2.0)", "rationale": "v1.7 is a continuation of the v1.x series shipping the same product surface in new wrappers; not a breaking redesign."},
-    {"decision": "All 4 plugin formats (VST3 + AU + LV2 + CLAP)", "rationale": "Anthony's call. Covers Reaper/Live/Studio One/Cubase (VST3), Logic (AU), Ardour/Linux-native (LV2), and Bitwig/Reaper-modern (CLAP). AU is macOS-only so 10 unique binaries total across 3 OSes."},
-    {"decision": "All 3 OSes (Linux + macOS + Windows)", "rationale": "Anthony's call. Beta testers skew Mac/Windows for DAW work; Linux-first is preserved but no longer exclusive."},
-    {"decision": "Plugin compatible with any host SR/BD; bit-faithful C core untouchable", "rationale": "Anthony was emphatic about this. SR/BD conversion is a real-time wrapper concern (float<->int16 in/out + SRC to/from 44.1k). Same architectural principle as the standalone WAV loader, just real-time. Verified by golden regression."},
-    {"decision": "Standalone (v1.6) continues to ship alongside plugin formats, not in place of them", "rationale": "Existing user base; standalone is its own valuable surface."},
-    {"decision": "Beta-tester preset return-loop OUT of scope for v1.7", "rationale": "Anthony explicitly confirmed. Whatever channel he already uses (Discord, email, GitHub issues with attachments) handles preset return; no in-app submission UI needed."},
-    {"decision": "Custom plugin UI redesign OUT of scope for v1.7", "rationale": "Reuse current standalone GUI in the plugin window. UI work is a separate later milestone candidate."},
-    {"decision": "Code signing / notarization can defer for beta", "rationale": "Beta testers can override Gatekeeper/SmartScreen warnings; revisit if install friction is reported."}
+    {"decision": "Research-first over skip-research for v1.7", "rationale": "First plugin port; 10-binary matrix; gotcha density (auval, host caches, signing, SRC RT-safety). Anthony picked option 1."},
+    {"decision": "4 parallel researchers split as Stack/Features/Architecture/Pitfalls", "rationale": "Standard gsd-new-milestone research split; matches prior milestones' naming convention (FEATURES.md, STACK.md, etc.)."},
+    {"decision": "Research artifacts versioned with -v1.7 suffix", "rationale": "Prior milestones' research lives in .planning/research/ unversioned and with -v1.2/-v1.3 suffixes. v1.7 follows the suffix convention."}
+  ],
+  "research_findings": [
+    {"finding": "v1.7 is materially smaller than the milestone framing implied", "source": "ARCHITECTURE-v1.7.md §0", "detail": "Standalone is already a juce::AudioProcessor with canonical threading. v1.7 = expand FORMATS + add SRC + add float<->int16 + fill two empty getStateInformation stubs."},
+    {"finding": "JUCE 8 has no native CLAP support", "source": "STACK-v1.7.md §1", "detail": "Need clap-juce-extensions shim until JUCE 9 (no public release date)."},
+    {"finding": "SRC library pick is the single biggest engineering decision", "source": "SUMMARY-v1.7.md §3.1", "detail": "Leaning libsamplerate Sinc-Medium (BSD-2). r8brain-free (MIT) as fallback. zita-resampler disqualified (GPL-3). Cascades into RT-safety, PDC, CPU, licensing."},
+    {"finding": "Dither at float->int16 input is a DSP-character decision", "source": "SUMMARY-v1.7.md §3.2", "detail": "Leaning no-dither per North Star (period-faithful sources arrived as int16 PCM; dither is a modern courtesy SPU never had). TPDF defensible alternative."},
+    {"finding": "Proposed 6 firm phases + 1 conditional (21-26 + optional 27 signing)", "source": "SUMMARY-v1.7.md §4", "detail": "21 build skeleton, 22 SRC, 23 float<->int16, 24 state+automation, 25 channel buses+validation, 26 packaging+UAT, 27 signing if friction."},
+    {"finding": "Top risks: SRC group-delay measurement at integration, auval failure, stale host caches in beta, locale-dependent state-restore bug, channel-layout mismatch", "source": "SUMMARY-v1.7.md §5", "detail": "Five severity-ranked risks pulled from PITFALLS-v1.7.md."}
   ],
   "open_observations_not_acted_on": [
-    {"observation": ".planning/milestones/v1.6-phases/ archive contains the ABANDONED master-branch macro work (phases 20-23: macro-engine-safety-core, macro-controls, echo-speed-diffusion-snap, gui-overlay-display), NOT the live v1.6 user-waypoint phases. The live v1.6 phases (18-20) sit in .planning/phases/ along with v1.3-v1.5 phases (10-17). MILESTONES.md v1.6 entry currently points to v1.6-phases/ as if it were the user-waypoint archive -- it isn't.", "scope_note": "Flagged in STATE.md Deferred Items. Separate cleanup pass; do not touch during v1.7 work without explicit ask."},
-    {"observation": "v1.3 has no archive in .planning/milestones/ at all. v1.4 has REQUIREMENTS+ROADMAP archived but no phases dir.", "scope_note": "Mentioned in MILESTONES.md v1.3 entry. Separate cleanup pass."},
-    {"observation": "Untracked files in repo root: REVIEW-c-core-audit.md, REVIEW-juce-audit.md, REVIEW-python-cli-audit.md, ColorScheme.jpg, Screenshot_*.png, build_test/, tools/color_swatch.html, tools/dac_compare.png, tools/error_accum_signal_flow.html, .claude/scheduled_tasks.lock", "scope_note": "Pre-existing from before this session. Not touched. Anthony will surface if/when relevant."},
-    {"observation": "Stale .planning/.continue-here.md from the pre-v1.7 session was rewritten by this handoff write step to point to v1.7-paused state.", "scope_note": "Bookkeeping."}
+    {"observation": "12 known unknowns catalogued in SUMMARY-v1.7.md §6", "scope_note": "Requirements step resolves or defers each. Two high-leverage: JUCE 9 / CLAP-native release date (affects whether clap-juce-extensions stays needed), and macOS Sequoia Gatekeeper UX for unsigned plugins."},
+    {"observation": ".planning/milestones/v1.6-phases/ archive still contains abandoned macro work, not live v1.6 phases", "scope_note": "Flagged in STATE.md Deferred Items. Separate cleanup pass; not touched during v1.7 work."},
+    {"observation": "Pre-existing untracked files: REVIEW-c-core-audit.md, REVIEW-juce-audit.md, REVIEW-python-cli-audit.md (in .planning/), ColorScheme.jpg, Screenshot_*.png, build_test/, tools/*.html, .claude/scheduled_tasks.lock", "scope_note": "Pre-existing from before this session. Not touched."}
   ],
   "uncommitted_files": [],
-  "next_action": "Open new session -> /gsd-resume-work -> session should detect v1.7 / planning / paused-at-research-decision. After running /gsd-update so gsd-sdk is on PATH, answer the research-vs-skip question. If research-first: spawn 4 parallel gsd-project-researcher agents (Stack/Features/Architecture/Pitfalls), then synthesizer, then proceed to REQUIREMENTS. If skip: gather requirements conversationally from PROJECT.md + the 8 locked decisions above.",
-  "context_notes": "Session built on top of the prior /gsd-resume-work entry. Two failed branch-detection attempts at session start (main vs master vs unknown) -- root cause: did not read PROJECT.md's Context paragraph explaining the archive/v1.5-v1.6-macro-approach pivot. main is correct. Once branch was settled, MILESTONES.md cleanup was substantial (v1.0 corruption, missing v1.5, stub-thin v1.2/v1.3) but landed cleanly. v1.7 milestone surfacing was the user's call. Tone: Anthony pushes back hard on guesses and on docs being out of sync -- always verify by reading actual files before asserting state."
+  "next_action": "Open new session -> /gsd-resume-work. Detect: v1.7 / planning / research-complete / awaiting requirements. Answer the pending question: conversational drip vs strawman REQUIREMENTS.md draft. Then walk through the 7 open decisions in SUMMARY-v1.7.md §3 and the 12 unknowns in §6.",
+  "context_notes": "Session resumed cleanly: gsd-sdk shim is now on PATH (prior session's blocker, now resolved at v1.41.2). Research bundle landed without surprises. The architecture finding (standalone is already an AudioProcessor) is the load-bearing claim of the milestone; if true at execution time, v1.7's scope is much smaller than originally framed. Anthony's working style: drip one decision at a time, define abbreviations, plain language with surprising analogies welcome. SUMMARY-v1.7.md is the requirements step's single input doc."
 }
