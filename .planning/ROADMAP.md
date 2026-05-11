@@ -1,10 +1,11 @@
 # Roadmap: SPU-94
 
-**Updated:** 2026-05-10
+**Updated:** 2026-05-11
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
 
 ## Milestones
 
+- 🚧 **v1.7 DAW Plugin Port** -- Phases 21-26 + conditional 27 (planning, see `milestones/v1.7-ROADMAP.md`)
 - ✅ **v1.6 User Programmable Waypoints** -- Phases 18-20 (shipped 2026-05-10, tag `v1.6`)
 - ✅ **v1.5 Preset Interpolation Engine** -- Phases 16-17 (shipped 2026-05-06, tag `v1.5`)
 - ✅ **v1.4 Preset System** -- Phases 13-15 (shipped 2026-05-02, tag `v1.4`)
@@ -18,6 +19,13 @@
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
+| 21. Build Skeleton & CI Matrix | v1.7 | 0/? | Not started | -- |
+| 22. SRC & Latency Reporting | v1.7 | 0/? | Not started | -- |
+| 23. Float↔int16 Boundary | v1.7 | 0/? | Not started | -- |
+| 24. State & Automation Surface | v1.7 | 0/? | Not started | -- |
+| 25. Buses & Validator Gates | v1.7 | 0/? | Not started | -- |
+| 26. Packaging & Beta UAT | v1.7 | 0/? | Not started | -- |
+| 27. Code Signing | v1.7 | 0/? | Conditional | -- |
 | 18. User Slots Core | v1.6 | 1/1 | Complete | 2026-05-10 |
 | 19. Waypoint GUI | v1.6 | 2/2 | Complete | 2026-05-10 |
 | 20. User Slot Persistence | v1.6 | 1/1 | Complete | 2026-05-10 |
@@ -27,6 +35,31 @@
 | 10-12 | v1.3 | 8/8 | Complete | 2026-05-01 |
 | 5-9 | v1.2 | 12/12 | Complete | 2026-04-30 |
 | 1-4 | v1.1 | 10/10 | Complete | 2026-04-27 |
+
+## v1.7 DAW Plugin Port (🚧)
+
+Full milestone roadmap: `milestones/v1.7-ROADMAP.md`. Requirements: `milestones/v1.7-REQUIREMENTS.md`.
+
+### Phase 21: Build Skeleton & CI Matrix
+Expand JUCE FORMATS, integrate clap-juce-extensions, rename src/standalone/ → src/plugin/ with WavLoader gated by wrapperType, establish 3-OS CI matrix building all 11 user-facing binaries.
+
+### Phase 22: SRC & Latency Reporting
+Integrate libsamplerate Sinc Medium bidirectionally, prepareToPlay-allocated, 44.1 kHz fast-path, measured group delay reported via setLatencySamples.
+
+### Phase 23: Float↔int16 Boundary
+Truncate conversion (no dither) with sat_s16 saturation semantics; input gain default and existing limiter preserved.
+
+### Phase 24: State & Automation Surface
+Binary-wrapped .spu94 state round-trip, locale-independent; 9 host-automatable AudioProcessorParameters routed through the existing atomic bridge.
+
+### Phase 25: Buses & Validator Gates
+mono/mono + mono/stereo + stereo/stereo declared; pluginval/auval/lv2lint/VST3-validator wired into CI as required gates.
+
+### Phase 26: Packaging & Beta UAT
+Per-OS installers (.pkg/.dmg / Inno Setup / tarball+install.sh), beta README with cache-reset + unsigned-binary instructions, per-DAW UAT matrix selected and exercised.
+
+### Phase 27: Code Signing (conditional)
+Triggered only if beta install friction is reported. Developer ID + notarytool on macOS, code-signing cert on Windows.
 
 ## Previous Milestone Archives
 

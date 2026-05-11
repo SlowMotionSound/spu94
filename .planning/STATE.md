@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: DAW Plugin Port
 status: planning
-stopped_at: "Milestone opened -- defining requirements"
-last_updated: "2026-05-10T23:00:00Z"
-last_activity: 2026-05-10 -- v1.7 DAW Plugin Port milestone started
+stopped_at: "Phase 21 plan approved; ready for execute-phase"
+last_updated: "2026-05-11T16:00:00Z"
+last_activity: 2026-05-11 -- Phase 21 (Build Skeleton & CI Matrix) PLAN.md drafted + plan-checker APPROVED on second pass (1 BLOCKER + 3 warnings caught and revised)
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
-  total_plans: 0
+  total_plans: 1
   completed_plans: 0
   percent: 0
 ---
@@ -25,28 +25,32 @@ See: .planning/PROJECT.md (updated 2026-05-10)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: --
-Status: Defining requirements
-Last activity: 2026-05-10 -- v1.7 milestone started
+Phase: 21 of 6 firm (Build Skeleton & CI Matrix) -- planning complete, execute pending
+Plan: 21-PLAN.md (4 atomic tasks) -- APPROVED by gsd-plan-checker on 2nd pass
+Status: Plan approved -- ready for /gsd-execute-phase 21
+Last activity: 2026-05-11 -- Phase 21 PLAN.md drafted; plan-checker caught LV2-on-macOS contradiction + 3 warnings, all revised, re-checker APPROVED
 
-Progress: 0% (planning)
+Progress: 0% execution (1/? plans drafted)
 
 ## Accumulated Context
 
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Early decisions affecting v1.7:
+v1.7 locked decisions (as of requirements draft, 2026-05-11):
 
-- DAW plugin port packages SPU-94 in four formats (VST3 + AU + LV2 + CLAP) across three OSes (Linux + macOS + Windows); AU is macOS-only, so 10 unique binaries total
-- Bit-faithful C core (libspu94) stays untouched -- SR and bit-depth compatibility is a wrapper concern only
-- Real-time sample-rate conversion in the plugin wrapper (host any-rate <-> 44.1k core); JUCE interpolator pick TBD during requirements
-- Real-time bit-depth conversion (host float32 <-> int16 core)
-- Standalone (v1.6) continues to ship alongside the plugin formats
-- Custom plugin UI redesign is out of scope -- current standalone GUI reused
-- Beta-tester preset return-loop mechanism is out of scope -- handled via whatever channel already in use
-- Code signing / notarization may be deferred for beta phase; revisit on install friction
+- 4 plugin formats (VST3 + AU + LV2 + CLAP) across 3 OSes (Linux + macOS + Windows); AU is macOS-only and LV2 is dropped on Windows -- 11 unique binaries total
+- Bit-faithful C core (libspu94) stays untouched -- SR and bit-depth compatibility is wrapper-only
+- SRC library: libsamplerate (BSD-2), Sinc Medium quality preset
+- Dither at float->int16 boundary: truncate (no dither) -- period-faithful per North Star
+- Source folder split: src/standalone/ -> src/plugin/; new small src/standalone/ holds testbed-only files (WavLoader)
+- Channel buses: mono->mono, mono->stereo, stereo->stereo; mono duplicated into both reverb inputs (engine always stereo internally)
+- 9 host-automatable parameters: Input Gain, ADPCM Send, Dry Send, Morph Position, Morph Speed, Morph Grit, Dry Level, ADPCM Level, Reverb Level
+- Standalone reframed: internal dev/test tool, no longer a user deliverable from v1.7 onward
+- Code signing deferred for beta -- testers click through Gatekeeper / SmartScreen; reactive re-evaluation only
+- Custom plugin UI redesign out of scope -- current standalone GUI reused inside plugin window
+- Beta-tester preset return-loop mechanism out of scope -- handled out-of-band
+- UAT (User Acceptance Testing) DAW matrix deferred to packaging-and-testing phase
 
 ### Blockers/Concerns
 
@@ -99,6 +103,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-10T23:00:00Z
-Stopped at: v1.7 milestone opened; PROJECT.md and STATE.md updated; about to define requirements
-Resume file: none
+Last session: 2026-05-11T16:00:00Z
+Stopped at: Phase 21 (Build Skeleton & CI Matrix) plan APPROVED. CONTEXT + PLAN committed. Next step is /gsd-execute-phase 21.
+Resume file: .planning/phases/21-build-skeleton-ci-matrix/21-PLAN.md
