@@ -64,8 +64,6 @@ None.
 | Cleanup | REVIEW-cli-python.md M/L/N findings | Carried from v1.0 | 2026-04-26 |
 | Paperwork | Phase 6/7 Nyquist validation | Carried from v1.0 | 2026-04-26 |
 | License | MIT vs Apache-2.0 pick | Carried from M1 | 2026-04-25 |
-| Bugfix | Morph engine transition artifacting + feedback instability | Follow-up phase candidate | 2026-05-10 |
-| Bugfix | JUCE standalone wrapper changes system volume on launch/close | Pre-release fix | 2026-05-10 |
 
 ## Deferred Ideas
 
