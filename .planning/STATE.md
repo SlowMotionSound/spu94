@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: DAW Plugin Port
-status: planning
-stopped_at: "Phase 22 plan APPROVED; paused before execute per user request (will /clear before executing)"
-last_updated: "2026-05-11T19:00:00Z"
-last_activity: 2026-05-11 -- Phase 22 PLAN.md drafted + plan-checker APPROVED first pass (4 cosmetic fixes applied); commit 68dfdce
+status: uat_pending
+stopped_at: "Phase 22 verified PARTIAL — 7/8 PLUG requirements PASS; PLUG-15 (Ardour null-test residual ≤-60 dBFS @ 48 kHz host SR) PENDING manual UAT before phase 22 closes"
+last_updated: "2026-05-11T20:30:26.229Z"
+last_activity: "2026-05-11 -- Phase 22 executed (commits 72660bd → ff3f3d4); verifier verdict PARTIAL pending PLUG-15 UAT"
 progress:
-  total_phases: 6
-  completed_phases: 1
+  total_phases: 7
+  completed_phases: 2
   total_plans: 2
-  completed_plans: 1
-  percent: 17
+  completed_plans: 2
+  percent: 100
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-10)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.7 DAW Plugin Port -- defining requirements
+**Current focus:** Phase 22 — src-latency-reporting
 
 ## Current Position
 
-Phase: 22 (Sample-Rate Conversion & Latency Reporting) -- planning complete, execute pending. v1.7 engineering risk hotspot.
-Plan: 22-PLAN.md (4 atomic tasks + manual UAT) -- APPROVED by gsd-plan-checker (first pass, 4 cosmetic fixes applied)
-Status: Paused before execute. User will /clear context before /gsd-execute-phase 22.
-Last activity: 2026-05-11 -- Phase 22 PLAN.md committed (68dfdce); STATE rolled forward
+Phase: 22 (src-latency-reporting) — UAT PENDING
+Plan: 1 of 1 (executed; verified PARTIAL)
+Status: Code complete (PLUG-09,10,11,12,13,14,16 PASS); PLUG-15 manual Ardour null-test at 48 kHz pending before phase closes
+Last activity: 2026-05-11 -- gsd-verifier returned PARTIAL; VERIFICATION.md committed (ff3f3d4)
 
-Progress: 17% execution (1/6 firm phases complete; 1/? plans drafted for Phase 22)
+Progress: [██████████] 100%
 
 ## Accumulated Context
 
@@ -103,6 +103,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-11T19:00:00Z
-Stopped at: Phase 22 (SRC integration) PLAN.md drafted and APPROVED by plan-checker. CONTEXT + PLAN committed as 68dfdce. User asked to pause before execute and will /clear context first. Next step is /gsd-execute-phase 22 in a fresh session.
-Resume file: .planning/phases/22-src-latency-reporting/22-PLAN.md
+Last session: 2026-05-11T20:25:00Z
+Stopped at: Phase 22 execute complete. SrcChain + libsamplerate FetchContent + ScopedNoDenormals + setLatencySamples landed on main; all 4 Linux plugin targets build green; verifier confirmed 7/8 PLUG requirements PASS. PLUG-15 (Ardour null-test residual ≤-60 dBFS RMS at 48 kHz host SR) requires Anthony to drive Ardour interactively — procedure documented in 22-PLAN-SUMMARY.md Verification section. After UAT clears PLUG-15, run state.complete-phase to close phase 22 and advance to phase 23.
+Resume file: .planning/phases/22-src-latency-reporting/22-VERIFICATION.md (verdict + PLUG-15 procedure)
