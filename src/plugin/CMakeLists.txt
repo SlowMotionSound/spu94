@@ -70,10 +70,17 @@ target_compile_definitions(spu94_plugin
         JUCE_VST3_CAN_REPLACE_VST2=0
 )
 
+# libsamplerate (BSD-2-Clause) for v1.7 bidirectional SR conversion at the
+# JUCE wrapper boundary. Pulled via FetchContent SHA-pinned shim so the
+# future swap to a system-package find_package(SampleRate) is one file's
+# worth of change. Header (<samplerate.h>) is consumed by SrcChain.cpp only.
+include(${CMAKE_SOURCE_DIR}/cmake/libsamplerate.cmake)
+
 target_link_libraries(spu94_plugin
     PRIVATE
         spu94_static
         juce::juce_audio_utils
+        samplerate
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
