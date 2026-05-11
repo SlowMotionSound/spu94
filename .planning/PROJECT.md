@@ -12,20 +12,34 @@
 
 **Shipped:** v1.4 — Preset System (2026-05-02, tag `v1.4`). Human-readable preset save/load for all 46 engine fields. C core API (`spu94_preset_save` / `spu94_preset_load`), CLI subcommands (`preset-dump`, `--load-preset`), JUCE Save/Load buttons with native file dialogs and custom preset dropdown. 3 phases, 5 plans, 10/10 requirements verified. Integration-level golden round-trip proof (bit-identical audio after save/load).
 
-**Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`.
+**Shipped:** v1.5 — Preset Interpolation Engine (2026-05-06, tag `v1.5`). Single morph knob between Sony's 9 factory presets via a bit-identical-at-waypoint linear-interpolation C engine. 280px JUCE rotary with 9 PS1-colored dots, detent snap, Macro/Advanced toggle. 2 phases, 3 plans, 8/8 requirements verified. Replaces archived v1.5/v1.6 macro control approach (gang clamping, Spread/Sweep/Rotate) — archived on branch `archive/v1.5-v1.6-macro-approach`.
 
-## Current Milestone: v1.5 Preset Interpolation Engine
+**Shipped:** v1.6 — User Programmable Waypoints (2026-05-10, tag `v1.6`). 8 user-programmable waypoint slots at midpoint positions between Sony's 9 anchors, turning the morph dial into a user-customisable 17-position continuum. Per-tick EDIT/EXPORT/LOAD action stack on MorphPanel, SAVE/REVERT edit flow, `.spu94` preset persistence with byte-identical back-compat for pre-feature files. Engine state mirroring overhaul. 3 phases, 4 plans, 17/17 requirements verified.
 
-**Goal:** Replace raw register complexity with a single morph knob that sweeps through Sony's 9 factory presets, linearly interpolating all registers between adjacent waypoints.
+**Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`, `v1.5`, `v1.6`.
+
+## Current Milestone: v1.7 DAW Plugin Port
+
+**Goal:** Package SPU-94 as a multi-format DAW plugin (VST3 + AU + LV2 + CLAP) on Linux + macOS + Windows so beta testers can run it in their DAWs at any project sample rate and bit depth — feeding back waypoint presets that will inform future musical-range curation. The bit-faithful C core is unchanged; all SR/BD conversion happens in a real-time wrapper layer around it.
 
 **Target features:**
-- C core interpolation engine (waypoint table, position-to-register mapping, linear interpolation of all active registers between adjacent presets)
-- Single large rotary knob (250-300px) as sole GUI control
-- 9 equally-spaced waypoint markers (dots) around the knob arc at exact preset positions
-- Waypoint order (confirmed by ear): Half Echo → Room → Studio A → Studio B → Studio C → Hall → Space Echo → Echo → Delay
-- Fixed registers excluded from interpolation: vLOUT/vROUT (0x7FFF), vLIN/vRIN (0x8000), mBASE (0x0000)
+- VST3, AU, LV2, CLAP plugin builds (AU on macOS only — 10 unique binaries across the 3-OS × 4-format matrix)
+- Linux + macOS + Windows build matrix with per-OS toolchains and CI
+- Real-time sample-rate conversion in the plugin wrapper (host any-rate ↔ 44.1k core)
+- Real-time bit-depth conversion (host float32 ↔ int16 core)
+- DAW project state persistence (registers + user slots + mixer + toggles + morph position round-trip via `getStateInformation` / `setStateInformation`)
+- DAW parameter surface for automation (morph position + key musical controls; exact set defined during requirements)
+- Multi-instance behavior verified (each instance independent state)
+- Plugin validators pass (pluginval, `auval`, `lv2lint`, VST3 SDK validator)
+- Beta-tester distribution via GitHub releases (per-OS / per-format artifacts)
+- Manual UAT in Reaper / Ableton Live / Logic / FL Studio at minimum
 
-**Context:** Replaces archived v1.5/v1.6 macro control approach (gang clamping, Spread/Sweep/Rotate, safety constraints) which proved too complex. Archive branch: `archive/v1.5-v1.6-macro-approach`. Every interpolated state is bounded by Sony-validated configurations — no clamping or safety logic needed.
+**Hard constraint:** The C core (`libspu94`) MUST stay bit-faithful and unmodified. SR/BD compatibility is a wrapper concern only — verified by golden regression. Standalone (current v1.6) continues to ship alongside the new plugin formats, not in place of them.
+
+**Out of scope for v1.7:**
+- Beta-tester preset return-loop mechanism (how their `.spu94` files reach the maintainer) — settled separately by whatever channel is already in use
+- Custom plugin UI redesign — current standalone GUI is reused for the plugin window
+- Code signing / notarization for public distribution — testers can override on Mac/Windows; revisit if install friction is reported
 
 ## What This Is
 
@@ -87,7 +101,7 @@ See `.planning/milestones/v1.2-REQUIREMENTS.md` for full 14-requirement traceabi
 - **AK4309 DAC digital modeling** — SHIPPED as v1.2 (2026-04-30)
 - **Real oversampling engine** — ACTIVE as v1.3 (True Oversampled DAC)
 - **DAC analog output stage** (op-amps, coupling caps, output impedance) — deferred; needs real hardware measurement
-- **JUCE DAW plugin (VST3 / AU / LV2)** — next milestone candidate; wraps the existing C core for use in Reaper / Ableton / Logic
+- **JUCE DAW plugin (VST3 / AU / LV2 / CLAP)** — ACTIVE as v1.7 (DAW Plugin Port); wraps the existing C core for use in Reaper / Ableton / Logic / FL Studio etc.
 - **Named musical levers ("Room Size", "Pre Delay", etc.), parameter smoothing, CV mappings, plugin UI** — superseded by v1.5 interpolation engine approach for initial musical controls. Individual register levers may return as decoupled parameters on top of the interpolation base.
 - **Tempo-synced taps, BPM subdivision snapping** — archived with v1.5/v1.6 macro approach. May return as a layer on top of interpolation engine.
 - **Hardware validation via PSX homebrew + digital capture** — deferred to Milestone 5; Anthony has an original PSX
@@ -95,7 +109,7 @@ See `.planning/milestones/v1.2-REQUIREMENTS.md` for full 14-requirement traceabi
 - **FPGA implementation** — future direction; C core chosen specifically to keep FPGA HLS path open
 - **MCU firmware port (Daisy, Cortex-M)** — Phase 8 (cross-compile smoke test) was scoped for v1.0 but parked per Anthony's 2026-04-24 decision; moves to between M4 and M5 as a portability gate. The portability claim is upheld by the M1 design discipline (no heap, no locks, no syscalls, no STL) and the existing `arm-none-eabi-gcc` build infrastructure that the v1.0 codebase already supports — the smoke test landing is a paper formality, not a discovery.
 - **SPU voice engine, envelope generation, pitch modulation, noise, ADSR** — out of scope for the entire project; reverb-only reimplementation
-- **Windows and macOS builds** — deferred; Linux-first; cross-platform is straightforward C
+- **Windows and macOS builds** — ACTIVE as v1.7; brought in alongside the DAW plugin port so beta testers on those OSes can participate
 - **Reading Mednafen / lv2-psx-reverb / DuckStation / MiSTer source as a primary development activity** — excluded by licensing posture (see Constraints)
 
 ## Context
@@ -152,6 +166,8 @@ Tech stack realities at v1.0 close: plain C99 core (zero heap in hot path verifi
 | All DSP signal flow lives in the C core, not host layers | C core is the product — JUCE/CLI/Python are thin wrappers. Wet/dry crossfade and DAC model must be C-core responsibilities so every consumer gets identical behavior. Hosts should never contain DSP logic. | Pending — Phase 7 will move wet/dry from JUCE into C core |
 | Send/return mixer architecture | Three-bus design (dry, patina/ADPCM, reverb) with independent faders summed at a master mixer, followed by DAC model on/off. Avoids cascading wet/dry phase-alignment problems. Two independent reverb sends (dry send + patina send) let user control what feeds the reverb. Six controls: input gain, dry fader, patina fader, dry reverb send, patina reverb send, reverb fader, plus DAC toggle. | Pending — Phase 7 implementation |
 | ADPCM position may become movable in future | User wants flexibility to place ADPCM encode/decode at different points in the signal chain (e.g. after reverb instead of before). Not building now, but avoid designs that hardwire ADPCM position. | Future — don't paint ourselves into a corner |
+| Preset interpolation engine replaces macro control approach | v1.5/v1.6 macro engine (gang clamping, Spread/Sweep/Rotate, safety constraints, Sync/Free snap) proved too complex — interlocking constraints fought each other, GUI exposed complexity rather than taming it. Interpolation between Sony's known-good presets eliminates clamping by construction. | ✓ Good — design confirmed 2026-05-05; v1.5 shipped on this design; archived code recoverable on `archive/v1.5-v1.6-macro-approach` branch |
+| Bit-faithful C core untouchable through the DAW plugin port | DAW hosts deliver audio at any sample rate and bit depth. SR/BD compatibility is a wrapper concern only — float→int16 in / SRC to 44.1k / core untouched / SRC back / int16→float out. Same architectural principle as the standalone WAV loader, just real-time. | Pending — v1.7 (DAW Plugin Port) |
 
 ## Evolution
 
@@ -170,7 +186,5 @@ This document evolves at phase transitions and milestone boundaries.
 3. Audit Out of Scope — reasons still valid?
 4. Update Context with current state
 
-| Preset interpolation engine replaces macro control approach | v1.5/v1.6 macro engine (gang clamping, Spread/Sweep/Rotate, safety constraints, Sync/Free snap) proved too complex — interlocking constraints fought each other, GUI exposed complexity rather than taming it. Interpolation between Sony's known-good presets eliminates clamping by construction. | ✓ Good — design confirmed 2026-05-05; archived code recoverable on `archive/v1.5-v1.6-macro-approach` branch |
-
 ---
-*Last updated: 2026-05-05 — v1.5 Preset Interpolation Engine milestone started.*
+*Last updated: 2026-05-10 — v1.7 DAW Plugin Port milestone started.*
