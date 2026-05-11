@@ -49,6 +49,7 @@ target_sources(spu94_plugin
         ParameterBridge.cpp
         RegisterPanel.cpp
         MorphPanel.cpp
+        SrcChain.cpp
 )
 
 # Standalone-only WavLoader bolt-on -- testbed-only source lives in src/standalone/.
