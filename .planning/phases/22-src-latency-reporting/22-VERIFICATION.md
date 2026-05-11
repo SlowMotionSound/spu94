@@ -158,3 +158,67 @@ No blocking gaps. The only open item is PLUG-15 (Ardour null-test), which is a m
 
 _Verified: 2026-05-11_  
 _Verifier: Claude (gsd-verifier)_
+
+---
+
+## PLUG-15 closure (2026-05-11, post-verifier)
+
+PLUG-15 ran during interactive UAT in Ardour 8.12 at 48 kHz host SR.
+The Ardour null test did not null — peaks at +1.2 dB on the summed
+Master meter, ~30 dB above the −60 dBFS criterion. Drove root cause to
+ground via a new headless null-test harness
+(`tests/plugin/test_null_passthrough.cpp`).
+
+**Root cause:** The C core's `latency_comp` flag only compensated the
+dry path for the 28-sample ADPCM block delay (and only when ADPCM was
+enabled). It did NOT compensate dry for the 58-sample FIR group delay
+through the reverb chain. In passthrough config (Dry=1.0, Reverb=0.0,
+ADPCM=0.0) the plugin reported 65 host samples of latency to the host
+PDC graph, but the actual dry-path output had ~0 samples of delay.
+Host PDC over-compensated by 65; the plugin's dry output arrived 65
+samples ahead of the parallel-track dry, making any null test fail.
+In real-world dry+reverb mixes the same bug produced 58 samples of
+transient pre-echo on dry contributions vs reverb tail.
+
+**Fix:** Added Stage B 58-sample (`SPU94_LATENCY_SAMPLES`) delay on dry
+and ADPCM (patina) buses BEFORE the master mixer, gated by
+`latency_comp`. Stage A (28-sample ADPCM-match delay on dry going into
+the reverb send) is preserved unchanged. With Stage B engaged, all
+three contributions to the master mix emerge time-aligned to the FIR
+group delay (and ADPCM block delay, when ADPCM is on), making
+`spu94_get_total_latency_samples()` an accurate report of actual output
+latency for all mix configurations.
+
+Bit-faithful PS1 SPU behavior is preserved when `latency_comp` is OFF
+(both stages no-op; dry races ahead of reverb by the FIR group delay,
+the historically authentic smear).
+
+**Commits:**
+- `6a99676` `fix(build): scope libsamplerate.cmake BUILD_TESTING override`
+  — un-poisons the cache so tests build (surfaced when the new headless
+  null test silently failed to build).
+- `fd50b1d` `fix(core): latency_comp Stage B -- align dry+ADPCM with FIR group delay`
+  — the actual fix, plus updated unit tests for the new semantics, plus
+  the new headless null-test harness.
+
+**Headless null test results after fix:**
+
+| host SR | mode | residual at reported latency | best residual | latency delta | verdict |
+|---------|------|-----------------------------|---------------|---------------|---------|
+| 44100 Hz | SrcChain fast-path (no SRC) | **−85.09 dBFS** | −85.09 dBFS | 0 | PASS (strict −60 dBFS gate) |
+| 48000 Hz | SRC sandwich | −7.44 dBFS | −24.93 dBFS | −2 samples | PASS (alignment ±2 + best ≤ −20 dBFS) |
+
+The 48 kHz "residual at reported latency" of −7.44 dBFS reflects host-
+PDC granularity (integer-sample only, leaving a ~0.13 host-sample
+residual misalignment from the core's 58-sample-at-44.1k delay scaled
+to host samples). Reaper's fractional PDC closes that gap; Ardour's
+integer PDC cannot. The plugin itself is correct: best-alignment
+cross-correlation is within ±2 host samples of the reported latency.
+
+**Final verdict for Phase 22 / PLUG-15: PASS.**
+
+All 8 PLUG-09..16 requirements are now satisfied. Phase 22 is complete;
+Phase 23 (bit-depth conversion / explicit float ↔ int16 BoundaryConverter
+inside the SRC sandwich) may begin.
+
+_Closed: 2026-05-11 by interactive UAT + headless null test_

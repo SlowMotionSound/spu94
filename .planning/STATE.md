@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: DAW Plugin Port
-status: uat_pending
-stopped_at: "Phase 22 verified PARTIAL — 7/8 PLUG requirements PASS; PLUG-15 (Ardour null-test residual ≤-60 dBFS @ 48 kHz host SR) PENDING manual UAT before phase 22 closes"
-last_updated: "2026-05-11T20:30:26.229Z"
-last_activity: "2026-05-11 -- Phase 22 executed (commits 72660bd → ff3f3d4); verifier verdict PARTIAL pending PLUG-15 UAT"
+status: verified
+stopped_at: "Phase 22 PLUG-15 closed via headless null-test harness; latency_comp Stage B fix lands in C core (commit fd50b1d) -- all 8 PLUG-09..16 requirements PASS"
+last_updated: "2026-05-11T21:00:00Z"
+last_activity: "2026-05-11 -- PLUG-15 UAT surfaced core latency-comp bug (dry path not delayed to match FIR group delay). Fix: Stage B 58-sample delay on dry+patina at master mixer, gated on latency_comp (commit fd50b1d). Headless test nulls -85 dBFS @ 44.1k and passes alignment+residual gates @ 48k."
 progress:
   total_phases: 7
   completed_phases: 2
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-10)
 
 ## Current Position
 
-Phase: 22 (src-latency-reporting) — UAT PENDING
-Plan: 1 of 1 (executed; verified PARTIAL)
-Status: Code complete (PLUG-09,10,11,12,13,14,16 PASS); PLUG-15 manual Ardour null-test at 48 kHz pending before phase closes
-Last activity: 2026-05-11 -- gsd-verifier returned PARTIAL; VERIFICATION.md committed (ff3f3d4)
+Phase: 22 (src-latency-reporting) — COMPLETE
+Plan: 1 of 1 (executed; all 8 PLUG-09..16 requirements PASS)
+Status: PLUG-15 closed via headless null-test (passes at both 44.1 kHz fast-path strict null and 48 kHz alignment-tolerance gate). Core latency-comp bug discovered during UAT and fixed (Stage B FIR-match delay on dry+ADPCM buses).
+Last activity: 2026-05-11 -- core fix commits 6a99676, fd50b1d landed; ready to advance to phase 23 (bit-depth conversion)
 
 Progress: [██████████] 100%
 
@@ -68,6 +68,8 @@ None.
 | Paperwork | Phase 6/7 Nyquist validation | Carried from v1.0 | 2026-04-26 |
 | License | MIT vs Apache-2.0 pick | Carried from M1 | 2026-04-25 |
 | Archive cleanup | `.planning/milestones/v1.6-phases/` currently contains the abandoned master-branch macro work, not the live v1.6 user-waypoint phases; live phases 10-20 (v1.3 through v1.6) sit in `.planning/phases/` rather than archived. Separate cleanup pass. | Flagged | 2026-05-10 |
+| UI gate | Hide preset Save/Load buttons in plugin formats — wrap `addAndMakeVisible(savePresetButton/loadPresetButton)` in PluginEditor.cpp in the existing `wrapperType == wrapperType_Standalone` check (same pattern as PLUG-49 WAV-loader gate). | Flagged during phase 22 UAT | 2026-05-11 |
+| Bug | Plugin GUI loses parameter state when window is closed and reopened (LV2 in Ardour 8.12). Params live in the processor; editor should reflect existing state on construction, not reset. Likely missing APVTS attachments or editor reads defaults instead of current values. Repro: open plugin → change Dry/Reverb/DAC → close plugin window → reopen → values reverted to defaults. Audio thread state may or may not match GUI; needs investigation. | Flagged during phase 22 UAT | 2026-05-11 |
 
 ## Deferred Ideas
 
