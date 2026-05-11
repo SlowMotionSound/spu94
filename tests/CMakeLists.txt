@@ -18,3 +18,6 @@ add_subdirectory(conformance)
 
 # Phase 7 Plan 05: pytest-benchmark report-only timing harness (BUILD-06 D-20)
 add_subdirectory(benchmarks)
+
+# Phase 22 / PLUG-15: headless null-test harness for SRC + latency reporting
+add_subdirectory(plugin)

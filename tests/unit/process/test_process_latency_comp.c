@@ -1,9 +1,14 @@
-/* tests/unit/process/test_process_latency_comp.c -- Phase 7 Plan 03
+/* tests/unit/process/test_process_latency_comp.c -- Phase 7 Plan 03,
+ * extended in Phase 22 for FIR-match Stage B compensation.
  *
- * Integration tests for the 28-sample latency compensation delay buffer.
- * Covers: default-on (D-07), set/get, null safety, no-op when ADPCM off
- * (Pitfall 5), 28-sample impulse delay, bypass when disabled, state
- * reset on disable.
+ * Integration tests for the two-stage latency compensation system:
+ *   Stage A -- 28-sample ADPCM-match delay on dry going into reverb send
+ *              (so dry and patina enter the reverb send time-aligned).
+ *              Active only when latency_comp + adpcm_enabled.
+ *   Stage B -- 58-sample FIR-match delay on dry+patina before master mix
+ *              (so they emerge aligned with the FIR-delayed reverb tail).
+ *              Active whenever latency_comp is on; absence of this stage
+ *              previously caused PDC misalignment (PLUG-15 finding).
  *
  * Pattern: same setUp/tearDown as test_process_adpcm.c. Includes
  * spu94_state_internal.h for direct struct inspection.
@@ -22,10 +27,6 @@
 static alignas(SPU94_STATE_ALIGN_MAX) unsigned char state_buf[SPU94_STATE_SIZE_MAX];
 static unsigned char work_buf[SPU94_WORK_BUF_MAX_BYTES];
 static spu94_state *state = NULL;
-
-/* Second state for comparison tests */
-static alignas(SPU94_STATE_ALIGN_MAX) unsigned char state_buf_b[SPU94_STATE_SIZE_MAX];
-static unsigned char work_buf_b[SPU94_WORK_BUF_MAX_BYTES];
 
 void setUp(void) {
     state = spu94_init(state_buf, sizeof state_buf, work_buf, sizeof work_buf);
@@ -81,70 +82,88 @@ static void test_latency_comp_null_safety(void) {
 }
 
 /* -----------------------------------------------------------------------
- * Test 4: Latency comp does nothing when ADPCM is off (Pitfall 5)
+ * Test 4: Stage B alone (latency_comp ON, ADPCM OFF) delays dry by
+ *          SPU94_LATENCY_SAMPLES (58) to align with the FIR reverb tail
+ *          at the master mix.
  *
- * With ADPCM disabled, latency_comp=1 vs latency_comp=0 should produce
- * identical output -- there is no ADPCM latency to compensate.
+ * Phase 22 update: previously this test asserted that latency_comp was
+ * a no-op when ADPCM was disabled. That was correct for Stage A only,
+ * but ignored the dry-vs-reverb misalignment at the master mix stage
+ * (PLUG-15). The new contract: latency_comp ON always engages Stage B,
+ * delaying dry by 58 samples regardless of ADPCM state. Without Stage B,
+ * dry/patina at the master mix lead the FIR-delayed reverb tail by 58
+ * samples, breaking host PDC alignment for any plugin mix involving
+ * both dry and reverb (and breaking passthrough configs outright).
  * ----------------------------------------------------------------------- */
-static void test_latency_comp_only_when_adpcm_enabled(void) {
-    const uint32_t N = 128;
-    int16_t input[128], out_comp_l[128], out_comp_r[128];
-    for (uint32_t i = 0; i < N; i++) input[i] = 10000;
-
-    /* State A: ADPCM off, latency_comp=1 (default) */
-    set_unity_passthrough(state);
-    spu94_set_latency_comp(state, 1);
-    spu94_process(state, input, input, out_comp_l, out_comp_r, N);
-
-    /* State B: ADPCM off, latency_comp=0 */
-    spu94_state *state_b = spu94_init(state_buf_b, sizeof state_buf_b,
-                                       work_buf_b, sizeof work_buf_b);
-    TEST_ASSERT_NOT_NULL(state_b);
-    set_unity_passthrough(state_b);
-    spu94_set_latency_comp(state_b, 0);
-
-    int16_t out_nocomp_l[128], out_nocomp_r[128];
-    spu94_process(state_b, input, input, out_nocomp_l, out_nocomp_r, N);
-
-    /* Output should be identical (latency comp is a no-op when ADPCM is off) */
-    TEST_ASSERT_EQUAL_INT16_ARRAY(out_comp_l, out_nocomp_l, N);
-    TEST_ASSERT_EQUAL_INT16_ARRAY(out_comp_r, out_nocomp_r, N);
-}
-
-/* -----------------------------------------------------------------------
- * Test 5: Latency comp delays dry bus by 28 samples
- *
- * Enable ADPCM + latency_comp=1. Set dry-only routing (dry_fader=max,
- * reverb_fader=0, patina_fader=0). Feed an impulse at sample 0.
- * The dry bus output should show the impulse delayed by 28 samples:
- * output[0..27] = 0, output[28] != 0.
- * ----------------------------------------------------------------------- */
-static void test_latency_comp_delays_dry_28_samples(void) {
-    spu94_set_input_gain(state, 0x7FFF);
-    spu94_set_dry_fader(state, 0x7FFF);
-    spu94_set_dry_send(state, 0);
+static void test_latency_comp_stage_b_without_adpcm(void) {
+    /* Pure dry passthrough: dry_fader=unity, everything else zero. */
+    spu94_set_input_gain  (state, 0x7FFF);
+    spu94_set_dry_fader   (state, 0x7FFF);
+    spu94_set_dry_send    (state, 0);
     spu94_set_reverb_fader(state, 0);
     spu94_set_patina_fader(state, 0);
-    spu94_set_patina_send(state, 0);
-    spu94_set_adpcm_enabled(state, 1);
+    spu94_set_patina_send (state, 0);
+    spu94_set_adpcm_enabled(state, 0);
     spu94_set_latency_comp(state, 1);
 
-    const uint32_t N = 64;
-    int16_t input[64], out_l[64], out_r[64];
+    const uint32_t N = 96;
+    int16_t input[96], out_l[96], out_r[96];
     memset(input, 0, sizeof input);
     input[0] = 10000;
 
     spu94_process(state, input, input, out_l, out_r, N);
 
-    /* Samples 0-27 should be zero (delay buffer initially zero) */
-    for (uint32_t i = 0; i < 28; i++) {
+    /* Samples 0..57 should be zero (Stage B 58-sample delay buffer
+     * starts zero-filled and the impulse propagates through one slot
+     * per tick). */
+    for (uint32_t i = 0; i < SPU94_LATENCY_SAMPLES; i++) {
         TEST_ASSERT_EQUAL_INT16_MESSAGE(0, out_l[i],
-            "Dry bus output before 28-sample delay should be zero");
+            "Dry bus output before 58-sample Stage B delay should be zero");
     }
+    /* Sample 58 should be non-zero (impulse emerges from Stage B). */
+    TEST_ASSERT_TRUE_MESSAGE(out_l[SPU94_LATENCY_SAMPLES] != 0,
+        "Dry bus output at sample 58 should be non-zero (impulse through Stage B)");
+}
 
-    /* Sample 28 should be non-zero (impulse emerges from delay) */
-    TEST_ASSERT_TRUE_MESSAGE(out_l[28] != 0,
-        "Dry bus output at sample 28 should be non-zero (impulse through delay)");
+/* -----------------------------------------------------------------------
+ * Test 5: Stage A + Stage B (latency_comp ON, ADPCM ON) delays dry by
+ *          28 + 58 = 86 samples total at the master mix.
+ *
+ * Phase 22 update: previously this test asserted a single 28-sample
+ * delay (Stage A only). The current contract: Stage A delays dry into
+ * the reverb send (28), and Stage B delays dry into the master mix by
+ * an additional 58 to match the FIR group delay. Total delay through
+ * the dry bus at the master mix is 28 + 58 = 86 samples, matching the
+ * value returned by spu94_get_total_latency_samples() when ADPCM is on.
+ * ----------------------------------------------------------------------- */
+static void test_latency_comp_dry_total_delay_with_adpcm(void) {
+    spu94_set_input_gain  (state, 0x7FFF);
+    spu94_set_dry_fader   (state, 0x7FFF);
+    spu94_set_dry_send    (state, 0);
+    spu94_set_reverb_fader(state, 0);
+    spu94_set_patina_fader(state, 0);
+    spu94_set_patina_send (state, 0);
+    spu94_set_adpcm_enabled(state, 1);
+    spu94_set_latency_comp(state, 1);
+
+    const uint32_t total_delay = SPU94_LATENCY_SAMPLES + 28u; /* 58 + 28 = 86 */
+    const uint32_t N = 128;
+    int16_t input[128], out_l[128], out_r[128];
+    memset(input, 0, sizeof input);
+    input[0] = 10000;
+
+    spu94_process(state, input, input, out_l, out_r, N);
+
+    /* Samples 0..(total_delay - 1) must be zero (both stages start
+     * zero-filled; the impulse propagates one slot per tick through
+     * Stage A then Stage B). */
+    for (uint32_t i = 0; i < total_delay; i++) {
+        TEST_ASSERT_EQUAL_INT16_MESSAGE(0, out_l[i],
+            "Dry bus output before Stage A+B total delay should be zero");
+    }
+    /* Sample `total_delay` should be non-zero (impulse fully emerged). */
+    TEST_ASSERT_TRUE_MESSAGE(out_l[total_delay] != 0,
+        "Dry bus output at total-delay index should be non-zero");
 }
 
 /* -----------------------------------------------------------------------
@@ -210,6 +229,15 @@ static void test_latency_comp_state_reset_on_disable(void) {
         TEST_ASSERT_EQUAL_INT16(0, state->delay_buf_l[i]);
         TEST_ASSERT_EQUAL_INT16(0, state->delay_buf_r[i]);
     }
+
+    /* Stage B fir-match buffers must also be zeroed (Phase 22) */
+    TEST_ASSERT_EQUAL_UINT8(0, state->fir_lc_pos);
+    for (unsigned i = 0; i < SPU94_LATENCY_SAMPLES; i++) {
+        TEST_ASSERT_EQUAL_INT16(0, state->fir_lc_dry_buf_l[i]);
+        TEST_ASSERT_EQUAL_INT16(0, state->fir_lc_dry_buf_r[i]);
+        TEST_ASSERT_EQUAL_INT16(0, state->fir_lc_pat_buf_l[i]);
+        TEST_ASSERT_EQUAL_INT16(0, state->fir_lc_pat_buf_r[i]);
+    }
 }
 
 /* -----------------------------------------------------------------------
@@ -220,8 +248,8 @@ int main(void) {
     RUN_TEST(test_latency_comp_default_on);
     RUN_TEST(test_latency_comp_set_get);
     RUN_TEST(test_latency_comp_null_safety);
-    RUN_TEST(test_latency_comp_only_when_adpcm_enabled);
-    RUN_TEST(test_latency_comp_delays_dry_28_samples);
+    RUN_TEST(test_latency_comp_stage_b_without_adpcm);
+    RUN_TEST(test_latency_comp_dry_total_delay_with_adpcm);
     RUN_TEST(test_latency_comp_off_no_delay);
     RUN_TEST(test_latency_comp_state_reset_on_disable);
     return UNITY_END();

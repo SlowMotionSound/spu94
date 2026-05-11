@@ -105,14 +105,42 @@ void spu94_process(spu94_state *state,
         int16_t rev_l = 0, rev_r = 0;
         spu94_fir_chain_step(state, send_l, send_r, &rev_l, &rev_r);
 
+        /* 5b. Stage B latency comp: when latency_comp is on, delay the dry
+         * and patina buses by SPU94_LATENCY_SAMPLES (58) at this point so
+         * they enter the master mixer time-aligned with the FIR-delayed
+         * reverb tail. Without this stage, dry+reverb mixes smear by 58
+         * samples on transients, and a Dry=1/Reverb=0 passthrough produces
+         * output 58 samples ahead of host-PDC-compensated parallel tracks
+         * (PLUG-15 null test cannot null without this).
+         *
+         * When latency_comp is off, this stage is a no-op -- the dry and
+         * patina contributions reach the master mix without extra delay,
+         * preserving the historically authentic PS1 SPU behavior (dry
+         * leads reverb by the FIR group delay; intentional creative
+         * smearing). */
+        int16_t mix_dry_l = dry_l,    mix_dry_r = dry_r;
+        int16_t mix_pat_l = patina_l, mix_pat_r = patina_r;
+        if (state->latency_comp) {
+            const uint8_t pos = state->fir_lc_pos;
+            mix_dry_l = state->fir_lc_dry_buf_l[pos];
+            mix_dry_r = state->fir_lc_dry_buf_r[pos];
+            mix_pat_l = state->fir_lc_pat_buf_l[pos];
+            mix_pat_r = state->fir_lc_pat_buf_r[pos];
+            state->fir_lc_dry_buf_l[pos] = dry_l;
+            state->fir_lc_dry_buf_r[pos] = dry_r;
+            state->fir_lc_pat_buf_l[pos] = patina_l;
+            state->fir_lc_pat_buf_r[pos] = patina_r;
+            state->fir_lc_pos = (uint8_t)((pos + 1u) % 58u);
+        }
+
         /* 6. Master mixer: three-bus sum, int32 accumulation + sat_s16 (D-01) */
         int16_t out_l = sat_s16(
-            (int32_t)q15_mul_truncate(dry_l,    state->dry_fader)
-          + (int32_t)q15_mul_truncate(patina_l, state->patina_fader)
-          + (int32_t)q15_mul_truncate(rev_l,    state->reverb_fader));
+            (int32_t)q15_mul_truncate(mix_dry_l, state->dry_fader)
+          + (int32_t)q15_mul_truncate(mix_pat_l, state->patina_fader)
+          + (int32_t)q15_mul_truncate(rev_l,     state->reverb_fader));
         int16_t out_r = sat_s16(
-            (int32_t)q15_mul_truncate(dry_r,    state->dry_fader)
-          + (int32_t)q15_mul_truncate(patina_r, state->patina_fader)
+            (int32_t)q15_mul_truncate(mix_dry_r, state->dry_fader)
+          + (int32_t)q15_mul_truncate(mix_pat_r, state->patina_fader)
           + (int32_t)q15_mul_truncate(rev_r,    state->reverb_fader));
 
         /* 7. DAC section: mode-selectable v1.2/v1.3 processing (Phase 11) */

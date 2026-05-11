@@ -96,11 +96,19 @@ static void test_dac_on_off_on_bit_identical(void) {
     int16_t discard_l[256], discard_r[256];
     spu94_process(sb, dirty_input, dirty_input, discard_l, discard_r, N);
 
-    /* Toggle off (resets DAC state) then back on */
+    /* Toggle off (resets DAC state) then back on. Phase 22: also toggle
+     * latency_comp off/on so the Stage B fir-match buffers (which
+     * persist across DAC toggles by design -- they're latency-comp
+     * state, not DAC state) are flushed too. Without this, the previous
+     * spu94_process call left dry/patina history in the fir_lc buffers,
+     * and the second run would see non-zero output[0..57] from that
+     * residue. */
     spu94_set_dac_enabled(sb, 0);
+    spu94_set_latency_comp(sb, 0);
     spu94_set_dac_enabled(sb, 1);
     spu94_set_dac_fir_enabled(sb, 1);
     spu94_set_dac_noise_enabled(sb, 1);
+    spu94_set_latency_comp(sb, 1);
 
     /* Process same input as State A */
     int16_t out_b_l[256], out_b_r[256];

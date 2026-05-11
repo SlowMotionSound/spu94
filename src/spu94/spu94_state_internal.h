@@ -179,11 +179,31 @@ struct spu94_state {
     int16_t        patina_send;       /* patina bus -> reverb send level */
     int16_t        reverb_fader;      /* reverb return level at master mixer */
 
-    /* Latency compensation (D-07, D-08) */
+    /* Latency compensation (D-07, D-08)
+     *
+     * Two stages, both gated by `latency_comp`:
+     *
+     * Stage A (28-sample, ADPCM-only): delay dry bus to match the ADPCM
+     *   block delay so dry and patina enter the reverb send chain
+     *   time-aligned (prevents reverb-send comb-filtering).
+     *
+     * Stage B (58-sample, FIR-match): delay dry and patina at the master
+     *   mix stage to align with the FIR reverb chain's group delay
+     *   (SPU94_LATENCY_SAMPLES = 58). Active whenever latency_comp is on,
+     *   regardless of ADPCM. Without this, the dry/patina contributions
+     *   to the master mix arrive 58 samples ahead of the reverb tail,
+     *   producing transient smearing in dry+reverb mixes and breaking
+     *   host PDC for passthrough configurations (PLUG-15 finding).
+     */
     uint8_t        latency_comp;      /* 1=on (D-07 default), 0=off */
-    uint8_t        delay_pos;         /* ring buffer write position, 0..27 */
-    int16_t        delay_buf_l[28];   /* 28-sample delay, L channel */
-    int16_t        delay_buf_r[28];   /* 28-sample delay, R channel */
+    uint8_t        delay_pos;         /* Stage A ring write pos, 0..27 */
+    int16_t        delay_buf_l[28];   /* Stage A 28-sample delay, L */
+    int16_t        delay_buf_r[28];   /* Stage A 28-sample delay, R */
+    uint8_t        fir_lc_pos;        /* Stage B ring write pos, 0..57 */
+    int16_t        fir_lc_dry_buf_l[58]; /* Stage B 58-sample dry delay, L */
+    int16_t        fir_lc_dry_buf_r[58]; /* Stage B 58-sample dry delay, R */
+    int16_t        fir_lc_pat_buf_l[58]; /* Stage B 58-sample patina delay, L */
+    int16_t        fir_lc_pat_buf_r[58]; /* Stage B 58-sample patina delay, R */
 
     /* DAC section (D-09 through D-12) */
     uint8_t        dac_enabled;       /* master toggle, 0=off (default) */

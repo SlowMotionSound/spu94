@@ -267,11 +267,20 @@ int16_t spu94_get_reverb_fader(const spu94_state *state) {
 void spu94_set_latency_comp(spu94_state *state, int enabled) {
     if (state == NULL) return;
     if (!enabled && state->latency_comp) {
-        /* Zero delay buffer and reset position on disable */
+        /* Zero both delay stages and reset positions on disable: stale
+         * samples in the ring buffers would otherwise leak out on the
+         * next on->off->on cycle. */
         state->delay_pos = 0;
         for (int j = 0; j < 28; j++) {
             state->delay_buf_l[j] = 0;
             state->delay_buf_r[j] = 0;
+        }
+        state->fir_lc_pos = 0;
+        for (int j = 0; j < 58; j++) {
+            state->fir_lc_dry_buf_l[j] = 0;
+            state->fir_lc_dry_buf_r[j] = 0;
+            state->fir_lc_pat_buf_l[j] = 0;
+            state->fir_lc_pat_buf_r[j] = 0;
         }
     }
     state->latency_comp = enabled ? 1 : 0;
