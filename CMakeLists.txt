@@ -42,6 +42,7 @@ enable_testing()
 
 add_subdirectory(src/spu94)
 add_subdirectory(src/cli)
+add_subdirectory(src/plugin)
 add_subdirectory(src/standalone)
 
 if(BUILD_TESTING)
