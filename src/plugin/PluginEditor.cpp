@@ -6,41 +6,50 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
       registerPanel(p.getRegisterBridge()),
       morphPanel(p)
 {
-    // Load WAV button -- opens async file picker.
-    addAndMakeVisible(loadButton);
-    loadButton.onClick = [this]()
+    // WAV-loader UI (Load / Play / Stop) is the standalone testbed's signal
+    // source. Gated on wrapperType so plugin formats (VST3 / AU / LV2 / CLAP)
+    // never instantiate these as visible children -- they take their input
+    // from the host buffer instead (PLUG-49). The toolbar slot from x=10..265
+    // intentionally shows empty space in plugin formats; toolbar polish is
+    // deferred to a later UI phase.
+    if (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
     {
-        fileChooser = std::make_unique<juce::FileChooser>(
-            "Select a WAV file",
-            juce::File::getSpecialLocation(juce::File::userMusicDirectory),
-            "*.wav;*.aiff;*.aif");
+        // Load WAV button -- opens async file picker.
+        addAndMakeVisible(loadButton);
+        loadButton.onClick = [this]()
+        {
+            fileChooser = std::make_unique<juce::FileChooser>(
+                "Select a WAV file",
+                juce::File::getSpecialLocation(juce::File::userMusicDirectory),
+                "*.wav;*.aiff;*.aif");
 
-        fileChooser->launchAsync(
-            juce::FileBrowserComponent::openMode |
-            juce::FileBrowserComponent::canSelectFiles,
-            [this](const juce::FileChooser& fc)
-            {
-                auto result = fc.getResult();
-                if (result.existsAsFile())
+            fileChooser->launchAsync(
+                juce::FileBrowserComponent::openMode |
+                juce::FileBrowserComponent::canSelectFiles,
+                [this](const juce::FileChooser& fc)
                 {
-                    processorRef.loadWavFile(result);
-                }
-            });
-    };
+                    auto result = fc.getResult();
+                    if (result.existsAsFile())
+                    {
+                        processorRef.loadWavFile(result);
+                    }
+                });
+        };
 
-    // Play button -- starts playback of loaded WAV through SPU.
-    addAndMakeVisible(playButton);
-    playButton.onClick = [this]()
-    {
-        processorRef.startPlayback();
-    };
+        // Play button -- starts playback of loaded WAV through SPU.
+        addAndMakeVisible(playButton);
+        playButton.onClick = [this]()
+        {
+            processorRef.startPlayback();
+        };
 
-    // Stop button -- stops playback and resets position.
-    addAndMakeVisible(stopButton);
-    stopButton.onClick = [this]()
-    {
-        processorRef.stopPlayback();
-    };
+        // Stop button -- stops playback and resets position.
+        addAndMakeVisible(stopButton);
+        stopButton.onClick = [this]()
+        {
+            processorRef.stopPlayback();
+        };
+    }
 
     // Preset Save button (D-06: opens name prompt, then file dialog)
     addAndMakeVisible(savePresetButton);
@@ -328,9 +337,14 @@ void SPU94AudioProcessorEditor::resized()
     const int w = getWidth();
 
     // ---- ZONE 1: Toolbar (y=10, h=60) ----
-    loadButton.setBounds(10, 10, 100, 30);
-    playButton.setBounds(115, 10, 70, 30);
-    stopButton.setBounds(190, 10, 70, 30);
+    // WAV-loader buttons positioned only in the standalone testbed; plugin
+    // formats leave x=10..265 intentionally empty (no reflow in Phase 21).
+    if (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
+    {
+        loadButton.setBounds(10, 10, 100, 30);
+        playButton.setBounds(115, 10, 70, 30);
+        stopButton.setBounds(190, 10, 70, 30);
+    }
     savePresetButton.setBounds(270, 10, 55, 30);
     loadPresetButton.setBounds(330, 10, 55, 30);
     // (Toolbar slot is empty -- per-tick EXPORT/LOAD live in MorphPanel.)
