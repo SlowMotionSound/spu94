@@ -19,7 +19,7 @@
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 21. Build Skeleton & CI Matrix | v1.7 | 0/? | Not started | -- |
+| 21. Build Skeleton & CI Matrix | v1.7 | 1/1 | Complete | 2026-05-11 |
 | 22. SRC & Latency Reporting | v1.7 | 0/? | Not started | -- |
 | 23. Float↔int16 Boundary | v1.7 | 0/? | Not started | -- |
 | 24. State & Automation Surface | v1.7 | 0/? | Not started | -- |
