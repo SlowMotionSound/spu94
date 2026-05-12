@@ -744,14 +744,76 @@ void SPU94AudioProcessor::changeProgramName(int /*index*/,
 {
 }
 
-void SPU94AudioProcessor::getStateInformation(juce::MemoryBlock& /*destData*/)
+void SPU94AudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
-    // Plan 03 fills this with register state serialization.
+    if (!engines[0]) return;
+
+    // Sync wrapper-side atomics to the engine before serializing, matching
+    // the same atomic -> engine sync policy used in savePresetToString.
+    // Input Gain register is pinned at 0x7FFF (Phase 23 D-03); the actual
+    // gain lives in the inputLevel atomic and is captured in the float
+    // appendix below.
+    spu94_set_input_gain(engines[0], static_cast<int16_t>(0x7FFF));
+    spu94_set_dry_fader(engines[0], static_cast<int16_t>(
+        dryLevel.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_patina_fader(engines[0], static_cast<int16_t>(
+        patinaLevel.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_reverb_fader(engines[0], static_cast<int16_t>(
+        reverbLevel.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_dry_send(engines[0], static_cast<int16_t>(
+        drySend.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_patina_send(engines[0], static_cast<int16_t>(
+        adpcmSend.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_latency_comp(engines[0],
+        latencyCompEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_dac_enabled(engines[0],
+        dacEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_dac_fir_enabled(engines[0],
+        dacFirEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_dac_noise_enabled(engines[0],
+        dacNoiseEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_dac_true_oversample(engines[0],
+        dacTrueOversample.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_morph_grit(engines[0],
+        morphGrit.load(std::memory_order_relaxed));
+
+    StateSerializer::save(
+        engines[0],
+        inputLevel.load(std::memory_order_relaxed),
+        morphPosition.load(std::memory_order_relaxed),
+        morphSpeed.load(std::memory_order_relaxed),
+        static_cast<float>(morphGrit.load(std::memory_order_relaxed)),
+        0.0f, 0.0f,
+        destData);
 }
 
-void SPU94AudioProcessor::setStateInformation(const void* /*data*/, int /*sizeInBytes*/)
+void SPU94AudioProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
-    // Plan 03 fills this with register state deserialization.
+    // Parse the binary container (message thread -- no audio-thread allocation).
+    auto result = StateSerializer::load(data, sizeInBytes);
+
+    // D-06: on any validation failure, leave engine at defaults.
+    if (!result.ok)
+        return;
+
+    // T-24-02: textLen already validated against SPU94_PRESET_BUF_SIZE
+    // inside StateSerializer::load -- safe to memcpy into the fixed-size
+    // pendingPresetBuf without overflow.
+    std::memcpy(pendingPresetBuf.data(), result.textBody, result.textLen);
+    pendingPresetBuf[result.textLen] = '\0';
+    pendingPresetLen.store(result.textLen, std::memory_order_relaxed);
+    pendingTargetSlot.store(-1, std::memory_order_relaxed);  // full preset load
+    filePresetReady.store(true, std::memory_order_release);
+
+    // Restore wrapper-side atomics from the float appendix.
+    // These values are NOT in the .spu94 text body -- they live only in
+    // the binary container's float appendix. All stores are relaxed:
+    // the audio thread reads them at block granularity (PLUG-31).
+    inputLevel.store(result.inputGain, std::memory_order_relaxed);
+    morphPosition.store(result.morphPosition, std::memory_order_relaxed);
+    morphSpeed.store(result.morphSpeed, std::memory_order_relaxed);
+    morphGrit.store(static_cast<int>(result.morphGrit + 0.5f),
+                    std::memory_order_relaxed);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

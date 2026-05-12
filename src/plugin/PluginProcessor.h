@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "ParameterBridge.h"
 #include "SrcChain.h"
+#include "StateSerializer.h"
 #include <array>
 #include <atomic>
 #include <cstdint>
