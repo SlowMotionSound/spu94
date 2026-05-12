@@ -322,21 +322,19 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         dacTrueOversample.store(spu94_get_dac_true_oversample(engines[0]) != 0, std::memory_order_relaxed);
         morphGrit.store(spu94_get_morph_grit(engines[0]), std::memory_order_relaxed);
 
-        // Phase 24: sync AudioParameterFloat values from the freshly-loaded
-        // atomics so the host sees the correct values in automation lanes.
-        // setValue takes NORMALIZED 0..1; for mixer params (0..1 real range)
-        // normalized == real. For inputGain (0..16) we must convert.
-        // setValue writes an internal atomic -- safe to call from any thread.
-        paramDryLevel->setValue(dryLevel.load(std::memory_order_relaxed));
-        paramAdpcmLevel->setValue(patinaLevel.load(std::memory_order_relaxed));
-        paramReverbLevel->setValue(reverbLevel.load(std::memory_order_relaxed));
-        paramDrySend->setValue(drySend.load(std::memory_order_relaxed));
-        paramAdpcmSend->setValue(adpcmSend.load(std::memory_order_relaxed));
-        paramInputGain->setValue(paramInputGain->getNormalisableRange().convertTo0to1(
+        // Sync AudioParameterFloat values from the freshly-loaded atomics so the
+        // host sees the correct values in automation lanes. setValueNotifyingHost
+        // takes NORMALIZED 0..1; for mixer params (0..1 real range) normalized == real.
+        paramDryLevel->setValueNotifyingHost(dryLevel.load(std::memory_order_relaxed));
+        paramAdpcmLevel->setValueNotifyingHost(patinaLevel.load(std::memory_order_relaxed));
+        paramReverbLevel->setValueNotifyingHost(reverbLevel.load(std::memory_order_relaxed));
+        paramDrySend->setValueNotifyingHost(drySend.load(std::memory_order_relaxed));
+        paramAdpcmSend->setValueNotifyingHost(adpcmSend.load(std::memory_order_relaxed));
+        paramInputGain->setValueNotifyingHost(paramInputGain->getNormalisableRange().convertTo0to1(
             inputLevel.load(std::memory_order_relaxed)));
-        paramMorphPosition->setValue(morphPosition.load(std::memory_order_relaxed));
-        paramMorphSpeed->setValue(morphSpeed.load(std::memory_order_relaxed));
-        paramMorphGrit->setValue(morphGrit.load(std::memory_order_relaxed) >= 1 ? 1.0f : 0.0f);
+        paramMorphPosition->setValueNotifyingHost(morphPosition.load(std::memory_order_relaxed));
+        paramMorphSpeed->setValueNotifyingHost(morphSpeed.load(std::memory_order_relaxed));
+        paramMorphGrit->setValueNotifyingHost(morphGrit.load(std::memory_order_relaxed) >= 1 ? 1.0f : 0.0f);
     }
 
     // 2. Push register values: morph engine OR register bridge, never both.
