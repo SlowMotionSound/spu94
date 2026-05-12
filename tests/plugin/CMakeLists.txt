@@ -43,3 +43,32 @@ target_link_libraries(test_null_passthrough PRIVATE
 
 add_test(NAME plug15_null_passthrough_48k
          COMMAND test_null_passthrough)
+
+# Phase 24 Plan 01: StateSerializer binary container unit tests (PLUG-22..27)
+juce_add_console_app(test_state_serializer
+    PRODUCT_NAME "SPU-94 State Serializer Test"
+)
+juce_generate_juce_header(test_state_serializer)
+
+target_sources(test_state_serializer PRIVATE
+    test_state_serializer.cpp
+)
+
+target_include_directories(test_state_serializer PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/plugin
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_compile_definitions(test_state_serializer PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+)
+
+target_link_libraries(test_state_serializer PRIVATE
+    spu94_static
+    juce::juce_core
+    juce::juce_recommended_config_flags
+)
+
+add_test(NAME state_serializer
+         COMMAND test_state_serializer)

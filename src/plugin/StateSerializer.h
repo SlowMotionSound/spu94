@@ -67,7 +67,6 @@ inline bool save(const spu94_state* engine,
                      + static_cast<uint32_t>(kFloatAppendixSize);
 
     dest.reset();
-    dest.ensureSize(kHeaderSize + bodyLen, false);
 
     // Header: magic + version + bodyLen
     dest.append(kMagic, 4);
