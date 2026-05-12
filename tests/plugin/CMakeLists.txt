@@ -72,3 +72,54 @@ target_link_libraries(test_state_serializer PRIVATE
 
 add_test(NAME state_serializer
          COMMAND test_state_serializer)
+
+# Phase 24 PLUG-26/27: Full processor state round-trip test.
+# Instantiates SPU94AudioProcessor directly to verify save→load
+# preserves all 9 param values, and two instances retain independent state.
+juce_add_console_app(test_state_roundtrip
+    PRODUCT_NAME "SPU-94 State Roundtrip Test"
+)
+juce_generate_juce_header(test_state_roundtrip)
+
+target_sources(test_state_roundtrip PRIVATE
+    test_state_roundtrip.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/PluginProcessor.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/PluginEditor.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/ParameterBridge.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/RegisterPanel.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/MorphPanel.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/SrcChain.cpp
+)
+
+# Standalone-only WavLoader bolt-on (needed by PluginProcessor.cpp includes)
+if(EXISTS ${CMAKE_SOURCE_DIR}/src/standalone/WavLoader.cpp)
+    target_sources(test_state_roundtrip PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/standalone/WavLoader.cpp
+    )
+    target_include_directories(test_state_roundtrip PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/standalone
+    )
+endif()
+
+target_include_directories(test_state_roundtrip PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/plugin
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_compile_definitions(test_state_roundtrip PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_VST3_CAN_REPLACE_VST2=0
+)
+
+include(${CMAKE_SOURCE_DIR}/cmake/libsamplerate.cmake)
+
+target_link_libraries(test_state_roundtrip PRIVATE
+    spu94_static
+    samplerate
+    juce::juce_audio_utils
+    juce::juce_recommended_config_flags
+)
+
+add_test(NAME state_roundtrip
+         COMMAND test_state_roundtrip)
