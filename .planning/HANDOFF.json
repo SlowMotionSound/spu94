@@ -1,67 +1,89 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-11T22:09:10.150Z",
-  "phase": "22",
-  "phase_name": "src-latency-reporting",
-  "phase_dir": ".planning/phases/22-src-latency-reporting",
-  "plan": 1,
-  "task": 4,
-  "total_tasks": 4,
+  "timestamp": "2026-05-12T03:42:46Z",
+  "phase": "23",
+  "phase_name": "float-int16-boundary",
+  "phase_dir": ".planning/phases/23-float-int16-boundary",
+  "plan": 2,
+  "task": 3,
+  "total_tasks": 3,
   "status": "phase_complete",
+  "stopped_at": "Phase 23 verified and closed. Both plans complete (23-01 BoundaryConverter lift + 23-02 pre-clamp Input Gain reposition with +24 dB drive). UAT approved -- Anthony confirmed audible character matches D-02 intent (clean -6 dB headroom at default, hard saturator drive at the knob top). All 5 PLUG-17..21 requirements satisfied. Two plan divergences resolved during execution: D-03 register pinned at 0x7FFF on BOTH paths (was: plugin-only) and standalone GUI slider widened in-phase to 0.0..16.0 with unity-midpoint skew (was: deferred to Phase 24).",
   "completed_tasks": [
-    {"id": 1, "name": "libsamplerate FetchContent shim (PLUG-09)", "status": "done", "commit": "72660bd"},
-    {"id": 2, "name": "SrcChain.{h,cpp} -- bidirectional SRC wrapper (PLUG-10..13)", "status": "done", "commit": "496e7eb"},
-    {"id": 3, "name": "processBlock SRC sandwich + ScopedNoDenormals + setLatencySamples (PLUG-11..16)", "status": "done", "commit": "976553b"},
-    {"id": 4, "name": "PLUG-15 null-test UAT (Ardour 48 kHz)", "status": "done", "commit": "fd50b1d", "note": "Drove a real core bug to ground -- dry path not delayed to match FIR group delay. Fixed via Stage B 58-sample latency_comp on dry+ADPCM buses. Verified by new headless null-test harness: -85 dBFS at 44.1k fast-path, alignment+residual gates pass at 48k."}
+    {"id": "23-01-1", "name": "BoundaryConverter.h with named float<->int16 free functions", "status": "done", "commit": "c0e0e0c"},
+    {"id": "23-01-2", "name": "SrcChain.cpp call-site migration to BoundaryConverter", "status": "done", "commit": "dc5ce32"},
+    {"id": "23-01-3", "name": "CMakeLists.txt sources listing", "status": "done", "commit": "6084833"},
+    {"id": "23-02-1", "name": "applyInputGain helper + inputLevel range docstring + scratch members", "status": "done", "commit": "6bffcb1"},
+    {"id": "23-02-2", "name": "Pre-clamp Input Gain on plugin path; pin engine register at unity", "status": "done", "commit": "f7f9137"},
+    {"id": "23-02-3", "name": "Post-UAT correction: extend pre-clamp gain to standalone path; widen standalone GUI slider", "status": "done", "commit": "7e9bc82"}
   ],
   "remaining_tasks": [],
   "blockers": [],
   "human_actions_pending": [
     {
-      "action": "Phase 22 closeout commits ready; advance to Phase 23 when ready",
-      "context": "Phase 23 = bit-depth conversion / explicit float<->int16 BoundaryConverter inside the SRC sandwich (per Phase 22 plan).",
+      "action": "Decide entry mode for Phase 24 (State & Automation Surface)",
+      "context": "Phase 24 scope: binary-wrapped .spu94 state round-trip (locale-independent, PLUG-22..27) and 9 host-automatable AudioProcessorParameters (PLUG-28..31). This is also where Input Gain finally gets exposed natively to the host with the full 0..16 range (no more UAT-only standalone widen). Real design space: parameter ranges/curves, state format version field, automation granularity. /gsd-discuss-phase 24 vs /gsd-plan-phase 24 direct.",
       "blocking": false
     }
   ],
   "deferred_followups": [
     {
+      "item": "Standalone GUI slider widen at PluginEditor.cpp:92-98",
+      "scope": "marked UAT-only with explicit REVERT comment; revert when Phase 24 exposes Input Gain natively via AudioProcessorParameter",
+      "where": "src/plugin/PluginEditor.cpp:92-98"
+    },
+    {
       "item": "Hide preset Save/Load buttons in plugin formats",
-      "where": "src/plugin/PluginEditor.cpp lines 55-80 (savePresetButton, loadPresetButton)",
-      "fix": "wrap addAndMakeVisible(...) in the existing 'if (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)' block, same pattern as PLUG-49 WAV-loader gate at line 15",
-      "scope": "small, ~1 commit, can fold into next UI-touching phase"
+      "scope": "small; wrap addAndMakeVisible(...) in wrapperType_Standalone check; can fold into next UI-touching phase",
+      "where": "src/plugin/PluginEditor.cpp:55-80"
     },
     {
       "item": "Plugin GUI loses parameter state when window closed/reopened (Ardour LV2)",
-      "where": "PluginEditor + PluginProcessor APVTS wiring",
-      "context": "Params live in the processor (atomics); editor should reflect existing state on construction, not reset to defaults. Likely missing APVTS slider attachments or editor reads defaults instead of current values. Repro in Ardour LV2.",
-      "scope": "small fix, separate phase or rolled into next plugin-UI phase"
+      "scope": "APVTS attachment audit; separate phase or rolled into next plugin-UI phase",
+      "where": "PluginEditor + PluginProcessor APVTS wiring"
+    },
+    {
+      "item": "\"Bit Corrupt\" creative effect on wall/echo register chain",
+      "scope": "v1.8+ creative-effect phase; re-enable v1.5 signed register-shadow read path as opt-in toggle; pair with low-headroom helper",
+      "where": "Anthony's strong preference for authentic recreation; details in project_bit_corrupt_effect.md memory"
+    },
+    {
+      "item": "Companion PSX sampler instrument (24-voice, ADPCM intake, 4-tap Gaussian, exponential ADSR, 512 KB sample memory, SPU-94 reverb baked in)",
+      "scope": "future product direction; details in project_psx_sampler_instrument.md memory",
+      "where": "post-SPU-94 ship; open design axes on spec-strict vs spec-inspired and MIDI/tracker workflow"
     }
   ],
   "decisions": [
     {
-      "decision": "C core latency_comp now has two stages: Stage A (28-sample ADPCM-match delay on dry going into reverb send, gated on latency_comp + adpcm_enabled, unchanged) and Stage B (58-sample FIR-match delay on dry+ADPCM buses before master mixer, gated on latency_comp only, NEW).",
-      "rationale": "Pre-fix, the plugin reported the FIR group delay through setLatencySamples but the dry path wasn't actually delayed by it. Host PDC over-compensated by 58-65 samples; passthrough configs couldn't null and dry+reverb mixes had 58 samples of transient pre-echo. Stage B aligns all three master-mix paths (dry/ADPCM/reverb) to the FIR group delay so the reported latency is accurate.",
-      "phase": "22"
+      "decision": "D-01: Input Gain is now a pre-clamp float multiply on BOTH paths (plugin and standalone), applied to the host buffer / WAV samples BEFORE the int16 boundary clamp.",
+      "rationale": "Gives the user real headroom: knob below unity attenuates before clip rather than scaling an already-clipped result.",
+      "phase": "23"
     },
     {
-      "decision": "Bit-faithful PS1 SPU behaviour preserved when latency_comp is OFF -- both stages no-op, dry races ahead of reverb (historically authentic smear). The Latency Comp toggle is the user-visible opt-in for modern-DAW correctness vs hardware fidelity.",
-      "rationale": "Project North Star -- fixed-point quirks ARE the product; smoothing is opt-in. latency_comp default ON for modern DAW use, OFF for period-accurate testbed work.",
-      "phase": "22"
+      "decision": "D-02: Input Gain parameter range internal float is 0.0..16.0 (+24 dB drive). Standalone slider widened to expose this range in-phase; plugin host-param surface still deferred to Phase 24 / PLUG-28.",
+      "rationale": "User chose aggressive +24 dB ceiling to turn sat_s16 into a deliberate saturator -- North Star 'fixed-point quirks ARE the product.' UAT confirmed audible character is right.",
+      "phase": "23"
     },
     {
-      "decision": "PLUG-15 closure used a headless null-test harness (tests/plugin/test_null_passthrough) at two host SRs (44.1k strict gate, 48k alignment+residual gates) rather than a continued Ardour GUI session.",
-      "rationale": "Ardour's integer-only PDC can't null a 0.13-host-sample fractional misalignment with broadband content; that's a host limitation, not a plugin defect. The headless harness measures the plugin's actual properties (best-alignment cross-correlation, residual vs reported latency, fast-path strict null) which are what PLUG-15 cares about.",
-      "phase": "22"
+      "decision": "D-03: spu94_set_input_gain engine register is pinned at 0x7FFF on BOTH paths (uniformed during UAT correction from plugin-only).",
+      "rationale": "Original split (standalone using engine register, plugin pre-clamp) overflowed int16_t once the atomic range widened to 0.0..16.0 -- audibly: quieter past 1.0 then silent. Uniform pinning eliminates the wrap.",
+      "phase": "23"
+    },
+    {
+      "decision": "Bit corruption / int16 wrap is a recurring failure mode in this codebase.",
+      "rationale": "Same shape of bug appeared in v1.5 register shadows (commit e2e8f57, 2026-05-05) and in Phase 23 Plan 02's first revision. Any cast 'float -> int16_t' with values that can exceed +/-32767 must either clamp first or use a wider integer type. Worth flagging at design-review time on any new register/parameter wiring.",
+      "phase": "cross-phase"
     }
   ],
   "uncommitted_files": [
-    ".planning/REVIEW-c-core-audit.md (untracked)",
-    ".planning/REVIEW-juce-audit.md (untracked)",
-    ".planning/REVIEW-python-cli-audit.md (untracked)",
-    "tools/null_test_noise_48k.wav (untracked -- generated for UAT, reproducible)",
+    ".planning/REVIEW-c-core-audit.md (untracked, pre-existing)",
+    ".planning/REVIEW-juce-audit.md (untracked, pre-existing)",
+    ".planning/REVIEW-python-cli-audit.md (untracked, pre-existing)",
+    "tools/null_test_noise_48k.wav (untracked, Phase 22 UAT artifact, reproducible)",
     "Screenshot_*.png, ColorScheme.jpg, tools/*.html, tools/dac_compare.png (untracked, pre-existing dev artefacts)",
-    "build_test/ (untracked build directory)"
+    "build_test/ (untracked build directory)",
+    ".claude/scheduled_tasks.lock (untracked, harness-local)"
   ],
-  "next_action": "Phase 22 is complete and all 8 PLUG-09..16 requirements pass. The natural next step is /gsd-plan-phase 23 (bit-depth conversion / explicit float<->int16 BoundaryConverter inside the SRC sandwich; the int16 boundary is currently inside SrcChain's processIn/processOut, Phase 23 makes it an explicit module). Alternatively, address one of the two deferred UI follow-ups first if a smaller bite is preferred.",
-  "context_notes": "Phase 22 was the v1.7 engineering risk hotspot per PITFALLS-v1.7.md: B1 RT-safety, B6 PDC alignment, C3 denormals. All three landed correctly. The Stage B latency_comp fix is a real product-quality improvement that affects all dry+reverb mixes in real DAWs (no more 58-sample pre-echo on dry transients), not just the null test. The headless null-test harness is a permanent regression gate; running it after any C core or SrcChain edit is the cheap way to catch latency-reporting drift."
+  "next_action": "Resume with Phase 24 -- State & Automation Surface. Two entry options: /gsd-discuss-phase 24 (recommended -- real design space on parameter ranges, state format versioning, automation granularity) or /gsd-plan-phase 24 (direct planning if you'd rather skip discuss). Phase 24 will also natively expose Input Gain with the 0..16 range, at which point the standalone slider UAT widen at PluginEditor.cpp:92-98 should be reverted.",
+  "context_notes": "Phase 23 closeout was clean but bumpy mid-execution: the planner's D-03 decision (standalone keeps engine-register gain) plus the slider exposure deferral combined to make the audible behavior unreachable in any UI -- discovered during UAT when Anthony first swept past 1.0 and heard the int16 wrap evaporate the signal. Recovered with a single post-UAT commit (7e9bc82) that uniformed the register policy and widened the standalone slider. Lesson worth keeping: when a phase touches an audible parameter range, the GUI surface that exposes the range is part of the UAT contract -- deferring slider widening to a 'GUI phase' produces a phase that can't actually be heard. Anthony's UAT approval (\"This sounds great btw. listening now\") followed by an unprompted creative spitball on the Bit Corrupt effect and PSX sampler product direction -- both logged to memory + STATE deferred ideas, both are post-SPU-94 product moves. Pausing here at a clean boundary, not mid-flight."
 }
