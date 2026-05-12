@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "BoundaryConverter.h"
 #include "PluginEditor.h"
 #include "WavLoader.h"
 #include <algorithm>
@@ -97,6 +98,15 @@ void SPU94AudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     hostSampleRate_ = sampleRate;
     constexpr int kMaxBlock = 4096;
     const int maxBlock = juce::jmin(samplesPerBlock, kMaxBlock);
+
+    // Phase 23 Plan 02: per-channel host-rate scratch for the pre-clamp
+    // Input Gain multiply (plugin path). Sized to the same kMaxBlock
+    // ceiling the audio I/O branches use. Plugin path only -- standalone
+    // path uses the engine-register gain path and does not touch this
+    // scratch.
+    inputGainScratch_[0].allocate(kMaxBlock, true);
+    inputGainScratch_[1].allocate(kMaxBlock, true);
+
     srcChain_.prepare(sampleRate, maxBlock, /*numChannels=*/2);
 
     // Latency reporting (PLUG-14). Core latency lives at 44.1 kHz; scale
@@ -261,8 +271,18 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // Push mixer/DAC state to the single audio engine. State management --
     // runs unconditionally so the GUI's view of engine state is always
     // current, regardless of WAV/playback status.
-    spu94_set_input_gain(engines[0], static_cast<int16_t>(
-        inputLevel.load(std::memory_order_relaxed) * 0x7FFF));
+    //
+    // Phase 23 Plan 02 (D-03): on the plugin path, Input Gain is a
+    // pre-clamp float multiply applied to the host buffer below; the
+    // engine register is no longer the gain stage and is pinned at
+    // unity (0x7FFF). On the standalone path, the engine register
+    // remains the gain stage (testbed-only, unchanged).
+    {
+        // Phase 23 UAT: standalone path now also uses pre-clamp float gain so
+        // the +24 dB drive range works in the testbed (was wrapping when
+        // atomic * 0x7FFF exceeded int16_t range on the old register path).
+        spu94_set_input_gain(engines[0], static_cast<int16_t>(0x7FFF));
+    }
     spu94_set_dry_fader(engines[0], static_cast<int16_t>(
         dryLevel.load(std::memory_order_relaxed) * 0x7FFF));
     spu94_set_patina_fader(engines[0], static_cast<int16_t>(
@@ -379,13 +399,20 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         int16_t tmpL_out[kMaxBlock];
         int16_t tmpR_out[kMaxBlock];
 
+        // Phase 23 UAT: pre-clamp float gain on standalone path too.
+        // int16 WAV sample -> float -> apply gain -> clamp+truncate back to int16.
+        const float inputGain = inputLevel.load(std::memory_order_relaxed);
         auto playPos = wavSource.playPos.load(std::memory_order_relaxed);
         for (int i = 0; i < samplesToProcess; ++i)
         {
             const auto idx = static_cast<size_t>(
                 (playPos + static_cast<uint64_t>(i)) % numFrames);
-            tmpL_in[i] = wavSource.L[idx];
-            tmpR_in[i] = wavSource.R[idx];
+            const float fL = spu94::plugin::boundary::toFloat(wavSource.L[idx]);
+            const float fR = spu94::plugin::boundary::toFloat(wavSource.R[idx]);
+            tmpL_in[i] = spu94::plugin::boundary::toInt16(
+                spu94::plugin::boundary::applyInputGain(fL, inputGain));
+            tmpR_in[i] = spu94::plugin::boundary::toInt16(
+                spu94::plugin::boundary::applyInputGain(fR, inputGain));
         }
 
         spu94_process(engines[0], tmpL_in, tmpR_in, tmpL_out, tmpR_out,
@@ -423,11 +450,34 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         int16_t coreOutL[kMaxBlock];
         int16_t coreOutR[kMaxBlock];
 
-        const float* hostInPtrs[2] = {
-            buffer.getReadPointer(0),
-            buffer.getNumChannels() > 1 ? buffer.getReadPointer(1)
-                                        : buffer.getReadPointer(0)
-        };
+        // Phase 23 Plan 02 (D-01 + D-02): pre-clamp Input Gain stage.
+        // Apply the atomic as a single float multiply on the host-rate
+        // signal BEFORE the SRC sandwich, so the boundary clamp inside
+        // toInt16 lives downstream of the gain knob. Sub-unity values
+        // (e.g. 0.5 default = -6 dB) give the user real headroom below
+        // the int16 ceiling; super-unity values (up to ~16.0 = +24 dB)
+        // drive the signal hard into sat_s16, turning the boundary
+        // into a deliberate saturator/overdrive (North Star).
+        //
+        // The atomic is read ONCE per block (per R4): per-sample loads
+        // would create wasted release-acquire chains for no audible
+        // benefit. The scalar loop calls applyInputGain (a named seam
+        // in BoundaryConverter.h) so the pre-clamp pipeline has one
+        // grep-able home.
+        const float gain = inputLevel.load(std::memory_order_relaxed);
+        const float* rawL = buffer.getReadPointer(0);
+        const float* rawR = buffer.getNumChannels() > 1
+                                ? buffer.getReadPointer(1)
+                                : buffer.getReadPointer(0);
+        float* scratchL = inputGainScratch_[0].getData();
+        float* scratchR = inputGainScratch_[1].getData();
+        for (int i = 0; i < n; ++i)
+        {
+            scratchL[i] = spu94::plugin::boundary::applyInputGain(rawL[i], gain);
+            scratchR[i] = spu94::plugin::boundary::applyInputGain(rawR[i], gain);
+        }
+
+        const float* hostInPtrs[2] = { scratchL, scratchR };
         int coreN = 0;
         srcChain_.processIn(hostInPtrs, n, coreInL, coreInR, coreN);
 
@@ -488,8 +538,20 @@ juce::String SPU94AudioProcessor::savePresetToString(
 
     // processBlock only pushes GUI atomics to the SPU while audio is playing.
     // Sync them here so the saved state always matches what the knobs show.
-    spu94_set_input_gain(engines[0], static_cast<int16_t>(
-        inputLevel.load(std::memory_order_relaxed) * 0x7FFF));
+    //
+    // Phase 23 Plan 02 (D-03): mirror the per-block atomic-sync policy.
+    // On the plugin path the engine register is pinned at unity (the
+    // gain stage lives upstream as a pre-clamp float multiply); on the
+    // standalone path the register continues to carry the Q15 gain
+    // value for v1.6-back-compat preset capture. Consequence: a
+    // plugin-saved preset's stored input_gain is always 0x7FFF.
+    // Documented in 23-02-PLAN-SUMMARY's deferred items.
+    {
+        // Phase 23 UAT: standalone path now also uses pre-clamp float gain so
+        // the +24 dB drive range works in the testbed (was wrapping when
+        // atomic * 0x7FFF exceeded int16_t range on the old register path).
+        spu94_set_input_gain(engines[0], static_cast<int16_t>(0x7FFF));
+    }
     spu94_set_dry_fader(engines[0], static_cast<int16_t>(
         dryLevel.load(std::memory_order_relaxed) * 0x7FFF));
     spu94_set_patina_fader(engines[0], static_cast<int16_t>(

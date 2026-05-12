@@ -89,8 +89,13 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     addAndMakeVisible(inputLevelKnob);
     inputLevelKnob.setSliderStyle(juce::Slider::Rotary);
     inputLevelKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-    inputLevelKnob.setRange(0.0, 1.0, 0.01);
+    // UAT-ONLY (Phase 23): slider max widened to 16.0 (= +24 dB drive ceiling) so
+    // the audible D-02 character is reachable from the standalone GUI before
+    // Phase 24's host-automation parameter surface lands. REVERT after UAT
+    // approval — slider exposure is Phase 24/PLUG-28 work.
+    inputLevelKnob.setRange(0.0, 16.0, 0.01);
     inputLevelKnob.setValue(0.50, juce::dontSendNotification);
+    inputLevelKnob.setSkewFactorFromMidPoint(1.0);  // unity at the knob midpoint for usable drive feel
 
     inputLevelKnob.onValueChange = [this] {
         processorRef.getInputLevel().store(

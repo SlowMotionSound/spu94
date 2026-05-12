@@ -92,6 +92,7 @@ None.
 | Documentation | Register reference manual | 2026-05-03 |
 | Idea | Unified Morph Control -- merge Morph Speed + Morph Grit into one encoder | 2026-05-10 |
 | UI Enhancement | Move Save/Load preset actions into a top-left panel dropdown menu instead of standalone buttons (user-perspective preference; cleaner header, mirrors how hosts already group state actions) | 2026-05-11 |
+| Creative effect | "Bit Corrupt" mode -- bring back the v1.5 register-shadow overflow sound as an opt-in effect on the wall/echo register chain. Original bug (commit `e2e8f57`, 2026-05-05) read uint16 shadows as int16, so values past 32767 wrapped negative -- Anthony recalls the audio image "evaporating into smoke, bits sprinkling back in as you eased off." Authentic recreation = re-enable the signed read path as a toggle. Pair with a low-headroom helper so the wrap is reachable at musical signal levels. Fits Digital Patina Engine vision. | 2026-05-11 |
 
 ## Performance Metrics
 

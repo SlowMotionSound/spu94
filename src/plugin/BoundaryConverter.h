@@ -63,6 +63,20 @@ namespace spu94::plugin::boundary
         return static_cast<float>(x) * (1.0f / 32768.0f);
     }
 
+    // Pre-clamp float gain stage for the plugin path.
+    // Applied BEFORE toInt16's saturation. `gain` is the linear factor;
+    // range 0.0..16.0 (0.5 = -6 dB default, 1.0 = unity, 16.0 = +24 dB drive).
+    // No clamp here -- clamp happens later inside toInt16.
+    // Calling site: PluginProcessor.cpp plugin branch, before srcChain_.processIn.
+    //
+    // The function is intentionally trivial. It exists as a NAMED seam so
+    // the pre-clamp pipeline (gain -> boundary) has one grep-able home and
+    // so a future unit test can target applyInputGain + toInt16 together.
+    inline float applyInputGain(float x, float gain) noexcept
+    {
+        return x * gain;
+    }
+
     // Compile-time corner-case sanity. constexpr-folded on all toolchains
     // the project supports (clang/gcc/MSVC C++17). PLUG-18 saturation
     // corners + a clean midrange point + the exact -1.0f boundary.
