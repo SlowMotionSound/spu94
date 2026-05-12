@@ -69,6 +69,19 @@ public:
     std::atomic<float>& getAdpcmSend() { return adpcmSend; }
     std::atomic<float>& getDrySend() { return drySend; }
 
+    // --- Host-automatable AudioParameterFloat accessors (Phase 24 PLUG-28) ---
+    // Non-owning raw pointers. JUCE owns the params after addParameter.
+    // Registration order is FROZEN per PLUG-30 (AU index stability).
+    juce::AudioParameterFloat* getParamInputGain()    const { return paramInputGain; }
+    juce::AudioParameterFloat* getParamAdpcmSend()    const { return paramAdpcmSend; }
+    juce::AudioParameterFloat* getParamDrySend()      const { return paramDrySend; }
+    juce::AudioParameterFloat* getParamMorphPosition() const { return paramMorphPosition; }
+    juce::AudioParameterFloat* getParamMorphSpeed()   const { return paramMorphSpeed; }
+    juce::AudioParameterFloat* getParamMorphGrit()    const { return paramMorphGrit; }
+    juce::AudioParameterFloat* getParamDryLevel()     const { return paramDryLevel; }
+    juce::AudioParameterFloat* getParamAdpcmLevel()   const { return paramAdpcmLevel; }
+    juce::AudioParameterFloat* getParamReverbLevel()  const { return paramReverbLevel; }
+
     // --- Latency compensation (D-07: default ON) ---
     std::atomic<bool>& getLatencyCompEnabled() { return latencyCompEnabled; }
 
@@ -146,6 +159,20 @@ public:
                                 const juce::String& presetText);
 
 private:
+    // --- Host-automatable AudioParameterFloat pointers (Phase 24 PLUG-28).
+    //     Non-owning: JUCE owns the params after addParameter.
+    //     Registration order is FROZEN per PLUG-30 (AU index stability).
+    //     Future params MUST be added at the END of this list. ---
+    juce::AudioParameterFloat* paramInputGain     = nullptr;
+    juce::AudioParameterFloat* paramAdpcmSend     = nullptr;
+    juce::AudioParameterFloat* paramDrySend       = nullptr;
+    juce::AudioParameterFloat* paramMorphPosition = nullptr;
+    juce::AudioParameterFloat* paramMorphSpeed    = nullptr;
+    juce::AudioParameterFloat* paramMorphGrit     = nullptr;
+    juce::AudioParameterFloat* paramDryLevel      = nullptr;
+    juce::AudioParameterFloat* paramAdpcmLevel    = nullptr;
+    juce::AudioParameterFloat* paramReverbLevel   = nullptr;
+
     // inputLevel: pre-clamp float gain factor. Range 0.0..16.0 (linear).
     // Anchor points:
     //   0.0  -> silence

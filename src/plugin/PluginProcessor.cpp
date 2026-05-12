@@ -12,6 +12,93 @@ SPU94AudioProcessor::SPU94AudioProcessor()
                          .withInput("Input", juce::AudioChannelSet::stereo(), true)
                          .withOutput("Output", juce::AudioChannelSet::stereo(), true))
 {
+    // -----------------------------------------------------------------
+    // Phase 24 (PLUG-28..31): Register 9 host-automatable parameters.
+    // Registration ORDER is FROZEN per PLUG-30 (AU index stability).
+    // All ParameterIDs use versionHint=1. Future params MUST be added
+    // at the END of this block with versionHint=2+.
+    // No APVTS anywhere (PLUG-29).
+    // -----------------------------------------------------------------
+
+    // Shared helpers for percent-display parameters (0..1 real range)
+    auto pctStringFromValue = [](float v, int) -> juce::String {
+        return juce::String(static_cast<int>(v * 100.0f + 0.5f)) + "%";
+    };
+    auto pctValueFromString = [](const juce::String& s) -> float {
+        return s.getFloatValue() / 100.0f;
+    };
+    auto pctRange = juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f);
+    auto pctAttrs = juce::AudioParameterFloatAttributes()
+        .withLabel("%")
+        .withStringFromValueFunction(pctStringFromValue)
+        .withValueFromStringFunction(pctValueFromString);
+
+    // 1. Input Gain: dB display, 0..16 range, skew so 1.0 (unity) at midpoint
+    {
+        auto igRange = juce::NormalisableRange<float>(0.0f, 16.0f, 0.01f);
+        igRange.setSkewForCentre(1.0f);
+        addParameter(paramInputGain = new juce::AudioParameterFloat(
+            juce::ParameterID{"input_gain", 1}, "Input Gain", igRange, 0.5f,
+            juce::AudioParameterFloatAttributes()
+                .withLabel("dB")
+                .withStringFromValueFunction([](float v, int) -> juce::String {
+                    if (v < 0.0001f) return "-inf dB";
+                    return juce::String(20.0f * std::log10(v), 1) + " dB";
+                })
+                .withValueFromStringFunction([](const juce::String& s) -> float {
+                    if (s.containsIgnoreCase("inf")) return 0.0f;
+                    return std::pow(10.0f, s.getFloatValue() / 20.0f);
+                })
+        ));
+    }
+
+    // 2. ADPCM Send (percent 0-100, default 1.0 = 100%)
+    addParameter(paramAdpcmSend = new juce::AudioParameterFloat(
+        juce::ParameterID{"adpcm_send", 1}, "ADPCM Send", pctRange, 1.0f, pctAttrs));
+
+    // 3. Dry Send (percent 0-100, default 0.0 = 0%)
+    addParameter(paramDrySend = new juce::AudioParameterFloat(
+        juce::ParameterID{"dry_send", 1}, "Dry Send", pctRange, 0.0f, pctAttrs));
+
+    // 4. Morph Position (percent 0-100, default 0.625 = Hall position)
+    addParameter(paramMorphPosition = new juce::AudioParameterFloat(
+        juce::ParameterID{"morph_position", 1}, "Morph Position", pctRange, 0.625f, pctAttrs));
+
+    // 5. Morph Speed (percent 0-100, default 0.5 = mid-glide)
+    addParameter(paramMorphSpeed = new juce::AudioParameterFloat(
+        juce::ParameterID{"morph_speed", 1}, "Morph Speed", pctRange, 0.5f, pctAttrs));
+
+    // 6. Morph Grit (two-position: 0=Int, 1=Fract.)
+    addParameter(paramMorphGrit = new juce::AudioParameterFloat(
+        juce::ParameterID{"morph_grit", 1}, "Morph Grit",
+        juce::NormalisableRange<float>(0.0f, 1.0f, 1.0f),  // step=1: two positions
+        0.0f,
+        juce::AudioParameterFloatAttributes()
+            .withLabel("")
+            .withStringFromValueFunction([](float v, int) -> juce::String {
+                return v < 0.5f ? "Int" : "Fract.";
+            })
+            .withValueFromStringFunction([](const juce::String& s) -> float {
+                return s.containsIgnoreCase("fract") ? 1.0f : 0.0f;
+            })
+    ));
+
+    // 7. Dry Level (percent 0-100, default 0.0 = OFF)
+    addParameter(paramDryLevel = new juce::AudioParameterFloat(
+        juce::ParameterID{"dry_level", 1}, "Dry Level", pctRange, 0.0f, pctAttrs));
+
+    // 8. ADPCM Level (percent 0-100, default 0.0 = OFF)
+    addParameter(paramAdpcmLevel = new juce::AudioParameterFloat(
+        juce::ParameterID{"adpcm_level", 1}, "ADPCM Level", pctRange, 0.0f, pctAttrs));
+
+    // 9. Reverb Level (percent 0-100, default 1.0 = FULL)
+    addParameter(paramReverbLevel = new juce::AudioParameterFloat(
+        juce::ParameterID{"reverb_level", 1}, "Reverb Level", pctRange, 1.0f, pctAttrs));
+
+    // -----------------------------------------------------------------
+    // End of parameter registration block.
+    // -----------------------------------------------------------------
+
     // Pre-seed register shadows with the Hall preset so the editor shows
     // correct slider values even before prepareToPlay runs (CR-02).
     // Heap-allocate the temporary buffers (~528 KB) to avoid a large stack frame.
@@ -234,6 +321,22 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         dacNoiseEnabled.store(spu94_get_dac_noise_enabled(engines[0]) != 0, std::memory_order_relaxed);
         dacTrueOversample.store(spu94_get_dac_true_oversample(engines[0]) != 0, std::memory_order_relaxed);
         morphGrit.store(spu94_get_morph_grit(engines[0]), std::memory_order_relaxed);
+
+        // Phase 24: sync AudioParameterFloat values from the freshly-loaded
+        // atomics so the host sees the correct values in automation lanes.
+        // setValue takes NORMALIZED 0..1; for mixer params (0..1 real range)
+        // normalized == real. For inputGain (0..16) we must convert.
+        // setValue writes an internal atomic -- safe to call from any thread.
+        paramDryLevel->setValue(dryLevel.load(std::memory_order_relaxed));
+        paramAdpcmLevel->setValue(patinaLevel.load(std::memory_order_relaxed));
+        paramReverbLevel->setValue(reverbLevel.load(std::memory_order_relaxed));
+        paramDrySend->setValue(drySend.load(std::memory_order_relaxed));
+        paramAdpcmSend->setValue(adpcmSend.load(std::memory_order_relaxed));
+        paramInputGain->setValue(paramInputGain->getNormalisableRange().convertTo0to1(
+            inputLevel.load(std::memory_order_relaxed)));
+        paramMorphPosition->setValue(morphPosition.load(std::memory_order_relaxed));
+        paramMorphSpeed->setValue(morphSpeed.load(std::memory_order_relaxed));
+        paramMorphGrit->setValue(morphGrit.load(std::memory_order_relaxed) >= 1 ? 1.0f : 0.0f);
     }
 
     // 2. Push register values: morph engine OR register bridge, never both.
@@ -262,8 +365,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // now implicitly drive ADPCM on/off.
     {
         const bool patina_active =
-            patinaLevel.load(std::memory_order_relaxed) > 0.0f ||
-            adpcmSend.load(std::memory_order_relaxed) > 0.0f;
+            paramAdpcmLevel->get() > 0.0f ||
+            paramAdpcmSend->get() > 0.0f;
         const int adpcm_flag = patina_active ? 1 : 0;
         spu94_set_adpcm_enabled(engines[0], adpcm_flag);
     }
@@ -283,16 +386,18 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // atomic * 0x7FFF exceeded int16_t range on the old register path).
         spu94_set_input_gain(engines[0], static_cast<int16_t>(0x7FFF));
     }
+    // Phase 24: read mixer/send params from AudioParameterFloat (PLUG-28/31).
+    // DAC/latency-comp toggles remain on their atomics (not host-automated).
     spu94_set_dry_fader(engines[0], static_cast<int16_t>(
-        dryLevel.load(std::memory_order_relaxed) * 0x7FFF));
+        paramDryLevel->get() * 0x7FFF));
     spu94_set_patina_fader(engines[0], static_cast<int16_t>(
-        patinaLevel.load(std::memory_order_relaxed) * 0x7FFF));
+        paramAdpcmLevel->get() * 0x7FFF));
     spu94_set_reverb_fader(engines[0], static_cast<int16_t>(
-        reverbLevel.load(std::memory_order_relaxed) * 0x7FFF));
+        paramReverbLevel->get() * 0x7FFF));
     spu94_set_dry_send(engines[0], static_cast<int16_t>(
-        drySend.load(std::memory_order_relaxed) * 0x7FFF));
+        paramDrySend->get() * 0x7FFF));
     spu94_set_patina_send(engines[0], static_cast<int16_t>(
-        adpcmSend.load(std::memory_order_relaxed) * 0x7FFF));
+        paramAdpcmSend->get() * 0x7FFF));
     spu94_set_latency_comp(engines[0],
         latencyCompEnabled.load(std::memory_order_relaxed) ? 1 : 0);
     spu94_set_dac_enabled(engines[0],
@@ -304,7 +409,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     spu94_set_dac_true_oversample(engines[0],
         dacTrueOversample.load(std::memory_order_relaxed) ? 1 : 0);
     spu94_set_morph_grit(engines[0],
-        morphGrit.load(std::memory_order_relaxed));
+        static_cast<int>(paramMorphGrit->get() + 0.5f));
 
     // Morph position. The Register Behavior knob picks one of two paths:
     //   knob ≈ 0  → direct write (snap): registers latch at next tick.
@@ -312,10 +417,10 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     //   knob > 0  → slew on engines[0] over (knob * max_delta) samples.
     //                knob=1.0 reproduces the full Phase 18 glide duration.
     constexpr float kSnapThreshold = 0.001f;
-    const float behavior = morphSpeed.load(std::memory_order_relaxed);
+    const float behavior = paramMorphSpeed->get();
     if (morphActive.load(std::memory_order_acquire))
     {
-        float pos = morphPosition.load(std::memory_order_relaxed);
+        float pos = paramMorphPosition->get();
         const bool forceReapply =
             morphReapplyPending.exchange(false, std::memory_order_relaxed);
         if (pos != lastMorphPosition || forceReapply)
@@ -401,7 +506,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
         // Phase 23 UAT: pre-clamp float gain on standalone path too.
         // int16 WAV sample -> float -> apply gain -> clamp+truncate back to int16.
-        const float inputGain = inputLevel.load(std::memory_order_relaxed);
+        // Phase 24: read from AudioParameterFloat instead of atomic.
+        const float inputGain = paramInputGain->get();
         auto playPos = wavSource.playPos.load(std::memory_order_relaxed);
         for (int i = 0; i < samplesToProcess; ++i)
         {
@@ -464,7 +570,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // benefit. The scalar loop calls applyInputGain (a named seam
         // in BoundaryConverter.h) so the pre-clamp pipeline has one
         // grep-able home.
-        const float gain = inputLevel.load(std::memory_order_relaxed);
+        const float gain = paramInputGain->get();
         const float* rawL = buffer.getReadPointer(0);
         const float* rawR = buffer.getNumChannels() > 1
                                 ? buffer.getReadPointer(1)
@@ -536,32 +642,29 @@ juce::String SPU94AudioProcessor::savePresetToString(
 {
     if (!engines[0]) return {};
 
-    // processBlock only pushes GUI atomics to the SPU while audio is playing.
+    // processBlock only pushes GUI params to the SPU while audio is playing.
     // Sync them here so the saved state always matches what the knobs show.
     //
-    // Phase 23 Plan 02 (D-03): mirror the per-block atomic-sync policy.
+    // Phase 23 Plan 02 (D-03): mirror the per-block param-sync policy.
     // On the plugin path the engine register is pinned at unity (the
     // gain stage lives upstream as a pre-clamp float multiply); on the
     // standalone path the register continues to carry the Q15 gain
     // value for v1.6-back-compat preset capture. Consequence: a
     // plugin-saved preset's stored input_gain is always 0x7FFF.
-    // Documented in 23-02-PLAN-SUMMARY's deferred items.
+    // Phase 24: read from AudioParameterFloat instead of atomics.
     {
-        // Phase 23 UAT: standalone path now also uses pre-clamp float gain so
-        // the +24 dB drive range works in the testbed (was wrapping when
-        // atomic * 0x7FFF exceeded int16_t range on the old register path).
         spu94_set_input_gain(engines[0], static_cast<int16_t>(0x7FFF));
     }
     spu94_set_dry_fader(engines[0], static_cast<int16_t>(
-        dryLevel.load(std::memory_order_relaxed) * 0x7FFF));
+        paramDryLevel->get() * 0x7FFF));
     spu94_set_patina_fader(engines[0], static_cast<int16_t>(
-        patinaLevel.load(std::memory_order_relaxed) * 0x7FFF));
+        paramAdpcmLevel->get() * 0x7FFF));
     spu94_set_reverb_fader(engines[0], static_cast<int16_t>(
-        reverbLevel.load(std::memory_order_relaxed) * 0x7FFF));
+        paramReverbLevel->get() * 0x7FFF));
     spu94_set_dry_send(engines[0], static_cast<int16_t>(
-        drySend.load(std::memory_order_relaxed) * 0x7FFF));
+        paramDrySend->get() * 0x7FFF));
     spu94_set_patina_send(engines[0], static_cast<int16_t>(
-        adpcmSend.load(std::memory_order_relaxed) * 0x7FFF));
+        paramAdpcmSend->get() * 0x7FFF));
     spu94_set_latency_comp(engines[0],
         latencyCompEnabled.load(std::memory_order_relaxed) ? 1 : 0);
     spu94_set_dac_enabled(engines[0],
@@ -573,7 +676,7 @@ juce::String SPU94AudioProcessor::savePresetToString(
     spu94_set_dac_true_oversample(engines[0],
         dacTrueOversample.load(std::memory_order_relaxed) ? 1 : 0);
     spu94_set_morph_grit(engines[0],
-        morphGrit.load(std::memory_order_relaxed));
+        static_cast<int>(paramMorphGrit->get() + 0.5f));
 
     char buf[SPU94_PRESET_BUF_SIZE];
     int written = spu94_preset_save(
@@ -748,22 +851,22 @@ void SPU94AudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
     if (!engines[0]) return;
 
-    // Sync wrapper-side atomics to the engine before serializing, matching
-    // the same atomic -> engine sync policy used in savePresetToString.
+    // Sync wrapper-side params/atomics to the engine before serializing,
+    // matching the same sync policy used in savePresetToString.
     // Input Gain register is pinned at 0x7FFF (Phase 23 D-03); the actual
-    // gain lives in the inputLevel atomic and is captured in the float
-    // appendix below.
+    // gain lives in paramInputGain and is captured in the float appendix.
+    // Phase 24: read mixer/send values from AudioParameterFloat (source of truth).
     spu94_set_input_gain(engines[0], static_cast<int16_t>(0x7FFF));
     spu94_set_dry_fader(engines[0], static_cast<int16_t>(
-        dryLevel.load(std::memory_order_relaxed) * 0x7FFF));
+        paramDryLevel->get() * 0x7FFF));
     spu94_set_patina_fader(engines[0], static_cast<int16_t>(
-        patinaLevel.load(std::memory_order_relaxed) * 0x7FFF));
+        paramAdpcmLevel->get() * 0x7FFF));
     spu94_set_reverb_fader(engines[0], static_cast<int16_t>(
-        reverbLevel.load(std::memory_order_relaxed) * 0x7FFF));
+        paramReverbLevel->get() * 0x7FFF));
     spu94_set_dry_send(engines[0], static_cast<int16_t>(
-        drySend.load(std::memory_order_relaxed) * 0x7FFF));
+        paramDrySend->get() * 0x7FFF));
     spu94_set_patina_send(engines[0], static_cast<int16_t>(
-        adpcmSend.load(std::memory_order_relaxed) * 0x7FFF));
+        paramAdpcmSend->get() * 0x7FFF));
     spu94_set_latency_comp(engines[0],
         latencyCompEnabled.load(std::memory_order_relaxed) ? 1 : 0);
     spu94_set_dac_enabled(engines[0],
@@ -775,14 +878,15 @@ void SPU94AudioProcessor::getStateInformation(juce::MemoryBlock& destData)
     spu94_set_dac_true_oversample(engines[0],
         dacTrueOversample.load(std::memory_order_relaxed) ? 1 : 0);
     spu94_set_morph_grit(engines[0],
-        morphGrit.load(std::memory_order_relaxed));
+        static_cast<int>(paramMorphGrit->get() + 0.5f));
 
+    // Phase 24: read from AudioParameterFloat (single source of truth)
     StateSerializer::save(
         engines[0],
-        inputLevel.load(std::memory_order_relaxed),
-        morphPosition.load(std::memory_order_relaxed),
-        morphSpeed.load(std::memory_order_relaxed),
-        static_cast<float>(morphGrit.load(std::memory_order_relaxed)),
+        paramInputGain->get(),
+        paramMorphPosition->get(),
+        paramMorphSpeed->get(),
+        paramMorphGrit->get(),
         0.0f, 0.0f,
         destData);
 }
@@ -814,6 +918,15 @@ void SPU94AudioProcessor::setStateInformation(const void* data, int sizeInBytes)
     morphSpeed.store(result.morphSpeed, std::memory_order_relaxed);
     morphGrit.store(static_cast<int>(result.morphGrit + 0.5f),
                     std::memory_order_relaxed);
+
+    // Phase 24: also update the AudioParameterFloat instances so the host
+    // sees the restored values in its automation lanes. This runs on the
+    // message thread, so setValueNotifyingHost is the correct call.
+    paramInputGain->setValueNotifyingHost(
+        paramInputGain->getNormalisableRange().convertTo0to1(result.inputGain));
+    paramMorphPosition->setValueNotifyingHost(result.morphPosition);  // 0..1 range, normalized==real
+    paramMorphSpeed->setValueNotifyingHost(result.morphSpeed);
+    paramMorphGrit->setValueNotifyingHost(result.morphGrit >= 0.5f ? 1.0f : 0.0f);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

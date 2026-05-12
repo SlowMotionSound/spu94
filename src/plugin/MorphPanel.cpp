@@ -94,12 +94,18 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
                                    true);
     addAndMakeVisible(morphKnob);
 
+    // Phase 24: wire morph knob through AudioParameterFloat gesture API.
+    morphKnob.onDragStart = [this] {
+        processorRef.getParamMorphPosition()->beginChangeGesture();
+    };
+    morphKnob.onDragEnd = [this] {
+        processorRef.getParamMorphPosition()->endChangeGesture();
+    };
     morphKnob.onValueChange = [this]()
     {
         if (isUpdatingFromTimer) return;
-        processorRef.getMorphPosition().store(
-            static_cast<float>(morphKnob.getValue()),
-            std::memory_order_relaxed);
+        processorRef.getParamMorphPosition()->setValueNotifyingHost(
+            static_cast<float>(morphKnob.getValue()));
         updateLabelText(morphKnob.getValue());
         updateEditButtonState();
     };
@@ -127,11 +133,17 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
     speedKnob.setTooltip("Morph Speed: 0 = Instant Snap, 1 = Glide");
     addAndMakeVisible(speedKnob);
 
+    // Phase 24: wire speed knob through AudioParameterFloat gesture API.
+    speedKnob.onDragStart = [this] {
+        processorRef.getParamMorphSpeed()->beginChangeGesture();
+    };
+    speedKnob.onDragEnd = [this] {
+        processorRef.getParamMorphSpeed()->endChangeGesture();
+    };
     speedKnob.onValueChange = [this]()
     {
-        processorRef.getMorphSpeed().store(
-            static_cast<float>(speedKnob.getValue()),
-            std::memory_order_relaxed);
+        processorRef.getParamMorphSpeed()->setValueNotifyingHost(
+            static_cast<float>(speedKnob.getValue()));
     };
 
     speedLabel.setText("Morph Speed", juce::dontSendNotification);
@@ -250,7 +262,11 @@ void MorphPanel::setMorphGrit(int grit)
     if (grit != 0 && grit != 1) grit = 0; // fall back to Int (default)
     gritIntButton  .setToggleState(grit == 0, juce::dontSendNotification);
     gritFractButton.setToggleState(grit == 1, juce::dontSendNotification);
-    processorRef.getMorphGrit().store(grit, std::memory_order_relaxed);
+    // Phase 24: wire through AudioParameterFloat gesture API.
+    auto* p = processorRef.getParamMorphGrit();
+    p->beginChangeGesture();
+    p->setValueNotifyingHost(grit >= 1 ? 1.0f : 0.0f);
+    p->endChangeGesture();
 }
 
 //==============================================================================
@@ -293,11 +309,26 @@ void MorphPanel::updateLabelText(double value)
 void MorphPanel::updateKnobPosition()
 {
     isUpdatingFromTimer = true;
-    double pos = static_cast<double>(
-        processorRef.getMorphPosition().load(std::memory_order_relaxed));
+    // Phase 24: read from AudioParameterFloat (source of truth for automated params).
+    double pos = static_cast<double>(processorRef.getParamMorphPosition()->get());
     morphKnob.setValue(pos, juce::dontSendNotification);
     updateLabelText(pos);
     updateEditButtonState();
+
+    // Sync speed knob from param (for host automation playback).
+    constexpr float eps = 0.001f;
+    float speedVal = processorRef.getParamMorphSpeed()->get();
+    if (std::abs(static_cast<float>(speedKnob.getValue()) - speedVal) > eps)
+        speedKnob.setValue(static_cast<double>(speedVal), juce::dontSendNotification);
+
+    // Sync grit toggle from param (for host automation playback).
+    int gritVal = static_cast<int>(processorRef.getParamMorphGrit()->get() + 0.5f);
+    bool currentInt = gritIntButton.getToggleState();
+    if ((gritVal == 0) != currentInt) {
+        gritIntButton  .setToggleState(gritVal == 0, juce::dontSendNotification);
+        gritFractButton.setToggleState(gritVal == 1, juce::dontSendNotification);
+    }
+
     isUpdatingFromTimer = false;
 }
 
