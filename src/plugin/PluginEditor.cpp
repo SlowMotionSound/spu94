@@ -89,18 +89,22 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     addAndMakeVisible(inputLevelKnob);
     inputLevelKnob.setSliderStyle(juce::Slider::Rotary);
     inputLevelKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-    // UAT-ONLY (Phase 23): slider max widened to 16.0 (= +24 dB drive ceiling) so
-    // the audible D-02 character is reachable from the standalone GUI before
-    // Phase 24's host-automation parameter surface lands. REVERT after UAT
-    // approval — slider exposure is Phase 24/PLUG-28 work.
     inputLevelKnob.setRange(0.0, 16.0, 0.01);
     inputLevelKnob.setValue(0.50, juce::dontSendNotification);
     inputLevelKnob.setSkewFactorFromMidPoint(1.0);  // unity at the knob midpoint for usable drive feel
 
+    // Phase 24: wire through AudioParameterFloat gesture API for host automation.
+    inputLevelKnob.onDragStart = [this] {
+        processorRef.getParamInputGain()->beginChangeGesture();
+    };
+    inputLevelKnob.onDragEnd = [this] {
+        processorRef.getParamInputGain()->endChangeGesture();
+    };
     inputLevelKnob.onValueChange = [this] {
-        processorRef.getInputLevel().store(
-            static_cast<float>(inputLevelKnob.getValue()),
-            std::memory_order_relaxed);
+        auto* p = processorRef.getParamInputGain();
+        p->setValueNotifyingHost(
+            p->getNormalisableRange().convertTo0to1(
+                static_cast<float>(inputLevelKnob.getValue())));
     };
 
     addAndMakeVisible(inputLevelLabel);
@@ -113,10 +117,15 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     adpcmSendKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
     adpcmSendKnob.setRange(0.0, 1.0, 0.01);
     adpcmSendKnob.setValue(1.0, juce::dontSendNotification);
+    adpcmSendKnob.onDragStart = [this] {
+        processorRef.getParamAdpcmSend()->beginChangeGesture();
+    };
+    adpcmSendKnob.onDragEnd = [this] {
+        processorRef.getParamAdpcmSend()->endChangeGesture();
+    };
     adpcmSendKnob.onValueChange = [this] {
-        processorRef.getAdpcmSend().store(
-            static_cast<float>(adpcmSendKnob.getValue()),
-            std::memory_order_relaxed);
+        processorRef.getParamAdpcmSend()->setValueNotifyingHost(
+            static_cast<float>(adpcmSendKnob.getValue()));
     };
     addAndMakeVisible(adpcmSendLabel);
     adpcmSendLabel.setText("ADPCM Send", juce::dontSendNotification);
@@ -128,10 +137,15 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     drySendKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
     drySendKnob.setRange(0.0, 1.0, 0.01);
     drySendKnob.setValue(0.0, juce::dontSendNotification);
+    drySendKnob.onDragStart = [this] {
+        processorRef.getParamDrySend()->beginChangeGesture();
+    };
+    drySendKnob.onDragEnd = [this] {
+        processorRef.getParamDrySend()->endChangeGesture();
+    };
     drySendKnob.onValueChange = [this] {
-        processorRef.getDrySend().store(
-            static_cast<float>(drySendKnob.getValue()),
-            std::memory_order_relaxed);
+        processorRef.getParamDrySend()->setValueNotifyingHost(
+            static_cast<float>(drySendKnob.getValue()));
     };
     addAndMakeVisible(drySendLabel);
     drySendLabel.setText("Dry Send", juce::dontSendNotification);
@@ -147,10 +161,15 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     dryKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
     dryKnob.setRange(0.0, 1.0, 0.01);
     dryKnob.setValue(0.0, juce::dontSendNotification);
+    dryKnob.onDragStart = [this] {
+        processorRef.getParamDryLevel()->beginChangeGesture();
+    };
+    dryKnob.onDragEnd = [this] {
+        processorRef.getParamDryLevel()->endChangeGesture();
+    };
     dryKnob.onValueChange = [this] {
-        processorRef.getDryLevel().store(
-            static_cast<float>(dryKnob.getValue()),
-            std::memory_order_relaxed);
+        processorRef.getParamDryLevel()->setValueNotifyingHost(
+            static_cast<float>(dryKnob.getValue()));
     };
     addAndMakeVisible(dryKnobLabel);
     dryKnobLabel.setText("Dry", juce::dontSendNotification);
@@ -162,10 +181,15 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     patinaKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
     patinaKnob.setRange(0.0, 1.0, 0.01);
     patinaKnob.setValue(0.0, juce::dontSendNotification);
+    patinaKnob.onDragStart = [this] {
+        processorRef.getParamAdpcmLevel()->beginChangeGesture();
+    };
+    patinaKnob.onDragEnd = [this] {
+        processorRef.getParamAdpcmLevel()->endChangeGesture();
+    };
     patinaKnob.onValueChange = [this] {
-        processorRef.getPatinaLevel().store(
-            static_cast<float>(patinaKnob.getValue()),
-            std::memory_order_relaxed);
+        processorRef.getParamAdpcmLevel()->setValueNotifyingHost(
+            static_cast<float>(patinaKnob.getValue()));
     };
     addAndMakeVisible(patinaKnobLabel);
     patinaKnobLabel.setText("ADPCM", juce::dontSendNotification);
@@ -177,10 +201,15 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     reverbKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
     reverbKnob.setRange(0.0, 1.0, 0.01);
     reverbKnob.setValue(1.0, juce::dontSendNotification);
+    reverbKnob.onDragStart = [this] {
+        processorRef.getParamReverbLevel()->beginChangeGesture();
+    };
+    reverbKnob.onDragEnd = [this] {
+        processorRef.getParamReverbLevel()->endChangeGesture();
+    };
     reverbKnob.onValueChange = [this] {
-        processorRef.getReverbLevel().store(
-            static_cast<float>(reverbKnob.getValue()),
-            std::memory_order_relaxed);
+        processorRef.getParamReverbLevel()->setValueNotifyingHost(
+            static_cast<float>(reverbKnob.getValue()));
     };
     addAndMakeVisible(reverbKnobLabel);
     reverbKnobLabel.setText("Reverb", juce::dontSendNotification);
@@ -319,6 +348,24 @@ void SPU94AudioProcessorEditor::timerCallback()
     if (morphPanel.isVisible())
     {
         morphPanel.updateKnobPosition();
+    }
+
+    // Phase 24: param->GUI sync for host automation playback. When the host
+    // writes automation, the AudioParameterFloat values change but the GUI
+    // sliders don't know. Poll each param and update the slider if it drifted
+    // beyond a small epsilon. dontSendNotification avoids feedback loops.
+    {
+        constexpr float eps = 0.001f;
+        auto syncKnob = [eps](juce::Slider& knob, float paramValue) {
+            if (std::abs(static_cast<float>(knob.getValue()) - paramValue) > eps)
+                knob.setValue(static_cast<double>(paramValue), juce::dontSendNotification);
+        };
+        syncKnob(inputLevelKnob,  processorRef.getParamInputGain()->get());
+        syncKnob(adpcmSendKnob,   processorRef.getParamAdpcmSend()->get());
+        syncKnob(drySendKnob,     processorRef.getParamDrySend()->get());
+        syncKnob(dryKnob,         processorRef.getParamDryLevel()->get());
+        syncKnob(patinaKnob,      processorRef.getParamAdpcmLevel()->get());
+        syncKnob(reverbKnob,      processorRef.getParamReverbLevel()->get());
     }
 }
 
