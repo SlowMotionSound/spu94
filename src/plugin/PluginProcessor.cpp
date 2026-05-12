@@ -278,10 +278,10 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // unity (0x7FFF). On the standalone path, the engine register
     // remains the gain stage (testbed-only, unchanged).
     {
-        const int16_t input_gain_reg = (wrapperType == wrapperType_Standalone)
-            ? static_cast<int16_t>(inputLevel.load(std::memory_order_relaxed) * 0x7FFF)
-            : static_cast<int16_t>(0x7FFF);
-        spu94_set_input_gain(engines[0], input_gain_reg);
+        // Phase 23 UAT: standalone path now also uses pre-clamp float gain so
+        // the +24 dB drive range works in the testbed (was wrapping when
+        // atomic * 0x7FFF exceeded int16_t range on the old register path).
+        spu94_set_input_gain(engines[0], static_cast<int16_t>(0x7FFF));
     }
     spu94_set_dry_fader(engines[0], static_cast<int16_t>(
         dryLevel.load(std::memory_order_relaxed) * 0x7FFF));
@@ -399,13 +399,20 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         int16_t tmpL_out[kMaxBlock];
         int16_t tmpR_out[kMaxBlock];
 
+        // Phase 23 UAT: pre-clamp float gain on standalone path too.
+        // int16 WAV sample -> float -> apply gain -> clamp+truncate back to int16.
+        const float inputGain = inputLevel.load(std::memory_order_relaxed);
         auto playPos = wavSource.playPos.load(std::memory_order_relaxed);
         for (int i = 0; i < samplesToProcess; ++i)
         {
             const auto idx = static_cast<size_t>(
                 (playPos + static_cast<uint64_t>(i)) % numFrames);
-            tmpL_in[i] = wavSource.L[idx];
-            tmpR_in[i] = wavSource.R[idx];
+            const float fL = spu94::plugin::boundary::toFloat(wavSource.L[idx]);
+            const float fR = spu94::plugin::boundary::toFloat(wavSource.R[idx]);
+            tmpL_in[i] = spu94::plugin::boundary::toInt16(
+                spu94::plugin::boundary::applyInputGain(fL, inputGain));
+            tmpR_in[i] = spu94::plugin::boundary::toInt16(
+                spu94::plugin::boundary::applyInputGain(fR, inputGain));
         }
 
         spu94_process(engines[0], tmpL_in, tmpR_in, tmpL_out, tmpR_out,
@@ -540,10 +547,10 @@ juce::String SPU94AudioProcessor::savePresetToString(
     // plugin-saved preset's stored input_gain is always 0x7FFF.
     // Documented in 23-02-PLAN-SUMMARY's deferred items.
     {
-        const int16_t input_gain_reg = (wrapperType == wrapperType_Standalone)
-            ? static_cast<int16_t>(inputLevel.load(std::memory_order_relaxed) * 0x7FFF)
-            : static_cast<int16_t>(0x7FFF);
-        spu94_set_input_gain(engines[0], input_gain_reg);
+        // Phase 23 UAT: standalone path now also uses pre-clamp float gain so
+        // the +24 dB drive range works in the testbed (was wrapping when
+        // atomic * 0x7FFF exceeded int16_t range on the old register path).
+        spu94_set_input_gain(engines[0], static_cast<int16_t>(0x7FFF));
     }
     spu94_set_dry_fader(engines[0], static_cast<int16_t>(
         dryLevel.load(std::memory_order_relaxed) * 0x7FFF));
