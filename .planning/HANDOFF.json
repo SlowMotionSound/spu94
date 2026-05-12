@@ -1,89 +1,56 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-12T03:42:46Z",
-  "phase": "23",
-  "phase_name": "float-int16-boundary",
-  "phase_dir": ".planning/phases/23-float-int16-boundary",
+  "timestamp": "2026-05-12T17:01:16Z",
+  "phase": "24",
+  "phase_name": "state-automation-surface",
+  "phase_dir": ".planning/phases/24-state-automation-surface",
   "plan": 2,
-  "task": 3,
-  "total_tasks": 3,
-  "status": "phase_complete",
-  "stopped_at": "Phase 23 verified and closed. Both plans complete (23-01 BoundaryConverter lift + 23-02 pre-clamp Input Gain reposition with +24 dB drive). UAT approved -- Anthony confirmed audible character matches D-02 intent (clean -6 dB headroom at default, hard saturator drive at the knob top). All 5 PLUG-17..21 requirements satisfied. Two plan divergences resolved during execution: D-03 register pinned at 0x7FFF on BOTH paths (was: plugin-only) and standalone GUI slider widened in-phase to 0.0..16.0 with unity-midpoint skew (was: deferred to Phase 24).",
+  "task": 2,
+  "total_tasks": 4,
+  "status": "complete",
   "completed_tasks": [
-    {"id": "23-01-1", "name": "BoundaryConverter.h with named float<->int16 free functions", "status": "done", "commit": "c0e0e0c"},
-    {"id": "23-01-2", "name": "SrcChain.cpp call-site migration to BoundaryConverter", "status": "done", "commit": "dc5ce32"},
-    {"id": "23-01-3", "name": "CMakeLists.txt sources listing", "status": "done", "commit": "6084833"},
-    {"id": "23-02-1", "name": "applyInputGain helper + inputLevel range docstring + scratch members", "status": "done", "commit": "6bffcb1"},
-    {"id": "23-02-2", "name": "Pre-clamp Input Gain on plugin path; pin engine register at unity", "status": "done", "commit": "f7f9137"},
-    {"id": "23-02-3", "name": "Post-UAT correction: extend pre-clamp gain to standalone path; widen standalone GUI slider", "status": "done", "commit": "7e9bc82"}
+    {"id": "24-01-1", "name": "StateSerializer.h + getStateInformation/setStateInformation", "status": "done", "commit": "52aadb6"},
+    {"id": "24-01-2", "name": "State round-trip unit tests (7 tests)", "status": "done", "commit": "891c0b7"},
+    {"id": "24-02-1", "name": "9 AudioParameterFloat registrations + processBlock wiring", "status": "done", "commit": "19afb98"},
+    {"id": "24-02-2", "name": "GUI gesture rewiring + REVERT comment strip", "status": "done", "commit": "fe398f4"}
   ],
   "remaining_tasks": [],
   "blockers": [],
-  "human_actions_pending": [
-    {
-      "action": "Decide entry mode for Phase 24 (State & Automation Surface)",
-      "context": "Phase 24 scope: binary-wrapped .spu94 state round-trip (locale-independent, PLUG-22..27) and 9 host-automatable AudioProcessorParameters (PLUG-28..31). This is also where Input Gain finally gets exposed natively to the host with the full 0..16 range (no more UAT-only standalone widen). Real design space: parameter ranges/curves, state format version field, automation granularity. /gsd-discuss-phase 24 vs /gsd-plan-phase 24 direct.",
-      "blocking": false
-    }
-  ],
+  "human_actions_pending": [],
   "deferred_followups": [
     {
-      "item": "Standalone GUI slider widen at PluginEditor.cpp:92-98",
-      "scope": "marked UAT-only with explicit REVERT comment; revert when Phase 24 exposes Input Gain natively via AudioProcessorParameter",
-      "where": "src/plugin/PluginEditor.cpp:92-98"
+      "item": "CR-01: No NaN/Inf/float sanitization on deserialized state appendix",
+      "scope": "A crafted project file could inject bad values into the DSP chain via the binary float appendix",
+      "where": "src/plugin/StateSerializer.h:156-159, src/plugin/PluginProcessor.cpp:914-927"
     },
     {
-      "item": "Hide preset Save/Load buttons in plugin formats",
-      "scope": "small; wrap addAndMakeVisible(...) in wrapperType_Standalone check; can fold into next UI-touching phase",
-      "where": "src/plugin/PluginEditor.cpp:55-80"
+      "item": "CR-02: getStateInformation message-thread / audio-thread race on engines[0]",
+      "scope": "getStateInformation and savePresetToString directly mutate engines[0] from the message thread while processBlock concurrently reads/writes it",
+      "where": "src/plugin/PluginProcessor.cpp:848-890, 638-687"
     },
     {
-      "item": "Plugin GUI loses parameter state when window closed/reopened (Ardour LV2)",
-      "scope": "APVTS attachment audit; separate phase or rolled into next plugin-UI phase",
-      "where": "PluginEditor + PluginProcessor APVTS wiring"
+      "item": "WR-01: MorphPanel raw pointer to static LookAndFeel",
+      "scope": "Grit buttons hold a raw pointer to a file-scope static LookAndFeel; destructor never clears it — JUCE debug assert risk",
+      "where": "src/plugin/MorphPanel.cpp:67,167, src/plugin/MorphPanel.h:10"
     },
     {
-      "item": "\"Bit Corrupt\" creative effect on wall/echo register chain",
-      "scope": "v1.8+ creative-effect phase; re-enable v1.5 signed register-shadow read path as opt-in toggle; pair with low-headroom helper",
-      "where": "Anthony's strong preference for authentic recreation; details in project_bit_corrupt_effect.md memory"
+      "item": "WR-03: Residual atomics alongside AudioParameterFloat",
+      "scope": "morphPosition/morphSpeed/morphGrit atomics create dual source of truth with the new params",
+      "where": "src/plugin/PluginProcessor.h:221-241"
     },
     {
-      "item": "Companion PSX sampler instrument (24-voice, ADPCM intake, 4-tap Gaussian, exponential ADSR, 512 KB sample memory, SPU-94 reverb baked in)",
-      "scope": "future product direction; details in project_psx_sampler_instrument.md memory",
-      "where": "post-SPU-94 ship; open design axes on spec-strict vs spec-inspired and MIDI/tracker workflow"
+      "item": "setValueNotifyingHost called from audio thread in preset-load sync",
+      "scope": "Fires only once per preset load, not every block. Phase 25 pluginval RT-safety probe will detect real-world impact.",
+      "where": "src/plugin/PluginProcessor.cpp:328-337"
     }
   ],
   "decisions": [
-    {
-      "decision": "D-01: Input Gain is now a pre-clamp float multiply on BOTH paths (plugin and standalone), applied to the host buffer / WAV samples BEFORE the int16 boundary clamp.",
-      "rationale": "Gives the user real headroom: knob below unity attenuates before clip rather than scaling an already-clipped result.",
-      "phase": "23"
-    },
-    {
-      "decision": "D-02: Input Gain parameter range internal float is 0.0..16.0 (+24 dB drive). Standalone slider widened to expose this range in-phase; plugin host-param surface still deferred to Phase 24 / PLUG-28.",
-      "rationale": "User chose aggressive +24 dB ceiling to turn sat_s16 into a deliberate saturator -- North Star 'fixed-point quirks ARE the product.' UAT confirmed audible character is right.",
-      "phase": "23"
-    },
-    {
-      "decision": "D-03: spu94_set_input_gain engine register is pinned at 0x7FFF on BOTH paths (uniformed during UAT correction from plugin-only).",
-      "rationale": "Original split (standalone using engine register, plugin pre-clamp) overflowed int16_t once the atomic range widened to 0.0..16.0 -- audibly: quieter past 1.0 then silent. Uniform pinning eliminates the wrap.",
-      "phase": "23"
-    },
-    {
-      "decision": "Bit corruption / int16 wrap is a recurring failure mode in this codebase.",
-      "rationale": "Same shape of bug appeared in v1.5 register shadows (commit e2e8f57, 2026-05-05) and in Phase 23 Plan 02's first revision. Any cast 'float -> int16_t' with values that can exceed +/-32767 must either clamp first or use a wider integer type. Worth flagging at design-review time on any new register/parameter wiring.",
-      "phase": "cross-phase"
-    }
+    {"decision": "Binary container format: SPU9 magic + version byte + bodyLen + .spu94 text + 6-float appendix", "rationale": "Simple, extensible, locale-proof (PLUG-24, PLUG-25)", "phase": "24"},
+    {"decision": "Raw addParameter, no APVTS", "rationale": "PLUG-29 requirement, simpler lifecycle", "phase": "24"},
+    {"decision": "Frozen parameter IDs with versionHint=1 in locked registration order", "rationale": "PLUG-30 AU index stability — IDs and order must never change", "phase": "24"},
+    {"decision": "setValueNotifyingHost for JUCE 8 compat", "rationale": "setValue is private virtual override in headless audio processor module", "phase": "24"}
   ],
-  "uncommitted_files": [
-    ".planning/REVIEW-c-core-audit.md (untracked, pre-existing)",
-    ".planning/REVIEW-juce-audit.md (untracked, pre-existing)",
-    ".planning/REVIEW-python-cli-audit.md (untracked, pre-existing)",
-    "tools/null_test_noise_48k.wav (untracked, Phase 22 UAT artifact, reproducible)",
-    "Screenshot_*.png, ColorScheme.jpg, tools/*.html, tools/dac_compare.png (untracked, pre-existing dev artefacts)",
-    "build_test/ (untracked build directory)",
-    ".claude/scheduled_tasks.lock (untracked, harness-local)"
-  ],
-  "next_action": "Resume with Phase 24 -- State & Automation Surface. Two entry options: /gsd-discuss-phase 24 (recommended -- real design space on parameter ranges, state format versioning, automation granularity) or /gsd-plan-phase 24 (direct planning if you'd rather skip discuss). Phase 24 will also natively expose Input Gain with the 0..16 range, at which point the standalone slider UAT widen at PluginEditor.cpp:92-98 should be reverted.",
-  "context_notes": "Phase 23 closeout was clean but bumpy mid-execution: the planner's D-03 decision (standalone keeps engine-register gain) plus the slider exposure deferral combined to make the audible behavior unreachable in any UI -- discovered during UAT when Anthony first swept past 1.0 and heard the int16 wrap evaporate the signal. Recovered with a single post-UAT commit (7e9bc82) that uniformed the register policy and widened the standalone slider. Lesson worth keeping: when a phase touches an audible parameter range, the GUI surface that exposes the range is part of the UAT contract -- deferring slider widening to a 'GUI phase' produces a phase that can't actually be heard. Anthony's UAT approval (\"This sounds great btw. listening now\") followed by an unprompted creative spitball on the Bit Corrupt effect and PSX sampler product direction -- both logged to memory + STATE deferred ideas, both are post-SPU-94 product moves. Pausing here at a clean boundary, not mid-flight."
+  "uncommitted_files": [],
+  "next_action": "/gsd-discuss-phase 25 — Buses & Validator Gates (no CONTEXT.md exists yet)",
+  "context_notes": "Phase 24 shipped clean. Two waves executed: Plan 01 built the binary state container and tests, Plan 02 registered 9 host-automatable parameters and rewired all GUI controls. Post-merge fix needed for JUCE 8 private setValue. Code review flagged 2 critical items worth addressing. All automated tests green. Phase boundary is clean."
 }
