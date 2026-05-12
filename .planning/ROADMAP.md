@@ -22,7 +22,7 @@
 | 21. Build Skeleton & CI Matrix | v1.7 | 1/1 | Complete | 2026-05-11 |
 | 22. SRC & Latency Reporting | v1.7 | 0/? | Not started | -- |
 | 23. Float↔int16 Boundary | v1.7 | 2/2 | Complete   | 2026-05-12 |
-| 24. State & Automation Surface | v1.7 | 0/2 | Planned | -- |
+| 24. State & Automation Surface | v1.7 | 1/2 | In Progress|  |
 | 25. Buses & Validator Gates | v1.7 | 0/? | Not started | -- |
 | 26. Packaging & Beta UAT | v1.7 | 0/? | Not started | -- |
 | 27. Code Signing | v1.7 | 0/? | Conditional | -- |
@@ -57,7 +57,7 @@ Truncate conversion (no dither) with sat_s16 saturation semantics; input gain de
 Binary-wrapped .spu94 state round-trip, locale-independent; 9 host-automatable AudioProcessorParameters routed through the existing atomic bridge.
 
 **Plans:** 2 plans
-- [ ] 24-01-PLAN.md — StateSerializer binary container + getStateInformation/setStateInformation (PLUG-22..27)
+- [x] 24-01-PLAN.md — StateSerializer binary container + getStateInformation/setStateInformation (PLUG-22..27)
 - [ ] 24-02-PLAN.md — 9 AudioParameterFloat registrations + GUI gesture rewiring (PLUG-28..31)
 
 ### Phase 25: Buses & Validator Gates
