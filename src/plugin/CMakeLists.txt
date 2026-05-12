@@ -50,6 +50,11 @@ target_sources(spu94_plugin
         RegisterPanel.cpp
         MorphPanel.cpp
         SrcChain.cpp
+        # Header-only -- listed so IDE indexers see it. Phase 23 lifted
+        # the inline f32_to_s16 / s16_to_f32 lambdas out of SrcChain.cpp
+        # into this named module; future .cpp additions (e.g. unit tests)
+        # should #include it rather than re-inlining the math.
+        BoundaryConverter.h
 )
 
 # Standalone-only WavLoader bolt-on -- testbed-only source lives in src/standalone/.
