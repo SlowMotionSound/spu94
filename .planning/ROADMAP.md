@@ -21,7 +21,7 @@
 |-------|-----------|----------------|--------|-----------|
 | 21. Build Skeleton & CI Matrix | v1.7 | 1/1 | Complete | 2026-05-11 |
 | 22. SRC & Latency Reporting | v1.7 | 0/? | Not started | -- |
-| 23. Float↔int16 Boundary | v1.7 | 1/2 | In Progress|  |
+| 23. Float↔int16 Boundary | v1.7 | 2/2 | Complete   | 2026-05-12 |
 | 24. State & Automation Surface | v1.7 | 0/? | Not started | -- |
 | 25. Buses & Validator Gates | v1.7 | 0/? | Not started | -- |
 | 26. Packaging & Beta UAT | v1.7 | 0/? | Not started | -- |
@@ -51,7 +51,7 @@ Truncate conversion (no dither) with sat_s16 saturation semantics; input gain de
 
 **Plans:** 2 plans
 - [x] 23-01-PLAN.md — Lift float<->int16 boundary into BoundaryConverter module (refactor, zero audible change; PLUG-17/18/21)
-- [ ] 23-02-PLAN.md — Reposition Input Gain pre-clamp with +24 dB drive range; pin engine register at unity on plugin path (PLUG-19/20)
+- [x] 23-02-PLAN.md — Reposition Input Gain pre-clamp with +24 dB drive range; pin engine register at unity on plugin path (PLUG-19/20)
 
 ### Phase 24: State & Automation Surface
 Binary-wrapped .spu94 state round-trip, locale-independent; 9 host-automatable AudioProcessorParameters routed through the existing atomic bridge.
