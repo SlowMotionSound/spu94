@@ -145,7 +145,29 @@ public:
                                 const juce::String& presetText);
 
 private:
-    std::atomic<float> inputLevel{0.50f}; // [0.0 = silence, 1.0 = unity gain]
+    // inputLevel: pre-clamp float gain factor on the plugin path.
+    // Range 0.0..16.0 (linear). Anchor points:
+    //   0.0  -> silence
+    //   0.5  -> -6 dB  (default; -6 dB headroom below int16 ceiling)
+    //   1.0  -> unity
+    //   16.0 -> +24 dB drive (intentionally clamps via sat_s16, North Star quirk)
+    // Standalone path still applies this value as a Q15 engine register
+    // at processBlock atomic-sync; that path is unchanged (internal testbed only).
+    std::atomic<float> inputLevel{0.50f};
+
+    // Public anchors for Phase 24 (AudioProcessorParameter wiring).
+    // These are documentation anchors -- NOT used to re-initialize the
+    // atomic (would tempt drift). Phase 24 will consume them when wiring
+    // the AudioProcessorParameter range.
+    static constexpr float kInputGainDefault = 0.5f;
+    static constexpr float kInputGainMax     = 16.0f;
+
+    // Per-channel host-rate float scratch for the pre-clamp Input Gain
+    // multiply. Allocated in prepareToPlay to kMaxBlock=4096 samples.
+    // Plugin path only -- standalone path uses the engine-register gain
+    // path and does not touch this scratch.
+    juce::HeapBlock<float> inputGainScratch_[2];
+
     std::atomic<bool> adpcmEnabled{false}; // ADPCM coloration toggle (D-06)
 
     // Mixer faders (0.0-1.0 float, converted to Q15 at processBlock boundary)
