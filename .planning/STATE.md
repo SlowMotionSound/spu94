@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: DAW Plugin Port
-status: verified
-stopped_at: "Phase 22 PLUG-15 closed via headless null-test harness; latency_comp Stage B fix lands in C core (commit fd50b1d) -- all 8 PLUG-09..16 requirements PASS"
-last_updated: "2026-05-11T21:00:00Z"
-last_activity: "2026-05-11 -- PLUG-15 UAT surfaced core latency-comp bug (dry path not delayed to match FIR group delay). Fix: Stage B 58-sample delay on dry+patina at master mixer, gated on latency_comp (commit fd50b1d). Headless test nulls -85 dBFS @ 44.1k and passes alignment+residual gates @ 48k."
+status: PLUG-15 closed via headless null-test (passes at both 44.1 kHz fast-path strict null and 48 kHz alignment-tolerance gate). Core latency-comp bug discovered during UAT and fixed (Stage B FIR-match delay on dry+ADPCM buses).
+stopped_at: Phase 23 context gathered
+last_updated: "2026-05-12T00:29:07.065Z"
+last_activity: 2026-05-11 -- core fix commits 6a99676, fd50b1d landed; ready to advance to phase 23 (bit-depth conversion)
 progress:
   total_phases: 7
   completed_phases: 2
@@ -91,6 +91,7 @@ None.
 | Visualization | Polytope room shapes | 2026-05-03 |
 | Documentation | Register reference manual | 2026-05-03 |
 | Idea | Unified Morph Control -- merge Morph Speed + Morph Grit into one encoder | 2026-05-10 |
+| UI Enhancement | Move Save/Load preset actions into a top-left panel dropdown menu instead of standalone buttons (user-perspective preference; cleaner header, mirrors how hosts already group state actions) | 2026-05-11 |
 
 ## Performance Metrics
 
@@ -105,6 +106,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-11T20:25:00Z
-Stopped at: Phase 22 execute complete. SrcChain + libsamplerate FetchContent + ScopedNoDenormals + setLatencySamples landed on main; all 4 Linux plugin targets build green; verifier confirmed 7/8 PLUG requirements PASS. PLUG-15 (Ardour null-test residual ≤-60 dBFS RMS at 48 kHz host SR) requires Anthony to drive Ardour interactively — procedure documented in 22-PLAN-SUMMARY.md Verification section. After UAT clears PLUG-15, run state.complete-phase to close phase 22 and advance to phase 23.
-Resume file: .planning/phases/22-src-latency-reporting/22-VERIFICATION.md (verdict + PLUG-15 procedure)
+Last session: 2026-05-12T00:29:07.028Z
+Stopped at: Phase 23 context gathered
+Resume file: .planning/phases/23-float-int16-boundary/23-CONTEXT.md
