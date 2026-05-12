@@ -9,6 +9,7 @@
 // --validate-in-process at host SR 48 kHz (advisory CI job from Phase 21).
 
 #include "SrcChain.h"
+#include "BoundaryConverter.h"
 
 #include <samplerate.h>
 
@@ -35,24 +36,6 @@ namespace
             den += e;
         }
         return (den > 0.0) ? (num / den) : 0.0;
-    }
-
-    // Fast inline clamp+truncate float->int16. Same idiom as the standalone
-    // WAV path's WavLoader saturation. Truncate (not round) per North Star
-    // / D-decision: SPU never rounded its input. Matches the existing
-    // standalone limiter convention so plugin vs. standalone audio paths
-    // agree at the boundary.
-    inline int16_t f32_to_s16(float x) noexcept
-    {
-        const float y = x * 32768.0f;
-        if (y >= 32767.0f) return 32767;
-        if (y <= -32768.0f) return -32768;
-        return static_cast<int16_t>(y);
-    }
-
-    inline float s16_to_f32(int16_t x) noexcept
-    {
-        return static_cast<float>(x) * (1.0f / 32768.0f);
     }
 }
 
@@ -265,8 +248,8 @@ void SrcChain::processIn(const float* const* hostIn, int hostN,
         const float* R = hostIn[1];
         for (int i = 0; i < hostN; ++i)
         {
-            coreOutL[i] = f32_to_s16(L[i]);
-            coreOutR[i] = f32_to_s16(R[i]);
+            coreOutL[i] = spu94::plugin::boundary::toInt16(L[i]);
+            coreOutR[i] = spu94::plugin::boundary::toInt16(R[i]);
         }
         coreNOut = hostN;
         return;
@@ -300,8 +283,8 @@ void SrcChain::processIn(const float* const* hostIn, int hostN,
     const float* fR = scratchCoreFloatIn_[1].getData();
     for (long i = 0; i < n; ++i)
     {
-        coreOutL[i] = f32_to_s16(fL[i]);
-        coreOutR[i] = f32_to_s16(fR[i]);
+        coreOutL[i] = spu94::plugin::boundary::toInt16(fL[i]);
+        coreOutR[i] = spu94::plugin::boundary::toInt16(fR[i]);
     }
     coreNOut = static_cast<int>(n);
 }
@@ -320,8 +303,8 @@ void SrcChain::processOut(const int16_t* coreInL, const int16_t* coreInR, int co
         float* R = (hostOut[1] != nullptr) ? hostOut[1] : nullptr;
         for (int i = 0; i < coreN; ++i)
         {
-            L[i] = s16_to_f32(coreInL[i]);
-            if (R) R[i] = s16_to_f32(coreInR[i]);
+            L[i] = spu94::plugin::boundary::toFloat(coreInL[i]);
+            if (R) R[i] = spu94::plugin::boundary::toFloat(coreInR[i]);
         }
         hostNOut = coreN;
         return;
@@ -332,8 +315,8 @@ void SrcChain::processOut(const int16_t* coreInL, const int16_t* coreInR, int co
     float* fR = scratchCoreFloatOut_[1].getData();
     for (int i = 0; i < coreN; ++i)
     {
-        fL[i] = s16_to_f32(coreInL[i]);
-        fR[i] = s16_to_f32(coreInR[i]);
+        fL[i] = spu94::plugin::boundary::toFloat(coreInL[i]);
+        fR[i] = spu94::plugin::boundary::toFloat(coreInR[i]);
     }
 
     pullOut_[0].data = fL;
