@@ -129,6 +129,35 @@ SPU94AudioProcessor::~SPU94AudioProcessor()
     }
 }
 
+// Phase 25 / PLUG-32, PLUG-35: bus layout whitelist.
+// Accepts exactly three configurations; rejects everything else
+// (surround, Atmos, sidechain, multi-bus, disabled).
+// The BusesProperties constructor (stereo/stereo default) is unchanged --
+// this override handles host negotiation for mono tracks.
+bool SPU94AudioProcessor::isBusesLayoutSupported(
+    const BusesLayout& layouts) const
+{
+    const auto& mainIn  = layouts.getMainInputChannelSet();
+    const auto& mainOut = layouts.getMainOutputChannelSet();
+
+    // Never accept disabled buses
+    if (mainIn  == juce::AudioChannelSet::disabled()) return false;
+    if (mainOut == juce::AudioChannelSet::disabled()) return false;
+
+    // Mono in -> mono out:   OK (PLUG-32, PLUG-34)
+    // Mono in -> stereo out: OK (PLUG-32, PLUG-33)
+    if (mainIn == juce::AudioChannelSet::mono())
+        return (mainOut == juce::AudioChannelSet::mono()
+             || mainOut == juce::AudioChannelSet::stereo());
+
+    // Stereo in -> stereo out: OK (PLUG-32)
+    if (mainIn == juce::AudioChannelSet::stereo())
+        return (mainOut == juce::AudioChannelSet::stereo());
+
+    // Everything else (surround, Atmos, sidechain, multi-bus): rejected (PLUG-35)
+    return false;
+}
+
 const juce::String SPU94AudioProcessor::getName() const
 {
     return juce::String("SPU-94");
@@ -554,6 +583,14 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         int16_t coreOutL[kMaxBlock];
         int16_t coreOutR[kMaxBlock];
 
+        // Phase 25 / PLUG-34: stack scratch for the R channel when the host
+        // negotiated mono output. SrcChain::processOut writes L+R into two
+        // pointers; for mono output the R data would be lost without this
+        // scratch. After processOut returns, we sum (L+R)*0.5 into the
+        // single output channel.
+        float monoRScratch[kMaxBlock];
+        const bool monoOutput = (buffer.getNumChannels() == 1);
+
         // Phase 23 Plan 02 (D-01 + D-02): pre-clamp Input Gain stage.
         // Apply the atomic as a single float multiply on the host-rate
         // signal BEFORE the SRC sandwich, so the boundary clamp inside
@@ -594,7 +631,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
         float* hostOutPtrs[2] = {
             buffer.getWritePointer(0),
-            buffer.getNumChannels() > 1 ? buffer.getWritePointer(1) : nullptr
+            monoOutput ? monoRScratch : buffer.getWritePointer(1)
         };
         int hostNOut = 0;
         srcChain_.processOut(coreOutL, coreOutR, coreN, hostOutPtrs, hostNOut);
@@ -603,32 +640,49 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // the last produced sample held; if it over-produces, the extra
         // samples beyond the host buffer simply weren't written. The
         // host's PDC pulls everything back into alignment.
+        // Note: hostOutPtrs[1] is always non-null now (either stereo ch1
+        // or monoRScratch), so R padding is unconditional.
         if (hostNOut < n)
         {
             float* outL = hostOutPtrs[0];
             float* outR = hostOutPtrs[1];
             const float lastL = (hostNOut > 0) ? outL[hostNOut - 1] : 0.0f;
-            const float lastR = (outR != nullptr && hostNOut > 0) ? outR[hostNOut - 1] : 0.0f;
+            const float lastR = (hostNOut > 0) ? outR[hostNOut - 1] : 0.0f;
             for (int i = hostNOut; i < n; ++i)
             {
                 outL[i] = lastL;
-                if (outR != nullptr) outR[i] = lastR;
+                outR[i] = lastR;
             }
         }
 
-        // Side-channel limiter on the host-rate float output (unchanged
-        // semantics from the standalone path).
-        float* outL = hostOutPtrs[0];
-        float* outR = hostOutPtrs[1];
-        for (int i = 0; i < n; ++i)
+        // Phase 25 / PLUG-34: mono output summing. After processOut (and
+        // padding), hostOutPtrs[0] holds L and monoRScratch holds R.
+        // Sum to mono via standard (L+R)*0.5 into the single output channel.
+        if (monoOutput)
         {
-            const float wetL = outL[i];
-            const float wetR = (outR != nullptr) ? outR[i] : wetL;
-            const float mid  = 0.5f * (wetL + wetR);
-            const float side = 0.5f * (wetL - wetR);
-            const float sideLimited = std::tanh(side / kSideKnee) * kSideCeiling;
-            outL[i] = mid + sideLimited;
-            if (outR != nullptr) outR[i] = mid - sideLimited;
+            float* out = hostOutPtrs[0];
+            for (int i = 0; i < n; ++i)
+                out[i] = (out[i] + monoRScratch[i]) * 0.5f;
+        }
+
+        // Side-channel limiter on the host-rate float output (unchanged
+        // semantics from the standalone path). Skipped for mono output:
+        // after (L+R)/2 summing, L==R by definition so side==0 and the
+        // limiter is an identity transform -- skipping saves CPU.
+        if (!monoOutput)
+        {
+            float* outL = hostOutPtrs[0];
+            float* outR = hostOutPtrs[1];
+            for (int i = 0; i < n; ++i)
+            {
+                const float wetL = outL[i];
+                const float wetR = outR[i];
+                const float mid  = 0.5f * (wetL + wetR);
+                const float side = 0.5f * (wetL - wetR);
+                const float sideLimited = std::tanh(side / kSideKnee) * kSideCeiling;
+                outL[i] = mid + sideLimited;
+                outR[i] = mid - sideLimited;
+            }
         }
     }
 }

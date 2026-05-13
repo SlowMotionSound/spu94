@@ -4,8 +4,8 @@ milestone: v1.7
 milestone_name: DAW Plugin Port
 status: executing
 stopped_at: Phase 25 context gathered
-last_updated: "2026-05-13T01:52:11.551Z"
-last_activity: 2026-05-13 -- Phase 25 planning complete
+last_updated: "2026-05-13T01:54:07.980Z"
+last_activity: 2026-05-13 -- Phase 25 execution started
 progress:
   total_phases: 7
   completed_phases: 4
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-10)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 24 — state-automation-surface
+**Current focus:** Phase 25 — Buses & Validator Gates
 
 ## Current Position
 
-Phase: 25
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-13 -- Phase 25 planning complete
+Phase: 25 (Buses & Validator Gates) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 25
+Last activity: 2026-05-13 -- Phase 25 execution started
 
 Progress: [██████████] 100%
 

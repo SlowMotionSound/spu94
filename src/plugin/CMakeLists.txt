@@ -103,4 +103,4 @@ target_include_directories(spu94_plugin PRIVATE
 include(${CMAKE_SOURCE_DIR}/cmake/clap_juce_extensions.cmake)
 clap_juce_extensions_plugin(TARGET   spu94_plugin
                             CLAP_ID  "com.spu94project.spu94"
-                            CLAP_FEATURES audio-effect stereo reverb)
+                            CLAP_FEATURES audio-effect mono stereo reverb)

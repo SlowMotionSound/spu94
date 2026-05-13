@@ -123,3 +123,104 @@ target_link_libraries(test_state_roundtrip PRIVATE
 
 add_test(NAME state_roundtrip
          COMMAND test_state_roundtrip)
+
+# Phase 25 / PLUG-32, PLUG-35: bus layout whitelist unit test.
+# Instantiates SPU94AudioProcessor and verifies checkBusesLayoutSupported
+# returns true for exactly {mono-mono, mono-stereo, stereo-stereo} and
+# false for all other configurations.
+juce_add_console_app(test_bus_layout
+    PRODUCT_NAME "SPU-94 Bus Layout Test"
+)
+juce_generate_juce_header(test_bus_layout)
+
+target_sources(test_bus_layout PRIVATE
+    test_bus_layout.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/PluginProcessor.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/PluginEditor.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/ParameterBridge.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/RegisterPanel.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/MorphPanel.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/SrcChain.cpp
+)
+
+if(EXISTS ${CMAKE_SOURCE_DIR}/src/standalone/WavLoader.cpp)
+    target_sources(test_bus_layout PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/standalone/WavLoader.cpp
+    )
+    target_include_directories(test_bus_layout PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/standalone
+    )
+endif()
+
+target_include_directories(test_bus_layout PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/plugin
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_compile_definitions(test_bus_layout PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_VST3_CAN_REPLACE_VST2=0
+)
+
+include(${CMAKE_SOURCE_DIR}/cmake/libsamplerate.cmake)
+
+target_link_libraries(test_bus_layout PRIVATE
+    spu94_static
+    samplerate
+    juce::juce_audio_utils
+    juce::juce_recommended_config_flags
+)
+
+add_test(NAME bus_layout
+         COMMAND test_bus_layout)
+
+# Phase 25 / PLUG-34: mono output summing unit test.
+# Verifies processBlock with a 1-channel AudioBuffer does not crash,
+# produces finite output, and yields non-zero reverb content.
+juce_add_console_app(test_mono_sum
+    PRODUCT_NAME "SPU-94 Mono Sum Test"
+)
+juce_generate_juce_header(test_mono_sum)
+
+target_sources(test_mono_sum PRIVATE
+    test_mono_sum.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/PluginProcessor.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/PluginEditor.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/ParameterBridge.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/RegisterPanel.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/MorphPanel.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/SrcChain.cpp
+)
+
+if(EXISTS ${CMAKE_SOURCE_DIR}/src/standalone/WavLoader.cpp)
+    target_sources(test_mono_sum PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/standalone/WavLoader.cpp
+    )
+    target_include_directories(test_mono_sum PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/standalone
+    )
+endif()
+
+target_include_directories(test_mono_sum PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/plugin
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_compile_definitions(test_mono_sum PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_VST3_CAN_REPLACE_VST2=0
+)
+
+include(${CMAKE_SOURCE_DIR}/cmake/libsamplerate.cmake)
+
+target_link_libraries(test_mono_sum PRIVATE
+    spu94_static
+    samplerate
+    juce::juce_audio_utils
+    juce::juce_recommended_config_flags
+)
+
+add_test(NAME mono_sum
+         COMMAND test_mono_sum)
