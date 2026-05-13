@@ -1,56 +1,55 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-12T17:01:16Z",
-  "phase": "24",
-  "phase_name": "state-automation-surface",
-  "phase_dir": ".planning/phases/24-state-automation-surface",
+  "timestamp": "2026-05-13T10:28:02Z",
+  "phase": "25",
+  "phase_name": "buses-validator-gates",
+  "phase_dir": ".planning/phases/25-buses-validator-gates",
   "plan": 2,
   "task": 2,
-  "total_tasks": 4,
-  "status": "complete",
+  "total_tasks": 3,
+  "status": "paused",
   "completed_tasks": [
-    {"id": "24-01-1", "name": "StateSerializer.h + getStateInformation/setStateInformation", "status": "done", "commit": "52aadb6"},
-    {"id": "24-01-2", "name": "State round-trip unit tests (7 tests)", "status": "done", "commit": "891c0b7"},
-    {"id": "24-02-1", "name": "9 AudioParameterFloat registrations + processBlock wiring", "status": "done", "commit": "19afb98"},
-    {"id": "24-02-2", "name": "GUI gesture rewiring + REVERT comment strip", "status": "done", "commit": "fe398f4"}
+    {"id": "25-01-1", "name": "isBusesLayoutSupported override + mono processBlock path + CLAP mono tag", "status": "done", "commit": "0632d28"},
+    {"id": "25-01-2", "name": "Bus layout whitelist + mono summing unit tests", "status": "done", "commit": "7e916c5"},
+    {"id": "25-02-0", "name": "Pre-flight pluginval strictness-7 (deferred to CI)", "status": "done", "commit": "n/a"},
+    {"id": "25-02-1", "name": "Promote pluginval + add auval/lv2lint/VST3 SDK validator CI gates", "status": "done", "commit": "b6b96fe"}
   ],
-  "remaining_tasks": [],
+  "remaining_tasks": [
+    {"id": "25-02-2", "name": "Human verification that CI config is correct", "status": "checkpoint_pending"}
+  ],
   "blockers": [],
-  "human_actions_pending": [],
+  "human_actions_pending": [
+    {"action": "Approve or review the plugins.yml CI configuration for Phase 25 Plan 02 Task 2 checkpoint", "context": "Human-verify checkpoint — all code work is done, awaiting sign-off on CI validator configuration", "blocking": false}
+  ],
   "deferred_followups": [
     {
       "item": "CR-01: No NaN/Inf/float sanitization on deserialized state appendix",
-      "scope": "A crafted project file could inject bad values into the DSP chain via the binary float appendix",
+      "scope": "Crafted project file could inject bad values into DSP chain",
       "where": "src/plugin/StateSerializer.h:156-159, src/plugin/PluginProcessor.cpp:914-927"
     },
     {
       "item": "CR-02: getStateInformation message-thread / audio-thread race on engines[0]",
-      "scope": "getStateInformation and savePresetToString directly mutate engines[0] from the message thread while processBlock concurrently reads/writes it",
+      "scope": "Concurrent read/write on engines[0] from message vs audio thread",
       "where": "src/plugin/PluginProcessor.cpp:848-890, 638-687"
     },
     {
       "item": "WR-01: MorphPanel raw pointer to static LookAndFeel",
-      "scope": "Grit buttons hold a raw pointer to a file-scope static LookAndFeel; destructor never clears it — JUCE debug assert risk",
+      "scope": "JUCE debug assert risk on destructor",
       "where": "src/plugin/MorphPanel.cpp:67,167, src/plugin/MorphPanel.h:10"
     },
     {
       "item": "WR-03: Residual atomics alongside AudioParameterFloat",
-      "scope": "morphPosition/morphSpeed/morphGrit atomics create dual source of truth with the new params",
+      "scope": "Dual source of truth for morph params",
       "where": "src/plugin/PluginProcessor.h:221-241"
-    },
-    {
-      "item": "setValueNotifyingHost called from audio thread in preset-load sync",
-      "scope": "Fires only once per preset load, not every block. Phase 25 pluginval RT-safety probe will detect real-world impact.",
-      "where": "src/plugin/PluginProcessor.cpp:328-337"
     }
   ],
   "decisions": [
-    {"decision": "Binary container format: SPU9 magic + version byte + bodyLen + .spu94 text + 6-float appendix", "rationale": "Simple, extensible, locale-proof (PLUG-24, PLUG-25)", "phase": "24"},
-    {"decision": "Raw addParameter, no APVTS", "rationale": "PLUG-29 requirement, simpler lifecycle", "phase": "24"},
-    {"decision": "Frozen parameter IDs with versionHint=1 in locked registration order", "rationale": "PLUG-30 AU index stability — IDs and order must never change", "phase": "24"},
-    {"decision": "setValueNotifyingHost for JUCE 8 compat", "rationale": "setValue is private virtual override in headless audio processor module", "phase": "24"}
+    {"decision": "AU manufacturer/subtype codes: aufx Sp94 Spu9", "rationale": "From existing CMakeLists.txt AU_MAIN_TYPE", "phase": "25"},
+    {"decision": "Mono output summing: (L+R)*0.5f standard", "rationale": "Industry standard, prevents clipping on correlated signals", "phase": "25"},
+    {"decision": "lv2lint built from source via meson in CI", "rationale": "Not in Ubuntu apt; Arch/Alpine only", "phase": "25"},
+    {"decision": "VST3 SDK validator built from Steinberg source in CI", "rationale": "No prebuilt binary available; PLUG-40 requires real SDK validator", "phase": "25"}
   ],
   "uncommitted_files": [],
-  "next_action": "/gsd-discuss-phase 25 — Buses & Validator Gates (no CONTEXT.md exists yet)",
-  "context_notes": "Phase 24 shipped clean. Two waves executed: Plan 01 built the binary state container and tests, Plan 02 registered 9 host-automatable parameters and rewired all GUI controls. Post-merge fix needed for JUCE 8 private setValue. Code review flagged 2 critical items worth addressing. All automated tests green. Phase boundary is clean."
+  "next_action": "Approve 25-02 Task 2 checkpoint (CI config review), then complete post-execution gates: code review, regression gate, phase verification, roadmap update",
+  "context_notes": "Phase 25 execution nearly complete. Wave 1 (Plan 25-01: bus layout + mono I/O) fully done and merged. Wave 2 (Plan 25-02: CI validator gates) all code work done — plugins.yml updated with pluginval strictness-7, auval, lv2lint, VST3 SDK validator. Paused at human-verify checkpoint (Task 2). Both worktrees merged to main. After approval: update wave 2 tracking, code review gate, regression gate, phase verification, roadmap update."
 }
