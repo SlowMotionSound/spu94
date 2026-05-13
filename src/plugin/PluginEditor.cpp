@@ -310,7 +310,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
 
     captureBaseline();
 
-    setResizeLimits(900, 800, 1600, 1400);
+    setResizable(false, false);
     setSize(900, 1100);
 }
 
