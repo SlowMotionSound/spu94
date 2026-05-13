@@ -24,7 +24,7 @@
 | 23. Float↔int16 Boundary | v1.7 | 2/2 | Complete   | 2026-05-12 |
 | 24. State & Automation Surface | v1.7 | 2/2 | Complete    | 2026-05-12 |
 | 25. Buses & Validator Gates | v1.7 | 2/2 | Complete | 2026-05-13 |
-| 26. Packaging & Beta UAT | v1.7 | 0/2 | Not started | -- |
+| 26. Packaging & Beta UAT | v1.7 | 2/2 | Complete   | 2026-05-13 |
 | 27. Code Signing | v1.7 | 0/? | Conditional | -- |
 | 18. User Slots Core | v1.6 | 1/1 | Complete | 2026-05-10 |
 | 19. Waypoint GUI | v1.6 | 2/2 | Complete | 2026-05-10 |
@@ -71,8 +71,8 @@ mono/mono + mono/stereo + stereo/stereo declared; pluginval/auval/lv2lint/VST3-v
 Per-OS installers (.pkg/.dmg / Inno Setup / tarball+install.sh), beta README with cache-reset + unsigned-binary instructions, fixed-size plugin window.
 
 **Plans:** 2 plans
-- [ ] 26-01-PLAN.md — Fixed-size plugin window + Beta README with cache-reset and unsigned-binary instructions (PLUG-46..48)
-- [ ] 26-02-PLAN.md — Per-OS packaging scripts + tag-triggered GitHub Release workflow (PLUG-43..45)
+- [x] 26-01-PLAN.md — Fixed-size plugin window + Beta README with cache-reset and unsigned-binary instructions (PLUG-46..48)
+- [x] 26-02-PLAN.md — Per-OS packaging scripts + tag-triggered GitHub Release workflow (PLUG-43..45)
 
 ### Phase 27: Code Signing (conditional)
 Triggered only if beta install friction is reported. Developer ID + notarytool on macOS, code-signing cert on Windows.
