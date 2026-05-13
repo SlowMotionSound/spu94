@@ -1,6 +1,6 @@
 # Roadmap: SPU-94
 
-**Updated:** 2026-05-12
+**Updated:** 2026-05-13
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
 
 ## Milestones
@@ -24,7 +24,7 @@
 | 23. Float↔int16 Boundary | v1.7 | 2/2 | Complete   | 2026-05-12 |
 | 24. State & Automation Surface | v1.7 | 2/2 | Complete    | 2026-05-12 |
 | 25. Buses & Validator Gates | v1.7 | 2/2 | Complete | 2026-05-13 |
-| 26. Packaging & Beta UAT | v1.7 | 0/? | Not started | -- |
+| 26. Packaging & Beta UAT | v1.7 | 0/2 | Not started | -- |
 | 27. Code Signing | v1.7 | 0/? | Conditional | -- |
 | 18. User Slots Core | v1.6 | 1/1 | Complete | 2026-05-10 |
 | 19. Waypoint GUI | v1.6 | 2/2 | Complete | 2026-05-10 |
@@ -68,7 +68,11 @@ mono/mono + mono/stereo + stereo/stereo declared; pluginval/auval/lv2lint/VST3-v
 - [x] 25-02-PLAN.md — Promote pluginval to strictness-7 + add auval/lv2lint/VST3 validator CI gates (PLUG-37..42)
 
 ### Phase 26: Packaging & Beta UAT
-Per-OS installers (.pkg/.dmg / Inno Setup / tarball+install.sh), beta README with cache-reset + unsigned-binary instructions, per-DAW UAT matrix selected and exercised.
+Per-OS installers (.pkg/.dmg / Inno Setup / tarball+install.sh), beta README with cache-reset + unsigned-binary instructions, fixed-size plugin window.
+
+**Plans:** 2 plans
+- [ ] 26-01-PLAN.md — Fixed-size plugin window + Beta README with cache-reset and unsigned-binary instructions (PLUG-46..48)
+- [ ] 26-02-PLAN.md — Per-OS packaging scripts + tag-triggered GitHub Release workflow (PLUG-43..45)
 
 ### Phase 27: Code Signing (conditional)
 Triggered only if beta install friction is reported. Developer ID + notarytool on macOS, code-signing cert on Windows.
@@ -158,4 +162,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-12 -- Phase 25 planned*
+*Last updated: 2026-05-13 -- Phase 26 planned*
