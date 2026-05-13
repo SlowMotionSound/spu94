@@ -6,6 +6,7 @@
 ; bypass SmartScreen on first run).
 
 [Setup]
+SourceDir=..\..\
 AppName=SPU-94
 AppVersion={#MyAppVersion}
 AppPublisher=SPU-94 Project
