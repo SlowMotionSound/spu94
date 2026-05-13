@@ -165,6 +165,9 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value "$env:USERPROFILE\bin"
 
       # -- Validate: pluginval strictness-7 hard gate (PLUG-37, PLUG-41, PLUG-42) --
+      # pluginval v1.0.4 supports VST3 + AU only. LV2 fails ("No types found");
+      # CLAP hangs indefinitely. LV2 is validated by lv2lint + sord_validate below.
+      # CLAP validation is build-and-link + standalone smoke test only.
       - name: Validate (Linux, pluginval strictness-7)
         if: matrix.name == 'linux'
         run: |
@@ -172,12 +175,6 @@ jobs:
           xvfb-run -a pluginval --validate-in-process --strictness-level 7 \
             --timeout-ms 120000 \
             "${PLUGIN_ARTEFACTS_DIR}/VST3/SPU-94.vst3"
-          xvfb-run -a pluginval --validate-in-process --strictness-level 7 \
-            --timeout-ms 120000 \
-            "${PLUGIN_ARTEFACTS_DIR}/LV2/SPU-94.lv2"
-          xvfb-run -a pluginval --validate-in-process --strictness-level 7 \
-            --timeout-ms 120000 \
-            "${PLUGIN_ARTEFACTS_DIR}/CLAP/SPU-94.clap"
 
       - name: Validate (macOS, pluginval strictness-7)
         if: matrix.name == 'macos'
@@ -189,9 +186,6 @@ jobs:
           pluginval --validate-in-process --strictness-level 7 \
             --timeout-ms 120000 \
             "${PLUGIN_ARTEFACTS_DIR}/AU/SPU-94.component"
-          pluginval --validate-in-process --strictness-level 7 \
-            --timeout-ms 120000 \
-            "${PLUGIN_ARTEFACTS_DIR}/CLAP/SPU-94.clap"
 
       - name: Validate (Windows, pluginval strictness-7)
         if: matrix.name == 'windows'
@@ -200,10 +194,6 @@ jobs:
           pluginval --validate-in-process --strictness-level 7 `
             --timeout-ms 120000 `
             "$env:PLUGIN_ARTEFACTS_DIR\VST3\SPU-94.vst3"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          pluginval --validate-in-process --strictness-level 7 `
-            --timeout-ms 120000 `
-            "$env:PLUGIN_ARTEFACTS_DIR\CLAP\SPU-94.clap"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # -- Validate: auval hard gate, macOS only (PLUG-38, PLUG-42) -------------

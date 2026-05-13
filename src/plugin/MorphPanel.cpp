@@ -180,7 +180,7 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
     gritFractButton.onClick = [this]() { setMorphGrit(1); };
 
     // Initialize toggle state from processor (preserves preset/project recall).
-    setMorphGrit(processorRef.getMorphGrit().load(std::memory_order_relaxed));
+    setMorphGrit(static_cast<int>(processorRef.getParamMorphGrit()->get() + 0.5f));
 
     gritLabel.setText("Morph Grit", juce::dontSendNotification);
     gritLabel.setJustificationType(juce::Justification::centred);
@@ -230,6 +230,12 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
     // Set initial label to "Hall" (matching default morph position 0.625)
     updateLabelText(0.625);
     updateEditButtonState();
+}
+
+MorphPanel::~MorphPanel()
+{
+    gritIntButton.setLookAndFeel(nullptr);
+    gritFractButton.setLookAndFeel(nullptr);
 }
 
 //==============================================================================

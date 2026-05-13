@@ -694,41 +694,9 @@ juce::String SPU94AudioProcessor::savePresetToString(
 {
     if (!engines[0]) return {};
 
-    // processBlock only pushes GUI params to the SPU while audio is playing.
-    // Sync them here so the saved state always matches what the knobs show.
-    //
-    // Phase 23 Plan 02 (D-03): mirror the per-block param-sync policy.
-    // On the plugin path the engine register is pinned at unity (the
-    // gain stage lives upstream as a pre-clamp float multiply); on the
-    // standalone path the register continues to carry the Q15 gain
-    // value for v1.6-back-compat preset capture. Consequence: a
-    // plugin-saved preset's stored input_gain is always 0x7FFF.
-    // Phase 24: read from AudioParameterFloat instead of atomics.
-    {
-        spu94_set_input_gain(engines[0], static_cast<int16_t>(0x7FFF));
-    }
-    spu94_set_dry_fader(engines[0], static_cast<int16_t>(
-        paramDryLevel->get() * 0x7FFF));
-    spu94_set_patina_fader(engines[0], static_cast<int16_t>(
-        paramAdpcmLevel->get() * 0x7FFF));
-    spu94_set_reverb_fader(engines[0], static_cast<int16_t>(
-        paramReverbLevel->get() * 0x7FFF));
-    spu94_set_dry_send(engines[0], static_cast<int16_t>(
-        paramDrySend->get() * 0x7FFF));
-    spu94_set_patina_send(engines[0], static_cast<int16_t>(
-        paramAdpcmSend->get() * 0x7FFF));
-    spu94_set_latency_comp(engines[0],
-        latencyCompEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_dac_enabled(engines[0],
-        dacEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_dac_fir_enabled(engines[0],
-        dacFirEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_dac_noise_enabled(engines[0],
-        dacNoiseEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_dac_true_oversample(engines[0],
-        dacTrueOversample.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_morph_grit(engines[0],
-        static_cast<int>(paramMorphGrit->get() + 0.5f));
+    // CR-02: do NOT write to engines[0] here. processBlock pushes all
+    // param/atomic values every block; the engine already has the current
+    // state. Writing from the message thread races with the audio thread.
 
     char buf[SPU94_PRESET_BUF_SIZE];
     int written = spu94_preset_save(
@@ -903,36 +871,12 @@ void SPU94AudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
     if (!engines[0]) return;
 
-    // Sync wrapper-side params/atomics to the engine before serializing,
-    // matching the same sync policy used in savePresetToString.
-    // Input Gain register is pinned at 0x7FFF (Phase 23 D-03); the actual
-    // gain lives in paramInputGain and is captured in the float appendix.
-    // Phase 24: read mixer/send values from AudioParameterFloat (source of truth).
-    spu94_set_input_gain(engines[0], static_cast<int16_t>(0x7FFF));
-    spu94_set_dry_fader(engines[0], static_cast<int16_t>(
-        paramDryLevel->get() * 0x7FFF));
-    spu94_set_patina_fader(engines[0], static_cast<int16_t>(
-        paramAdpcmLevel->get() * 0x7FFF));
-    spu94_set_reverb_fader(engines[0], static_cast<int16_t>(
-        paramReverbLevel->get() * 0x7FFF));
-    spu94_set_dry_send(engines[0], static_cast<int16_t>(
-        paramDrySend->get() * 0x7FFF));
-    spu94_set_patina_send(engines[0], static_cast<int16_t>(
-        paramAdpcmSend->get() * 0x7FFF));
-    spu94_set_latency_comp(engines[0],
-        latencyCompEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_dac_enabled(engines[0],
-        dacEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_dac_fir_enabled(engines[0],
-        dacFirEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_dac_noise_enabled(engines[0],
-        dacNoiseEnabled.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_dac_true_oversample(engines[0],
-        dacTrueOversample.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_morph_grit(engines[0],
-        static_cast<int>(paramMorphGrit->get() + 0.5f));
+    // CR-02: do NOT write to engines[0] here. processBlock already pushes
+    // all AudioParameterFloat + atomic values to the engine every block.
+    // Writing from the message thread while the audio thread reads/writes
+    // the same engine is a data race. The engine's current state (from the
+    // most recent processBlock) is the correct snapshot to serialize.
 
-    // Phase 24: read from AudioParameterFloat (single source of truth)
     StateSerializer::save(
         engines[0],
         paramInputGain->get(),
@@ -961,17 +905,11 @@ void SPU94AudioProcessor::setStateInformation(const void* data, int sizeInBytes)
     pendingTargetSlot.store(-1, std::memory_order_relaxed);  // full preset load
     filePresetReady.store(true, std::memory_order_release);
 
-    // Restore wrapper-side atomics from the float appendix.
-    // These values are NOT in the .spu94 text body -- they live only in
-    // the binary container's float appendix. All stores are relaxed:
-    // the audio thread reads them at block granularity (PLUG-31).
-    inputLevel.store(result.inputGain, std::memory_order_relaxed);
-    morphPosition.store(result.morphPosition, std::memory_order_relaxed);
-    morphSpeed.store(result.morphSpeed, std::memory_order_relaxed);
-    morphGrit.store(static_cast<int>(result.morphGrit + 0.5f),
-                    std::memory_order_relaxed);
+    // WR-03: write restored values directly to AudioParameterFloat (single
+    // source of truth). The old atomics are no longer read for these params;
+    // processBlock reads from the AudioParameterFloat instances.
 
-    // Phase 24: also update the AudioParameterFloat instances so the host
+    // Phase 24: update the AudioParameterFloat instances so the host
     // sees the restored values in its automation lanes. This runs on the
     // message thread, so setValueNotifyingHost is the correct call.
     paramInputGain->setValueNotifyingHost(

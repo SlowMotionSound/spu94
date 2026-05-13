@@ -7,7 +7,7 @@ class MorphPanel : public juce::Component
 {
 public:
     explicit MorphPanel(SPU94AudioProcessor& processor);
-    ~MorphPanel() override = default;
+    ~MorphPanel() override;
 
     void paint(juce::Graphics& g) override;
     void resized() override;

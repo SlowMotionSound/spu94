@@ -492,12 +492,12 @@ void SPU94AudioProcessorEditor::captureBaseline()
 {
     for (size_t i = 0; i < SPU94_REG__COUNT; ++i)
         baseline.registers[i] = processorRef.getRegisterBridge().getShadowValue(i);
-    baseline.inputGain = processorRef.getInputLevel().load(std::memory_order_relaxed);
-    baseline.dry = processorRef.getDryLevel().load(std::memory_order_relaxed);
-    baseline.patina = processorRef.getPatinaLevel().load(std::memory_order_relaxed);
-    baseline.reverb = processorRef.getReverbLevel().load(std::memory_order_relaxed);
-    baseline.adpcmSend = processorRef.getAdpcmSend().load(std::memory_order_relaxed);
-    baseline.drySend = processorRef.getDrySend().load(std::memory_order_relaxed);
+    baseline.inputGain = processorRef.getParamInputGain()->get();
+    baseline.dry = processorRef.getParamDryLevel()->get();
+    baseline.patina = processorRef.getParamAdpcmLevel()->get();
+    baseline.reverb = processorRef.getParamReverbLevel()->get();
+    baseline.adpcmSend = processorRef.getParamAdpcmSend()->get();
+    baseline.drySend = processorRef.getParamDrySend()->get();
     baseline.latencyComp = processorRef.getLatencyCompEnabled().load(std::memory_order_relaxed);
     baseline.dac = processorRef.getDacEnabled().load(std::memory_order_relaxed);
     baseline.dacFir = processorRef.getDacFirEnabled().load(std::memory_order_relaxed);
@@ -518,12 +518,12 @@ bool SPU94AudioProcessorEditor::checkModified() const
     // arithmetic, so bitwise equality is the correct test. Use memcmp to
     // avoid -Wfloat-equal warnings while preserving exact-match semantics.
     auto feq = [](float a, float b) { return std::memcmp(&a, &b, sizeof(float)) == 0; };
-    if (!feq(p.getInputLevel().load(std::memory_order_relaxed), baseline.inputGain)) return true;
-    if (!feq(p.getDryLevel().load(std::memory_order_relaxed), baseline.dry)) return true;
-    if (!feq(p.getPatinaLevel().load(std::memory_order_relaxed), baseline.patina)) return true;
-    if (!feq(p.getReverbLevel().load(std::memory_order_relaxed), baseline.reverb)) return true;
-    if (!feq(p.getAdpcmSend().load(std::memory_order_relaxed), baseline.adpcmSend)) return true;
-    if (!feq(p.getDrySend().load(std::memory_order_relaxed), baseline.drySend)) return true;
+    if (!feq(p.getParamInputGain()->get(), baseline.inputGain)) return true;
+    if (!feq(p.getParamDryLevel()->get(), baseline.dry)) return true;
+    if (!feq(p.getParamAdpcmLevel()->get(), baseline.patina)) return true;
+    if (!feq(p.getParamReverbLevel()->get(), baseline.reverb)) return true;
+    if (!feq(p.getParamAdpcmSend()->get(), baseline.adpcmSend)) return true;
+    if (!feq(p.getParamDrySend()->get(), baseline.drySend)) return true;
     if (p.getLatencyCompEnabled().load(std::memory_order_relaxed) != baseline.latencyComp) return true;
     if (p.getDacEnabled().load(std::memory_order_relaxed) != baseline.dac) return true;
     if (p.getDacFirEnabled().load(std::memory_order_relaxed) != baseline.dacFir) return true;
@@ -535,22 +535,22 @@ bool SPU94AudioProcessorEditor::checkModified() const
 void SPU94AudioProcessorEditor::syncMixerKnobsFromProcessor()
 {
     inputLevelKnob.setValue(
-        static_cast<double>(processorRef.getInputLevel().load(std::memory_order_relaxed)),
+        static_cast<double>(processorRef.getParamInputGain()->get()),
         juce::dontSendNotification);
     dryKnob.setValue(
-        static_cast<double>(processorRef.getDryLevel().load(std::memory_order_relaxed)),
+        static_cast<double>(processorRef.getParamDryLevel()->get()),
         juce::dontSendNotification);
     patinaKnob.setValue(
-        static_cast<double>(processorRef.getPatinaLevel().load(std::memory_order_relaxed)),
+        static_cast<double>(processorRef.getParamAdpcmLevel()->get()),
         juce::dontSendNotification);
     reverbKnob.setValue(
-        static_cast<double>(processorRef.getReverbLevel().load(std::memory_order_relaxed)),
+        static_cast<double>(processorRef.getParamReverbLevel()->get()),
         juce::dontSendNotification);
     adpcmSendKnob.setValue(
-        static_cast<double>(processorRef.getAdpcmSend().load(std::memory_order_relaxed)),
+        static_cast<double>(processorRef.getParamAdpcmSend()->get()),
         juce::dontSendNotification);
     drySendKnob.setValue(
-        static_cast<double>(processorRef.getDrySend().load(std::memory_order_relaxed)),
+        static_cast<double>(processorRef.getParamDrySend()->get()),
         juce::dontSendNotification);
     latencyCompToggle.setToggleState(
         processorRef.getLatencyCompEnabled().load(std::memory_order_relaxed),

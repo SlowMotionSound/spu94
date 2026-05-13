@@ -25,6 +25,8 @@
  */
 
 #include <JuceHeader.h>
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 
@@ -153,10 +155,14 @@ inline LoadResult load(const void* data, int sizeInBytes)
     std::memcpy(appendix, bytes + kHeaderSize + r.textLen,
                 kFloatAppendixSize);
 
-    r.inputGain     = appendix[0];
-    r.morphPosition = appendix[1];
-    r.morphSpeed    = appendix[2];
-    r.morphGrit     = appendix[3];
+    // Sanitize: reject NaN/Inf, clamp to valid ranges (CR-01).
+    auto sanitize = [](float v, float lo, float hi, float fallback) -> float {
+        return std::isfinite(v) ? std::clamp(v, lo, hi) : fallback;
+    };
+    r.inputGain     = sanitize(appendix[0], 0.0f, 16.0f,  0.5f);
+    r.morphPosition = sanitize(appendix[1], 0.0f, 1.0f,   0.625f);
+    r.morphSpeed    = sanitize(appendix[2], 0.0f, 1.0f,   0.5f);
+    r.morphGrit     = sanitize(appendix[3], 0.0f, 1.0f,   0.0f);
     // appendix[4], appendix[5] are reserved padding (ignored on load)
 
     r.ok = true;
