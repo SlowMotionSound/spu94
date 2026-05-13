@@ -1,0 +1,226 @@
+# .github/workflows/release.yml
+# Phase 26 / Plan 02: Tag-triggered release packaging workflow.
+# Triggers on v* tags (e.g. v1.7-beta.1, v1.7-beta.2, v1.7.0).
+# Builds the plugin on all three OSes, creates per-OS installers,
+# and publishes them as GitHub Release assets.
+#
+# Separate from plugins.yml (which runs on push/PR to main and handles
+# validation — pluginval, auval, lv2lint, VST3 SDK validator). This
+# workflow focuses on packaging only. Tag pushes to main will have
+# already passed validation via plugins.yml.
+#
+# Every third-party action is pinned to a full commit SHA.
+# SHA pin lookup (matches plugins.yml):
+#   actions/checkout          v4.2.2 -> 11bd71901bbe5b1630ceea73d27597364c9af683
+#   actions/cache             v4.2.0 -> 1bd1e32a3bdc45362d1e726936510720a7c30a57
+#   actions/upload-artifact   v4.4.3 -> b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+#   actions/download-artifact v4.1.8 -> fa0a91b85d4f404e444e00e005971372dc801d16
+
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PLUGIN_ARTEFACTS_DIR: "build/src/plugin/spu94_plugin_artefacts/Release"
+  VERSION: ${{ github.ref_name }}
+
+jobs:
+  build-and-package:
+    name: package-${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, name: linux }
+          - { os: macos-14,     name: macos }
+          - { os: windows-2022, name: windows }
+
+    steps:
+      # -- Checkout -------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: recursive
+
+      # -- Per-OS dependencies --------------------------------------------------
+      - name: Install Linux deps
+        if: matrix.name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build ccache \
+            libasound2-dev libjack-jackd2-dev \
+            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
+            libwebkit2gtk-4.1-dev libcurl4-openssl-dev
+
+      - name: Install macOS deps
+        if: matrix.name == 'macos'
+        run: |
+          brew install ninja ccache
+
+      - name: Install Windows deps
+        if: matrix.name == 'windows'
+        run: |
+          choco install ninja -y
+
+      # -- FetchContent cache ---------------------------------------------------
+      - name: Compute FetchContent cache key
+        id: fc_key
+        shell: bash
+        run: |
+          JUCE_SHA=$(grep -E 'GIT_TAG[[:space:]]+[0-9a-f]{40}' CMakeLists.txt | awk '{print $2}' | head -1)
+          CJE_SHA=$(grep -E 'GIT_TAG[[:space:]]+[0-9a-f]{40}' cmake/clap_juce_extensions.cmake | awk '{print $2}' | head -1)
+          echo "juce=$JUCE_SHA"  >> "$GITHUB_OUTPUT"
+          echo "cje=$CJE_SHA"    >> "$GITHUB_OUTPUT"
+          echo "combined=${JUCE_SHA}-${CJE_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache FetchContent (_deps)
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: build/_deps
+          key: ${{ runner.os }}-fetchcontent-${{ steps.fc_key.outputs.combined }}
+          restore-keys: |
+            ${{ runner.os }}-fetchcontent-
+
+      - name: Cache ccache (Linux + macOS)
+        if: matrix.name != 'windows'
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: ~/.ccache
+          key: ${{ runner.os }}-ccache-release-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-release-
+            ${{ runner.os }}-ccache-
+
+      # -- Configure + build ----------------------------------------------------
+      - name: Configure (Linux/macOS)
+        if: matrix.name != 'windows'
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Configure (Windows)
+        if: matrix.name == 'windows'
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build (Linux/macOS)
+        if: matrix.name != 'windows'
+        run: cmake --build build --config Release
+
+      - name: Build (Windows)
+        if: matrix.name == 'windows'
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cmake --build build --config Release
+
+      # -- Package (Linux): tarball with install.sh -----------------------------
+      - name: Package (Linux)
+        if: matrix.name == 'linux'
+        run: |
+          set -e
+          mkdir -p staging
+          cp -r "${PLUGIN_ARTEFACTS_DIR}/VST3/SPU-94.vst3" staging/
+          cp -r "${PLUGIN_ARTEFACTS_DIR}/LV2/SPU-94.lv2"   staging/
+          cp    "${PLUGIN_ARTEFACTS_DIR}/CLAP/SPU-94.clap"  staging/
+          cp    packaging/linux/install.sh                   staging/
+          chmod +x staging/install.sh
+          tar czf "SPU-94-${VERSION}-linux-x86_64.tar.gz" -C staging .
+
+      # -- Package (macOS): .pkg + .dmg ----------------------------------------
+      - name: Package (macOS)
+        if: matrix.name == 'macos'
+        run: |
+          set -e
+          chmod +x packaging/macos/create_pkg.sh packaging/macos/create_dmg.sh
+          bash packaging/macos/create_pkg.sh "${PLUGIN_ARTEFACTS_DIR}" "${VERSION}"
+          bash packaging/macos/create_dmg.sh "${PLUGIN_ARTEFACTS_DIR}"
+          mv SPU-94.pkg "SPU-94-${VERSION}-macos.pkg"
+          mv SPU-94.dmg "SPU-94-${VERSION}-macos.dmg"
+
+      # -- Package (Windows): Inno Setup .exe -----------------------------------
+      - name: Install Inno Setup (Windows)
+        if: matrix.name == 'windows'
+        run: |
+          choco install innosetup -y
+
+      - name: Package (Windows)
+        if: matrix.name == 'windows'
+        shell: cmd
+        run: |
+          mkdir artifacts\VST3
+          mkdir artifacts\CLAP
+          xcopy /E /I "%PLUGIN_ARTEFACTS_DIR%\VST3\SPU-94.vst3" "artifacts\VST3\SPU-94.vst3\"
+          copy "%PLUGIN_ARTEFACTS_DIR%\CLAP\SPU-94.clap" "artifacts\CLAP\SPU-94.clap"
+          "C:\Program Files (x86)\Inno Setup 6\iscc.exe" /DMyAppVersion=%VERSION% packaging\windows\spu94.iss
+          move "packaging\windows\Output\SPU-94-Setup.exe" "SPU-94-%VERSION%-windows-setup.exe"
+
+      # -- Upload installer artifacts -------------------------------------------
+      - name: Upload installer (Linux)
+        if: matrix.name == 'linux'
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: spu94-installer-linux
+          path: SPU-94-${{ env.VERSION }}-linux-x86_64.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload installer (macOS)
+        if: matrix.name == 'macos'
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: spu94-installer-macos
+          path: |
+            SPU-94-${{ env.VERSION }}-macos.pkg
+            SPU-94-${{ env.VERSION }}-macos.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload installer (Windows)
+        if: matrix.name == 'windows'
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: spu94-installer-windows
+          path: SPU-94-${{ env.VERSION }}-windows-setup.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  create-release:
+    name: create-release
+    needs: [build-and-package]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all installer artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          pattern: spu94-installer-*
+          merge-multiple: true
+          path: dist
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --title "SPU-94 ${{ github.ref_name }}" \
+            --generate-notes \
+            --prerelease \
+            dist/*
