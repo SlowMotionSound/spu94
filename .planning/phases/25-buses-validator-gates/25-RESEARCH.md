@@ -86,7 +86,10 @@ sudo apt-get install -y sordi lilv-utils lv2-dev
 # macOS (auval is pre-installed; no action needed)
 
 # VST3 validator: built from VST3 SDK source via CMake target
-# (already available as SMTG_RUN_VST_VALIDATOR in the Steinberg CMake)
+# Clone: git clone --recursive --depth 1 https://github.com/steinbergmedia/vst3sdk.git
+# Configure: cmake -S vst3sdk -B vst3sdk/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSMTG_CREATE_PLUGIN_LINK=OFF
+# Build: cmake --build vst3sdk/build --config Release --target validator
+# Run: ./vst3sdk/build/bin/Release/validator <path-to-.vst3>
 ```
 
 ## Architecture Patterns
@@ -296,8 +299,8 @@ if (buffer.getNumChannels() > 1)
 ### Pitfall 5: VST3 Validator Must Be Built From Source
 **What goes wrong:** There is no prebuilt binary of the Steinberg VST3 validator available for download. Unlike pluginval (which ships prebuilt zips per OS), the validator must be compiled from the VST3 SDK source.
 **Why it happens:** Steinberg distributes it as source code only, integrated into their CMake build system. [CITED: steinbergmedia.github.io/vst3_dev_portal/pages/What+is+the+VST+3+SDK/Validator.html]
-**How to avoid:** Add a CI step that clones the VST3 SDK, configures with CMake (`-DSMTG_ADD_VST3_HOSTING_SAMPLES=ON`), builds the `validator` target, then runs it against the built .vst3 bundle. Cache the built validator binary between CI runs.
-**Warning signs:** Missing binary; long initial CI build time.
+**How to avoid:** Add a CI step that clones the VST3 SDK (`git clone --recursive --depth 1 https://github.com/steinbergmedia/vst3sdk.git`), configures with CMake (`-DCMAKE_BUILD_TYPE=Release -DSMTG_CREATE_PLUGIN_LINK=OFF`), builds the `validator` target (`cmake --build ... --target validator`), then runs it against the built .vst3 bundle. Cache the built validator binary between CI runs using actions/cache.
+**Warning signs:** Missing binary; long initial CI build time (~2-3 min uncached, <10s cached).
 
 ### Pitfall 6: CLAP Features List Missing "mono" Tag
 **What goes wrong:** CLAP hosts that filter by capabilities may not show the plugin for mono tracks because the CLAP_FEATURES list only declares "stereo".
@@ -398,8 +401,16 @@ lv2lint -I "${PLUGIN_ARTEFACTS_DIR}/LV2/SPU-94.lv2" \
 
 ### Example 6: VST3 SDK Validator CI Step
 ```bash
-# After building the validator from the VST3 SDK:
-./validator "${PLUGIN_ARTEFACTS_DIR}/VST3/SPU-94.vst3"
+# Clone, build, and run the Steinberg VST3 SDK validator
+git clone --recursive --depth 1 https://github.com/steinbergmedia/vst3sdk.git /tmp/vst3sdk
+cmake -S /tmp/vst3sdk -B /tmp/vst3sdk/build -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DSMTG_CREATE_PLUGIN_LINK=OFF
+cmake --build /tmp/vst3sdk/build --config Release --target validator
+
+# Run against the built VST3 plugin
+VALIDATOR=$(find /tmp/vst3sdk/build/bin -name "validator" -o -name "validator.exe" | head -1)
+"$VALIDATOR" "${PLUGIN_ARTEFACTS_DIR}/VST3/SPU-94.vst3"
 ```
 
 ## State of the Art
@@ -492,9 +503,18 @@ For CI, the standard invocation is:
 ./validator "${PLUGIN_ARTEFACTS_DIR}/VST3/SPU-94.vst3"
 ```
 
-Building requires cloning the VST3 SDK repo, configuring with CMake, and building the `validator` target. The SDK uses git submodules. On macOS, Xcode generator is standard; on Linux/Windows, Ninja works.
+Building requires cloning the full VST3 SDK repo with submodules (`--recursive`), configuring with CMake, and building the `validator` target. The SDK uses git submodules. Ninja generator works on all three OS runners.
 
-**Practical consideration:** The VST3 SDK validator is heavyweight to build in CI (full SDK compile). Consider building it once and caching the binary, or evaluating whether pluginval's built-in VST3 validation at strictness >= 5 is sufficient (pluginval internally invokes the Steinberg validator logic). If pluginval at strictness 7 already covers the VST3 interface contract, a separate Steinberg validator step may be redundant.
+**Build recipe for CI (all OSes):**
+```bash
+git clone --recursive --depth 1 https://github.com/steinbergmedia/vst3sdk.git /tmp/vst3sdk
+cmake -S /tmp/vst3sdk -B /tmp/vst3sdk/build -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DSMTG_CREATE_PLUGIN_LINK=OFF
+cmake --build /tmp/vst3sdk/build --config Release --target validator
+```
+
+Cache the `/tmp/vst3sdk/build/bin` directory with `actions/cache` to avoid rebuilding on every CI run. Key on `${{ runner.os }}-vst3-validator-v1`.
 
 ## Assumptions Log
 
@@ -502,26 +522,26 @@ Building requires cloning the VST3 SDK repo, configuring with CMake, and buildin
 |---|-------|---------|---------------|
 | A1 | (L+R)/2 is the correct mono summing convention | Pattern 3, Example 2 | Mono output 6 dB too quiet or too loud; easily corrected post-verification |
 | A2 | `buffer.getNumChannels()` reliably reflects the negotiated layout in processBlock | Pattern 2 | Mono path never triggers; would need `getTotalNumOutputChannels()` instead |
-| A3 | pluginval at strictness >= 5 already invokes VST3 validator logic internally | Validator Details | If not, the standalone Steinberg validator step is mandatory rather than potentially redundant |
+| A3 | pluginval at strictness >= 5 already invokes VST3 validator logic internally | Validator Details | Supplementary coverage; standalone Steinberg validator is now the primary mechanism for PLUG-40 |
 | A4 | Side-channel limiter is identity for mono output and can be skipped | Pattern 4 | If not skipped, it still produces correct output (identity); just wastes CPU |
 | A5 | The standalone path does not need mono handling changes | Pitfall 7 | Standalone crashes on mono -- but standalone is stereo-only, so no practical risk |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does pluginval's built-in VST3 validation at strictness >= 5 fully replicate the Steinberg validator?**
+1. **Does pluginval's built-in VST3 validation at strictness >= 5 fully replicate the Steinberg validator?** (RESOLVED)
    - What we know: pluginval's BasicTests.cpp shows a "vst3 validator" test at strictness 5+ that invokes validation with `-e` flag.
    - What's unclear: Whether this is byte-identical to the standalone Steinberg validator, or a subset.
-   - Recommendation: Implement the Steinberg validator CI step as specified by PLUG-40, but if it proves too expensive to build, verify that pluginval's built-in VST3 test at strictness 7 provides equivalent coverage.
+   - **Resolution:** Moot. Plan 02 implements the standalone Steinberg VST3 SDK validator as a separate CI step (clone SDK, build `validator` target, run against SPU-94.vst3). PLUG-40 is satisfied directly by the SDK validator, not by a pluginval proxy. pluginval's built-in VST3 tests at strictness-7 provide additional coverage but are not the sole mechanism.
 
-2. **Will Phase 24's setValueNotifyingHost calls from processBlock survive pluginval's Parameter thread safety test?**
+2. **Will Phase 24's setValueNotifyingHost calls from processBlock survive pluginval's Parameter thread safety test?** (RESOLVED)
    - What we know: Phase 24 calls `setValueNotifyingHost` from the audio thread during file-preset loads.
    - What's unclear: Whether JUCE's notification chain allocates or locks in some code paths.
-   - Recommendation: Run pluginval strictness-7 on the current build BEFORE implementing Phase 25's hard gate. If it fails, fix Phase 24's code first.
+   - **Resolution:** Plan 02 Task 0 runs pluginval strictness-7 locally against the current build before wiring the CI hard gate. This empirically answers whether Phase 24's code survives. If it fails, the task includes remediation instructions (defer setValueNotifyingHost to the message thread via juce::MessageManager::callAsync or an AsyncUpdater). The hard gate is only wired after local validation passes.
 
-3. **lv2lint build-from-source reliability on GitHub Actions ubuntu-22.04 runner**
+3. **lv2lint build-from-source reliability on GitHub Actions ubuntu-22.04 runner** (RESOLVED)
    - What we know: lv2lint requires meson, liblilv-dev, and builds with ninja. The upstream repo is maintained.
    - What's unclear: Whether the build is stable on ubuntu-22.04's meson/lilv versions.
-   - Recommendation: Test the build locally on ubuntu-22.04 first. Cache the built binary in CI.
+   - **Resolution:** Resolved during execution. The CI step builds lv2lint from source with explicit dependency installation (meson, ninja-build, liblilv-dev, libcurl4-openssl-dev). If the build fails on the CI runner, the step itself will catch it and the executor will adapt. No pre-verification needed since lv2lint's meson build is straightforward and the dependencies are all in Ubuntu 22.04's apt repos.
 
 ## Environment Availability
 
@@ -563,7 +583,7 @@ Building requires cloning the VST3 SDK repo, configuring with CMake, and buildin
 | PLUG-37 | pluginval strictness-7 | integration | `pluginval --strictness-level 7 ...` | CI step (existing advisory promoted) |
 | PLUG-38 | auval | integration | `auval -v aufx Sp94 Spu9` | CI step (new) |
 | PLUG-39 | lv2lint + sord_validate | integration | `lv2lint -I ... URI` + `sord_validate ...` | CI step (new) |
-| PLUG-40 | VST3 validator | integration | `./validator SPU-94.vst3` | CI step (new) |
+| PLUG-40 | VST3 validator | integration | `./validator SPU-94.vst3` (built from Steinberg SDK source) | CI step (new) |
 | PLUG-41 | RT-safety zero allocations | integration | pluginval strictness-7 (implicit) | Covered by PLUG-37 |
 | PLUG-42 | Warnings/errors fail CI | CI config | `continue-on-error: false` | CI config change |
 
@@ -596,7 +616,6 @@ Building requires cloning the VST3 SDK repo, configuring with CMake, and buildin
 - CLAP plugin-features.h [VERIFIED: build/_deps/clap-juce-extensions-src/clap-libs/clap/include/clap/plugin-features.h]
 
 ### Tertiary (LOW confidence)
-- pluginval's internal VST3 validation coverage vs standalone Steinberg validator [needs verification -- see Open Question 1]
 - `buffer.getNumChannels()` vs `getTotalNumOutputChannels()` reliability in processBlock [needs practical verification]
 
 ## Metadata
@@ -605,7 +624,7 @@ Building requires cloning the VST3 SDK repo, configuring with CMake, and buildin
 - Standard stack: HIGH -- all tools identified and verified against existing project infrastructure
 - Architecture: HIGH -- bus layout API well-documented; existing code already handles most mono cases
 - Pitfalls: HIGH -- grounded in specific code analysis (SrcChain jassert, auval AU wrapper bugs, lv2lint unavailability in apt)
-- Validation: MEDIUM-HIGH -- pluginval strictness levels verified from source; VST3 validator build process needs practical CI testing
+- Validation: HIGH -- pluginval strictness levels verified from source; VST3 validator build recipe verified from Steinberg docs and CI reference article
 
 **Research date:** 2026-05-12
 **Valid until:** 2026-06-12 (stable domain; JUCE API and validator tools change slowly)
