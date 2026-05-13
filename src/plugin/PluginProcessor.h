@@ -26,6 +26,8 @@ public:
                       juce::MidiBuffer& midiMessages) override;
     using juce::AudioProcessor::processBlock;
 
+    bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
+
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
 
