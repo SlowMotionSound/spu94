@@ -1,6 +1,6 @@
 # Roadmap: SPU-94
 
-**Updated:** 2026-05-11
+**Updated:** 2026-05-12
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
 
 ## Milestones
@@ -23,7 +23,7 @@
 | 22. SRC & Latency Reporting | v1.7 | 0/? | Not started | -- |
 | 23. Float↔int16 Boundary | v1.7 | 2/2 | Complete   | 2026-05-12 |
 | 24. State & Automation Surface | v1.7 | 2/2 | Complete    | 2026-05-12 |
-| 25. Buses & Validator Gates | v1.7 | 0/? | Not started | -- |
+| 25. Buses & Validator Gates | v1.7 | 0/2 | Not started | -- |
 | 26. Packaging & Beta UAT | v1.7 | 0/? | Not started | -- |
 | 27. Code Signing | v1.7 | 0/? | Conditional | -- |
 | 18. User Slots Core | v1.6 | 1/1 | Complete | 2026-05-10 |
@@ -62,6 +62,10 @@ Binary-wrapped .spu94 state round-trip, locale-independent; 9 host-automatable A
 
 ### Phase 25: Buses & Validator Gates
 mono/mono + mono/stereo + stereo/stereo declared; pluginval/auval/lv2lint/VST3-validator wired into CI as required gates.
+
+**Plans:** 2 plans
+- [ ] 25-01-PLAN.md — Bus layout declaration + mono I/O handling + unit tests (PLUG-32..36)
+- [ ] 25-02-PLAN.md — Promote pluginval to strictness-7 + add auval/lv2lint/VST3 validator CI gates (PLUG-37..42)
 
 ### Phase 26: Packaging & Beta UAT
 Per-OS installers (.pkg/.dmg / Inno Setup / tarball+install.sh), beta README with cache-reset + unsigned-binary instructions, per-DAW UAT matrix selected and exercised.
@@ -154,4 +158,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-10 -- v1.6 milestone archived*
+*Last updated: 2026-05-12 -- Phase 25 planned*
