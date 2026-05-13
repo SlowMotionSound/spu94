@@ -24,7 +24,7 @@
 | 23. Float↔int16 Boundary | v1.7 | 2/2 | Complete   | 2026-05-12 |
 | 24. State & Automation Surface | v1.7 | 2/2 | Complete    | 2026-05-12 |
 | 25. Buses & Validator Gates | v1.7 | 2/2 | Complete | 2026-05-13 |
-| 26. Packaging & Beta UAT | v1.7 | 2/2 | Complete   | 2026-05-13 |
+| 26. Packaging & Beta UAT | v1.7 | 2/2 | Complete    | 2026-05-13 |
 | 27. Code Signing | v1.7 | 0/? | Conditional | -- |
 | 18. User Slots Core | v1.6 | 1/1 | Complete | 2026-05-10 |
 | 19. Waypoint GUI | v1.6 | 2/2 | Complete | 2026-05-10 |
