@@ -1,5 +1,10 @@
 # .github/workflows/plugins.yml
 # Phase 21 / Task 4: 3-OS x multi-format plugin build matrix + builds-and-loads smoke.
+# Phase 25 / Plan 02: Promoted pluginval to strictness-7 hard gate on all formats/OSes.
+#   Added auval (macOS), lv2lint + sord_validate (Linux), VST3 SDK validator (all OSes)
+#   as hard CI gates. Removed advisory pluginval-early-warning job. Any validator
+#   warning or error fails the build (PLUG-37 through PLUG-42).
+#
 # Separate from ci.yml (which handles the C core's static analysis / UBSan / grep-guard /
 # flag verification). This workflow exists so Phases 22-26 ship green-on-three-OSes
 # rather than working blind on Linux.
@@ -14,7 +19,7 @@
 # pluginval is downloaded directly from the Tracktion/pluginval release page (pinned
 # release tag v1.0.4, the latest stable at implementation time). Not a GitHub Action,
 # so SHA-pin doesn't apply -- but the release tag is pinned and the binary hash can be
-# verified before promoting strictness-7 to a hard gate in Phase 25.
+# verified.
 
 name: plugins
 
@@ -61,7 +66,8 @@ jobs:
             libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
             libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
             libwebkit2gtk-4.1-dev libcurl4-openssl-dev \
-            unzip
+            unzip xvfb \
+            meson liblilv-dev sordi
 
       - name: Install macOS deps
         if: matrix.name == 'macos'
@@ -158,40 +164,134 @@ jobs:
           Expand-Archive -Path "$env:TEMP\pluginval.zip" -DestinationPath "$env:USERPROFILE\bin" -Force
           Add-Content -Path $env:GITHUB_PATH -Value "$env:USERPROFILE\bin"
 
-      # -- Smoke: builds-and-loads per format -----------------------------------
-      - name: Smoke (Linux plugin formats)
+      # -- Validate: pluginval strictness-7 hard gate (PLUG-37, PLUG-41, PLUG-42) --
+      - name: Validate (Linux, pluginval strictness-7)
         if: matrix.name == 'linux'
         run: |
           set -e
-          pluginval --validate-in-process --strictness-level 1 \
+          xvfb-run -a pluginval --validate-in-process --strictness-level 7 \
+            --timeout-ms 120000 \
             "${PLUGIN_ARTEFACTS_DIR}/VST3/SPU-94.vst3"
-          pluginval --validate-in-process --strictness-level 1 \
+          xvfb-run -a pluginval --validate-in-process --strictness-level 7 \
+            --timeout-ms 120000 \
             "${PLUGIN_ARTEFACTS_DIR}/LV2/SPU-94.lv2"
-          pluginval --validate-in-process --strictness-level 1 \
+          xvfb-run -a pluginval --validate-in-process --strictness-level 7 \
+            --timeout-ms 120000 \
             "${PLUGIN_ARTEFACTS_DIR}/CLAP/SPU-94.clap"
 
-      - name: Smoke (macOS plugin formats)
+      - name: Validate (macOS, pluginval strictness-7)
         if: matrix.name == 'macos'
         run: |
           set -e
-          pluginval --validate-in-process --strictness-level 1 \
+          pluginval --validate-in-process --strictness-level 7 \
+            --timeout-ms 120000 \
             "${PLUGIN_ARTEFACTS_DIR}/VST3/SPU-94.vst3"
-          pluginval --validate-in-process --strictness-level 1 \
+          pluginval --validate-in-process --strictness-level 7 \
+            --timeout-ms 120000 \
             "${PLUGIN_ARTEFACTS_DIR}/AU/SPU-94.component"
-          pluginval --validate-in-process --strictness-level 1 \
+          pluginval --validate-in-process --strictness-level 7 \
+            --timeout-ms 120000 \
             "${PLUGIN_ARTEFACTS_DIR}/CLAP/SPU-94.clap"
 
-      - name: Smoke (Windows plugin formats)
+      - name: Validate (Windows, pluginval strictness-7)
         if: matrix.name == 'windows'
         shell: pwsh
         run: |
-          pluginval --validate-in-process --strictness-level 1 `
+          pluginval --validate-in-process --strictness-level 7 `
+            --timeout-ms 120000 `
             "$env:PLUGIN_ARTEFACTS_DIR\VST3\SPU-94.vst3"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          pluginval --validate-in-process --strictness-level 1 `
+          pluginval --validate-in-process --strictness-level 7 `
+            --timeout-ms 120000 `
             "$env:PLUGIN_ARTEFACTS_DIR\CLAP\SPU-94.clap"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      # -- Validate: auval hard gate, macOS only (PLUG-38, PLUG-42) -------------
+      - name: Validate AU (auval)
+        if: matrix.name == 'macos'
+        run: |
+          auval -v aufx Sp94 Spu9
+
+      # -- Validate: lv2lint + sord_validate, Linux only (PLUG-39, PLUG-42) -----
+      - name: Build lv2lint from source (Linux)
+        if: matrix.name == 'linux'
+        run: |
+          set -e
+          git clone --depth 1 https://gitlab.com/drobilla/lv2lint.git /tmp/lv2lint
+          cd /tmp/lv2lint
+          meson setup build \
+            -Donline-tests=disabled \
+            -Delf-tests=disabled \
+            -Dx11-tests=disabled
+          ninja -C build
+          sudo ninja -C build install
+
+      - name: Validate LV2 (lv2lint + sord_validate)
+        if: matrix.name == 'linux'
+        run: |
+          set -e
+          sord_validate "${PLUGIN_ARTEFACTS_DIR}/LV2/SPU-94.lv2"/*.ttl
+          lv2lint -I "${PLUGIN_ARTEFACTS_DIR}/LV2/SPU-94.lv2" \
+            -M nopack \
+            "https://spu94project.org/spu94"
+
+      # -- Validate: VST3 SDK validator, all OSes (PLUG-40, PLUG-42) ------------
+      - name: Cache VST3 SDK validator
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: /tmp/vst3sdk/build/bin
+          key: ${{ runner.os }}-vst3-validator-v1
+
+      - name: Build VST3 SDK validator (Linux/macOS)
+        if: matrix.name != 'windows'
+        run: |
+          set -e
+          # Skip if cached
+          if [ -x /tmp/vst3sdk/build/bin/Release/validator ] || \
+             [ -x /tmp/vst3sdk/build/bin/validator ]; then
+            echo "VST3 validator cached, skipping build"
+            exit 0
+          fi
+          git clone --recursive --depth 1 \
+            https://github.com/steinbergmedia/vst3sdk.git /tmp/vst3sdk
+          cmake -S /tmp/vst3sdk -B /tmp/vst3sdk/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSMTG_CREATE_PLUGIN_LINK=OFF
+          cmake --build /tmp/vst3sdk/build --config Release --target validator
+
+      - name: Build VST3 SDK validator (Windows)
+        if: matrix.name == 'windows'
+        shell: cmd
+        run: |
+          if exist "%TEMP%\vst3sdk\build\bin\Release\validator.exe" (
+            echo VST3 validator cached, skipping build
+            exit /b 0
+          )
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          git clone --recursive --depth 1 https://github.com/steinbergmedia/vst3sdk.git %TEMP%\vst3sdk
+          cmake -S %TEMP%\vst3sdk -B %TEMP%\vst3sdk\build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSMTG_CREATE_PLUGIN_LINK=OFF
+          cmake --build %TEMP%\vst3sdk\build --config Release --target validator
+
+      - name: Validate VST3 (Steinberg SDK validator, Linux/macOS)
+        if: matrix.name != 'windows'
+        run: |
+          set -e
+          # Find the validator binary (path varies by platform/config)
+          VALIDATOR=$(find /tmp/vst3sdk/build/bin -name "validator" -o -name "validator.exe" | head -1)
+          if [ -z "$VALIDATOR" ]; then echo "VST3 validator binary not found"; exit 1; fi
+          chmod +x "$VALIDATOR"
+          "$VALIDATOR" "${PLUGIN_ARTEFACTS_DIR}/VST3/SPU-94.vst3"
+
+      - name: Validate VST3 (Steinberg SDK validator, Windows)
+        if: matrix.name == 'windows'
+        shell: pwsh
+        run: |
+          $validator = Get-ChildItem -Path "$env:TEMP\vst3sdk\build\bin" -Recurse -Filter "validator.exe" | Select-Object -First 1
+          if (-not $validator) { Write-Error "VST3 validator binary not found"; exit 1 }
+          & $validator.FullName "$env:PLUGIN_ARTEFACTS_DIR\VST3\SPU-94.vst3"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # -- Smoke: standalone builds-and-loads -----------------------------------
       - name: Smoke (Linux/macOS standalone)
         if: matrix.name != 'windows'
         run: |
@@ -217,10 +317,6 @@ jobs:
             exit 1
           fi
 
-      - name: Install xvfb (Linux only, for standalone smoke)
-        if: matrix.name == 'linux'
-        run: sudo apt-get install -y --no-install-recommends xvfb
-
       - name: Smoke (Windows standalone)
         if: matrix.name == 'windows'
         shell: pwsh
@@ -243,42 +339,3 @@ jobs:
           path: ${{ env.PLUGIN_ARTEFACTS_DIR }}
           if-no-files-found: error
           retention-days: 14
-
-  # -----------------------------------------------------------------------------
-  # Optional non-blocking pluginval --strictness-level 7 on the Linux VST3.
-  # Advisory only -- a regression here shows as a yellow check, not a red one,
-  # and does NOT block merge to main. Phase 25 promotes this to a hard gate.
-  # -----------------------------------------------------------------------------
-  pluginval-early-warning:
-    name: pluginval-strictness-7 (advisory)
-    needs: build-plugins
-    runs-on: ubuntu-22.04
-    continue-on-error: true
-    steps:
-      - name: Install deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libasound2 libxinerama1 libxext6 libxrandr2 libxcursor1 \
-            libfreetype6 libfontconfig1 libglu1-mesa libx11-6 \
-            libwebkit2gtk-4.1-0 libcurl4 xvfb unzip
-
-      - name: Download Linux artefact
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-        with:
-          name: spu94-linux
-          path: artefact
-
-      - name: Install pluginval
-        run: |
-          curl -fsSL -o /tmp/pluginval.zip \
-            "https://github.com/Tracktion/pluginval/releases/download/${PLUGINVAL_VERSION}/pluginval_Linux.zip"
-          mkdir -p "$HOME/bin"
-          unzip -o /tmp/pluginval.zip -d "$HOME/bin"
-          chmod +x "$HOME/bin/pluginval"
-          echo "$HOME/bin" >> "$GITHUB_PATH"
-
-      - name: Run pluginval --strictness-level 7 on Linux VST3
-        run: |
-          xvfb-run -a pluginval --validate-in-process --strictness-level 7 \
-            "artefact/VST3/SPU-94.vst3"
