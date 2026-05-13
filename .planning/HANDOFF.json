@@ -1,0 +1,51 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-13T17:59:23Z",
+  "phase": "26",
+  "phase_name": "packaging-beta-uat",
+  "phase_dir": ".planning/phases/26-packaging-beta-uat",
+  "plan": 0,
+  "task": 0,
+  "total_tasks": 4,
+  "status": "planned",
+  "completed_tasks": [],
+  "remaining_tasks": [
+    {"id": "26-01-1", "name": "Lock plugin window to fixed size (PLUG-48)", "status": "not_started"},
+    {"id": "26-01-2", "name": "Write BETA-README.md with cache-reset + unsigned-binary instructions (PLUG-46/47)", "status": "not_started"},
+    {"id": "26-02-1", "name": "Create per-OS packaging scripts (macOS .pkg/.dmg, Windows Inno Setup, Linux tarball+install.sh)", "status": "not_started"},
+    {"id": "26-02-2", "name": "Create tag-triggered GitHub Release workflow (release.yml)", "status": "not_started"}
+  ],
+  "blockers": [],
+  "human_actions_pending": [],
+  "deferred_followups": [
+    {
+      "item": "CR-01: No NaN/Inf/float sanitization on deserialized state appendix",
+      "scope": "Fixed in Phase 25 close-out (commit 5021fd9)",
+      "where": "src/plugin/StateSerializer.h"
+    },
+    {
+      "item": "CR-02: getStateInformation message-thread / audio-thread race on engines[0]",
+      "scope": "Fixed in Phase 25 close-out (commit 5021fd9)",
+      "where": "src/plugin/PluginProcessor.cpp"
+    },
+    {
+      "item": "WR-01: MorphPanel raw pointer to static LookAndFeel",
+      "scope": "Fixed in Phase 25 close-out (commit 5021fd9)",
+      "where": "src/plugin/MorphPanel.cpp"
+    },
+    {
+      "item": "WR-03: Residual atomics alongside AudioParameterFloat",
+      "scope": "Editor reads switched to params; dead atomic writes removed (commit 5021fd9). Old atomic fields still exist but are only written from processBlock file-preset path. Full removal is future cleanup.",
+      "where": "src/plugin/PluginProcessor.h, PluginEditor.cpp"
+    }
+  ],
+  "decisions": [
+    {"decision": "10 DAW-OS test matrix: Reaper (3 OSes), Ardour (Linux), Logic (macOS), Ableton (macOS/Win), FL Studio (macOS/Win), Bitwig (Linux)", "rationale": "Broad coverage including native CLAP on Linux via Bitwig", "phase": "26"},
+    {"decision": "macOS ships BOTH .pkg AND .dmg", "rationale": "Primary installer + fallback for manual install preference", "phase": "26"},
+    {"decision": "UAT checklist: load + audio + state round-trip per DAW-OS combo", "rationale": "Critical path only, not full feature sweep", "phase": "26"},
+    {"decision": "pluginval v1.0.4 CI fix: removed LV2 and CLAP from pluginval steps", "rationale": "pluginval fails on LV2 (No types found) and hangs on CLAP; LV2 validated by lv2lint instead", "phase": "25"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Execute Phase 26: /gsd-execute-phase 26",
+  "context_notes": "Phase 25 closed out with 4 code review fixes + CI config bugfix (pluginval format support). Phase 26 planned with 2 plans in 1 wave — both parallel. Plan 26-01 covers fixed-size window + beta README. Plan 26-02 covers per-OS packaging scripts + GitHub Release CI workflow. Plan checker passed with 1 advisory warning (no formal UAT checklist document — Anthony accepted as-is since the test criteria are simple and he knows what to test)."
+}
