@@ -4,7 +4,7 @@ SPU-94 is a bit-faithful software reimplementation of the PlayStation 1 SPU reve
 
 The sound it produces is the PS1's: Q15 fixed-point truncation at every multiply, a four-stage filter network running at 22.05 kHz behind a 39-tap half-band FIR at each sample-rate boundary, and a documented hardware quirk where setting vIIR to the most-negative int16 inverts the reverb output. Those details are what give the original its character — SPU-94 preserves them intact.
 
-Built for recording and broadcast engineers who want the PS1 reverb as a modern, playable tool. Sample-accurate where the spec is explicit. Documented and deliberate where it isn't.
+Built for recording engineers who want the PS1 reverb as a modern, playable tool. Sample-accurate where the spec is explicit. Documented and deliberate where it isn't.
 
 ---
 
