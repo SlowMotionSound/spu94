@@ -35,7 +35,11 @@ target_include_directories(spu94_obj PUBLIC
 
 # Determinism + warnings: PRIVATE — they apply when compiling spu94_obj,
 # but do NOT leak to downstream targets. Critical per RESEARCH.md Pitfall 7.
-target_link_libraries(spu94_obj PRIVATE spu94_warnings m)
+if(WIN32)
+    target_link_libraries(spu94_obj PRIVATE spu94_warnings)
+else()
+    target_link_libraries(spu94_obj PRIVATE spu94_warnings m)
+endif()
 
 # Shared library consumer.
 add_library(spu94_shared SHARED $<TARGET_OBJECTS:spu94_obj>)
