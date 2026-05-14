@@ -32,6 +32,14 @@
 #include <random>
 #include <vector>
 
+#ifdef _MSC_VER
+static void* portableAlignedAlloc(size_t alignment, size_t size) { return _aligned_malloc(size, alignment); }
+static void  portableAlignedFree(void* ptr) { _aligned_free(ptr); }
+#else
+static void* portableAlignedAlloc(size_t alignment, size_t size) { return portableAlignedAlloc(alignment, size); }
+static void  portableAlignedFree(void* ptr) { std::free(ptr); }
+#endif
+
 namespace {
 
 constexpr int    kBlockSize      = 512;
@@ -113,8 +121,8 @@ TestResult runNullTest(double hostSampleRate)
     std::printf("---- Host SR %.0f Hz ----\n", hostSampleRate);
 
     // ---- 1. Allocate spu94 engine in passthrough config -----------------
-    void* alignedState = std::aligned_alloc(16, kStateBufSize);
-    void* alignedWork  = std::aligned_alloc(16, kWorkBufSize);
+    void* alignedState = portableAlignedAlloc(16, kStateBufSize);
+    void* alignedWork  = portableAlignedAlloc(16, kWorkBufSize);
     if (!alignedState || !alignedWork)
     {
         std::printf("FATAL: aligned_alloc failed\n");
@@ -128,8 +136,8 @@ TestResult runNullTest(double hostSampleRate)
     if (engine == nullptr)
     {
         std::printf("FATAL: spu94_init returned NULL\n");
-        std::free(alignedState);
-        std::free(alignedWork);
+        portableAlignedFree(alignedState);
+        portableAlignedFree(alignedWork);
         return TestResult{false, 0, 0, 0, 0};
     }
 
@@ -185,7 +193,7 @@ TestResult runNullTest(double hostSampleRate)
             SRC_STATE* st = src_new(SRC_SINC_MEDIUM_QUALITY, 1, &err);
             if (!st) { std::printf("FATAL: src_new failed (%d)\n", err);
                        srcChain.release(); spu94_destroy(engine);
-                       std::free(alignedState); std::free(alignedWork); return TestResult{false,0,0,0,0}; }
+                       portableAlignedFree(alignedState); portableAlignedFree(alignedWork); return TestResult{false,0,0,0,0}; }
             SRC_DATA d {};
             d.data_in       = in;
             d.input_frames  = coreFrames;
@@ -230,7 +238,7 @@ TestResult runNullTest(double hostSampleRate)
         {
             std::printf("FATAL: wet buffer overflow at block dryFed=%d\n", dryFedIdx);
             srcChain.release(); spu94_destroy(engine);
-            std::free(alignedState); std::free(alignedWork);
+            portableAlignedFree(alignedState); portableAlignedFree(alignedWork);
             return TestResult{false, 0, 0, 0, 0};
         }
         wetWriteIdx += hostNOut;
@@ -249,7 +257,7 @@ TestResult runNullTest(double hostSampleRate)
         std::printf("FATAL: measurement window empty (reportedLatency=%d, wetWriteIdx=%d)\n",
                     reportedLatency, wetWriteIdx);
         srcChain.release(); spu94_destroy(engine);
-        std::free(alignedState); std::free(alignedWork);
+        portableAlignedFree(alignedState); portableAlignedFree(alignedWork);
         return TestResult{false, 0, 0, 0, 0};
     }
 
@@ -342,8 +350,8 @@ TestResult runNullTest(double hostSampleRate)
 
     srcChain.release();
     spu94_destroy(engine);
-    std::free(alignedState);
-    std::free(alignedWork);
+    portableAlignedFree(alignedState);
+    portableAlignedFree(alignedWork);
 
     return TestResult{ pass, residualReported_dB, bestRms_dB, bestLatency, reportedLatency };
 }
