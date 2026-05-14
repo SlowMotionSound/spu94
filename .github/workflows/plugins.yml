@@ -176,6 +176,14 @@ jobs:
             --timeout-ms 120000 \
             "${PLUGIN_ARTEFACTS_DIR}/VST3/SPU-94.vst3"
 
+      - name: Register AU component (macOS)
+        if: matrix.name == 'macos'
+        run: |
+          mkdir -p "$HOME/Library/Audio/Plug-Ins/Components"
+          cp -R "${PLUGIN_ARTEFACTS_DIR}/AU/SPU-94.component" \
+            "$HOME/Library/Audio/Plug-Ins/Components/"
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+
       - name: Validate (macOS, pluginval strictness-7)
         if: matrix.name == 'macos'
         run: |
@@ -185,7 +193,7 @@ jobs:
             "${PLUGIN_ARTEFACTS_DIR}/VST3/SPU-94.vst3"
           pluginval --validate-in-process --strictness-level 7 \
             --timeout-ms 120000 \
-            "${PLUGIN_ARTEFACTS_DIR}/AU/SPU-94.component"
+            "$HOME/Library/Audio/Plug-Ins/Components/SPU-94.component"
 
       - name: Validate (Windows, pluginval strictness-7)
         if: matrix.name == 'windows'

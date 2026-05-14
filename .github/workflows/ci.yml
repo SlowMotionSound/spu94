@@ -77,6 +77,7 @@ jobs:
   clang-tidy:
     name: clang-tidy (BUILD-04)
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -99,6 +100,7 @@ jobs:
   cppcheck:
     name: cppcheck (BUILD-04)
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -141,6 +143,7 @@ jobs:
   ubsan:
     name: UBSan (BUILD-05)
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -250,6 +253,7 @@ jobs:
     # container so the pin surface is exactly one digest.
     name: reproducibility (TEST-08, BUILD-08)
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2

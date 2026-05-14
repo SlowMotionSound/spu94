@@ -6,20 +6,27 @@
 
 add_library(spu94_warnings INTERFACE)
 
-target_compile_options(spu94_warnings INTERFACE
-    # Error on any warning — BUILD-02 requirement.
-    -Werror
-    # Warning set agreed for Phase 1 (see RESEARCH.md §Architecture Patterns).
-    -Wall
-    -Wextra
-    -Wpedantic
-    -Wshadow
-    -Wconversion
-    -Wsign-conversion
-    -Wstrict-prototypes
-    -Wmissing-prototypes
-    # Determinism flags (BUILD-02). Defense-in-depth against accidental float
-    # introduction even though BUILD-07 grep guard also forbids float/double.
-    -ffp-contract=off
-    -fno-fast-math
-)
+if(MSVC)
+    target_compile_options(spu94_warnings INTERFACE
+        /WX        # Treat warnings as errors (MSVC equivalent of -Werror)
+        /W4        # High warning level (MSVC equivalent of -Wall -Wextra)
+        /fp:strict # Determinism: no FP contractions or fast-math
+    )
+else()
+    target_compile_options(spu94_warnings INTERFACE
+        # Error on any warning — BUILD-02 requirement.
+        -Werror
+        # Warning set agreed for Phase 1 (see RESEARCH.md §Architecture Patterns).
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wshadow
+        -Wconversion
+        -Wsign-conversion
+        -Wstrict-prototypes
+        -Wmissing-prototypes
+        # Determinism flags (BUILD-02).
+        -ffp-contract=off
+        -fno-fast-math
+    )
+endif()
