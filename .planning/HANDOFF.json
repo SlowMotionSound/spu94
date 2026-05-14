@@ -1,27 +1,38 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-13T19:57:51Z",
-  "phase": "27",
-  "phase_name": "code-signing-(conditional)",
+  "timestamp": "2026-05-14T04:08:18.583Z",
+  "phase": "release",
+  "phase_name": "v1.7-beta.1-release",
   "phase_dir": null,
   "plan": 0,
-  "task": 0,
-  "total_tasks": 0,
-  "status": "phase-26-complete",
-  "completed_tasks": [],
-  "remaining_tasks": [],
+  "task": 2,
+  "total_tasks": 6,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "name": "Create GitHub repo (SlowMotionSound/spu94, private)", "status": "done"},
+    {"id": 2, "name": "Push codebase to GitHub", "status": "done"},
+    {"id": 3, "name": "Tag v1.7-beta.1 and push to trigger CI", "status": "done"},
+    {"id": 4, "name": "Diagnose CI failures on macOS and Windows", "status": "done"},
+    {"id": 5, "name": "Apply fixes for both CI failures", "status": "in_progress", "progress": "Both files edited, local build verification was running when paused"}
+  ],
+  "remaining_tasks": [
+    {"id": 6, "name": "Verify Linux build passes with both fixes", "status": "not_started"},
+    {"id": 7, "name": "Commit both CI fixes", "status": "not_started"},
+    {"id": 8, "name": "Delete old v1.7-beta.1 tag, re-tag, push to re-trigger CI", "status": "not_started"},
+    {"id": 9, "name": "Verify all 3 platforms pass CI", "status": "not_started"},
+    {"id": 10, "name": "Test Linux plugin locally in a DAW", "status": "not_started"},
+    {"id": 11, "name": "Send release page link to beta testers", "status": "not_started"}
+  ],
   "blockers": [],
-  "human_actions_pending": [
-    {"action": "Test SPU-94 plugin on Linux DAWs (Reaper, Ardour, Bitwig)", "context": "Phase 26 UAT — Anthony tests Linux/macOS personally", "blocking": false},
-    {"action": "Test SPU-94 plugin on macOS DAWs (Reaper, Logic, Ableton)", "context": "Phase 26 UAT — Anthony tests Linux/macOS personally", "blocking": false},
-    {"action": "Distribute beta builds to testers for Windows/macOS DAW coverage", "context": "Beta testers cover macOS DAWs + Windows", "blocking": false},
-    {"action": "Decide whether Phase 27 (Code Signing) is needed based on beta install friction", "context": "Phase 27 is conditional — only triggered if testers report Gatekeeper/SmartScreen friction", "blocking": false}
-  ],
+  "human_actions_pending": [],
   "decisions": [
-    {"decision": "Phase 26 complete — all packaging and beta UAT preparation done", "rationale": "2/2 plans verified, 8/8 must-haves pass", "phase": "26"},
-    {"decision": "CR-01 Inno Setup path fix applied (SourceDir=..\\..\\ added)", "rationale": "Code review found iscc would fail resolving artifact paths relative to .iss file location", "phase": "26"}
+    {"decision": "GitHub repo created at SlowMotionSound/spu94 (private)", "rationale": "Cross-platform CI needed for macOS + Windows builds — can't cross-compile from Linux", "phase": "release"},
+    {"decision": "v1.7-beta.1 tag pushed, CI failed on macOS + Windows", "rationale": "Two platform-specific bugs discovered", "phase": "release"}
   ],
-  "uncommitted_files": [],
-  "next_action": "Push a v1.7-beta.1 tag to trigger release.yml and generate installable artifacts, then test on Linux/macOS DAWs. Phase 27 (Code Signing) is conditional on beta tester feedback.",
-  "context_notes": "Phase 26 executed successfully in one wave with two parallel agents. All packaging scripts, release CI, fixed-size window, and BETA-README are in place. The v1.7 milestone is functionally complete — Phase 27 only fires if unsigned-binary friction is reported by beta testers. Next real action is tagging and testing."
+  "uncommitted_files": [
+    "include/spu94/spu94_q15.h",
+    "src/spu94/CMakeLists.txt"
+  ],
+  "next_action": "Run cmake build to verify fixes, commit both files, delete old tag, re-tag, push.",
+  "context_notes": "macOS CI failed because spu94_q15.h used _Static_assert (C11) but tests/api/c99_consumer.c compiles with -std=c99 -Werror. Fix: added C99 fallback using negative-array-size trick in SPU94_STATIC_ASSERT macro. Windows CI failed because both spu94_shared and spu94_static set OUTPUT_NAME to 'spu94', producing colliding .lib files. Fix: static lib renamed to spu94_static on WIN32. Linux build was already created as a tarball on Desktop (SPU-94-v1.7-beta.1-linux.tar.gz)."
 }
