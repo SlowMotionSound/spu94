@@ -1,22 +1,22 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-14T04:08:18.583Z",
+  "timestamp": "2026-05-14T04:12:00Z",
   "phase": "release",
   "phase_name": "v1.7-beta.1-release",
   "phase_dir": null,
   "plan": 0,
-  "task": 2,
-  "total_tasks": 6,
+  "task": 6,
+  "total_tasks": 11,
   "status": "paused",
   "completed_tasks": [
     {"id": 1, "name": "Create GitHub repo (SlowMotionSound/spu94, private)", "status": "done"},
     {"id": 2, "name": "Push codebase to GitHub", "status": "done"},
     {"id": 3, "name": "Tag v1.7-beta.1 and push to trigger CI", "status": "done"},
     {"id": 4, "name": "Diagnose CI failures on macOS and Windows", "status": "done"},
-    {"id": 5, "name": "Apply fixes for both CI failures", "status": "in_progress", "progress": "Both files edited, local build verification was running when paused"}
+    {"id": 5, "name": "Apply fixes for both CI failures", "status": "done"},
+    {"id": 6, "name": "Verify Linux build passes with both fixes", "status": "done"}
   ],
   "remaining_tasks": [
-    {"id": 6, "name": "Verify Linux build passes with both fixes", "status": "not_started"},
     {"id": 7, "name": "Commit both CI fixes", "status": "not_started"},
     {"id": 8, "name": "Delete old v1.7-beta.1 tag, re-tag, push to re-trigger CI", "status": "not_started"},
     {"id": 9, "name": "Verify all 3 platforms pass CI", "status": "not_started"},
@@ -33,6 +33,6 @@
     "include/spu94/spu94_q15.h",
     "src/spu94/CMakeLists.txt"
   ],
-  "next_action": "Run cmake build to verify fixes, commit both files, delete old tag, re-tag, push.",
-  "context_notes": "macOS CI failed because spu94_q15.h used _Static_assert (C11) but tests/api/c99_consumer.c compiles with -std=c99 -Werror. Fix: added C99 fallback using negative-array-size trick in SPU94_STATIC_ASSERT macro. Windows CI failed because both spu94_shared and spu94_static set OUTPUT_NAME to 'spu94', producing colliding .lib files. Fix: static lib renamed to spu94_static on WIN32. Linux build was already created as a tarball on Desktop (SPU-94-v1.7-beta.1-linux.tar.gz)."
+  "next_action": "Commit both fix files, delete old tag, re-tag v1.7-beta.1, push to re-trigger CI.",
+  "context_notes": "Both fixes verified on Linux (100% build clean). macOS fix: C99 fallback in SPU94_STATIC_ASSERT macro (negative-array-size trick). Windows fix: static lib renamed to spu94_static on WIN32 to avoid .lib collision. Ready to commit and re-tag."
 }
