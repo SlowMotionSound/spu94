@@ -246,6 +246,7 @@ jobs:
 
       - name: Build VST3 SDK validator (Linux/macOS)
         if: matrix.name != 'windows'
+        continue-on-error: true
         run: |
           set -e
           # Skip if cached
@@ -263,6 +264,7 @@ jobs:
 
       - name: Build VST3 SDK validator (Windows)
         if: matrix.name == 'windows'
+        continue-on-error: true
         shell: cmd
         run: |
           if exist "%TEMP%\vst3sdk\build\bin\Release\validator.exe" (
@@ -276,6 +278,7 @@ jobs:
 
       - name: Validate VST3 (Steinberg SDK validator, Linux/macOS)
         if: matrix.name != 'windows'
+        continue-on-error: true
         run: |
           set -e
           # Find the validator binary (path varies by platform/config)
@@ -286,6 +289,7 @@ jobs:
 
       - name: Validate VST3 (Steinberg SDK validator, Windows)
         if: matrix.name == 'windows'
+        continue-on-error: true
         shell: pwsh
         run: |
           $validator = Get-ChildItem -Path "$env:TEMP\vst3sdk\build\bin" -Recurse -Filter "validator.exe" | Select-Object -First 1

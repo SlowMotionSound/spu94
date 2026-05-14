@@ -49,16 +49,18 @@ set_target_properties(spu94_cli PROPERTIES OUTPUT_NAME spu94)
 # so the vendored headers compile clean. Our own CLI TUs are small
 # enough (<300 lines each) that spot-review covers the conversion
 # diagnostics the flag would have surfaced.
-target_compile_options(spu94_cli PRIVATE
-    -Wall
-    -Wextra
-    -Werror
-    # Tempered determinism: we still forbid float contraction / fast-math
-    # in the CLI because it processes the same int16 PCM values the core
-    # library did, and any sneaky float path would be a bug.
-    -ffp-contract=off
-    -fno-fast-math
-)
+if(MSVC)
+    target_compile_options(spu94_cli PRIVATE /W4 /WX /fp:strict)
+    target_compile_definitions(spu94_cli PRIVATE _CRT_SECURE_NO_WARNINGS)
+else()
+    target_compile_options(spu94_cli PRIVATE
+        -Wall
+        -Wextra
+        -Werror
+        -ffp-contract=off
+        -fno-fast-math
+    )
+endif()
 
 # $ORIGIN RPATH for wheel install (Plan 4 layout — libspu94.so next to
 # the binary). macOS branch added for future portability.
