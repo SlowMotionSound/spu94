@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-14T18:57:40Z",
+  "timestamp": "2026-05-14T19:05:00Z",
   "phase": "release",
   "phase_name": "v1.7-beta.1-release",
   "phase_dir": null,
@@ -25,7 +25,8 @@
   ],
   "blockers": [
     {"description": "GitHub Actions billing limit hit — release workflow cannot run until billing is resolved", "type": "external", "workaround": "Download artifacts from plugins workflow runs manually instead"},
-    {"description": "Windows plugins CI still failing (aligned_alloc MSVC compat) — latest fix pushed, awaiting results", "type": "technical", "workaround": "macOS and Linux builds are passing"}
+    {"description": "Windows plugins CI: dac_noise tests linked -lm (fix pushed commit e9aff1f, awaiting results)", "type": "technical", "workaround": "macOS build already passing and zipped"},
+    {"description": "Linux plugins CI: lv2lint meson version incompatibility (marked non-blocking in same commit)", "type": "technical", "workaround": "lv2lint is third-party validation, not our code"}
   ],
   "human_actions_pending": [
     {"action": "Resolve GitHub Actions billing (Settings > Billing & plans)", "context": "Release workflow refuses to run — payment failed or spending limit hit", "blocking": true},
@@ -40,6 +41,6 @@
     {"decision": "No installer for beta — manual drag-and-drop", "rationale": "PLUG-43/PLUG-44 require installers but not yet built. Testers do manual install for now", "phase": "release"}
   ],
   "uncommitted_files": [],
-  "next_action": "Check if Windows plugins CI passed with the aligned_alloc fix. If so, download Windows and Linux artifacts. Resolve GitHub billing to enable release workflow, OR distribute artifacts manually from plugins workflow.",
-  "context_notes": "macOS zip already built and on Desktop. Multiple CI fix rounds were needed because the project was Linux-only until now — every MSVC/Windows/macOS platform quirk surfaced for the first time. The core CI (ci.yml) and plugin CI (plugins.yml) are separate workflows; plugins.yml is what produces the beta binaries. PLUG-43/PLUG-44 (installers) are unfulfilled requirements that should be addressed before wider distribution."
+  "next_action": "Check if Windows/Linux plugins CI passed with the libm + lv2lint fixes (commit e9aff1f). If so, download artifacts. Resolve GitHub billing to enable release workflow, OR distribute artifacts manually.",
+  "context_notes": "macOS zip on Desktop. Latest push (e9aff1f) fixed Windows dac_noise -lm linkage and marked Linux lv2lint non-blocking. Tag v1.7-beta.1 now at e9aff1f. CI run still pending results."
 }
