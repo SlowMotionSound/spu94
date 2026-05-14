@@ -18,8 +18,11 @@
  * portable across C and C++. */
 #ifdef __cplusplus
 #  define SPU94_STATIC_ASSERT(cond, msg) static_assert(cond, msg)
-#else
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 #  define SPU94_STATIC_ASSERT(cond, msg) _Static_assert(cond, msg)
+#else
+#  define SPU94_STATIC_ASSERT(cond, msg) \
+       typedef char spu94_sa_##__LINE__[(cond) ? 1 : -1]
 #endif
 
 /* SPU-94 Q15 fixed-point helpers.

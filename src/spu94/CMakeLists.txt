@@ -45,7 +45,13 @@ set_target_properties(spu94_shared PROPERTIES OUTPUT_NAME spu94)
 # Static library consumer.
 add_library(spu94_static STATIC $<TARGET_OBJECTS:spu94_obj>)
 target_link_libraries(spu94_static PUBLIC spu94_obj)
-set_target_properties(spu94_static PROPERTIES OUTPUT_NAME spu94)
+# On Windows, the shared lib's import library (spu94.lib) collides with the
+# static library (spu94.lib). Use a distinct name to avoid the clash.
+if(WIN32)
+    set_target_properties(spu94_static PROPERTIES OUTPUT_NAME spu94_static)
+else()
+    set_target_properties(spu94_static PROPERTIES OUTPUT_NAME spu94)
+endif()
 
 # Phase 6 Plan 4: install libspu94.so into the Python package directory
 # at wheel-build time. SKBUILD_PROJECT_NAME is set by scikit-build-core;
