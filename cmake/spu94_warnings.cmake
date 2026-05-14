@@ -11,6 +11,10 @@ if(MSVC)
         /WX        # Treat warnings as errors (MSVC equivalent of -Werror)
         /W4        # High warning level (MSVC equivalent of -Wall -Wextra)
         /fp:strict # Determinism: no FP contractions or fast-math
+        /wd4310    # C4310: cast truncates constant value — intentional for SPU register presets
+    )
+    target_compile_definitions(spu94_warnings INTERFACE
+        _CRT_SECURE_NO_WARNINGS  # suppress MSVC sscanf/snprintf deprecation
     )
 else()
     target_compile_options(spu94_warnings INTERFACE
