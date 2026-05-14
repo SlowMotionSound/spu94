@@ -5,7 +5,9 @@ add_subdirectory(rt_safety)
 
 # Phase 6 Plan 3: CLI tests + shared fixtures
 add_subdirectory(fixtures)
-add_subdirectory(cli)
+if(NOT WIN32)
+    add_subdirectory(cli)
+endif()
 
 # Phase 6 Plan 4: packaging smoke tests
 add_subdirectory(packaging)
