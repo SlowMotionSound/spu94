@@ -14,7 +14,11 @@ set_target_properties(test_c99_consumer PROPERTIES
     C_STANDARD 99
     C_STANDARD_REQUIRED ON
     C_EXTENSIONS OFF)
-target_compile_options(test_c99_consumer PRIVATE -pedantic -Werror -Wall -Wextra)
+if(MSVC)
+    target_compile_options(test_c99_consumer PRIVATE /W4 /WX)
+else()
+    target_compile_options(test_c99_consumer PRIVATE -pedantic -Werror -Wall -Wextra)
+endif()
 target_link_libraries(test_c99_consumer PRIVATE spu94_static)
 add_test(NAME api_c99_consumer COMMAND test_c99_consumer)
 
@@ -25,6 +29,10 @@ set_target_properties(test_cxx_consumer PROPERTIES
     CXX_STANDARD 11
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF)
-target_compile_options(test_cxx_consumer PRIVATE -pedantic -Werror -Wall -Wextra)
+if(MSVC)
+    target_compile_options(test_cxx_consumer PRIVATE /W4 /WX)
+else()
+    target_compile_options(test_cxx_consumer PRIVATE -pedantic -Werror -Wall -Wextra)
+endif()
 target_link_libraries(test_cxx_consumer PRIVATE spu94_static)
 add_test(NAME api_cxx_consumer COMMAND test_cxx_consumer)
