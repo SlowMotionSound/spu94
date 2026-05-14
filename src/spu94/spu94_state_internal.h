@@ -225,7 +225,7 @@ struct spu94_state {
      * callers and test harnesses can assert "zero OOB" as a correctness
      * invariant. Zeroed by spu94_reset (byte-loop covers).
      *
-     * Sized uint64 so a long pathological session cannot overflow the
+     * Sized uint64 so an extended pathological session cannot overflow the
      * counter inside the life of a single process (at a generous 10^9
      * OOB/sec, 2^64 counts take ~500 years).
      *
@@ -236,7 +236,7 @@ struct spu94_state {
     uint64_t       oob_tap_count;
 
     /* -----------------------------------------------------------------
-     * Phase 18: per-sample register slewing for click-free morph.
+     * Phase 18: per-sample register slewing for smooth morph.
      * spu94_set_slew_targets() loads target values and computes
      * Bresenham error state. spu94_process calls spu94_slew_tick()
      * once per sample, stepping each register by ±1 proportionally

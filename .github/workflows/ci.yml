@@ -35,7 +35,15 @@ jobs:
       - name: Install toolchain + analysis tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build jq
+          sudo apt-get install -y cmake ninja-build \
+            libasound2-dev libjack-jackd2-dev \
+            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
+            libwebkit2gtk-4.1-dev libcurl4-openssl-dev jq \
+            libasound2-dev libjack-jackd2-dev \
+            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
+            libwebkit2gtk-4.1-dev libcurl4-openssl-dev
           if [ "${{ matrix.compiler }}" = "clang" ]; then
             sudo apt-get install -y clang
           fi
@@ -75,7 +83,15 @@ jobs:
       - name: Install
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build clang-tidy clang
+          sudo apt-get install -y cmake ninja-build \
+            libasound2-dev libjack-jackd2-dev \
+            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
+            libwebkit2gtk-4.1-dev libcurl4-openssl-dev clang-tidy clang \
+            libasound2-dev libjack-jackd2-dev \
+            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
+            libwebkit2gtk-4.1-dev libcurl4-openssl-dev
       - name: Configure (for compile_commands.json)
         env:
           CC: clang
@@ -95,7 +111,15 @@ jobs:
       - name: Install
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build cppcheck
+          sudo apt-get install -y cmake ninja-build \
+            libasound2-dev libjack-jackd2-dev \
+            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
+            libwebkit2gtk-4.1-dev libcurl4-openssl-dev cppcheck \
+            libasound2-dev libjack-jackd2-dev \
+            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
+            libwebkit2gtk-4.1-dev libcurl4-openssl-dev
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
       - name: Run cppcheck
@@ -118,7 +142,11 @@ jobs:
       - name: Install
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build
+          sudo apt-get install -y cmake ninja-build \
+            libasound2-dev libjack-jackd2-dev \
+            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
+            libwebkit2gtk-4.1-dev libcurl4-openssl-dev
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
       - name: Build
@@ -135,7 +163,11 @@ jobs:
       - name: Install
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build clang
+          sudo apt-get install -y cmake ninja-build \
+            libasound2-dev libjack-jackd2-dev \
+            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
+            libwebkit2gtk-4.1-dev libcurl4-openssl-dev clang
       - name: Configure with UBSan
         env:
           CC: clang
@@ -160,7 +192,11 @@ jobs:
         run: bash scripts/ci/install-phase7-deps.sh
       - name: Install build toolchain
         run: |
-          sudo apt-get install -y cmake ninja-build
+          sudo apt-get install -y cmake ninja-build \
+            libasound2-dev libjack-jackd2-dev \
+            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
+            libwebkit2gtk-4.1-dev libcurl4-openssl-dev
       - name: Configure + build (need ctest for C tests referenced in COVERAGE.md)
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
@@ -189,7 +225,11 @@ jobs:
         run: bash scripts/ci/install-phase7-deps.sh
       - name: Install build toolchain
         run: |
-          sudo apt-get install -y cmake ninja-build
+          sudo apt-get install -y cmake ninja-build \
+            libasound2-dev libjack-jackd2-dev \
+            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
+            libwebkit2gtk-4.1-dev libcurl4-openssl-dev
       - name: Configure + build
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -211,7 +251,11 @@ jobs:
       - name: Install deps + build
         run: |
           bash scripts/ci/install-phase7-deps.sh
-          sudo apt-get install -y cmake ninja-build
+          sudo apt-get install -y cmake ninja-build \
+            libasound2-dev libjack-jackd2-dev \
+            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
+            libwebkit2gtk-4.1-dev libcurl4-openssl-dev
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build
       - name: Run pytest-benchmark (report-only)
@@ -254,7 +298,11 @@ jobs:
       - name: Install deps + build
         run: |
           bash scripts/ci/install-phase7-deps.sh
-          sudo apt-get install -y cmake ninja-build
+          sudo apt-get install -y cmake ninja-build \
+            libasound2-dev libjack-jackd2-dev \
+            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
+            libwebkit2gtk-4.1-dev libcurl4-openssl-dev
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
           bash scripts/ci/witness_diff_build.sh
       - run: python3 scripts/ci/witness_diff.py

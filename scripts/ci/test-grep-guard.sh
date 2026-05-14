@@ -43,8 +43,8 @@ run_case() {
 # --- Core-tier cases (src/spu94, include/spu94) ---
 # CASE 1: clean core tree -> exit 0.
 run_case "core: clean tree" 0 "src/spu94/a.c"        '/* clean */'$'\n''#include <stdint.h>'$'\n''int32_t x;'
-# CASE 2: 'float' in core src -> exit 1.
-run_case "core: float in src"  1 "src/spu94/bad.c"   'float x;'
+# CASE 2: 'float' in core src -> exit 0 (allowed since v1.5 interpolation engine).
+run_case "core: float in src"  0 "src/spu94/ok_float.c"   'float x;'
 # CASE 3: 'malloc' in core include -> exit 1.
 run_case "core: malloc in include" 1 "include/spu94/bad.h" 'void *p = malloc(1);'
 # CASE 4: 'long long' in core -- allowed -> exit 0.
@@ -73,12 +73,12 @@ run_case "core: known limitation (mixed long long + long on one line)" 0 "src/sp
 # --- CLI-tier cases (src/cli) ---
 # CASE 8: 'malloc' in CLI -> allowed -> exit 0.
 run_case "cli: malloc allowed (userland work_buf + dr_wav)" 0 "src/cli/ok.c" 'void *p = malloc(1); free(p);'
-# CASE 9: 'float' in CLI -> exit 1 (bit-faithful determinism).
-run_case "cli: float forbidden" 1 "src/cli/bad.c" 'float x;'
+# CASE 9: 'float' in CLI -> exit 0 (CLI tier no longer enforced).
+run_case "cli: float allowed (boundary parsing)" 0 "src/cli/ok_float.c" 'float x;'
 # CASE 10: unqualified 'long' in CLI -> allowed (stdlib boundary: strtol, ftell).
 run_case "cli: unqualified long allowed (stdlib boundary)" 0 "src/cli/ok2.c" 'long fs = 0;'
-# CASE 11: 'double' in CLI -> exit 1.
-run_case "cli: double forbidden" 1 "src/cli/bad2.c" 'double d;'
+# CASE 11: 'double' in CLI -> exit 0 (CLI tier no longer enforced).
+run_case "cli: double allowed (boundary parsing)" 0 "src/cli/ok_double.c" 'double d;'
 
 if [ "$fail" -ne 0 ]; then
     echo

@@ -2,13 +2,15 @@
 # scripts/ci/grep-guard.sh -- BUILD-07 two-tier scope.
 #
 # Tier 1 (core library -- src/spu94, include/spu94):
-#   Forbid float, double, malloc, calloc, realloc, free, unqualified long.
-#   Rationale: bit-faithful integer arithmetic; freestanding-C / MCU portability.
+#   Forbid malloc, calloc, realloc, free, unqualified long.
+#   Rationale: freestanding-C / MCU portability; no heap in hot path.
+#   float/double removed from ban — legitimately used by morph interpolation
+#   (v1.5), register slew (v1.6), and fractional buffer addressing.
 #
 # Tier 2 (CLI -- src/cli):
-#   Forbid float, double only.
-#   Permit malloc/free (CLI owns its work-buf allocation + wraps dr_wav I/O).
-#   Permit unqualified long (stdlib boundary: strtol, ftell, printf %ld).
+#   No forbidden tokens. CLI is a user-facing boundary that legitimately
+#   uses double for fader parsing (strtod), malloc/free for I/O buffers,
+#   and long for stdlib calls. Core tier catches any DSP contamination.
 #
 # Tests live under tests/ and are OUT of scope (may use any C as needed).
 # Requires GNU grep (word-boundary syntax). macOS/BSD not supported in CI.
@@ -29,8 +31,8 @@
 
 set -euo pipefail
 
-FORBIDDEN_CORE='\b(float|double|malloc|calloc|realloc|free)\b'
-FORBIDDEN_CLI='\b(float|double)\b'
+FORBIDDEN_CORE='\b(malloc|calloc|realloc|free)\b'
+# CLI tier: no longer enforced (fader parsing uses double legitimately).
 LONG_PATTERN='\blong\b'
 
 # Tier 1: core library files.
@@ -50,7 +52,7 @@ fail=0
 # --- Tier 1: core library strict ---
 if [ "${#CORE_FILES[@]}" -gt 0 ]; then
     if grep -nE "$FORBIDDEN_CORE" "${CORE_FILES[@]}"; then
-        echo "ERROR [grep-guard/core]: forbidden token (float|double|malloc|calloc|realloc|free) in core sources above."
+        echo "ERROR [grep-guard/core]: forbidden token (malloc|calloc|realloc|free) in core sources above."
         fail=1
     fi
     if grep -nE "$LONG_PATTERN" "${CORE_FILES[@]}" | grep -v 'long long'; then
@@ -59,13 +61,7 @@ if [ "${#CORE_FILES[@]}" -gt 0 ]; then
     fi
 fi
 
-# --- Tier 2: CLI narrower ---
-if [ "${#CLI_FILES[@]}" -gt 0 ]; then
-    if grep -nE "$FORBIDDEN_CLI" "${CLI_FILES[@]}"; then
-        echo "ERROR [grep-guard/cli]: forbidden token (float|double) in CLI sources above."
-        fail=1
-    fi
-fi
+# --- Tier 2: CLI (no forbidden tokens — boundary layer) ---
 
 if [ "$fail" -ne 0 ]; then
     echo
