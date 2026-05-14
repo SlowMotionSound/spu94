@@ -8,6 +8,10 @@
 # Upgrade discipline: when bumping an action, query
 #   curl -sfL https://api.github.com/repos/<owner>/<repo>/git/refs/tags/<tag>
 # and verify `object.type == "commit"` before swapping the SHA.
+#
+# Most jobs only need the C core (libspu94 + CLI), not JUCE. Those pass
+# -DSPU94_BUILD_GUI=OFF to skip JUCE fetch and avoid X11/GUI dep installs.
+# The build-and-test job builds everything (GUI included) as an integration check.
 
 name: ci
 
@@ -35,11 +39,7 @@ jobs:
       - name: Install toolchain + analysis tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build \
-            libasound2-dev libjack-jackd2-dev \
-            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
-            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
-            libwebkit2gtk-4.1-dev libcurl4-openssl-dev jq \
+          sudo apt-get install -y cmake ninja-build jq \
             libasound2-dev libjack-jackd2-dev \
             libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
             libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
@@ -83,23 +83,17 @@ jobs:
       - name: Install
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build \
-            libasound2-dev libjack-jackd2-dev \
-            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
-            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
-            libwebkit2gtk-4.1-dev libcurl4-openssl-dev clang-tidy clang \
-            libasound2-dev libjack-jackd2-dev \
-            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
-            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
-            libwebkit2gtk-4.1-dev libcurl4-openssl-dev
+          sudo apt-get install -y cmake ninja-build clang-tidy clang
       - name: Configure (for compile_commands.json)
         env:
           CC: clang
-        run: cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        run: cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DSPU94_BUILD_GUI=OFF
       - name: Run clang-tidy on core sources
         run: |
-          # Scope: src/spu94 + include/spu94. Tests and vendored Unity excluded by HeaderFilterRegex.
-          find src/spu94 include/spu94 -type f \( -name '*.c' -o -name '*.h' \) -print0 \
+          # Scope: src/spu94 .c files only. Headers are checked transitively via
+          # HeaderFilterRegex in .clang-tidy. Scanning headers standalone fails on
+          # spu94_registers.h (needs spu94_result_t from the umbrella include order).
+          find src/spu94 -type f -name '*.c' -print0 \
             | xargs -0 -r clang-tidy -p build --warnings-as-errors='*'
 
   cppcheck:
@@ -111,17 +105,9 @@ jobs:
       - name: Install
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build \
-            libasound2-dev libjack-jackd2-dev \
-            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
-            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
-            libwebkit2gtk-4.1-dev libcurl4-openssl-dev cppcheck \
-            libasound2-dev libjack-jackd2-dev \
-            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
-            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
-            libwebkit2gtk-4.1-dev libcurl4-openssl-dev
+          sudo apt-get install -y cmake ninja-build cppcheck
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        run: cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DSPU94_BUILD_GUI=OFF
       - name: Run cppcheck
         run: |
           cppcheck \
@@ -131,7 +117,9 @@ jobs:
             --inline-suppr \
             --suppress=missingIncludeSystem \
             --suppress=*:tests/unit/vendor/* \
-            -i tests/unit/vendor
+            --suppress=*:build/_deps/* \
+            -i tests/unit/vendor \
+            -i build/_deps
 
   verify-no-heap:
     name: verify-no-heap (API-01 / SC 1)
@@ -142,13 +130,9 @@ jobs:
       - name: Install
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build \
-            libasound2-dev libjack-jackd2-dev \
-            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
-            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
-            libwebkit2gtk-4.1-dev libcurl4-openssl-dev
+          sudo apt-get install -y cmake ninja-build
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DSPU94_BUILD_GUI=OFF
       - name: Build
         run: cmake --build build
       - name: Verify libspu94.so does not import heap functions
@@ -163,17 +147,13 @@ jobs:
       - name: Install
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build \
-            libasound2-dev libjack-jackd2-dev \
-            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
-            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
-            libwebkit2gtk-4.1-dev libcurl4-openssl-dev clang
+          sudo apt-get install -y cmake ninja-build clang
       - name: Configure with UBSan
         env:
           CC: clang
           CFLAGS: '-fsanitize=undefined -fno-sanitize-recover=undefined -g -O1'
           LDFLAGS: '-fsanitize=undefined -fno-sanitize-recover=undefined'
-        run: cmake -S . -B build-ubsan -G Ninja -DCMAKE_BUILD_TYPE=Debug
+        run: cmake -S . -B build-ubsan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DSPU94_BUILD_GUI=OFF
       - name: Build (UBSan)
         run: cmake --build build-ubsan
       - name: Test (UBSan)
@@ -192,14 +172,10 @@ jobs:
         run: bash scripts/ci/install-phase7-deps.sh
       - name: Install build toolchain
         run: |
-          sudo apt-get install -y cmake ninja-build \
-            libasound2-dev libjack-jackd2-dev \
-            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
-            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
-            libwebkit2gtk-4.1-dev libcurl4-openssl-dev
+          sudo apt-get install -y cmake ninja-build
       - name: Configure + build (need ctest for C tests referenced in COVERAGE.md)
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DSPU94_BUILD_GUI=OFF
           cmake --build build
       - name: Run coverage-map check (D-02 validator on committed COVERAGE.md)
         run: python3 scripts/ci/check_coverage.py
@@ -225,14 +201,10 @@ jobs:
         run: bash scripts/ci/install-phase7-deps.sh
       - name: Install build toolchain
         run: |
-          sudo apt-get install -y cmake ninja-build \
-            libasound2-dev libjack-jackd2-dev \
-            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
-            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
-            libwebkit2gtk-4.1-dev libcurl4-openssl-dev
+          sudo apt-get install -y cmake ninja-build
       - name: Configure + build
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSPU94_BUILD_GUI=OFF
           cmake --build build
       - name: Run hot-path alloc gate (positive, clean target)
         run: ctest --test-dir build -R "^hotpath_alloc_gate$" --output-on-failure
@@ -251,12 +223,8 @@ jobs:
       - name: Install deps + build
         run: |
           bash scripts/ci/install-phase7-deps.sh
-          sudo apt-get install -y cmake ninja-build \
-            libasound2-dev libjack-jackd2-dev \
-            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
-            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
-            libwebkit2gtk-4.1-dev libcurl4-openssl-dev
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          sudo apt-get install -y cmake ninja-build
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSPU94_BUILD_GUI=OFF
           cmake --build build
       - name: Run pytest-benchmark (report-only)
         env:
@@ -298,12 +266,8 @@ jobs:
       - name: Install deps + build
         run: |
           bash scripts/ci/install-phase7-deps.sh
-          sudo apt-get install -y cmake ninja-build \
-            libasound2-dev libjack-jackd2-dev \
-            libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev \
-            libfreetype6-dev libfontconfig1-dev libglu1-mesa-dev libx11-dev \
-            libwebkit2gtk-4.1-dev libcurl4-openssl-dev
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
+          sudo apt-get install -y cmake ninja-build
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSPU94_BUILD_GUI=OFF && cmake --build build
           bash scripts/ci/witness_diff_build.sh
       - run: python3 scripts/ci/witness_diff.py
       - run: python3 -m pytest tests/python/test_witness_determinism.py -q

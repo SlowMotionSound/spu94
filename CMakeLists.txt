@@ -20,18 +20,22 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Position-independent code so the OBJECT library can feed SHARED later.
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# --- JUCE 8.0.12 via FetchContent (Phase 8: standalone GUI) ---
-# Pin to the 8.0.12 release tag SHA for byte-reproducibility.
-# Resolved via: git ls-remote https://github.com/juce-framework/JUCE.git refs/tags/8.0.12
-include(FetchContent)
-FetchContent_Declare(
-    JUCE
-    GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
-    GIT_TAG        29396c22c93392d6738e021b83196283d6e4d850
-    GIT_SHALLOW    TRUE
-    GIT_PROGRESS   TRUE
-)
-FetchContent_MakeAvailable(JUCE)
+option(SPU94_BUILD_GUI "Build JUCE standalone and plugin targets" ON)
+
+if(SPU94_BUILD_GUI)
+    # --- JUCE 8.0.12 via FetchContent (Phase 8: standalone GUI) ---
+    # Pin to the 8.0.12 release tag SHA for byte-reproducibility.
+    # Resolved via: git ls-remote https://github.com/juce-framework/JUCE.git refs/tags/8.0.12
+    include(FetchContent)
+    FetchContent_Declare(
+        JUCE
+        GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
+        GIT_TAG        29396c22c93392d6738e021b83196283d6e4d850
+        GIT_SHALLOW    TRUE
+        GIT_PROGRESS   TRUE
+    )
+    FetchContent_MakeAvailable(JUCE)
+endif()
 
 # Include the warnings/determinism INTERFACE target definition.
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/spu94_warnings.cmake)
@@ -42,8 +46,10 @@ enable_testing()
 
 add_subdirectory(src/spu94)
 add_subdirectory(src/cli)
-add_subdirectory(src/plugin)
-add_subdirectory(src/standalone)
+if(SPU94_BUILD_GUI)
+    add_subdirectory(src/plugin)
+    add_subdirectory(src/standalone)
+endif()
 
 if(BUILD_TESTING)
     add_subdirectory(tests)

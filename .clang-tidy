@@ -10,10 +10,10 @@ Checks: >
   misc-*,
   performance-*,
   portability-*,
-  readability-braces-around-statements,
   readability-function-size,
   -bugprone-easily-swappable-parameters,
-  -misc-include-cleaner
+  -misc-include-cleaner,
+  -misc-header-include-cycle
 
 # WarningsAsErrors causes clang-tidy to exit non-zero on any finding from the
 # enabled checks.

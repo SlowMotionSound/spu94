@@ -71,7 +71,7 @@ COPY . .
 # renders goldens in --check is produced by THIS container's toolchain —
 # not the host's. That's what makes the host-vs-container reproducibility
 # claim meaningful.
-RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSPU94_BUILD_GUI=OFF \
     && cmake --build build
 
 # Default command is the reproducibility check. Non-zero exit means the

@@ -20,4 +20,6 @@ add_subdirectory(conformance)
 add_subdirectory(benchmarks)
 
 # Phase 22 / PLUG-15: headless null-test harness for SRC + latency reporting
-add_subdirectory(plugin)
+if(SPU94_BUILD_GUI)
+    add_subdirectory(plugin)
+endif()
