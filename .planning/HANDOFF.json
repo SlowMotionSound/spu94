@@ -1,32 +1,36 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-15T19:00:00Z",
-  "phase": "development",
-  "phase_name": "ps1-voice-path",
+  "timestamp": "2026-05-15T21:50:10Z",
+  "phase": "post-beta",
+  "phase_name": "ps1-voice-path + beta bugfixes",
   "phase_dir": null,
   "plan": 0,
   "task": 0,
   "total_tasks": 0,
-  "status": "complete",
+  "status": "paused",
   "completed_tasks": [
-    {"id": 1, "name": "Gaussian interpolation table", "status": "done", "details": "512-entry table from SPU silicon dump. Three-way verified against psx-spx, DuckStation, Mednafen."},
-    {"id": 2, "name": "Downsampler with pitch counter", "status": "done", "details": "Decimates 44.1 kHz input to configurable voice rate (4,000–44,100 Hz) via pitch counter. Default 22,050 Hz (0x0800)."},
-    {"id": 3, "name": "Gaussian 4-tap upsampler", "status": "done", "details": "Full pitch-counter-driven Gaussian interpolation with variable interpolation index. Reads decoded ADPCM samples and produces 44.1 kHz output."},
-    {"id": 4, "name": "Anti-aliasing filter", "status": "done", "details": "Single-pole IIR pre-filter before decimation. Cutoff tracks voice pitch. Toggleable on/off."},
-    {"id": 5, "name": "GUI controls", "status": "done", "details": "Voice Rate knob (4,000–44,100 Hz), Gauss toggle, Anti-Aliasing toggle in toolbar area."},
-    {"id": 6, "name": "Standalone play/stop fix", "status": "done", "details": "Engine processes silence when stopped instead of skipping. Prevents stale decimator/Gaussian state on resume."}
+    {"id": 1, "name": "Fix editor parameter reset on window close/reopen", "status": "done", "details": "syncMixerKnobsFromProcessor() in editor constructor."},
+    {"id": 2, "name": "Fix plugin window sizing", "status": "done", "details": "900x950, setResizable(false,false). Original 900x1100 was taller than 1080p screen."},
+    {"id": 3, "name": "Add Preset: and User Slot: labels", "status": "done", "details": "Labels above Save/Load and Edit/Export/Load button groups."},
+    {"id": 4, "name": "PS1 SPU voice path on ADPCM bus", "status": "done", "details": "Downsample (4,000–44,100 Hz) → ADPCM encode/decode → Gaussian 4-tap interpolation upsample to 44.1 kHz. Voice Rate knob, Gauss toggle, Anti-Aliasing toggle."},
+    {"id": 5, "name": "Standalone play/stop fix", "status": "done", "details": "Engine processes silence when stopped instead of early-returning."},
+    {"id": 6, "name": "Beta artifacts rebuilt for all 3 platforms", "status": "done", "details": "Linux (local), macOS + Windows (CI). On ~/Desktop."}
   ],
   "remaining_tasks": [],
   "blockers": [],
-  "human_actions_pending": [],
+  "human_actions_pending": [
+    {"action": "Recall old beta artifacts from testers and distribute new builds with voice path", "context": "New builds include downsampler + Gaussian interpolation on ADPCM path", "blocking": false}
+  ],
   "decisions": [
-    {"decision": "PS1 SPU voice path added to ADPCM chain", "rationale": "ADPCM was missing the downsample and Gaussian interpolation that every PS1 voice went through. Full chain: downsample → ADPCM encode/decode → Gaussian upsample.", "phase": "development"},
-    {"decision": "Voice Rate range: 4,000–44,100 Hz", "rationale": "4 kHz confirmed as lowest used rate (PS1 BIOS boot bell). 44.1 kHz = passthrough (no decimation). Default 22,050 Hz — most common PS1 music rate.", "phase": "development"},
-    {"decision": "Anti-aliasing filter is optional", "rationale": "Anthony wants aliasing as a creative option. Filter off = raw decimation with foldback artifacts. Filter on = clean decimation.", "phase": "development"},
-    {"decision": "Gaussian interpolation is optional", "rationale": "Toggle allows comparing raw ADPCM vs Gaussian-smoothed output.", "phase": "development"},
-    {"decision": "Dry path untouched", "rationale": "Explicit instruction — downsampler/Gaussian only affect the ADPCM bus.", "phase": "development"}
+    {"decision": "Plugin window size: 900x950, non-resizable", "rationale": "Original 900x1100 was taller than 1080p screen.", "phase": "post-beta"},
+    {"decision": "PS1 SPU voice path added to ADPCM chain", "rationale": "ADPCM was missing the downsample and Gaussian interpolation that every PS1 voice went through.", "phase": "post-beta"},
+    {"decision": "Voice Rate range: 4,000–44,100 Hz, default 22,050 Hz", "rationale": "4 kHz = PS1 BIOS boot bell (confirmed lowest). 22,050 Hz = most common PS1 music rate.", "phase": "post-beta"},
+    {"decision": "Anti-aliasing filter is optional (off by default)", "rationale": "Aliasing from raw decimation is a creative option.", "phase": "post-beta"},
+    {"decision": "Gaussian interpolation is optional (off by default)", "rationale": "Toggle allows comparing raw ADPCM vs Gaussian-smoothed output.", "phase": "post-beta"},
+    {"decision": "Dry path untouched", "rationale": "Explicit instruction — voice path only affects ADPCM bus.", "phase": "post-beta"},
+    {"decision": "GitHub Actions CI: public-repo workaround for builds", "rationale": "Billing issue on private repo. Flip public → build → flip private. Forks persist if created while public.", "phase": "post-beta"}
   ],
   "uncommitted_files": [],
-  "next_action": "Beta artifacts rebuilt and ready to distribute. Repo is private. Await tester feedback.",
-  "context_notes": "PS1 voice path feature complete and confirmed working. Beta artifacts rebuilt for all 3 platforms (Linux local, macOS+Windows via CI). Local plugin folders updated. Repo flipped back to private after CI builds."
+  "next_action": "Distribute updated beta artifacts to testers. Await feedback on voice path sound quality.",
+  "context_notes": "Session started with resume from beta.1 bugfix pass. Fixed window sizing, parameter reset, added labels. Then Anthony noticed ADPCM distortion — investigation revealed the ADPCM path was missing the PS1 SPU's downsampler and Gaussian interpolation. Implemented the full voice chain. Gaussian table three-way verified against psx-spx, DuckStation, Mednafen. Anthony confirmed it works."
 }
