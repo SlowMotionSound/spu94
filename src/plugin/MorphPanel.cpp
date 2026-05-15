@@ -188,9 +188,10 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
     gritLabel.setFont(juce::FontOptions(11.0f));
     addAndMakeVisible(gritLabel);
 
-    // EDIT / EXPORT / LOAD — three per-tick action buttons stacked top-right.
-    // Same enabled-state logic: lit when the knob is parked on a user-slot
-    // detent. Each fires its callback to PluginEditor with the slot index.
+    userSlotLabel.setText("User Slot:", juce::dontSendNotification);
+    userSlotLabel.setJustificationType(juce::Justification::centred);
+    addAndMakeVisible(userSlotLabel);
+
     auto configureSlotButton = [this](juce::TextButton& b, const char* label,
                                       const char* tip) {
         b.setButtonText(label);
@@ -456,6 +457,7 @@ void MorphPanel::resized()
     constexpr int slotMargin  = 12;
     const int slotX = area.getRight() - slotBtnW - slotMargin;
     int       slotY = startY + slotMargin;
+    userSlotLabel.setBounds(slotX, slotY, slotBtnW, 16); slotY += 18;
     editButton  .setBounds(slotX, slotY, slotBtnW, slotBtnH); slotY += slotBtnH + slotBtnGap;
     exportButton.setBounds(slotX, slotY, slotBtnW, slotBtnH); slotY += slotBtnH + slotBtnGap;
     loadButton  .setBounds(slotX, slotY, slotBtnW, slotBtnH);

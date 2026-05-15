@@ -51,6 +51,7 @@ private:
     // dimmed otherwise. EDIT opens the slot for editing; EXPORT writes
     // the slot's current contents to a file; LOAD reads a single-slot
     // file and stamps it into the parked tick.
+    juce::Label userSlotLabel;
     juce::TextButton editButton{"EDIT"};
     juce::TextButton exportButton{"EXPORT"};
     juce::TextButton loadButton{"LOAD"};
