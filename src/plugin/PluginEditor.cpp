@@ -51,6 +51,10 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         };
     }
 
+    presetLabel.setText("Preset:", juce::dontSendNotification);
+    presetLabel.setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(presetLabel);
+
     // Preset Save button (D-06: opens name prompt, then file dialog)
     addAndMakeVisible(savePresetButton);
     savePresetButton.onClick = [this]() { showPresetNamePrompt(); };
@@ -311,13 +315,8 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
 
     captureBaseline();
 
-    setResizable(true, false);
-    if (auto* c = getConstrainer())
-    {
-        c->setMinimumSize(900, 1100);
-        c->setMaximumSize(900, 1100);
-    }
-    setSize(900, 1100);
+    setResizable(false, false);
+    setSize(900, 950);
 }
 
 SPU94AudioProcessorEditor::~SPU94AudioProcessorEditor()
@@ -403,6 +402,7 @@ void SPU94AudioProcessorEditor::resized()
         playButton.setBounds(115, 10, 70, 30);
         stopButton.setBounds(190, 10, 70, 30);
     }
+    presetLabel.setBounds(210, 10, 55, 30);
     savePresetButton.setBounds(270, 10, 55, 30);
     loadPresetButton.setBounds(330, 10, 55, 30);
     // (Toolbar slot is empty -- per-tick EXPORT/LOAD live in MorphPanel.)

@@ -25,6 +25,7 @@ private:
     juce::TextButton stopButton{"Stop"};
 
     // Preset Save/Load buttons (D-06 through D-08)
+    juce::Label presetLabel;
     juce::TextButton savePresetButton{"Save"};
     juce::TextButton loadPresetButton{"Load"};
 
