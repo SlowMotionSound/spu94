@@ -397,6 +397,12 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         const int adpcm_flag = patina_active ? 1 : 0;
         spu94_set_adpcm_enabled(engines[0], adpcm_flag);
     }
+    spu94_set_gauss_enabled(engines[0],
+        gaussEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_aa_filter_enabled(engines[0],
+        aaFilterEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    spu94_set_voice_pitch(engines[0],
+        static_cast<uint16_t>(voicePitch.load(std::memory_order_relaxed)));
 
     // Push mixer/DAC state to the single audio engine. State management --
     // runs unconditionally so the GUI's view of engine state is always
@@ -514,15 +520,11 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // wavSource gate: when no WAV is loaded or playback is paused,
         // emit silence. This preserves the standalone testbed's
         // Load-Play-Stop behaviour byte-identically with end-of-Phase-21.
-        if (!wavSource.loaded.load(std::memory_order_acquire) ||
-            !wavSource.playing.load(std::memory_order_relaxed))
-        {
-            buffer.clear();
-            return;
-        }
+        const bool wavActive = wavSource.loaded.load(std::memory_order_acquire)
+                             && wavSource.playing.load(std::memory_order_relaxed)
+                             && wavSource.numFrames > 0;
 
         const auto numFrames = wavSource.numFrames;
-        if (numFrames == 0) { buffer.clear(); return; }
 
         const int samplesToProcess = n;
 
@@ -536,16 +538,23 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // Phase 24: read from AudioParameterFloat instead of atomic.
         const float inputGain = paramInputGain->get();
         auto playPos = wavSource.playPos.load(std::memory_order_relaxed);
-        for (int i = 0; i < samplesToProcess; ++i)
-        {
-            const auto idx = static_cast<size_t>(
-                (playPos + static_cast<uint64_t>(i)) % numFrames);
-            const float fL = spu94::plugin::boundary::toFloat(wavSource.L[idx]);
-            const float fR = spu94::plugin::boundary::toFloat(wavSource.R[idx]);
-            tmpL_in[i] = spu94::plugin::boundary::toInt16(
-                spu94::plugin::boundary::applyInputGain(fL, inputGain));
-            tmpR_in[i] = spu94::plugin::boundary::toInt16(
-                spu94::plugin::boundary::applyInputGain(fR, inputGain));
+        if (wavActive) {
+            for (int i = 0; i < samplesToProcess; ++i)
+            {
+                const auto idx = static_cast<size_t>(
+                    (playPos + static_cast<uint64_t>(i)) % numFrames);
+                const float fL = spu94::plugin::boundary::toFloat(wavSource.L[idx]);
+                const float fR = spu94::plugin::boundary::toFloat(wavSource.R[idx]);
+                tmpL_in[i] = spu94::plugin::boundary::toInt16(
+                    spu94::plugin::boundary::applyInputGain(fL, inputGain));
+                tmpR_in[i] = spu94::plugin::boundary::toInt16(
+                    spu94::plugin::boundary::applyInputGain(fR, inputGain));
+            }
+        } else {
+            for (int i = 0; i < samplesToProcess; ++i) {
+                tmpL_in[i] = 0;
+                tmpR_in[i] = 0;
+            }
         }
 
         spu94_process(engines[0], tmpL_in, tmpR_in, tmpL_out, tmpR_out,
@@ -564,9 +573,11 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             if (outR) outR[i] = mid - sideLimited;
         }
 
-        wavSource.playPos.store(
-            (playPos + static_cast<uint64_t>(samplesToProcess)) % numFrames,
-            std::memory_order_relaxed);
+        if (wavActive) {
+            wavSource.playPos.store(
+                (playPos + static_cast<uint64_t>(samplesToProcess)) % numFrames,
+                std::memory_order_relaxed);
+        }
     }
     else
     {

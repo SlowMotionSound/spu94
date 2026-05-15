@@ -87,6 +87,11 @@ public:
     // --- Latency compensation (D-07: default ON) ---
     std::atomic<bool>& getLatencyCompEnabled() { return latencyCompEnabled; }
 
+    // --- ADPCM voice path controls ---
+    std::atomic<bool>& getGaussEnabled() { return gaussEnabled; }
+    std::atomic<bool>& getAAFilterEnabled() { return aaFilterEnabled; }
+    std::atomic<int>& getVoicePitch() { return voicePitch; }
+
     // --- DAC coloration toggles (D-09 through D-12) ---
     std::atomic<bool>& getDacEnabled() { return dacEnabled; }
     std::atomic<bool>& getDacFirEnabled() { return dacFirEnabled; }
@@ -213,6 +218,9 @@ private:
     std::atomic<bool> latencyCompEnabled{true};
 
     // DAC coloration toggles (default ON)
+    std::atomic<bool> gaussEnabled{false};
+    std::atomic<bool> aaFilterEnabled{false};
+    std::atomic<int> voicePitch{0x0800};
     std::atomic<bool> dacEnabled{true};
     std::atomic<bool> dacFirEnabled{true};    // sub-toggle: ON when DAC section is used
     std::atomic<bool> dacNoiseEnabled{true};  // sub-toggle: ON when DAC section is used

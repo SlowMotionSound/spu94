@@ -229,6 +229,44 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             std::memory_order_relaxed);
     };
 
+    // ADPCM voice path controls
+    addAndMakeVisible(gaussToggle);
+    gaussToggle.setClickingTogglesState(true);
+    gaussToggle.setToggleState(false, juce::dontSendNotification);
+    gaussToggle.onClick = [this] {
+        processorRef.getGaussEnabled().store(
+            gaussToggle.getToggleState(),
+            std::memory_order_relaxed);
+    };
+
+    addAndMakeVisible(aaFilterToggle);
+    aaFilterToggle.setClickingTogglesState(true);
+    aaFilterToggle.setToggleState(false, juce::dontSendNotification);
+    aaFilterToggle.onClick = [this] {
+        processorRef.getAAFilterEnabled().store(
+            aaFilterToggle.getToggleState(),
+            std::memory_order_relaxed);
+    };
+
+    voicePitchKnob.setSliderStyle(juce::Slider::Rotary);
+    voicePitchKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+    voicePitchKnob.setRange(4000.0, 44100.0, 1.0);
+    voicePitchKnob.setValue(22050.0, juce::dontSendNotification);
+    voicePitchKnob.setSkewFactorFromMidPoint(11025.0);
+    voicePitchKnob.setTextValueSuffix(" Hz");
+    voicePitchKnob.onValueChange = [this] {
+        double hz = voicePitchKnob.getValue();
+        int pitch = (int)(hz / 44100.0 * 0x1000 + 0.5);
+        if (pitch < 0x005C) pitch = 0x005C;
+        if (pitch > 0x1000) pitch = 0x1000;
+        processorRef.getVoicePitch().store(pitch, std::memory_order_relaxed);
+    };
+    addAndMakeVisible(voicePitchKnob);
+
+    voicePitchLabel.setText("Voice Rate", juce::dontSendNotification);
+    voicePitchLabel.setJustificationType(juce::Justification::centred);
+    addAndMakeVisible(voicePitchLabel);
+
     // ---- ZONE 4: DAC section ----
 
     // DAC master toggle
@@ -405,7 +443,12 @@ void SPU94AudioProcessorEditor::resized()
     presetLabel.setBounds(210, 10, 55, 30);
     savePresetButton.setBounds(270, 10, 55, 30);
     loadPresetButton.setBounds(330, 10, 55, 30);
-    // (Toolbar slot is empty -- per-tick EXPORT/LOAD live in MorphPanel.)
+
+    // ADPCM voice path: Voice Rate knob + Gauss + AA toggles
+    voicePitchLabel.setBounds(400, 2, 80, 16);
+    voicePitchKnob.setBounds(400, 16, 80, 54);
+    gaussToggle.setBounds(485, 10, 65, 30);
+    aaFilterToggle.setBounds(485, 38, 120, 30);
 
     // Three equal-sized knobs: Input Gain, ADPCM Send, Dry Send
     inputLevelLabel.setBounds(640, 2, 80, 16);
@@ -573,6 +616,17 @@ void SPU94AudioProcessorEditor::syncMixerKnobsFromProcessor()
     dacOversampleToggle.setToggleState(
         processorRef.getDacTrueOversample().load(std::memory_order_relaxed),
         juce::dontSendNotification);
+    gaussToggle.setToggleState(
+        processorRef.getGaussEnabled().load(std::memory_order_relaxed),
+        juce::dontSendNotification);
+    aaFilterToggle.setToggleState(
+        processorRef.getAAFilterEnabled().load(std::memory_order_relaxed),
+        juce::dontSendNotification);
+    {
+        int pitch = processorRef.getVoicePitch().load(std::memory_order_relaxed);
+        double hz = (double)pitch / (double)0x1000 * 44100.0;
+        voicePitchKnob.setValue(hz, juce::dontSendNotification);
+    }
 }
 
 //==============================================================================

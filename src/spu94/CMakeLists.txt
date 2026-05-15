@@ -21,6 +21,7 @@ add_library(spu94_obj OBJECT
     spu94_interp.c
     spu94_adpcm.c
     spu94_adpcm_encode.c
+    spu94_gauss.c
     vag.c
     spu94_dac_fir.c
     spu94_dac_fir_coef.c

@@ -172,6 +172,47 @@ int spu94_get_adpcm_enabled(const spu94_state *state) {
     return state->adpcm_enabled;
 }
 
+void spu94_set_gauss_enabled(spu94_state *state, int enabled) {
+    if (state == NULL) return;
+    if (!enabled && state->gauss_enabled) {
+        for (int j = 0; j < 4; j++) {
+            state->gauss_ring_l[j] = 0;
+            state->gauss_ring_r[j] = 0;
+        }
+        state->gauss_ring_pos = 0;
+        state->gauss_read_pos = 0;
+        state->gauss_counter = 0;
+    }
+    state->gauss_enabled = enabled ? 1 : 0;
+}
+
+int spu94_get_gauss_enabled(const spu94_state *state) {
+    if (state == NULL) return 0;
+    return state->gauss_enabled;
+}
+
+void spu94_set_voice_pitch(spu94_state *state, uint16_t pitch) {
+    if (state == NULL) return;
+    if (pitch < 0x005C) pitch = 0x005C;
+    if (pitch > 0x1000) pitch = 0x1000;
+    state->voice_pitch = pitch;
+}
+
+uint16_t spu94_get_voice_pitch(const spu94_state *state) {
+    if (state == NULL) return 0x1000;
+    return state->voice_pitch ? state->voice_pitch : 0x1000;
+}
+
+void spu94_set_aa_filter_enabled(spu94_state *state, int enabled) {
+    if (state == NULL) return;
+    state->aa_filter_enabled = enabled ? 1 : 0;
+}
+
+int spu94_get_aa_filter_enabled(const spu94_state *state) {
+    if (state == NULL) return 0;
+    return state->aa_filter_enabled;
+}
+
 /* DAC FIR group delay at 44.1kHz output rate (Phase 11 DSP-07).
  * v1.2: all stages at 44.1kHz = (55-1)/2 + (11-1)/2 + (7-1)/2 = 35
  * v1.3: stages at true rates = 27/2 + 5/4 + 3/8 = 15.125, rounded to 15 */

@@ -139,23 +139,43 @@ struct spu94_state {
     int16_t        reverb_out_r;
 
     /* -----------------------------------------------------------------
-     * Phase 2 (ADPCM-INT): double-buffer state for ADPCM coloration
-     * stage. When adpcm_enabled=1, spu94_process accumulates input
-     * samples into adpcm_in_buf_{l,r} and emits from adpcm_out_buf_{l,r}
-     * (previous block's decoded output). At buf_pos==28, encode+decode
-     * produces the next output block. One spu94_adpcm_state per channel
-     * shared between encode and decode (correctness guaranteed by
-     * ADPCM-05: encoder tracks reconstructed samples identically to
-     * decoder). Zeroed by spu94_init/reset (existing byte-loop covers).
+     * ADPCM voice path: downsample → encode/decode → Gaussian upsample.
+     * Simulates a PS1 SPU voice playing pre-encoded ADPCM at a
+     * selectable sample rate, reconstructed to 44.1 kHz via Gaussian
+     * interpolation.
      * ----------------------------------------------------------------- */
     uint8_t            adpcm_enabled;       /* 0=off (default), 1=on */
+    uint8_t            gauss_enabled;       /* Gaussian interpolation on output */
+    uint8_t            aa_filter_enabled;   /* anti-alias filter before downsample */
+
+    /* Voice pitch: 0x0001..0x1000.  0x1000 = 44.1 kHz (1:1, no decimation).
+     * 0x0800 = 22.05 kHz, 0x005C ≈ 4000 Hz. Default 0x0800. */
+    uint16_t           voice_pitch;
+
+    /* Decimator: pitch counter accumulates voice_pitch per 44.1 kHz tick.
+     * When it overflows past a sample boundary, a new sample is fed to
+     * the ADPCM encoder. */
+    uint16_t           decim_counter;       /* 4.12 fixed-point accumulator */
+    int16_t            decim_prev_l;        /* previous input for AA filter */
+    int16_t            decim_prev_r;
+
+    /* ADPCM encode/decode buffers (unchanged block size of 28) */
     uint8_t            adpcm_buf_pos;       /* 0..27 accumulation index */
-    int16_t            adpcm_in_buf_l[28];  /* input accumulation, L */
-    int16_t            adpcm_in_buf_r[28];  /* input accumulation, R */
-    int16_t            adpcm_out_buf_l[28]; /* decoded output, L */
-    int16_t            adpcm_out_buf_r[28]; /* decoded output, R */
-    spu94_adpcm_state  adpcm_state_l;       /* encode+decode state, L (4 bytes) */
-    spu94_adpcm_state  adpcm_state_r;       /* encode+decode state, R (4 bytes) */
+    int16_t            adpcm_in_buf_l[28];
+    int16_t            adpcm_in_buf_r[28];
+    int16_t            adpcm_out_buf_l[28]; /* decoded output ring */
+    int16_t            adpcm_out_buf_r[28];
+    spu94_adpcm_state  adpcm_state_l;
+    spu94_adpcm_state  adpcm_state_r;
+
+    /* Gaussian interpolation: 4-tap FIR upsampler from voice rate to
+     * 44.1 kHz. Ring buffer of last 4 decoded samples per channel.
+     * gauss_counter tracks read position with same pitch rate. */
+    uint16_t           gauss_counter;       /* 4.12 fixed-point, mirrors decim */
+    int16_t            gauss_ring_l[4];     /* [0]=oldest..[3]=newest */
+    int16_t            gauss_ring_r[4];
+    uint8_t            gauss_ring_pos;      /* write position in ring (0..3) */
+    uint8_t            gauss_read_pos;      /* which decoded sample we're on */
 
     /* -----------------------------------------------------------------
      * Phase 7 (DAC-INT / Mixer): send/return mixer state.

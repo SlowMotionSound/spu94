@@ -26,6 +26,7 @@
  */
 #include <spu94/spu94.h>
 #include <spu94/spu94_adpcm.h>
+#include <spu94/spu94_gauss.h>
 #include <spu94/spu94_dac_fir.h>
 #include <spu94/spu94_dac_noise.h>
 #include "spu94_fir_internal.h"
@@ -50,34 +51,106 @@ void spu94_process(spu94_state *state,
         l = q15_mul_truncate(l, state->input_gain);
         r = q15_mul_truncate(r, state->input_gain);
 
-        /* 2. ADPCM coloration -> patina bus (D-03: separable block) */
+        /* 2. ADPCM voice path: downsample → encode/decode → Gaussian upsample */
         int16_t patina_l, patina_r;
         if (state->adpcm_enabled) {
-            int16_t out_l = state->adpcm_out_buf_l[state->adpcm_buf_pos];
-            int16_t out_r = state->adpcm_out_buf_r[state->adpcm_buf_pos];
+            const uint16_t pitch = state->voice_pitch ? state->voice_pitch : 0x1000;
 
-            state->adpcm_in_buf_l[state->adpcm_buf_pos] = l;
-            state->adpcm_in_buf_r[state->adpcm_buf_pos] = r;
+            /* --- Decimator: feed input to ADPCM at the voice rate --- */
+            uint16_t old_counter = state->decim_counter;
+            state->decim_counter += pitch;
+            int crossed = (state->decim_counter < old_counter)
+                        || ((old_counter >> 12) != (state->decim_counter >> 12));
 
-            state->adpcm_buf_pos++;
-            if (state->adpcm_buf_pos == SPU94_ADPCM_BLOCK_SAMPLES) {
-                uint8_t block[SPU94_ADPCM_BLOCK_BYTES];
-
-                spu94_adpcm_encode_block(&state->adpcm_state_l,
-                    state->adpcm_in_buf_l, 0, block);
-                spu94_adpcm_decode_block(&state->adpcm_state_l,
-                    block, state->adpcm_out_buf_l);
-
-                spu94_adpcm_encode_block(&state->adpcm_state_r,
-                    state->adpcm_in_buf_r, 0, block);
-                spu94_adpcm_decode_block(&state->adpcm_state_r,
-                    block, state->adpcm_out_buf_r);
-
-                state->adpcm_buf_pos = 0;
+            /* AA filter runs every tick (before decimation) to accumulate
+             * a proper average. Single-pole IIR: alpha = pitch/0x1000.
+             * At pitch 0x0800, alpha=0.5 → -3 dB at ~7 kHz.
+             * At pitch 0x0400, alpha=0.25 → -3 dB at ~3.5 kHz. */
+            if (state->aa_filter_enabled) {
+                int32_t alpha = pitch;  /* Q12: 0x1000 = 1.0 */
+                state->decim_prev_l = (int16_t)(
+                    ((int32_t)l * alpha +
+                     (int32_t)state->decim_prev_l * (0x1000 - alpha)) >> 12);
+                state->decim_prev_r = (int16_t)(
+                    ((int32_t)r * alpha +
+                     (int32_t)state->decim_prev_r * (0x1000 - alpha)) >> 12);
+            } else {
+                state->decim_prev_l = l;
+                state->decim_prev_r = r;
             }
 
-            patina_l = out_l;
-            patina_r = out_r;
+            if (crossed) {
+                int16_t dl = state->decim_prev_l;
+                int16_t dr = state->decim_prev_r;
+
+                state->adpcm_in_buf_l[state->adpcm_buf_pos] = dl;
+                state->adpcm_in_buf_r[state->adpcm_buf_pos] = dr;
+                state->adpcm_buf_pos++;
+
+                if (state->adpcm_buf_pos == SPU94_ADPCM_BLOCK_SAMPLES) {
+                    uint8_t block[SPU94_ADPCM_BLOCK_BYTES];
+
+                    spu94_adpcm_encode_block(&state->adpcm_state_l,
+                        state->adpcm_in_buf_l, 0, block);
+                    spu94_adpcm_decode_block(&state->adpcm_state_l,
+                        block, state->adpcm_out_buf_l);
+
+                    spu94_adpcm_encode_block(&state->adpcm_state_r,
+                        state->adpcm_in_buf_r, 0, block);
+                    spu94_adpcm_decode_block(&state->adpcm_state_r,
+                        block, state->adpcm_out_buf_r);
+
+                    state->adpcm_buf_pos = 0;
+                }
+            } else {
+                state->decim_prev_l = l;
+                state->decim_prev_r = r;
+            }
+
+            /* --- Gaussian interpolation: upsample decoded ADPCM to 44.1 kHz --- */
+            uint16_t old_gauss = state->gauss_counter;
+            state->gauss_counter += pitch;
+            int gauss_crossed = (state->gauss_counter < old_gauss)
+                              || ((old_gauss >> 12) != (state->gauss_counter >> 12));
+
+            if (gauss_crossed) {
+                uint8_t wp = state->gauss_ring_pos;
+                state->gauss_ring_l[wp] = state->adpcm_out_buf_l[state->gauss_read_pos];
+                state->gauss_ring_r[wp] = state->adpcm_out_buf_r[state->gauss_read_pos];
+                state->gauss_ring_pos = (uint8_t)((wp + 1u) & 3u);
+                state->gauss_read_pos++;
+                if (state->gauss_read_pos >= SPU94_ADPCM_BLOCK_SAMPLES)
+                    state->gauss_read_pos = 0;
+            }
+
+            if (state->gauss_enabled) {
+                const uint8_t gi = (uint8_t)((state->gauss_counter >> 4) & 0xFF);
+                const uint8_t wp = state->gauss_ring_pos;
+                const int16_t s0 = state->gauss_ring_l[(wp + 0) & 3]; /* oldest */
+                const int16_t s1 = state->gauss_ring_l[(wp + 1) & 3]; /* older */
+                const int16_t s2 = state->gauss_ring_l[(wp + 2) & 3]; /* old */
+                const int16_t s3 = state->gauss_ring_l[(wp + 3) & 3]; /* newest */
+                int32_t gl = (int32_t)spu94_gauss_table[0x0FF - gi] * (int32_t)s0
+                           + (int32_t)spu94_gauss_table[0x1FF - gi] * (int32_t)s1
+                           + (int32_t)spu94_gauss_table[0x100 + gi] * (int32_t)s2
+                           + (int32_t)spu94_gauss_table[0x000 + gi] * (int32_t)s3;
+                patina_l = (int16_t)(gl >> 15);
+
+                const int16_t r0 = state->gauss_ring_r[(wp + 0) & 3];
+                const int16_t r1 = state->gauss_ring_r[(wp + 1) & 3];
+                const int16_t r2 = state->gauss_ring_r[(wp + 2) & 3];
+                const int16_t r3 = state->gauss_ring_r[(wp + 3) & 3];
+                int32_t gr = (int32_t)spu94_gauss_table[0x0FF - gi] * (int32_t)r0
+                           + (int32_t)spu94_gauss_table[0x1FF - gi] * (int32_t)r1
+                           + (int32_t)spu94_gauss_table[0x100 + gi] * (int32_t)r2
+                           + (int32_t)spu94_gauss_table[0x000 + gi] * (int32_t)r3;
+                patina_r = (int16_t)(gr >> 15);
+            } else {
+                patina_l = state->adpcm_out_buf_l[state->gauss_read_pos > 0
+                           ? state->gauss_read_pos - 1 : SPU94_ADPCM_BLOCK_SAMPLES - 1];
+                patina_r = state->adpcm_out_buf_r[state->gauss_read_pos > 0
+                           ? state->gauss_read_pos - 1 : SPU94_ADPCM_BLOCK_SAMPLES - 1];
+            }
         } else {
             patina_l = l;
             patina_r = r;

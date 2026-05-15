@@ -76,6 +76,12 @@ private:
     juce::Label reverbKnobLabel;
     juce::ToggleButton latencyCompToggle{"Latency Comp"};
 
+    // ADPCM voice path controls
+    juce::ToggleButton gaussToggle{"Gauss"};
+    juce::ToggleButton aaFilterToggle{"Anti-Aliasing"};
+    juce::Slider voicePitchKnob;
+    juce::Label voicePitchLabel;
+
     // Zone 4: DAC section
     juce::ToggleButton dacToggle{"DAC"};
     juce::ToggleButton dacFirToggle{"FIR"};
