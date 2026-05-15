@@ -7,7 +7,7 @@
   "plan": 0,
   "task": 0,
   "total_tasks": 0,
-  "status": "in_progress",
+  "status": "complete",
   "completed_tasks": [
     {"id": 1, "name": "Gaussian interpolation table", "status": "done", "details": "512-entry table from SPU silicon dump. Three-way verified against psx-spx, DuckStation, Mednafen."},
     {"id": 2, "name": "Downsampler with pitch counter", "status": "done", "details": "Decimates 44.1 kHz input to configurable voice rate (4,000–44,100 Hz) via pitch counter. Default 22,050 Hz (0x0800)."},
@@ -27,6 +27,6 @@
     {"decision": "Dry path untouched", "rationale": "Explicit instruction — downsampler/Gaussian only affect the ADPCM bus.", "phase": "development"}
   ],
   "uncommitted_files": [],
-  "next_action": "Anthony confirmed implementation works. Beta artifacts need rebuilding with voice path changes. State files need updating for new feature scope.",
-  "context_notes": "Major feature addition: the ADPCM path now replicates the full PS1 SPU per-voice signal chain. Previously ADPCM encode/decode ran at 44.1 kHz with no downsampling or Gaussian — which is something the PS1 never did. The distortion Anthony heard was from feeding full-bandwidth audio into a codec designed for bandwidth-limited source material."
+  "next_action": "Beta artifacts rebuilt and ready to distribute. Repo is private. Await tester feedback.",
+  "context_notes": "PS1 voice path feature complete and confirmed working. Beta artifacts rebuilt for all 3 platforms (Linux local, macOS+Windows via CI). Local plugin folders updated. Repo flipped back to private after CI builds."
 }

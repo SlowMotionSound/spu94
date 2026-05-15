@@ -60,7 +60,7 @@ None.
 
 - PS1 SPU voice path on ADPCM bus: downsample (4–44.1 kHz) → ADPCM encode/decode → Gaussian 4-tap interpolation upsample
 - Voice Rate knob, Gauss toggle, Anti-Aliasing toggle
-- Beta artifacts on desktop are stale — need rebuilding with voice path changes
+- Beta artifacts rebuilt for all 3 platforms on 2026-05-15 (Linux/macOS/Windows on ~/Desktop)
 
 ### Pending Todos
 
@@ -115,5 +115,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-05-15
-Stopped at: PS1 voice path implemented and confirmed working; beta artifacts stale
+Stopped at: PS1 voice path complete; beta artifacts rebuilt and ready to distribute
 Resume file: .planning/HANDOFF.json
