@@ -302,6 +302,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
 
     // Sync slider positions to the initial preset (Hall).
     registerPanel.updateFromShadows();
+    syncMixerKnobsFromProcessor();
 
     // 30 Hz timer to detect file-preset load completion and shadow syncs.
     lastFilePresetCount = processorRef.getFilePresetAppliedCount();
@@ -310,7 +311,12 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
 
     captureBaseline();
 
-    setResizable(false, false);
+    setResizable(true, false);
+    if (auto* c = getConstrainer())
+    {
+        c->setMinimumSize(900, 1100);
+        c->setMaximumSize(900, 1100);
+    }
     setSize(900, 1100);
 }
 
