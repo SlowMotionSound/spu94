@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-10)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 26 — packaging-beta-uat
+**Current focus:** PS1 voice path — downsampler + Gaussian interpolation added to ADPCM chain
 
 ## Current Position
 
-Phase: 27
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-05-13
+Phase: Post-beta development
+Plan: PS1 voice path feature complete
+Status: Active development
+Last activity: 2026-05-15
 
 Progress: [█████████████████░░░] 85%
 
@@ -55,6 +55,12 @@ v1.7 locked decisions (as of requirements draft, 2026-05-11):
 ### Blockers/Concerns
 
 None.
+
+### Recent Additions (2026-05-15)
+
+- PS1 SPU voice path on ADPCM bus: downsample (4–44.1 kHz) → ADPCM encode/decode → Gaussian 4-tap interpolation upsample
+- Voice Rate knob, Gauss toggle, Anti-Aliasing toggle
+- Beta artifacts on desktop are stale — need rebuilding with voice path changes
 
 ### Pending Todos
 
@@ -109,5 +115,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-05-15
-Stopped at: All 4 bugfix tasks complete; beta artifacts packaged for Linux/macOS/Windows
-Resume file: .planning/phases/26-packaging-beta-uat/.continue-here.md
+Stopped at: PS1 voice path implemented and confirmed working; beta artifacts stale
+Resume file: .planning/HANDOFF.json

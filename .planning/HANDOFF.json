@@ -1,30 +1,32 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-15T13:20:00Z",
-  "phase": "release",
-  "phase_name": "v1.7-beta.1-bugfix",
+  "timestamp": "2026-05-15T19:00:00Z",
+  "phase": "development",
+  "phase_name": "ps1-voice-path",
   "phase_dir": null,
   "plan": 0,
-  "task": 4,
-  "total_tasks": 4,
-  "status": "complete",
+  "task": 0,
+  "total_tasks": 0,
+  "status": "in_progress",
   "completed_tasks": [
-    {"id": 1, "name": "Fix editor parameter reset on window close/reopen", "status": "done", "details": "Added syncMixerKnobsFromProcessor() in editor constructor. All 6 knobs + 5 toggles now survive editor destruction/recreation. Anthony confirmed: settings stick."},
-    {"id": 2, "name": "Rebuild Linux tarball for beta.1", "status": "done", "details": "Fresh build from latest code (includes libm + lv2lint fixes)."},
-    {"id": 3, "name": "Fix plugin window sizing in DAW hosts", "status": "done", "details": "Root cause: editor requested 900x1100 on a 1080p screen — taller than the monitor. Fixed to 900x950 with setResizable(false,false). Anthony confirmed it fits in Ardour."},
-    {"id": 4, "name": "Repackage and ship fixed beta artifacts", "status": "done", "details": "All three platforms packaged via CI (macOS/Windows) and local build (Linux). Artifacts on ~/Desktop: SPU-94-v1.7-beta.1-linux.tar.gz (13 MB), SPU-94-v1.7-beta.1-macOS.zip (14 MB), SPU-94-v1.7-beta.1-windows.zip (6.6 MB)."}
+    {"id": 1, "name": "Gaussian interpolation table", "status": "done", "details": "512-entry table from SPU silicon dump. Three-way verified against psx-spx, DuckStation, Mednafen."},
+    {"id": 2, "name": "Downsampler with pitch counter", "status": "done", "details": "Decimates 44.1 kHz input to configurable voice rate (4,000–44,100 Hz) via pitch counter. Default 22,050 Hz (0x0800)."},
+    {"id": 3, "name": "Gaussian 4-tap upsampler", "status": "done", "details": "Full pitch-counter-driven Gaussian interpolation with variable interpolation index. Reads decoded ADPCM samples and produces 44.1 kHz output."},
+    {"id": 4, "name": "Anti-aliasing filter", "status": "done", "details": "Single-pole IIR pre-filter before decimation. Cutoff tracks voice pitch. Toggleable on/off."},
+    {"id": 5, "name": "GUI controls", "status": "done", "details": "Voice Rate knob (4,000–44,100 Hz), Gauss toggle, Anti-Aliasing toggle in toolbar area."},
+    {"id": 6, "name": "Standalone play/stop fix", "status": "done", "details": "Engine processes silence when stopped instead of skipping. Prevents stale decimator/Gaussian state on resume."}
   ],
   "remaining_tasks": [],
   "blockers": [],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "Parameter reset fix: syncMixerKnobsFromProcessor() in constructor", "rationale": "Toggles never synced from processor state on editor recreation. One-line fix, confirmed working.", "phase": "release"},
-    {"decision": "GitHub Actions CI billing resolved", "rationale": "Billing fixed as of 2026-05-15. Used public-repo workaround for this build cycle.", "phase": "release"},
-    {"decision": "Plugin window size: 900x950, non-resizable", "rationale": "Original 900x1100 was taller than 1080p screen. 900x950 fits Ardour with room for host chrome.", "phase": "release"},
-    {"decision": "Added Preset: and User Slot: labels to plugin UI", "rationale": "Clarity for Save/Load and Edit/Export/Load button groups.", "phase": "release"},
-    {"decision": "Windows included in beta artifacts", "rationale": "CI billing resolved, Windows build succeeded. All 3 platforms now packaged.", "phase": "release"}
+    {"decision": "PS1 SPU voice path added to ADPCM chain", "rationale": "ADPCM was missing the downsample and Gaussian interpolation that every PS1 voice went through. Full chain: downsample → ADPCM encode/decode → Gaussian upsample.", "phase": "development"},
+    {"decision": "Voice Rate range: 4,000–44,100 Hz", "rationale": "4 kHz confirmed as lowest used rate (PS1 BIOS boot bell). 44.1 kHz = passthrough (no decimation). Default 22,050 Hz — most common PS1 music rate.", "phase": "development"},
+    {"decision": "Anti-aliasing filter is optional", "rationale": "Anthony wants aliasing as a creative option. Filter off = raw decimation with foldback artifacts. Filter on = clean decimation.", "phase": "development"},
+    {"decision": "Gaussian interpolation is optional", "rationale": "Toggle allows comparing raw ADPCM vs Gaussian-smoothed output.", "phase": "development"},
+    {"decision": "Dry path untouched", "rationale": "Explicit instruction — downsampler/Gaussian only affect the ADPCM bus.", "phase": "development"}
   ],
   "uncommitted_files": [],
-  "next_action": "Await beta tester feedback.",
-  "context_notes": "All 4 bugfix tasks complete. Beta artifacts distributed to testers on 2026-05-15. Old macOS zip recalled. Repo flipped back to private after CI builds."
+  "next_action": "Anthony confirmed implementation works. Beta artifacts need rebuilding with voice path changes. State files need updating for new feature scope.",
+  "context_notes": "Major feature addition: the ADPCM path now replicates the full PS1 SPU per-voice signal chain. Previously ADPCM encode/decode ran at 44.1 kHz with no downsampling or Gaussian — which is something the PS1 never did. The distortion Anthony heard was from feeding full-bandwidth audio into a codec designed for bandwidth-limited source material."
 }
