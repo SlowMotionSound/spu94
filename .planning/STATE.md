@@ -69,7 +69,7 @@ None.
 | License | MIT vs Apache-2.0 pick | Carried from M1 | 2026-04-25 |
 | Archive cleanup | `.planning/milestones/v1.6-phases/` currently contains the abandoned master-branch macro work, not the live v1.6 user-waypoint phases; live phases 10-20 (v1.3 through v1.6) sit in `.planning/phases/` rather than archived. Separate cleanup pass. | Flagged | 2026-05-10 |
 | UI gate | Hide preset Save/Load buttons in plugin formats — wrap `addAndMakeVisible(savePresetButton/loadPresetButton)` in PluginEditor.cpp in the existing `wrapperType == wrapperType_Standalone` check (same pattern as PLUG-49 WAV-loader gate). | Flagged during phase 22 UAT | 2026-05-11 |
-| Bug | Plugin GUI loses parameter state when window is closed and reopened (LV2 in Ardour 8.12). Params live in the processor; editor should reflect existing state on construction, not reset. Likely missing APVTS attachments or editor reads defaults instead of current values. Repro: open plugin → change Dry/Reverb/DAC → close plugin window → reopen → values reverted to defaults. Audio thread state may or may not match GUI; needs investigation. | Flagged during phase 22 UAT | 2026-05-11 |
+| Bug | ~~Plugin GUI loses parameter state when window is closed and reopened~~ — FIXED 2026-05-13. syncMixerKnobsFromProcessor() in editor constructor. | Resolved | 2026-05-13 |
 
 ## Deferred Ideas
 
@@ -108,6 +108,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-13T17:40:29.189Z
-Stopped at: Phase 26 context gathered
-Resume file: .planning/phases/26-packaging-beta-uat/26-CONTEXT.md
+Last session: 2026-05-15
+Stopped at: All 4 bugfix tasks complete; beta artifacts packaged for Linux/macOS/Windows
+Resume file: .planning/phases/26-packaging-beta-uat/.continue-here.md

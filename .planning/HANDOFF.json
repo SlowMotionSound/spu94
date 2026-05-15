@@ -1,37 +1,32 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-15T03:34:02Z",
+  "timestamp": "2026-05-15T13:20:00Z",
   "phase": "release",
   "phase_name": "v1.7-beta.1-bugfix",
   "phase_dir": null,
   "plan": 0,
-  "task": 3,
+  "task": 4,
   "total_tasks": 4,
-  "status": "paused",
+  "status": "complete",
   "completed_tasks": [
     {"id": 1, "name": "Fix editor parameter reset on window close/reopen", "status": "done", "details": "Added syncMixerKnobsFromProcessor() in editor constructor. All 6 knobs + 5 toggles now survive editor destruction/recreation. Anthony confirmed: settings stick."},
-    {"id": 2, "name": "Rebuild Linux tarball for beta.1", "status": "done", "details": "Fresh build from latest code (includes libm + lv2lint fixes). ~/Desktop/SPU-94-v1.7-beta.1-linux.tar.gz (12.3 MB)."}
+    {"id": 2, "name": "Rebuild Linux tarball for beta.1", "status": "done", "details": "Fresh build from latest code (includes libm + lv2lint fixes)."},
+    {"id": 3, "name": "Fix plugin window sizing in DAW hosts", "status": "done", "details": "Root cause: editor requested 900x1100 on a 1080p screen — taller than the monitor. Fixed to 900x950 with setResizable(false,false). Anthony confirmed it fits in Ardour."},
+    {"id": 4, "name": "Repackage and ship fixed beta artifacts", "status": "done", "details": "All three platforms packaged via CI (macOS/Windows) and local build (Linux). Artifacts on ~/Desktop: SPU-94-v1.7-beta.1-linux.tar.gz (13 MB), SPU-94-v1.7-beta.1-macOS.zip (14 MB), SPU-94-v1.7-beta.1-windows.zip (6.6 MB)."}
   ],
-  "remaining_tasks": [
-    {"id": 3, "name": "Fix plugin window sizing in DAW hosts", "status": "in_progress", "progress": "Tried 4 approaches, none solved it. Window opens too small and at bottom in Ardour (VST3 and LV2). Current working tree has setResizable(true,false)+constrainer which may be making it worse."},
-    {"id": 4, "name": "Repackage and ship fixed beta artifacts (Mac + Linux)", "status": "not_started"}
-  ],
-  "blockers": [
-    {"description": "Plugin window sizing in Ardour: editor requests 900x1100 but host gives ~450x350. Tried: (1) setResizable(false,false) — original, Ardour clips. (2) resized() guard forcing setSize — fought host, worse. (3) 900x700 — squashed, still mispositioned. (4) setResizable(true,false)+constrainer — still small. Screen is 1920x1080. Anthony says room exists. Likely a JUCE-Ardour size negotiation issue or stale Ardour scan cache from the VST3 crash (scan-result=2).", "type": "technical", "workaround": "None yet. CRITICAL: test whether the ORIGINAL beta.1 build (before today's changes) had correct window sizing in Ardour. If yes, investigate what today's changes broke (possibly Ardour caching stale geometry). If no, this is pre-existing and needs a proper layout fix."},
-    {"description": "GitHub Actions billing — all CI blocked, Anthony will not fix", "type": "external", "workaround": "Building locally. Windows dropped from beta (no Windows testers)."},
-    {"description": "macOS beta zip already shipped to testers contains parameter reset bug", "type": "external", "workaround": "Anthony aware, will recall"}
-  ],
+  "remaining_tasks": [],
+  "blockers": [],
   "human_actions_pending": [
-    {"action": "Recall macOS beta zip from testers (contains parameter reset bug)", "context": "Fixed build not yet packaged", "blocking": false},
-    {"action": "Clear ALL Ardour scan/cache data for SPU-94 and test window sizing from clean state", "context": "Ardour's VST3 scan crashed earlier (scan-result=2), may have cached bad geometry", "blocking": false}
+    {"action": "Recall macOS beta zip from testers (old build has parameter reset bug)", "context": "New fixed build is packaged and ready to distribute", "blocking": false}
   ],
   "decisions": [
-    {"decision": "Drop Windows from beta.1", "rationale": "No Windows testers, no CI, no Windows build machine", "phase": "release"},
     {"decision": "Parameter reset fix: syncMixerKnobsFromProcessor() in constructor", "rationale": "Toggles never synced from processor state on editor recreation. One-line fix, confirmed working.", "phase": "release"},
-    {"decision": "GitHub Actions CI abandoned", "rationale": "Billing issue, Anthony won't fix. Local builds cover Mac+Linux.", "phase": "release"},
-    {"decision": "Save/Load preset buttons still visible in plugin mode", "rationale": "Known issue from Phase 22 UAT, not yet addressed. Lower priority than sizing bug.", "phase": "release"}
+    {"decision": "GitHub Actions CI billing resolved", "rationale": "Billing fixed as of 2026-05-15. Used public-repo workaround for this build cycle.", "phase": "release"},
+    {"decision": "Plugin window size: 900x950, non-resizable", "rationale": "Original 900x1100 was taller than 1080p screen. 900x950 fits Ardour with room for host chrome.", "phase": "release"},
+    {"decision": "Added Preset: and User Slot: labels to plugin UI", "rationale": "Clarity for Save/Load and Edit/Export/Load button groups.", "phase": "release"},
+    {"decision": "Windows included in beta artifacts", "rationale": "CI billing resolved, Windows build succeeded. All 3 platforms now packaged.", "phase": "release"}
   ],
-  "uncommitted_files": ["src/plugin/PluginEditor.cpp"],
-  "next_action": "Revert setResizable to (false,false), clear ALL Ardour caches (rm -rf ~/.cache/ardour8/vst/ and remove SPU-94 entries from ~/.config/ardour8/plugin_metadata/scan_log and plugin_statuses), restart Ardour, rescan, and test window sizing from a completely clean state. If still broken, check whether the original installed beta.1 tarball binaries (before today's editor changes) had correct sizing — that isolates whether this is a regression or pre-existing.",
-  "context_notes": "Two bugs in flight: (1) parameter reset — FIXED and confirmed. (2) window sizing — UNSOLVED after 4 attempts. The setResizable(true,false)+constrainer change is currently in the working tree and should probably be reverted to (false,false) as a starting point. The Ardour VST3 scan crashed earlier in the session, and stale cache data may be confusing the host. A completely clean Ardour cache state is needed before further debugging."
+  "uncommitted_files": [],
+  "next_action": "Distribute updated beta artifacts to testers. Recall old macOS zip first.",
+  "context_notes": "All 4 bugfix tasks complete. Beta artifacts for all 3 platforms on ~/Desktop. Repo flipped back to private after CI builds."
 }
