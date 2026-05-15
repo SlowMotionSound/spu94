@@ -16,9 +16,7 @@
   ],
   "remaining_tasks": [],
   "blockers": [],
-  "human_actions_pending": [
-    {"action": "Recall macOS beta zip from testers (old build has parameter reset bug)", "context": "New fixed build is packaged and ready to distribute", "blocking": false}
-  ],
+  "human_actions_pending": [],
   "decisions": [
     {"decision": "Parameter reset fix: syncMixerKnobsFromProcessor() in constructor", "rationale": "Toggles never synced from processor state on editor recreation. One-line fix, confirmed working.", "phase": "release"},
     {"decision": "GitHub Actions CI billing resolved", "rationale": "Billing fixed as of 2026-05-15. Used public-repo workaround for this build cycle.", "phase": "release"},
@@ -27,6 +25,6 @@
     {"decision": "Windows included in beta artifacts", "rationale": "CI billing resolved, Windows build succeeded. All 3 platforms now packaged.", "phase": "release"}
   ],
   "uncommitted_files": [],
-  "next_action": "Distribute updated beta artifacts to testers. Recall old macOS zip first.",
-  "context_notes": "All 4 bugfix tasks complete. Beta artifacts for all 3 platforms on ~/Desktop. Repo flipped back to private after CI builds."
+  "next_action": "Await beta tester feedback.",
+  "context_notes": "All 4 bugfix tasks complete. Beta artifacts distributed to testers on 2026-05-15. Old macOS zip recalled. Repo flipped back to private after CI builds."
 }
