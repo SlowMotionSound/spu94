@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: DAW Plugin Port
-status: ready_to_plan
-stopped_at: Phase 26 context gathered
-last_updated: "2026-05-13T18:56:04.899Z"
-last_activity: 2026-05-13 -- Phase 26 execution started
+status: active
+stopped_at: Single-counter voice path + Fast/Slow morph speed shipped
+last_updated: "2026-05-15T23:30:00Z"
+last_activity: 2026-05-15 -- Single-counter voice path, Fast/Slow morph, Gauss default on
 progress:
   total_phases: 7
   completed_phases: 6
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-10)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** PS1 voice path — downsampler + Gaussian interpolation added to ADPCM chain
+**Current focus:** Post-beta refinement — hardware-faithful voice path + morph speed UX
 
 ## Current Position
 
 Phase: Post-beta development
-Plan: PS1 voice path feature complete
+Plan: Single-counter voice path + Fast/Slow morph speed shipped
 Status: Active development
 Last activity: 2026-05-15
 
-Progress: [█████████████████░░░] 85%
+Progress: [█████████████████░░░] 86%
 
 ## Accumulated Context
 
@@ -59,7 +59,9 @@ None.
 ### Recent Additions (2026-05-15)
 
 - PS1 SPU voice path on ADPCM bus: downsample (4–44.1 kHz) → ADPCM encode/decode → Gaussian 4-tap interpolation upsample
-- Voice Rate knob, Gauss toggle, Anti-Aliasing toggle
+- Voice Rate knob, Gauss toggle (now defaults ON), Anti-Aliasing toggle
+- Single-counter voice path architecture: one pitch counter drives both decimation and Gaussian interpolation (matches real PS1 SPU hardware)
+- Fast/Slow morph speed toggle: Fast 0–0.5s, Slow 0.5–8s (longer transitions create evolving feedback textures)
 - Beta artifacts rebuilt for all 3 platforms on 2026-05-15 (Linux/macOS/Windows on ~/Desktop)
 
 ### Pending Todos
@@ -115,5 +117,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-05-15
-Stopped at: PS1 voice path complete; beta artifacts rebuilt and ready to distribute
+Stopped at: Single-counter voice path + Fast/Slow morph speed committed; Gauss defaults on; beta needs rebuild with these changes
 Resume file: .planning/HANDOFF.json

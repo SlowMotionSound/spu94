@@ -1,36 +1,31 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-15T21:50:10Z",
+  "timestamp": "2026-05-15T23:30:00Z",
   "phase": "post-beta",
-  "phase_name": "ps1-voice-path + beta bugfixes",
+  "phase_name": "voice path hardening + morph speed UX",
   "phase_dir": null,
   "plan": 0,
   "task": 0,
   "total_tasks": 0,
   "status": "paused",
   "completed_tasks": [
-    {"id": 1, "name": "Fix editor parameter reset on window close/reopen", "status": "done", "details": "syncMixerKnobsFromProcessor() in editor constructor."},
-    {"id": 2, "name": "Fix plugin window sizing", "status": "done", "details": "900x950, setResizable(false,false). Original 900x1100 was taller than 1080p screen."},
-    {"id": 3, "name": "Add Preset: and User Slot: labels", "status": "done", "details": "Labels above Save/Load and Edit/Export/Load button groups."},
-    {"id": 4, "name": "PS1 SPU voice path on ADPCM bus", "status": "done", "details": "Downsample (4,000–44,100 Hz) → ADPCM encode/decode → Gaussian 4-tap interpolation upsample to 44.1 kHz. Voice Rate knob, Gauss toggle, Anti-Aliasing toggle."},
-    {"id": 5, "name": "Standalone play/stop fix", "status": "done", "details": "Engine processes silence when stopped instead of early-returning."},
-    {"id": 6, "name": "Beta artifacts rebuilt for all 3 platforms", "status": "done", "details": "Linux (local), macOS + Windows (CI). On ~/Desktop."}
+    {"id": 1, "name": "Single-counter voice path (PS1-faithful)", "status": "done", "details": "Replaced dual decim_counter/gauss_counter with one voice_counter. Bits 12+ = sample advancement, bits 4-11 = Gaussian index. Matches real PS1 SPU hardware architecture."},
+    {"id": 2, "name": "Fast/Slow morph speed toggle", "status": "done", "details": "Mauve button strip above speed knob. Fast: 0–0.5s. Slow: 0.5–8s. Slow range creates evolving feedback textures during morph transitions."},
+    {"id": 3, "name": "Gaussian interpolation defaults ON", "status": "done", "details": "Real PS1 always runs Gauss — no bypass in hardware. Toggle remains for A/B comparison."},
+    {"id": 4, "name": "Golden files regenerated", "status": "done", "details": "All 80 goldens (50 reverb + 30 ADPCM) regenerated for single-counter output."}
   ],
   "remaining_tasks": [],
   "blockers": [],
   "human_actions_pending": [
-    {"action": "Recall old beta artifacts from testers and distribute new builds with voice path", "context": "New builds include downsampler + Gaussian interpolation on ADPCM path", "blocking": false}
+    {"action": "Rebuild beta artifacts with single-counter voice path + Fast/Slow + Gauss-on defaults", "context": "Current beta builds on ~/Desktop are from the dual-counter era. Need rebuild before distributing.", "blocking": false}
   ],
   "decisions": [
-    {"decision": "Plugin window size: 900x950, non-resizable", "rationale": "Original 900x1100 was taller than 1080p screen.", "phase": "post-beta"},
-    {"decision": "PS1 SPU voice path added to ADPCM chain", "rationale": "ADPCM was missing the downsample and Gaussian interpolation that every PS1 voice went through.", "phase": "post-beta"},
-    {"decision": "Voice Rate range: 4,000–44,100 Hz, default 22,050 Hz", "rationale": "4 kHz = PS1 BIOS boot bell (confirmed lowest). 22,050 Hz = most common PS1 music rate.", "phase": "post-beta"},
-    {"decision": "Anti-aliasing filter is optional (off by default)", "rationale": "Aliasing from raw decimation is a creative option.", "phase": "post-beta"},
-    {"decision": "Gaussian interpolation is optional (off by default)", "rationale": "Toggle allows comparing raw ADPCM vs Gaussian-smoothed output.", "phase": "post-beta"},
-    {"decision": "Dry path untouched", "rationale": "Explicit instruction — voice path only affects ADPCM bus.", "phase": "post-beta"},
-    {"decision": "GitHub Actions CI: public-repo workaround for builds", "rationale": "Billing issue on private repo. Flip public → build → flip private. Forks persist if created while public.", "phase": "post-beta"}
+    {"decision": "Single-counter voice path replaces dual-counter", "rationale": "Real PS1 SPU uses one pitch counter for both decode and interpolation. Dual-counter produced 98%+ sample divergence vs hardware-faithful architecture.", "phase": "post-beta"},
+    {"decision": "Gaussian interpolation defaults ON", "rationale": "PS1 hardware always runs Gauss — no bypass exists. Off-by-default was a textbook-DSP instinct, not hardware-faithful.", "phase": "post-beta"},
+    {"decision": "Fast/Slow morph speed: Fast 0–0.5s, Slow 0.5–8s", "rationale": "Slow mode creates evolving feedback textures during transitions. 8s is the sweet spot — long enough for bubbling/crusty effects, short enough to avoid runaway feedback instability.", "phase": "post-beta"},
+    {"decision": "AA filter stays but is non-default", "rationale": "Real PS1 has no AA filter on the voice decimation path. ADPCM codec band-limits naturally. AA filter is opt-in creative toggle only.", "phase": "post-beta"}
   ],
   "uncommitted_files": [],
-  "next_action": "Distribute updated beta artifacts to testers. Await feedback on voice path sound quality.",
-  "context_notes": "Session started with resume from beta.1 bugfix pass. Fixed window sizing, parameter reset, added labels. Then Anthony noticed ADPCM distortion — investigation revealed the ADPCM path was missing the PS1 SPU's downsampler and Gaussian interpolation. Implemented the full voice chain. Gaussian table three-way verified against psx-spx, DuckStation, Mednafen. Anthony confirmed it works."
+  "next_action": "Rebuild beta plugin artifacts (all 3 platforms) with single-counter voice path + Fast/Slow morph + Gauss-on defaults. Then distribute to testers.",
+  "context_notes": "Started from signal flow discussion. Identified dual-counter voice path as non-faithful to PS1 hardware. Research confirmed PS1 uses single pitch counter (bits 12+ = sample index, bits 4-11 = Gauss index). Implemented, tested, verified. Then added Fast/Slow morph speed after Anthony identified the slow morph transitions as 'secret sauce' — tried 60s (feedback blowup), 1.5s (too short), 5s (good), landed on 8s ceiling."
 }
