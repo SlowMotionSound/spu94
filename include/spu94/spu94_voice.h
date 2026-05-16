@@ -108,8 +108,9 @@ void spu94_voice_tick(spu94_voice_t *v,
  * MIX-06: "eon_flags gates reverb send per voice; does not affect dry accumulator"
  * ----------------------------------------------------------------------- */
 
-/* spu94_voice_mixer_t: approx 533 KB (24 voices * ~120B + 512KB voice_ram +
- * pending_config[24] * ~120B + control fields). */
+/* spu94_voice_mixer_t: 530452 bytes (~518 KB).
+ * Breakdown: 24 voices * 128B + 512KB voice_ram + pending_config[24] * 128B
+ * + control fields (12 bytes). Lives as file-scope static in spu94_process.c. */
 typedef struct {
     spu94_voice_t voices[24];          /* VOICE-06: 24 isolated per-voice structs */
     uint8_t       voice_ram[SPU94_SPU_RAM_BYTES]; /* C6: separate from reverb work_buf */

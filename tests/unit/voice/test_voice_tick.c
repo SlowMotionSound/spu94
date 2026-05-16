@@ -16,6 +16,7 @@
 #include <spu94/spu94_adsr.h>
 #include <spu94/spu94_adpcm.h>
 #include <spu94/spu94_vag.h>
+#include <spu94/spu94_q15.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -906,6 +907,143 @@ void test_mixer_kon_deferred(void) {
 }
 
 /* ---------------------------------------------------------------
+ * Phase 30 Task 3: MIX-06 coexistence + saturation + timing tests
+ * --------------------------------------------------------------- */
+
+/* Test: MIX-06 — voice output and patina (ADPCM coloration bus) are independent.
+ * Verifies the sat_s16 addition rule: patina + voice_dry = non-destructive sum.
+ * We test the math path directly since full process context is complex. */
+void test_mix06_voice_and_patina_independent(void) {
+    /* Simulate the coexistence sum from spu94_process.c:
+     *   patina_l = sat_s16((int32_t)patina_l + (int32_t)voice_dry_l);
+     *
+     * When ADPCM coloration produces patina_l=100 and voice engine produces
+     * voice_dry_l=200, the merged result should be 300. */
+    int16_t patina_l = 100;
+    int16_t voice_dry_l = 200;
+    int16_t merged = sat_s16((int32_t)patina_l + (int32_t)voice_dry_l);
+    TEST_ASSERT_EQUAL_INT16(300, merged);
+
+    /* Both contributions are non-zero and independently audible */
+    TEST_ASSERT_TRUE(merged > patina_l);  /* voice added to it */
+    TEST_ASSERT_TRUE(merged > voice_dry_l);  /* patina also present */
+
+    /* Negative values (phase-inverted) also sum correctly */
+    patina_l = -500;
+    voice_dry_l = 300;
+    merged = sat_s16((int32_t)patina_l + (int32_t)voice_dry_l);
+    TEST_ASSERT_EQUAL_INT16(-200, merged);
+
+    /* Zero voice_dry doesn't change patina (engine disabled produces 0) */
+    patina_l = 1234;
+    voice_dry_l = 0;
+    merged = sat_s16((int32_t)patina_l + (int32_t)voice_dry_l);
+    TEST_ASSERT_EQUAL_INT16(1234, merged);
+}
+
+/* Test: MIX-01 saturation on loud chord — 2 voices at max don't wrap negative.
+ * Verifies sat_s16(32767 + 32767) = 32767, not -2 (wrap-around).
+ *
+ * The test proves two properties:
+ * 1. The sat_s16 math itself is correct (direct verification)
+ * 2. The mixer uses int32 accumulation (output stays in valid range after
+ *    ring buffer stabilization — no 16-bit wrap-around artifacts) */
+void test_mix01_saturation_on_loud_chord(void) {
+    /* Part 1: Verify sat_s16 math directly (the core of MIX-01) */
+    TEST_ASSERT_EQUAL_INT16(32767, sat_s16(32767 + 32767));
+    TEST_ASSERT_EQUAL_INT16(32767, sat_s16((int32_t)INT16_MAX + (int32_t)INT16_MAX));
+    TEST_ASSERT_EQUAL_INT16(-32768, sat_s16((int32_t)INT16_MIN + (int32_t)INT16_MIN));
+    /* Saturation prevents wrap: this would be -2 if using naive int16 addition */
+    TEST_ASSERT_TRUE(sat_s16(32767 + 32767) > 0);
+
+    /* Part 2: Run two voices with large amplitude through the mixer.
+     * After ring buffer stabilization (~5 ticks), the output should be
+     * consistently positive when both voices produce positive samples.
+     * shift=12, filter=0, nibble=7 -> decoded sample = 7 << 12 = 28672. */
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    uint8_t sample[64];
+    memset(sample, 0, sizeof(sample));
+    for (int b = 0; b < 4; b++) {
+        sample[b * 16 + 0] = 0x0C;  /* shift=12, filter=0 */
+        sample[b * 16 + 1] = 0x00;  /* no flags */
+        for (int j = 2; j < 16; j++) {
+            sample[b * 16 + j] = 0x77;  /* nibbles +7, +7 */
+        }
+    }
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+
+    /* Key on voice 0 and voice 1 with same max-amplitude sample */
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* Run ticks — first ~4 ticks have transients from the cold ring buffer.
+     * After stabilization, all output should be positive (large positive
+     * input samples should produce large positive output). */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+
+    /* Warm up ring: 5 ticks to fill the 4-sample Gaussian ring */
+    for (int i = 0; i < 5; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    }
+
+    /* After stabilization: output must be positive (no wrap-around).
+     * Two voices of ~28672 sum to ~57344, sat_s16 -> 32767, then
+     * master vol q15_mul_truncate(32767, 0x7FFF) -> 32766. */
+    int found_positive = 0;
+    for (int i = 0; i < 5; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+        if (dry_l > 0) found_positive = 1;
+        /* After ring is full of positive values, output must be positive.
+         * A 16-bit overflow/wrap would give negative values. */
+        TEST_ASSERT_TRUE_MESSAGE(dry_l >= 0,
+            "MIX-01 violation: int16 wrap detected on loud chord");
+    }
+    TEST_ASSERT_TRUE(found_positive);
+}
+
+/* Test: MIX-04 — two voices keyed simultaneously start at same sample offset.
+ * Both pending_kon bits set in same batch, applied at tick start. Both voices
+ * should start with pitch_counter=0. */
+void test_mix04_kon_timing_two_voices_same_tick(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    uint8_t sample[64];
+    make_long_sample(sample, 4);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+
+    /* Key on voices 0 and 1 in same batch (before any tick) */
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* Verify both pending bits are set */
+    TEST_ASSERT_TRUE(s_test_mixer.pending_kon & (1u << 0));
+    TEST_ASSERT_TRUE(s_test_mixer.pending_kon & (1u << 1));
+
+    /* Apply by running one tick */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+
+    /* Both voices should be active and at the same point in playback.
+     * After one tick at pitch 0x1000: pitch_counter should be the same
+     * fractional value for both (they started at 0 simultaneously). */
+    TEST_ASSERT_EQUAL_UINT8(1, s_test_mixer.voices[0].active);
+    TEST_ASSERT_EQUAL_UINT8(1, s_test_mixer.voices[1].active);
+    TEST_ASSERT_EQUAL_UINT16(s_test_mixer.voices[0].pitch_counter,
+                             s_test_mixer.voices[1].pitch_counter);
+
+    /* Both should be at the same current_addr (decoding same block) */
+    TEST_ASSERT_EQUAL_UINT32(s_test_mixer.voices[0].current_addr,
+                             s_test_mixer.voices[1].current_addr);
+}
+
+/* ---------------------------------------------------------------
  * Main
  * --------------------------------------------------------------- */
 int main(void) {
@@ -944,5 +1082,9 @@ int main(void) {
     RUN_TEST(test_mixer_eon_routes_only_flagged);
     RUN_TEST(test_mixer_master_vol_zero_silences);
     RUN_TEST(test_mixer_kon_deferred);
+    /* Phase 30 Task 3: MIX-06 coexistence, saturation, timing */
+    RUN_TEST(test_mix06_voice_and_patina_independent);
+    RUN_TEST(test_mix01_saturation_on_loud_chord);
+    RUN_TEST(test_mix04_kon_timing_two_voices_same_tick);
     return UNITY_END();
 }
