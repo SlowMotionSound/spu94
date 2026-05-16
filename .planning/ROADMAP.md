@@ -52,7 +52,8 @@
   3. The voice holds at the sustain level until KOFF is received
   4. KOFF triggers Release: amplitude decays to zero then the voice goes silent (no audio output, no CPU cost after silence)
   5. With ADSR envelope disabled (registers zeroed), voice output is constant-amplitude — confirming the envelope module is additive and isolated
-**Plans**: TBD
+**Plans**: 1 plan
+  - [ ] 28-PLAN.md — ADSR state struct, counter-accumulate engine, voice integration, unit tests
 
 ### Phase 29: Loop Mechanics
 **Goal**: The SPU loop-flag bits in each ADPCM block header drive loop-start address auto-latching, filter state snapshots and restoration at loop boundaries, one-shot termination, and the ENDX status bit
