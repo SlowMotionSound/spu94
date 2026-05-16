@@ -1,11 +1,11 @@
 # Roadmap: SPU-94
 
-**Updated:** 2026-05-13
+**Updated:** 2026-05-16
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
 
 ## Milestones
 
-- 🚧 **v1.7 DAW Plugin Port** -- Phases 21-26 + conditional 27 (planning, see `milestones/v1.7-ROADMAP.md`)
+- ✅ **v1.7 DAW Plugin Port** -- Phases 21-26 (shipped 2026-05-16, tag `v1.7`)
 - ✅ **v1.6 User Programmable Waypoints** -- Phases 18-20 (shipped 2026-05-10, tag `v1.6`)
 - ✅ **v1.5 Preset Interpolation Engine** -- Phases 16-17 (shipped 2026-05-06, tag `v1.5`)
 - ✅ **v1.4 Preset System** -- Phases 13-15 (shipped 2026-05-02, tag `v1.4`)
@@ -25,7 +25,6 @@
 | 24. State & Automation Surface | v1.7 | 2/2 | Complete    | 2026-05-12 |
 | 25. Buses & Validator Gates | v1.7 | 2/2 | Complete | 2026-05-13 |
 | 26. Packaging & Beta UAT | v1.7 | 2/2 | Complete    | 2026-05-13 |
-| 27. Code Signing | v1.7 | 0/? | Conditional | -- |
 | 18. User Slots Core | v1.6 | 1/1 | Complete | 2026-05-10 |
 | 19. Waypoint GUI | v1.6 | 2/2 | Complete | 2026-05-10 |
 | 20. User Slot Persistence | v1.6 | 1/1 | Complete | 2026-05-10 |
@@ -36,48 +35,23 @@
 | 5-9 | v1.2 | 12/12 | Complete | 2026-04-30 |
 | 1-4 | v1.1 | 10/10 | Complete | 2026-04-27 |
 
-## v1.7 DAW Plugin Port (🚧)
-
-Full milestone roadmap: `milestones/v1.7-ROADMAP.md`. Requirements: `milestones/v1.7-REQUIREMENTS.md`.
-
-### Phase 21: Build Skeleton & CI Matrix
-Expand JUCE FORMATS, integrate clap-juce-extensions, rename src/standalone/ → src/plugin/ with WavLoader gated by wrapperType, establish 3-OS CI matrix building all 11 user-facing binaries.
-
-### Phase 22: SRC & Latency Reporting
-Integrate libsamplerate Sinc Medium bidirectionally, prepareToPlay-allocated, 44.1 kHz fast-path, measured group delay reported via setLatencySamples.
-
-### Phase 23: Float↔int16 Boundary
-Truncate conversion (no dither) with sat_s16 saturation semantics; input gain default and existing limiter preserved. Input Gain repositioned outside the int16 boundary as a pre-clamp float multiply with +24 dB drive ceiling (D-01/D-02); engine register pinned at unity on the plugin path (D-03).
-
-**Plans:** 2 plans
-- [x] 23-01-PLAN.md — Lift float<->int16 boundary into BoundaryConverter module (refactor, zero audible change; PLUG-17/18/21)
-- [x] 23-02-PLAN.md — Reposition Input Gain pre-clamp with +24 dB drive range; pin engine register at unity on plugin path (PLUG-19/20)
-
-### Phase 24: State & Automation Surface
-Binary-wrapped .spu94 state round-trip, locale-independent; 9 host-automatable AudioProcessorParameters routed through the existing atomic bridge.
-
-**Plans:** 2 plans
-- [x] 24-01-PLAN.md — StateSerializer binary container + getStateInformation/setStateInformation (PLUG-22..27)
-- [x] 24-02-PLAN.md — 9 AudioParameterFloat registrations + GUI gesture rewiring (PLUG-28..31)
-
-### Phase 25: Buses & Validator Gates
-mono/mono + mono/stereo + stereo/stereo declared; pluginval/auval/lv2lint/VST3-validator wired into CI as required gates.
-
-**Plans:** 2 plans
-- [x] 25-01-PLAN.md — Bus layout declaration + mono I/O handling + unit tests (PLUG-32..36)
-- [x] 25-02-PLAN.md — Promote pluginval to strictness-7 + add auval/lv2lint/VST3 validator CI gates (PLUG-37..42)
-
-### Phase 26: Packaging & Beta UAT
-Per-OS installers (.pkg/.dmg / Inno Setup / tarball+install.sh), beta README with cache-reset + unsigned-binary instructions, fixed-size plugin window.
-
-**Plans:** 2 plans
-- [x] 26-01-PLAN.md — Fixed-size plugin window + Beta README with cache-reset and unsigned-binary instructions (PLUG-46..48)
-- [x] 26-02-PLAN.md — Per-OS packaging scripts + tag-triggered GitHub Release workflow (PLUG-43..45)
-
-### Phase 27: Code Signing (conditional)
-Triggered only if beta install friction is reported. Developer ID + notarytool on macOS, code-signing cert on Windows.
-
 ## Previous Milestone Archives
+
+<details>
+<summary>v1.7 DAW Plugin Port (Phases 21-26) -- SHIPPED 2026-05-16</summary>
+
+Multi-format DAW plugin (VST3 + AU + LV2 + CLAP) on Linux + macOS + Windows. Bidirectional SRC, float↔int16 boundary, binary state persistence, 9 host-automatable parameters, bus layout whitelist, pluginval strictness-7 CI gates, per-OS packaging, tag-triggered GitHub Release. 6 phases, 10 plans, 45/51 requirements.
+
+- [x] Phase 21: Build Skeleton & CI Matrix (1/1 plans) -- completed 2026-05-11
+- [x] Phase 22: SRC & Latency Reporting (1/1 plans) -- completed 2026-05-11
+- [x] Phase 23: Float↔int16 Boundary (2/2 plans) -- completed 2026-05-12
+- [x] Phase 24: State & Automation Surface (2/2 plans) -- completed 2026-05-12
+- [x] Phase 25: Buses & Validator Gates (2/2 plans) -- completed 2026-05-13
+- [x] Phase 26: Packaging & Beta UAT (2/2 plans) -- completed 2026-05-13
+
+Full details: `milestones/v1.7-ROADMAP.md`, `milestones/v1.7-REQUIREMENTS.md`, `milestones/v1.7-MILESTONE-AUDIT.md`
+
+</details>
 
 <details>
 <summary>v1.6 User Programmable Waypoints (Phases 18-20) -- SHIPPED 2026-05-10</summary>
@@ -162,4 +136,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-13 -- Phase 26 planned*
+*Last updated: 2026-05-16 -- v1.7 shipped*

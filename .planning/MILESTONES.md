@@ -267,3 +267,49 @@ A single morph knob between Sony's 9 PS1 factory presets, replacing the archived
 **Archived to:** `.planning/milestones/v1.6-ROADMAP.md`, `.planning/milestones/v1.6-REQUIREMENTS.md`, `.planning/milestones/v1.6-user-waypoints-HANDOFF.json`, `.planning/milestones/v1.6-phases/`
 
 ---
+
+## v1.7 DAW Plugin Port (Shipped: 2026-05-16)
+
+**Phases completed:** 6 phases, 10 plans (Phases 21-26)
+**Tag:** `v1.7`
+**Requirements:** 45/51 satisfied; 6 partial (accepted as tech debt); 2 deferred (PLUG-52/53 conditional)
+
+**What shipped:**
+
+SPU-94 packaged as a multi-format DAW plugin (VST3 + AU + LV2 + CLAP) on Linux, macOS, and Windows. The bit-faithful C core stays untouched — sample-rate conversion (libsamplerate Sinc Medium, bidirectional) and bit-depth conversion (truncation, no dither) live entirely in the plugin wrapper. 9 host-automatable parameters exposed for DAW automation. Binary state persistence via a locale-independent container format. Fixed-size plugin window reusing the standalone GUI. Per-OS installer packages (macOS .pkg/.dmg, Windows Inno Setup, Linux tarball+install.sh). Tag-triggered GitHub Release workflow. pluginval strictness-7 on VST3/AU as hard CI gates. Post-beta refinements: PS1-faithful single-counter voice path on the ADPCM bus, Fast/Slow morph speed toggle, Gaussian interpolation defaults on.
+
+**Key accomplishments:**
+
+1. 11 user-facing plugin binaries across 3 OSes (4 Linux + 4 macOS + 3 Windows), all built and validated in a single GitHub Actions matrix on every push to main
+2. Bidirectional libsamplerate SRC wrapper with impulse-measured group-delay latency reporting via `setLatencySamples()` — 44.1 kHz fast-path bypasses SRC entirely
+3. Binary state container (SPU9 magic + version + body) with locale-independent IEEE 754 float appendix; round-trip preserves all 9 params + full engine state
+4. 9 host-automatable `AudioParameterFloat` instances routed through atomic-scalar bridge (no APVTS) with frozen parameter IDs (versionHint=1)
+5. Bus layout whitelist (mono→mono, mono→stereo, stereo→stereo) with stack-scratch mono summing and CLAP mono feature tag
+6. Per-OS packaging: macOS .pkg + .dmg, Windows Inno Setup, Linux tarball + install.sh; tag-triggered release CI with artifact upload
+
+**Key decisions:**
+
+- libsamplerate Sinc Medium (BSD-2) for SRC — industry standard, transparent on HF
+- Truncation at float→int16 boundary (no dither) — period-faithful per North Star
+- RegisterBridge atomic-scalar pattern (not APVTS) — lightweight, RT-safe, no JUCE coupling in the bridge
+- State format: binary envelope over existing .spu94 text body + 6-float appendix — future-version rejection via version byte
+- LV2 dropped on Windows (no major Windows DAW scans LV2)
+- Standalone reframed as internal dev testbed, not user deliverable
+- Code signing deferred — testers click through Gatekeeper/SmartScreen; reactive only
+- Single-counter voice path on ADPCM bus — matches real PS1 SPU hardware architecture (one pitch counter, bits 12+ = sample index, bits 4-11 = Gaussian index)
+- Gaussian interpolation defaults ON — PS1 has no Gauss bypass in hardware
+- Fast/Slow morph speed: Fast 0–0.5s, Slow 0.5–8s — slow range creates evolving feedback textures
+
+**Known gaps (accepted as tech debt):**
+
+- PLUG-42: auval, lv2lint, and VST3 SDK validator steps have `continue-on-error: true` (pluginval on VST3/AU is the hard gate)
+- PLUG-37/41: CLAP excluded from pluginval validation (pluginval hangs on CLAP — upstream limitation)
+- PLUG-38/39/40: Soft-gated validators (run but don't fail CI on error)
+- State restore race: `setValueNotifyingHost` in filePresetReady block (low practical impact — fires once per preset load)
+- Plugin unit tests compile but are not invoked in CI (ctest not called in plugins.yml)
+
+Known deferred items at close: 6 (see STATE.md Deferred Items)
+
+**Archived to:** `.planning/milestones/v1.7-ROADMAP.md`, `.planning/milestones/v1.7-REQUIREMENTS.md`, `.planning/milestones/v1.7-MILESTONE-AUDIT.md`
+
+---

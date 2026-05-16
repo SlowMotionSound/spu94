@@ -16,30 +16,13 @@
 
 **Shipped:** v1.6 — User Programmable Waypoints (2026-05-10, tag `v1.6`). 8 user-programmable waypoint slots at midpoint positions between Sony's 9 anchors, turning the morph dial into a user-customisable 17-position continuum. Per-tick EDIT/EXPORT/LOAD action stack on MorphPanel, SAVE/REVERT edit flow, `.spu94` preset persistence with byte-identical back-compat for pre-feature files. Engine state mirroring overhaul. 3 phases, 4 plans, 17/17 requirements verified.
 
-**Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`, `v1.5`, `v1.6`.
+**Shipped:** v1.7 — DAW Plugin Port (2026-05-16, tag `v1.7`). Multi-format DAW plugin (VST3 + AU + LV2 + CLAP) across Linux, macOS, Windows. Bidirectional libsamplerate SRC, float↔int16 truncation boundary, binary state persistence, 9 host-automatable parameters, bus layout whitelist, pluginval strictness-7 CI gate, per-OS installer packages, tag-triggered GitHub Release. Post-beta: PS1-faithful single-counter voice path, Fast/Slow morph speed, Gauss defaults on. 6 phases, 10 plans, 45/51 requirements satisfied (6 accepted as tech debt).
 
-## Current Milestone: v1.7 DAW Plugin Port
+**Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`, `v1.5`, `v1.6`, `v1.7`.
 
-**Goal:** Package SPU-94 as a multi-format DAW plugin (VST3 + AU + LV2 + CLAP) on Linux + macOS + Windows so beta testers can run it in their DAWs at any project sample rate and bit depth — feeding back waypoint presets that will inform future musical-range curation. The bit-faithful C core is unchanged; all SR/BD conversion happens in a real-time wrapper layer around it.
+## Current State
 
-**Target features:**
-- VST3, AU, LV2, CLAP plugin builds (AU on macOS only; LV2 dropped on Windows — 11 unique binaries across the 3-OS × format matrix)
-- Linux + macOS + Windows build matrix with per-OS toolchains and CI
-- Real-time sample-rate conversion in the plugin wrapper (host any-rate ↔ 44.1k core)
-- Real-time bit-depth conversion (host float32 ↔ int16 core)
-- DAW project state persistence (registers + user slots + mixer + toggles + morph position round-trip via `getStateInformation` / `setStateInformation`)
-- DAW parameter surface for automation (morph position + key musical controls; exact set defined during requirements)
-- Multi-instance behavior verified (each instance independent state)
-- Plugin validators pass (pluginval, `auval`, `lv2lint`, VST3 SDK validator)
-- Beta-tester distribution via GitHub releases (per-OS / per-format artifacts)
-- Manual UAT (User Acceptance Testing) on a DAW matrix to be picked during the packaging-and-testing phase — research assumed Reaper / Ableton Live / Logic / FL Studio but the canonical list is deferred
-
-**Hard constraint:** The C core (`libspu94`) MUST stay bit-faithful and unmodified. SR/BD compatibility is a wrapper concern only — verified by golden regression. Standalone build target is retained as an internal dev/test tool but is no longer a user deliverable from v1.7 onward — the plugin is the v1.7 product (hardware remains the long-term destination, M5).
-
-**Out of scope for v1.7:**
-- Beta-tester preset return-loop mechanism (how their `.spu94` files reach the maintainer) — settled separately by whatever channel is already in use
-- Custom plugin UI redesign — current standalone GUI is reused for the plugin window
-- Code signing / notarization for public distribution — testers can override on Mac/Windows; revisit if install friction is reported
+v1.7 shipped. SPU-94 is now a fully functional multi-format DAW plugin distributed to beta testers on all 3 platforms. No active milestone — next direction to be determined.
 
 ## What This Is
 
@@ -167,14 +150,14 @@ Tech stack realities at v1.0 close: plain C99 core (zero heap in hot path verifi
 | Send/return mixer architecture | Three-bus design (dry, patina/ADPCM, reverb) with independent faders summed at a master mixer, followed by DAC model on/off. Avoids cascading wet/dry phase-alignment problems. Two independent reverb sends (dry send + patina send) let user control what feeds the reverb. Six controls: input gain, dry fader, patina fader, dry reverb send, patina reverb send, reverb fader, plus DAC toggle. | Pending — Phase 7 implementation |
 | ADPCM position may become movable in future | User wants flexibility to place ADPCM encode/decode at different points in the signal chain (e.g. after reverb instead of before). Not building now, but avoid designs that hardwire ADPCM position. | Future — don't paint ourselves into a corner |
 | Preset interpolation engine replaces macro control approach | v1.5/v1.6 macro engine (gang clamping, Spread/Sweep/Rotate, safety constraints, Sync/Free snap) proved too complex — interlocking constraints fought each other, GUI exposed complexity rather than taming it. Interpolation between Sony's known-good presets eliminates clamping by construction. | ✓ Good — design confirmed 2026-05-05; v1.5 shipped on this design; archived code recoverable on `archive/v1.5-v1.6-macro-approach` branch |
-| Bit-faithful C core untouchable through the DAW plugin port | DAW hosts deliver audio at any sample rate and bit depth. SR/BD compatibility is a wrapper concern only — float→int16 in / SRC to 44.1k / core untouched / SRC back / int16→float out. Same architectural principle as the standalone WAV loader, just real-time. | Pending — v1.7 (DAW Plugin Port) |
-| v1.7 SRC library: libsamplerate Sinc Medium (BSD-2) | Industry-default for music; transparent on HF; license compatible with deferred MIT/Apache pick; used by Audacity and Ardour. | Pending — v1.7 |
-| v1.7 dither at float→int16: truncate (no dither) | Period-faithful per North Star — SPU never dithered its input; dither is a modern courtesy original hardware lacked. | Pending — v1.7 |
-| v1.7 binary count: 11 (LV2 dropped on Windows) | No major Windows DAW scans LV2 by default; drop cost is zero, validation surface shrinks. | Pending — v1.7 |
-| v1.7 channel buses: mono→mono, mono→stereo, stereo→stereo | Engine always operates stereo internally; mono input duplicated into both L+R reverb inputs. Sidechain/surround/Atmos rejected. | Pending — v1.7 |
-| v1.7 standalone reframed as internal testbed | Plugin is the v1.7 user product; standalone remains as fast-iteration dev tool that also serves the eventual hardware port (M5). | Pending — v1.7 |
-| v1.7 9 host-automatable parameters | Input Gain, ADPCM Send, Dry Send, Morph Position, Morph Speed, Morph Grit, Dry Level, ADPCM Level, Reverb Level. Curated set sits over existing atomic-scalar bridge (not APVTS). | Pending — v1.7 |
-| v1.7 code signing deferred for beta | Testers click through Gatekeeper / SmartScreen; revisit reactively only if install friction reported. | Pending — v1.7 |
+| Bit-faithful C core untouchable through the DAW plugin port | DAW hosts deliver audio at any sample rate and bit depth. SR/BD compatibility is a wrapper concern only — float→int16 in / SRC to 44.1k / core untouched / SRC back / int16→float out. Same architectural principle as the standalone WAV loader, just real-time. | ✓ Good — v1.7 shipped; C core untouched throughout |
+| v1.7 SRC library: libsamplerate Sinc Medium (BSD-2) | Industry-default for music; transparent on HF; license compatible with deferred MIT/Apache pick; used by Audacity and Ardour. | ✓ Good — v1.7 |
+| v1.7 dither at float→int16: truncate (no dither) | Period-faithful per North Star — SPU never dithered its input; dither is a modern courtesy original hardware lacked. | ✓ Good — v1.7 |
+| v1.7 binary count: 11 (LV2 dropped on Windows) | No major Windows DAW scans LV2 by default; drop cost is zero, validation surface shrinks. | ✓ Good — v1.7 |
+| v1.7 channel buses: mono→mono, mono→stereo, stereo→stereo | Engine always operates stereo internally; mono input duplicated into both L+R reverb inputs. Sidechain/surround/Atmos rejected. | ✓ Good — v1.7 |
+| v1.7 standalone reframed as internal testbed | Plugin is the v1.7 user product; standalone remains as fast-iteration dev tool that also serves the eventual hardware port (M5). | ✓ Good — v1.7 |
+| v1.7 9 host-automatable parameters | Input Gain, ADPCM Send, Dry Send, Morph Position, Morph Speed, Morph Grit, Dry Level, ADPCM Level, Reverb Level. Curated set sits over existing atomic-scalar bridge (not APVTS). | ✓ Good — v1.7 |
+| v1.7 code signing deferred for beta | Testers click through Gatekeeper / SmartScreen; revisit reactively only if install friction reported. | ✓ Good — no friction reported |
 
 ## Evolution
 
@@ -194,4 +177,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-13 — Phase 26 (Packaging & Beta UAT) complete.*
+*Last updated: 2026-05-16 after v1.7 milestone*
