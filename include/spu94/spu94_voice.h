@@ -16,6 +16,7 @@
 #ifndef SPU94_VOICE_H
 #define SPU94_VOICE_H
 
+#include <spu94/spu94.h>
 #include <spu94/spu94_adpcm.h>
 #include <spu94/spu94_adsr.h>
 #include <spu94/spu94_spu_ram.h>
@@ -92,6 +93,74 @@ uint8_t spu94_voice_get_endx(const spu94_voice_t *v);
 void spu94_voice_tick(spu94_voice_t *v,
                       const uint8_t *voice_ram, uint32_t voice_ram_size,
                       int16_t *out_l, int16_t *out_r);
+
+/* -----------------------------------------------------------------------
+ * Phase 30: 24-Voice Mixer (MIX-01 through MIX-06)
+ *
+ * spu94_voice_mixer_t: caller-allocated struct holding all 24 voice states,
+ * a dedicated 512 KB voice RAM buffer, pending KON/KOFF bitmasks (C8),
+ * Master Volume L/R (MIX-03), and EON (reverb-on) flags per voice (MIX-02).
+ *
+ * Pending KON/KOFF semantics (C8/MIX-04): writes latch into pending bitmasks,
+ * applied at START of next tick. KON wins over same-tick KOFF.
+ *
+ * S1: "Accumulate in int32 before sat_s16 — see mixer tick in spu94_process.c"
+ * MIX-06: "eon_flags gates reverb send per voice; does not affect dry accumulator"
+ * ----------------------------------------------------------------------- */
+
+/* spu94_voice_mixer_t: approx 533 KB (24 voices * ~120B + 512KB voice_ram +
+ * pending_config[24] * ~120B + control fields). */
+typedef struct {
+    spu94_voice_t voices[24];          /* VOICE-06: 24 isolated per-voice structs */
+    uint8_t       voice_ram[SPU94_SPU_RAM_BYTES]; /* C6: separate from reverb work_buf */
+    spu94_voice_t pending_config[24];  /* C8: config staged at key_on, applied at tick start */
+    uint32_t      pending_kon;         /* C8/MIX-04: bitmask, applied at next tick start */
+    uint32_t      pending_koff;        /* C8/MIX-04: bitmask, applied at next tick start */
+    uint32_t      eon_flags;           /* MIX-02: bit N set = voice N sends to reverb */
+    int16_t       master_vol_l;        /* MIX-03: Q15, applied after voice sum */
+    int16_t       master_vol_r;        /* MIX-03: Q15, applied after voice sum */
+    uint8_t       enabled;             /* gate: 0 = voice engine bypassed entirely */
+} spu94_voice_mixer_t;
+
+/* Initialize mixer: zero all 24 voices, clear pending masks, clear eon_flags,
+ * zero master volume, set enabled=0. */
+void spu94_voice_mixer_init(spu94_voice_mixer_t *m);
+
+/* Key on a voice: validate voice_idx (0..23), set pending_kon bit.
+ * Does NOT touch voice state yet (C8/MIX-04). Takes start_addr, pitch,
+ * vol_l, vol_r, reverb_on flag, and optional ADSR config.
+ * Returns SPU94_INVALID_ARG if voice_idx out of range. */
+spu94_result_t spu94_voice_mixer_key_on(spu94_voice_mixer_t *m, int voice_idx,
+    uint32_t start_addr, uint16_t pitch, int16_t vol_l, int16_t vol_r,
+    int reverb_on, const spu94_adsr_state_t *adsr_cfg);
+
+/* Key off a voice: validate voice_idx (0..23), set pending_koff bit.
+ * Does NOT enter release yet (C8/MIX-04).
+ * Returns SPU94_INVALID_ARG if voice_idx out of range. */
+spu94_result_t spu94_voice_mixer_key_off(spu94_voice_mixer_t *m, int voice_idx);
+
+/* Set or clear the reverb-on bit in eon_flags for a given voice.
+ * This is a control-rate parameter; mid-tick changes are acceptable.
+ * Returns SPU94_INVALID_ARG if voice_idx out of range. */
+spu94_result_t spu94_voice_mixer_set_eon(spu94_voice_mixer_t *m, int voice_idx,
+    int enabled);
+
+/* Load pre-encoded ADPCM blocks into mixer->voice_ram at given byte offset.
+ * Validates addr + source_size <= SPU94_SPU_RAM_BYTES.
+ * Returns SPU94_INVALID_ARG on bounds violation or NULL source. */
+spu94_result_t spu94_voice_mixer_load_sample(spu94_voice_mixer_t *m,
+    uint32_t addr, const uint8_t *source, uint32_t source_size);
+
+/* Tick the mixer: apply pending KON/KOFF, run all 24 voices, accumulate
+ * dry sum (int32) and reverb-send sum (int32), saturate to int16, apply
+ * master volume. Outputs dry L/R and reverb-send L/R.
+ * RT-safe: no heap, no locks, no syscalls. */
+void spu94_voice_mixer_tick(spu94_voice_mixer_t *m,
+    int16_t *dry_l, int16_t *dry_r,
+    int16_t *rev_l, int16_t *rev_r);
+
+/* Accessor: get pointer to the file-scope mixer instance (for Phase 31). */
+spu94_voice_mixer_t *spu94_get_voice_mixer(void);
 
 #ifdef __cplusplus
 }

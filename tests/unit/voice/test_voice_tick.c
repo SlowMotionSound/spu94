@@ -627,6 +627,131 @@ void test_endx_cleared_by_key_on(void) {
 }
 
 /* ---------------------------------------------------------------
+ * Phase 30: Mixer API Tests (MIX-01 through MIX-06)
+ * --------------------------------------------------------------- */
+
+/* We use a file-scope static mixer because the struct is ~533 KB
+ * (too large for the stack in some environments). */
+static spu94_voice_mixer_t s_test_mixer;
+
+/* Test: mixer init zeroes all voices and control fields */
+void test_mixer_init_zeroes_all(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+
+    /* All 24 voices should be inactive */
+    for (int i = 0; i < 24; i++) {
+        TEST_ASSERT_EQUAL_UINT8(0, s_test_mixer.voices[i].active);
+    }
+    /* Pending masks should be zero */
+    TEST_ASSERT_EQUAL_UINT32(0, s_test_mixer.pending_kon);
+    TEST_ASSERT_EQUAL_UINT32(0, s_test_mixer.pending_koff);
+    /* EON flags should be zero */
+    TEST_ASSERT_EQUAL_UINT32(0, s_test_mixer.eon_flags);
+    /* Master volume should be zero */
+    TEST_ASSERT_EQUAL_INT16(0, s_test_mixer.master_vol_l);
+    TEST_ASSERT_EQUAL_INT16(0, s_test_mixer.master_vol_r);
+    /* Disabled by default */
+    TEST_ASSERT_EQUAL_UINT8(0, s_test_mixer.enabled);
+}
+
+/* Test: key_on sets pending_kon bit (C8/MIX-04) */
+void test_mixer_key_on_sets_pending(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+
+    spu94_result_t rc = spu94_voice_mixer_key_on(&s_test_mixer, 5,
+        0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    TEST_ASSERT_EQUAL(SPU94_OK, rc);
+    /* Bit 5 should be set in pending_kon */
+    TEST_ASSERT_TRUE(s_test_mixer.pending_kon & (1u << 5));
+    /* Voice should NOT be active yet (C8: deferred to next tick) */
+    TEST_ASSERT_EQUAL_UINT8(0, s_test_mixer.voices[5].active);
+}
+
+/* Test: key_off sets pending_koff bit (C8/MIX-04) */
+void test_mixer_key_off_sets_pending(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+
+    spu94_result_t rc = spu94_voice_mixer_key_off(&s_test_mixer, 3);
+
+    TEST_ASSERT_EQUAL(SPU94_OK, rc);
+    /* Bit 3 should be set in pending_koff */
+    TEST_ASSERT_TRUE(s_test_mixer.pending_koff & (1u << 3));
+}
+
+/* Test: KON wins over KOFF on same voice (C8) */
+void test_mixer_key_on_wins_over_koff(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+
+    /* Set koff first */
+    spu94_voice_mixer_key_off(&s_test_mixer, 7);
+    TEST_ASSERT_TRUE(s_test_mixer.pending_koff & (1u << 7));
+
+    /* Then key_on same voice — koff bit must clear */
+    spu94_voice_mixer_key_on(&s_test_mixer, 7,
+        0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    TEST_ASSERT_TRUE(s_test_mixer.pending_kon & (1u << 7));
+    TEST_ASSERT_FALSE(s_test_mixer.pending_koff & (1u << 7));
+}
+
+/* Test: set_eon sets and clears eon_flags bit (MIX-02) */
+void test_mixer_eon_set_and_clear(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+
+    /* Set EON for voice 7 */
+    spu94_result_t rc = spu94_voice_mixer_set_eon(&s_test_mixer, 7, 1);
+    TEST_ASSERT_EQUAL(SPU94_OK, rc);
+    TEST_ASSERT_TRUE(s_test_mixer.eon_flags & (1u << 7));
+
+    /* Clear EON for voice 7 */
+    rc = spu94_voice_mixer_set_eon(&s_test_mixer, 7, 0);
+    TEST_ASSERT_EQUAL(SPU94_OK, rc);
+    TEST_ASSERT_FALSE(s_test_mixer.eon_flags & (1u << 7));
+}
+
+/* Test: load_sample bounds check (T-30-01) */
+void test_mixer_load_sample_bounds(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+
+    uint8_t data[16];
+    memset(data, 0xAB, sizeof(data));
+
+    /* Load at addr=0, size=16: should succeed */
+    spu94_result_t rc = spu94_voice_mixer_load_sample(&s_test_mixer, 0, data, 16);
+    TEST_ASSERT_EQUAL(SPU94_OK, rc);
+    /* Verify data was written */
+    TEST_ASSERT_EQUAL_UINT8(0xAB, s_test_mixer.voice_ram[0]);
+
+    /* Load at addr=SPU94_SPU_RAM_BYTES: should fail (T-30-01) */
+    rc = spu94_voice_mixer_load_sample(&s_test_mixer, SPU94_SPU_RAM_BYTES, data, 1);
+    TEST_ASSERT_EQUAL(SPU94_INVALID_ARG, rc);
+
+    /* Load that would overflow: addr + size > SPU94_SPU_RAM_BYTES */
+    rc = spu94_voice_mixer_load_sample(&s_test_mixer,
+        SPU94_SPU_RAM_BYTES - 8, data, 16);
+    TEST_ASSERT_EQUAL(SPU94_INVALID_ARG, rc);
+
+    /* NULL source should fail */
+    rc = spu94_voice_mixer_load_sample(&s_test_mixer, 0, NULL, 16);
+    TEST_ASSERT_EQUAL(SPU94_INVALID_ARG, rc);
+}
+
+/* Test: out-of-range voice_idx returns SPU94_INVALID_ARG (T-30-02) */
+void test_mixer_invalid_voice_idx(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+
+    TEST_ASSERT_EQUAL(SPU94_INVALID_ARG,
+        spu94_voice_mixer_key_on(&s_test_mixer, 24, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL));
+    TEST_ASSERT_EQUAL(SPU94_INVALID_ARG,
+        spu94_voice_mixer_key_on(&s_test_mixer, -1, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL));
+    TEST_ASSERT_EQUAL(SPU94_INVALID_ARG,
+        spu94_voice_mixer_key_off(&s_test_mixer, 24));
+    TEST_ASSERT_EQUAL(SPU94_INVALID_ARG,
+        spu94_voice_mixer_set_eon(&s_test_mixer, 24, 1));
+}
+
+/* ---------------------------------------------------------------
  * Main
  * --------------------------------------------------------------- */
 int main(void) {
@@ -652,5 +777,13 @@ int main(void) {
     RUN_TEST(test_loop_end_repeat_jumps_to_loop_addr);
     RUN_TEST(test_one_shot_silences_voice);
     RUN_TEST(test_endx_cleared_by_key_on);
+    /* Phase 30 Mixer API tests */
+    RUN_TEST(test_mixer_init_zeroes_all);
+    RUN_TEST(test_mixer_key_on_sets_pending);
+    RUN_TEST(test_mixer_key_off_sets_pending);
+    RUN_TEST(test_mixer_key_on_wins_over_koff);
+    RUN_TEST(test_mixer_eon_set_and_clear);
+    RUN_TEST(test_mixer_load_sample_bounds);
+    RUN_TEST(test_mixer_invalid_voice_idx);
     return UNITY_END();
 }

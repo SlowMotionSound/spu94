@@ -249,3 +249,180 @@ uint8_t spu94_voice_get_endx(const spu94_voice_t *v) {
     if (v == NULL) return 0;
     return v->endx;
 }
+
+/* -----------------------------------------------------------------------
+ * Phase 30: 24-Voice Mixer API (MIX-01 through MIX-06)
+ *
+ * C8: pending_kon/pending_koff semantics — writes latch into bitmasks,
+ *     applied at START of next tick. KON wins over same-tick KOFF.
+ * S1: "Accumulate in int32 before sat_s16 — see mixer tick in spu94_process.c"
+ * MIX-06: "eon_flags gates reverb send per voice; does not affect dry accumulator"
+ *
+ * RT-safety: no malloc, no locks, no syscalls. All functions operate on
+ * caller-provided struct pointers with no side effects.
+ * ----------------------------------------------------------------------- */
+
+void spu94_voice_mixer_init(spu94_voice_mixer_t *m) {
+    if (m == NULL) return;
+    memset(m, 0, sizeof(*m));
+    for (int i = 0; i < 24; i++) {
+        spu94_voice_init(&m->voices[i]);
+        spu94_voice_init(&m->pending_config[i]);
+    }
+    /* pending_kon, pending_koff, eon_flags, master_vol_l/r, enabled
+     * are all zero from memset — correct defaults. */
+}
+
+spu94_result_t spu94_voice_mixer_key_on(spu94_voice_mixer_t *m, int voice_idx,
+    uint32_t start_addr, uint16_t pitch, int16_t vol_l, int16_t vol_r,
+    int reverb_on, const spu94_adsr_state_t *adsr_cfg)
+{
+    /* T-30-02: validate voice_idx 0..23 */
+    if (m == NULL || voice_idx < 0 || voice_idx >= 24)
+        return SPU94_INVALID_ARG;
+
+    /* C8/MIX-04: prepare pending config — build a voice_t from args.
+     * This is staged here and applied at the START of the next tick. */
+    spu94_voice_t *cfg = &m->pending_config[voice_idx];
+    spu94_voice_init(cfg);
+    cfg->sample_start_addr = start_addr;
+    cfg->pitch = pitch;
+    cfg->vol_l = vol_l;
+    cfg->vol_r = vol_r;
+
+    /* Stage ADSR config if provided */
+    if (adsr_cfg != NULL) {
+        cfg->adsr = *adsr_cfg;
+    }
+
+    /* Store reverb_on intent: we use a convention where the pending_config's
+     * endx field (unused for pending) carries the reverb_on flag. The tick
+     * application logic reads this to update eon_flags. */
+    cfg->endx = (uint8_t)(reverb_on ? 1 : 0);
+
+    /* C8: KON wins over same-tick KOFF */
+    m->pending_kon |= (1u << voice_idx);
+    m->pending_koff &= ~(1u << voice_idx);
+
+    return SPU94_OK;
+}
+
+spu94_result_t spu94_voice_mixer_key_off(spu94_voice_mixer_t *m, int voice_idx)
+{
+    /* T-30-02: validate voice_idx 0..23 */
+    if (m == NULL || voice_idx < 0 || voice_idx >= 24)
+        return SPU94_INVALID_ARG;
+
+    /* C8/MIX-04: set pending_koff bit. Note: if KON was already pending for
+     * this voice, it still wins when tick processes (KON checked first). But
+     * per the API contract, setting KOFF after KON without a tick in between
+     * is handled by the tick logic — not here. We just set the bit. */
+    m->pending_koff |= (1u << voice_idx);
+
+    return SPU94_OK;
+}
+
+spu94_result_t spu94_voice_mixer_set_eon(spu94_voice_mixer_t *m, int voice_idx,
+    int enabled)
+{
+    /* T-30-02: validate voice_idx 0..23 */
+    if (m == NULL || voice_idx < 0 || voice_idx >= 24)
+        return SPU94_INVALID_ARG;
+
+    /* MIX-02: set or clear eon_flags bit immediately (control-rate param) */
+    if (enabled) {
+        m->eon_flags |= (1u << voice_idx);
+    } else {
+        m->eon_flags &= ~(1u << voice_idx);
+    }
+
+    return SPU94_OK;
+}
+
+spu94_result_t spu94_voice_mixer_load_sample(spu94_voice_mixer_t *m,
+    uint32_t addr, const uint8_t *source, uint32_t source_size)
+{
+    /* T-30-01: validate bounds */
+    if (m == NULL || source == NULL)
+        return SPU94_INVALID_ARG;
+    if (addr + source_size > SPU94_SPU_RAM_BYTES)
+        return SPU94_INVALID_ARG;
+    if (source_size == 0)
+        return SPU94_OK;  /* nothing to copy */
+
+    memcpy(m->voice_ram + addr, source, source_size);
+    return SPU94_OK;
+}
+
+void spu94_voice_mixer_tick(spu94_voice_mixer_t *m,
+    int16_t *dry_l, int16_t *dry_r,
+    int16_t *rev_l, int16_t *rev_r)
+{
+    if (m == NULL || dry_l == NULL || dry_r == NULL ||
+        rev_l == NULL || rev_r == NULL) {
+        if (dry_l) *dry_l = 0;
+        if (dry_r) *dry_r = 0;
+        if (rev_l) *rev_l = 0;
+        if (rev_r) *rev_r = 0;
+        return;
+    }
+
+    /* C8 / MIX-04: Apply pending KON/KOFF at start of tick, before any voice runs */
+    for (int v = 0; v < 24; v++) {
+        uint32_t bit = (uint32_t)1u << v;
+        if (m->pending_kon & bit) {
+            /* Copy pending_config into live voice, then key_on the live struct.
+             * The pending_config carries staged ADSR and parameters. */
+            spu94_voice_t *cfg = &m->pending_config[v];
+            m->voices[v] = *cfg;
+
+            /* Update eon_flags from pending config's reverb_on intent
+             * (stored in pending_config.endx as a temporary flag) */
+            if (cfg->endx) {
+                m->eon_flags |= bit;
+            } else {
+                m->eon_flags &= ~bit;
+            }
+
+            /* Actually key on the live voice with the staged params */
+            spu94_voice_key_on(&m->voices[v],
+                cfg->sample_start_addr, cfg->pitch,
+                cfg->vol_l, cfg->vol_r);
+        }
+        if (m->pending_koff & bit) {
+            spu94_voice_key_off(&m->voices[v]);
+        }
+    }
+    m->pending_kon  = 0;
+    m->pending_koff = 0;
+
+    /* S1 / MIX-01: accumulate 24 voices in int32 to prevent overflow */
+    int32_t dry_sum_l = 0, dry_sum_r = 0;
+    int32_t rev_sum_l = 0, rev_sum_r = 0;
+    for (int v = 0; v < 24; v++) {
+        if (!m->voices[v].active) continue;
+        int16_t vl = 0, vr = 0;
+        spu94_voice_tick(&m->voices[v],
+                         m->voice_ram, SPU94_SPU_RAM_BYTES,
+                         &vl, &vr);
+        dry_sum_l += vl;
+        dry_sum_r += vr;
+        /* MIX-02: reverb send only for EON-flagged voices */
+        if (m->eon_flags & ((uint32_t)1u << v)) {
+            rev_sum_l += vl;
+            rev_sum_r += vr;
+        }
+    }
+
+    /* MIX-01: saturate accumulated sum to int16 */
+    int16_t mixed_l = sat_s16(dry_sum_l);
+    int16_t mixed_r = sat_s16(dry_sum_r);
+
+    /* MIX-03: apply Master Volume L/R after summation */
+    *dry_l = q15_mul_truncate(mixed_l, m->master_vol_l);
+    *dry_r = q15_mul_truncate(mixed_r, m->master_vol_r);
+
+    /* MIX-05: saturate reverb send sum */
+    *rev_l = sat_s16(rev_sum_l);
+    *rev_r = sat_s16(rev_sum_r);
+}
