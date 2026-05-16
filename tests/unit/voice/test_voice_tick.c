@@ -36,19 +36,18 @@ static void make_test_block(uint8_t block[16]) {
     /* Remaining bytes are zero (produces samples 0 after the impulse fades) */
 }
 
-/* Helper: make a multi-block sample that doesn't end immediately */
+/* Helper: make a multi-block sample that doesn't end immediately.
+ * No loop flags are set — the voice runs until it exceeds RAM bounds.
+ * Phase 29 note: flag=0x00 on all blocks so loop-end logic is NOT triggered;
+ * use dedicated loop test helpers for loop-flag behavior. */
 static void make_long_sample(uint8_t *ram, uint32_t num_blocks) {
     for (uint32_t b = 0; b < num_blocks; b++) {
         memset(ram + b * 16, 0, 16);
         ram[b * 16 + 0] = 0x00; /* shift=0, filter=0 */
+        ram[b * 16 + 1] = 0x00; /* no flags (continuous playback) */
         /* Non-silent: put some data in each block */
         ram[b * 16 + 2] = 0x37; /* nibbles +7, +3 */
         ram[b * 16 + 3] = 0x25; /* nibbles +5, +2 */
-        if (b == num_blocks - 1) {
-            ram[b * 16 + 1] = 0x01; /* END flag on last block */
-        } else {
-            ram[b * 16 + 1] = 0x00; /* no flags */
-        }
     }
 }
 
@@ -415,8 +414,8 @@ void test_adsr_full_pipeline_attack_sustain_release(void) {
             ram[b * 16 + j] = 0x77;
         }
     }
-    /* Last block: end flag */
-    ram[(num_blocks - 1) * 16 + 1] = 0x01;
+    /* No end flag — sample runs until RAM bounds check.
+     * Phase 29: setting 0x01 would trigger one-shot termination. */
 
     /* Configure voice */
     v.adsr.enabled = 1;

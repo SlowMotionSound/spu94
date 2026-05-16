@@ -22,6 +22,7 @@
 #include <spu94/spu94_gauss.h>
 #include <spu94/spu94_q15.h>
 #include <spu94/spu94_adpcm.h>
+#include <spu94/spu94_vag.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -114,13 +115,55 @@ void spu94_voice_tick(spu94_voice_t *v,
             *out_r = 0;
             return;
         }
-        /* C1: decode-only from RAM, no encode call */
-        spu94_adpcm_decode_block(&v->adpcm_state,
+        /* LOOP-01: capture flag byte from block header byte 1 (C4) */
+        uint8_t flag_byte = spu94_adpcm_decode_block(&v->adpcm_state,
             voice_ram + v->current_addr, v->decode_buf);
         /* M6: advance address by 16 bytes (one ADPCM block) */
         v->current_addr += SPU94_ADPCM_BLOCK_BYTES;
         v->decode_buf_pos = 0;
         v->has_block = 1;
+
+        /* --- Loop flag dispatch (LOOP-01 through LOOP-05; C4, C5, S3) --- */
+
+        /* LOOP-02 / C4: Loop-Start — latch loop_addr and snapshot filter state.
+         * The address latched is the address of THIS block (before the += 16 advance).
+         * The filter state snapshot is taken AFTER decode — this is the state that will
+         * be valid at the start of the next time the loop returns here (C5). */
+        if (flag_byte & SPU94_VAG_FLAG_LOOP_START) {
+            v->loop_addr = v->current_addr - SPU94_ADPCM_BLOCK_BYTES;
+            v->loop_adpcm_old   = v->adpcm_state.old;
+            v->loop_adpcm_older = v->adpcm_state.older;
+        }
+
+        /* LOOP-01 / C4: Loop-End — set ENDX regardless of repeat bit */
+        if (flag_byte & SPU94_VAG_FLAG_END) {
+            v->endx = 1;  /* LOOP-05: ENDX set; cleared only by KON (M3) */
+
+            if (flag_byte & SPU94_VAG_FLAG_LOOP_REPEAT) {
+                /* LOOP-03 / C5: Jump to loop_addr and restore filter state snapshot.
+                 * S3: do NOT clear the Gaussian ring — let old samples be pushed out
+                 * naturally over the next 3 ticks as new samples are decoded. */
+                v->current_addr = v->loop_addr;
+                v->adpcm_state.old   = v->loop_adpcm_old;
+                v->adpcm_state.older = v->loop_adpcm_older;
+                /* Force decode of the loop-start block on the next decode trigger.
+                 * has_block is still 1 for the current block; current_addr now points
+                 * to the loop-start block which will be decoded when has_block goes 0. */
+            } else {
+                /* LOOP-04: One-shot — loop end without repeat; mute the voice.
+                 * C4: the voice stays nominally "active" at zero level; it does NOT
+                 * get deactivated here unless ADSR is disabled. */
+                if (v->adsr.enabled) {
+                    /* Drive ADSR to terminal state — same as a completed release.
+                     * The existing ADSR_OFF check in Step 2.5 will zero output and
+                     * clear active on the next tick. */
+                    v->adsr.phase = ADSR_OFF;
+                    v->adsr.level = 0;
+                } else {
+                    v->active = 0;
+                }
+            }
+        }
     }
 
     /* ---------------------------------------------------------------
