@@ -29,10 +29,69 @@
 #include <spu94/spu94_gauss.h>
 #include <spu94/spu94_dac_fir.h>
 #include <spu94/spu94_dac_noise.h>
+#include <spu94/spu94_voice.h>
+#include <spu94/spu94_spu_ram.h>
 #include "spu94_fir_internal.h"
 #include "spu94_state_internal.h"
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
+
+/* -----------------------------------------------------------------------
+ * v1.8 Voice Engine scaffolding — Phase 27 (voice 0 only).
+ *
+ * voice_ram is a SEPARATE 512 KB buffer from state->work_buf (C6 / RAM-01).
+ * Phase 30 will migrate to a caller-allocated spu94_voice_mixer_t.
+ *
+ * Pitfall prevention:
+ *   C6: s_voice_ram is distinct from state->work_buf (reverb). No aliasing.
+ *   VOICE-06: 24 isolated spu94_voice_t structs with per-voice gauss_ring.
+ * ----------------------------------------------------------------------- */
+static uint8_t      s_voice_ram[SPU94_SPU_RAM_BYTES];
+static spu94_voice_t s_voices[24];   /* VOICE-06: 24 isolated structs */
+static uint8_t      s_voice_engine_init = 0;
+static uint8_t      s_voice_engine_enabled = 0;
+
+/* Forward declarations for Phase 27 voice engine scaffolding functions.
+ * Not yet in spu94.h — Phase 31 will formalize the public API. */
+spu94_result_t spu94_voice_load_sample_raw(
+    uint32_t addr, const uint8_t *source, uint32_t source_size);
+spu94_result_t spu94_voice0_key_on(
+    uint32_t start_addr, uint16_t pitch, int16_t vol_l, int16_t vol_r);
+spu94_result_t spu94_voice0_key_off(void);
+
+/* Load pre-encoded ADPCM block sequence into voice RAM.
+ * addr: byte offset within s_voice_ram. source_size: bytes to copy.
+ * Returns SPU94_OK or SPU94_INVALID_ARG if addr+source_size > SPU94_SPU_RAM_BYTES. */
+spu94_result_t spu94_voice_load_sample_raw(
+    uint32_t addr, const uint8_t *source, uint32_t source_size)
+{
+    if (!source || addr + source_size > SPU94_SPU_RAM_BYTES)
+        return SPU94_INVALID_ARG;
+    memcpy(s_voice_ram + addr, source, source_size);
+    return SPU94_OK;
+}
+
+/* Key on voice 0 with the given start address, pitch, and volume.
+ * Enables the voice engine if not already enabled. */
+spu94_result_t spu94_voice0_key_on(
+    uint32_t start_addr, uint16_t pitch, int16_t vol_l, int16_t vol_r)
+{
+    if (!s_voice_engine_init) {
+        for (int i = 0; i < 24; i++) spu94_voice_init(&s_voices[i]);
+        s_voice_engine_init = 1;
+    }
+    spu94_voice_key_on(&s_voices[0], start_addr, pitch, vol_l, vol_r);
+    s_voice_engine_enabled = 1;
+    return SPU94_OK;
+}
+
+/* Key off voice 0. */
+spu94_result_t spu94_voice0_key_off(void)
+{
+    spu94_voice_key_off(&s_voices[0]);
+    return SPU94_OK;
+}
 
 void spu94_process(spu94_state *state,
                    const int16_t *L_in, const int16_t *R_in,
@@ -51,11 +110,34 @@ void spu94_process(spu94_state *state,
         l = q15_mul_truncate(l, state->input_gain);
         r = q15_mul_truncate(r, state->input_gain);
 
+        /* Patina bus samples — declared before voice engine block so both
+         * the voice engine injection AND the ADPCM coloration path can write
+         * them. Default = passthrough (input signal). */
+        int16_t patina_l = l, patina_r = r;
+
+        /* v1.8 Voice Engine: voice 0 only (Phase 27 scaffolding).
+         * Voice output is mixed into the patina bus slot — this routes it
+         * through the existing reverb send path without touching dry bus logic.
+         * Phase 30 will replace this with the full 24-voice mixer and separate
+         * send buses.
+         *
+         * MIX-06 note: when adpcm_enabled=1 AND s_voice_engine_enabled=1, the
+         * coloration path below will overwrite patina_l/patina_r with its own
+         * output. Voice engine and coloration bus are independent features —
+         * only one should be active at a time in Phase 27. Phase 30 resolves
+         * coexistence with a proper mixer topology. */
+        if (s_voice_engine_enabled) {
+            int16_t vl = 0, vr = 0;
+            spu94_voice_tick(&s_voices[0], s_voice_ram, SPU94_SPU_RAM_BYTES,
+                             &vl, &vr);
+            patina_l = vl;
+            patina_r = vr;
+        }
+
         /* 2. ADPCM voice path (PS1-faithful single-counter architecture):
          *    One pitch counter drives both sample decimation and Gaussian
          *    interpolation — bits 12+ = sample advancement, bits 4-11 =
          *    Gaussian table index. Matches real SPU voice hardware. */
-        int16_t patina_l, patina_r;
         if (state->adpcm_enabled) {
             const uint16_t pitch = state->voice_pitch ? state->voice_pitch : 0x1000;
 
@@ -145,7 +227,10 @@ void spu94_process(spu94_state *state,
                 patina_l = state->gauss_ring_l[prev];
                 patina_r = state->gauss_ring_r[prev];
             }
-        } else {
+        } else if (!s_voice_engine_enabled) {
+            /* Passthrough: no coloration, no voice engine.
+             * When voice engine IS enabled, patina_l/r already hold
+             * voice output from the block above. Don't overwrite. */
             patina_l = l;
             patina_r = r;
         }
