@@ -23,7 +23,7 @@
 - [x] **Phase 27: Single Voice Playback** - One voice plays an ADPCM sample with pitch control and Gaussian interpolation, backed by dedicated 512 KB voice RAM
 - [x] **Phase 28: ADSR Envelope** - PS1-faithful exponential ADSR wired into the voice tick; silence follows KOFF
 - [x] **Phase 29: Loop Mechanics** - SPU loop flags (start/end/repeat) drive auto-latching loop address and one-shot termination
-- [ ] **Phase 30: 24-Voice Polyphony + Mixer** - All 24 voice slots run simultaneously; their output sums into the dry output and optional reverb send
+- [x] **Phase 30: 24-Voice Polyphony + Mixer** - All 24 voice slots run simultaneously; their output sums into the dry output and optional reverb send
 - [ ] **Phase 31: Standalone Testbed UX** - Load WAV, trigger voice, control pitch, and play notes from MIDI in the standalone GUI
 
 ## Phase Details
@@ -79,7 +79,7 @@
   5. The voice engine output and the ADPCM coloration bus (existing patina path) are independently active — both can be heard simultaneously without mutual cancellation
 **Plans**: 1 plan
 Plans:
-- [ ] 30-PLAN.md — spu94_voice_mixer_t, 24-voice mixer loop, pending KON/KOFF, EON routing, Master Volume, MIX-06 coexistence
+- [x] 30-PLAN.md — spu94_voice_mixer_t, 24-voice mixer loop, pending KON/KOFF, EON routing, Master Volume, MIX-06 coexistence
 
 ### Phase 31: Standalone Testbed UX
 **Goal**: The standalone application can load a WAV into voice RAM, trigger a voice with pitch control from a GUI button, receive MIDI note-on/off from the host to trigger voices, and remains the sole v1.8 development surface (no plugin UX changes)
@@ -90,7 +90,10 @@ Plans:
   2. A GUI trigger button (with a pitch knob or field) keys on a voice and produces audible output through the mixer; the same button or a stop control silences it
   3. Playing a MIDI note into the standalone (from any MIDI device the OS sees) keys on a voice at the correct pitch and releases it on note-off
   4. The DAW plugin GUI and behavior are unchanged from v1.7 — all v1.8 work lives in the standalone path only
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 31-01-PLAN.md — Voice engine processor API: sample load, trigger/stop, MIDI dispatch
+- [ ] 31-02-PLAN.md — Voice panel GUI: Load Sample, pitch knob, Trigger/Stop, status label
 **UI hint**: yes
 
 ## Progress
@@ -100,8 +103,8 @@ Plans:
 | 27. Single Voice Playback | v1.8 | 1/1 | Complete | 2026-05-16 |
 | 28. ADSR Envelope | v1.8 | 1/1 | Complete | 2026-05-16 |
 | 29. Loop Mechanics | v1.8 | 1/1 | Complete | 2026-05-16 |
-| 30. 24-Voice Polyphony + Mixer | v1.8 | 0/? | Not started | - |
-| 31. Standalone Testbed UX | v1.8 | 0/? | Not started | - |
+| 30. 24-Voice Polyphony + Mixer | v1.8 | 1/1 | Complete | 2026-05-16 |
+| 31. Standalone Testbed UX | v1.8 | 0/2 | Not started | - |
 | 21. Build Skeleton & CI Matrix | v1.7 | 1/1 | Complete | 2026-05-11 |
 | 22. SRC & Latency Reporting | v1.7 | 1/1 | Complete | 2026-05-11 |
 | 23. Float↔int16 Boundary | v1.7 | 2/2 | Complete   | 2026-05-12 |
