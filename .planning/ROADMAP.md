@@ -29,71 +29,97 @@
 ## Phase Details
 
 ### Phase 27: Single Voice Playback
+
 **Goal**: One voice can load an ADPCM sample into dedicated voice RAM and play it back with pitch control and 4-tap Gaussian interpolation
 **Depends on**: Phase 26 (v1.7 C core baseline); existing ADPCM decoder and Gaussian interpolation modules
 **Requirements**: VOICE-01, VOICE-02, VOICE-03, VOICE-04, VOICE-05, VOICE-06, RAM-01, RAM-02, RAM-03, RAM-04
 **Success Criteria** (what must be TRUE):
+
   1. A WAV file loaded into the standalone encodes to ADPCM and stores in the dedicated 512 KB voice RAM buffer without touching the reverb work buffer
   2. Calling voice key-on produces audible audio output at the specified pitch, using the existing 4-tap Gaussian interpolator
   3. Setting the pitch register to 0x3FFF clamps to hardware maximum; values above are rejected, not wrapped
   4. Per-voice L/R volume registers scale the output amplitude across the 0–32767 unsigned range
   5. Loading a sample whose encoded size would exceed the 512 KB voice RAM boundary is rejected with a bounds error
+
 **Plans**: 1 plan
+
   - [x] 27-01-PLAN.md — Voice struct, tick, sample loader, voice 0 wired into spu94_process
+
 **UI hint**: yes
 
 ### Phase 28: ADSR Envelope
+
 **Goal**: Each voice follows the PS1 ADSR envelope shape — counter-accumulate stepping, fake exponential attack above 0x6000, real exponential decay, sustain plateau, and release to silence on KOFF
 **Depends on**: Phase 27 (single voice playback; voice tick loop exists)
 **Requirements**: ADSR-01, ADSR-02, ADSR-03, ADSR-04, ADSR-05, ADSR-06
 **Success Criteria** (what must be TRUE):
+
   1. A voice key-on triggers Attack phase: amplitude rises using counter-accumulate stepping, with step size halving once the level crosses 0x6000
   2. After Attack, amplitude decays exponentially (each step proportional to current level) toward the sustain target of `(N+1) * 0x800`
   3. The voice holds at the sustain level until KOFF is received
   4. KOFF triggers Release: amplitude decays to zero then the voice goes silent (no audio output, no CPU cost after silence)
   5. With ADSR envelope disabled (registers zeroed), voice output is constant-amplitude — confirming the envelope module is additive and isolated
+
 **Plans**: 1 plan
+
   - [x] 28-PLAN.md — ADSR state struct, counter-accumulate engine, voice integration, unit tests
 
 ### Phase 29: Loop Mechanics
+
 **Goal**: The SPU loop-flag bits in each ADPCM block header drive loop-start address auto-latching, filter state snapshots and restoration at loop boundaries, one-shot termination, and the ENDX status bit
 **Depends on**: Phase 27 (voice struct, ADPCM block reader, playback cursor)
 **Requirements**: LOOP-01, LOOP-02, LOOP-03, LOOP-04, LOOP-05
 **Success Criteria** (what must be TRUE):
+
   1. Playing an ADPCM stream with the loop-start flag set on a block auto-latches that block's address; playback jumps back to that address when loop-end is reached
   2. After a loop jump, the ADPCM filter state (predictor history) matches the snapshot taken when the loop-start block was first passed — no filter-seam click on repeated loops
   3. A sample flagged as loop-end without the repeat bit plays to the end of that block then stops; the ENDX bit for that voice reads set
   4. Removing the loop-start flag from a sample causes playback to run off the end of voice RAM and stop, confirming the latch is flag-driven not address-hardwired
+
 **Plans**: 1 plan
+
   - [x] 29-PLAN.md — Loop fields in spu94_voice_t, flag-byte dispatch in spu94_voice_tick, ENDX API, four unit tests
 
 ### Phase 30: 24-Voice Polyphony + Mixer
+
 **Goal**: All 24 voice slots run in parallel per sample tick; their outputs accumulate into a 32-bit sum, saturate to int16 at the master output, scale by Master Volume L/R, and split into a dry path (to DAC) and a per-voice-gated reverb send (to the existing reverb engine input)
 **Depends on**: Phase 27 (single voice tick), Phase 28 (ADSR), Phase 29 (loop)
 **Requirements**: MIX-01, MIX-02, MIX-03, MIX-04, MIX-05, MIX-06
 **Success Criteria** (what must be TRUE):
+
   1. Key-on on multiple voices simultaneously produces polyphonic output; the mix saturates cleanly at int16 rather than wrapping
   2. Setting a voice's EON flag routes its contribution to the reverb send; clearing EON keeps it dry-only — the reverb engine receives only the flagged voices
   3. Master Volume L/R attenuate the final mixed output proportionally
   4. KON applies at the start of the next sample tick, not the current one; two voices keyed on in the same block start at the same sample offset
   5. The voice engine output and the ADPCM coloration bus (existing patina path) are independently active — both can be heard simultaneously without mutual cancellation
+
 **Plans**: 1 plan
 Plans:
+
 - [x] 30-PLAN.md — spu94_voice_mixer_t, 24-voice mixer loop, pending KON/KOFF, EON routing, Master Volume, MIX-06 coexistence
 
 ### Phase 31: Standalone Testbed UX
+
 **Goal**: The standalone application can load a WAV into voice RAM, trigger a voice with pitch control from a GUI button, receive MIDI note-on/off from the host to trigger voices, and remains the sole v1.8 development surface (no plugin UX changes)
 **Depends on**: Phase 27 (voice RAM + load), Phase 28 (ADSR), Phase 29 (loop), Phase 30 (mixer)
 **Requirements**: TEST-01, TEST-02, TEST-03, TEST-04
 **Success Criteria** (what must be TRUE):
+
   1. Dragging or loading a WAV file in the standalone encodes it to ADPCM and confirms the load with a file name and byte count displayed in the GUI
   2. A GUI trigger button (with a pitch knob or field) keys on a voice and produces audible output through the mixer; the same button or a stop control silences it
   3. Playing a MIDI note into the standalone (from any MIDI device the OS sees) keys on a voice at the correct pitch and releases it on note-off
   4. The DAW plugin GUI and behavior are unchanged from v1.7 — all v1.8 work lives in the standalone path only
+
 **Plans**: 2 plans
 Plans:
+**Wave 1**
+
 - [ ] 31-01-PLAN.md — Voice engine processor API: sample load, trigger/stop, MIDI dispatch
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 31-02-PLAN.md — Voice panel GUI: Load Sample, pitch knob, Trigger/Stop, status label
+
 **UI hint**: yes
 
 ## Progress

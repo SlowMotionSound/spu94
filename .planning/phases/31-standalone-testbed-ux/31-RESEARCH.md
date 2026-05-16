@@ -343,7 +343,7 @@ stopVoiceButton.onClick = [this]()
 | A3 | Changing `acceptsMidi()` to conditionally return true does not affect pluginval/auval validation for non-standalone formats | Pitfall 3 | If it does, we'd need to keep it false and find another MIDI route; very low risk since plugin formats compile with NEEDS_MIDI_INPUT FALSE |
 | A4 | Round-robin voice allocation is sufficient for the testbed (no voice stealing needed) | Pattern 3 | If the user expects voice stealing, notes will cut off early; acceptable for a testbed, refinable later |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **ADSR defaults for MIDI-triggered voices**
    - What we know: `spu94_voice_mixer_key_on` accepts an optional `spu94_adsr_state_t*` config. Passing NULL gives no ADSR (constant amplitude, immediate silence on KOFF).
