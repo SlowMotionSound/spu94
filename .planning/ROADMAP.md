@@ -20,8 +20,8 @@
 
 ### v1.8 PSX Voice Engine
 
-- [ ] **Phase 27: Single Voice Playback** - One voice plays an ADPCM sample with pitch control and Gaussian interpolation, backed by dedicated 512 KB voice RAM
-- [ ] **Phase 28: ADSR Envelope** - PS1-faithful exponential ADSR wired into the voice tick; silence follows KOFF
+- [x] **Phase 27: Single Voice Playback** - One voice plays an ADPCM sample with pitch control and Gaussian interpolation, backed by dedicated 512 KB voice RAM
+- [x] **Phase 28: ADSR Envelope** - PS1-faithful exponential ADSR wired into the voice tick; silence follows KOFF
 - [ ] **Phase 29: Loop Mechanics** - SPU loop flags (start/end/repeat) drive auto-latching loop address and one-shot termination
 - [ ] **Phase 30: 24-Voice Polyphony + Mixer** - All 24 voice slots run simultaneously; their output sums into the dry output and optional reverb send
 - [ ] **Phase 31: Standalone Testbed UX** - Load WAV, trigger voice, control pitch, and play notes from MIDI in the standalone GUI
@@ -39,7 +39,7 @@
   4. Per-voice L/R volume registers scale the output amplitude across the 0–32767 unsigned range
   5. Loading a sample whose encoded size would exceed the 512 KB voice RAM boundary is rejected with a bounds error
 **Plans**: 1 plan
-  - [ ] 27-01-PLAN.md — Voice struct, tick, sample loader, voice 0 wired into spu94_process
+  - [x] 27-01-PLAN.md — Voice struct, tick, sample loader, voice 0 wired into spu94_process
 **UI hint**: yes
 
 ### Phase 28: ADSR Envelope
@@ -53,7 +53,7 @@
   4. KOFF triggers Release: amplitude decays to zero then the voice goes silent (no audio output, no CPU cost after silence)
   5. With ADSR envelope disabled (registers zeroed), voice output is constant-amplitude — confirming the envelope module is additive and isolated
 **Plans**: 1 plan
-  - [ ] 28-PLAN.md — ADSR state struct, counter-accumulate engine, voice integration, unit tests
+  - [x] 28-PLAN.md — ADSR state struct, counter-accumulate engine, voice integration, unit tests
 
 ### Phase 29: Loop Mechanics
 **Goal**: The SPU loop-flag bits in each ADPCM block header drive loop-start address auto-latching, filter state snapshots and restoration at loop boundaries, one-shot termination, and the ENDX status bit
@@ -94,8 +94,8 @@
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 27. Single Voice Playback | v1.8 | 0/1 | Planned | - |
-| 28. ADSR Envelope | v1.8 | 0/? | Not started | - |
+| 27. Single Voice Playback | v1.8 | 1/1 | Complete | 2026-05-16 |
+| 28. ADSR Envelope | v1.8 | 1/1 | Complete | 2026-05-16 |
 | 29. Loop Mechanics | v1.8 | 0/? | Not started | - |
 | 30. 24-Voice Polyphony + Mixer | v1.8 | 0/? | Not started | - |
 | 31. Standalone Testbed UX | v1.8 | 0/? | Not started | - |
@@ -216,4 +216,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-16 -- v1.8 PSX Voice Engine roadmap created*
+*Last updated: 2026-05-16 -- Phase 28 ADSR Envelope complete*

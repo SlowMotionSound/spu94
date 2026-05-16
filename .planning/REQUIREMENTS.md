@@ -38,12 +38,12 @@ Build a spec-faithful PS1 SPU voice playback engine (24-voice ADPCM sampler), st
 
 ### ADSR Envelope
 
-- [ ] **ADSR-01**: Four-phase envelope (Attack, Decay, Sustain, Release) per voice
-- [ ] **ADSR-02**: Counter-accumulate stepping mechanism (bit-15 trigger, not fixed-rate ramp)
-- [ ] **ADSR-03**: Fake exponential attack (step halves above 0x6000)
-- [ ] **ADSR-04**: Real exponential decay (step proportional to current level: step * level / 0x8000)
-- [ ] **ADSR-05**: Sustain target is (N+1) * 0x800, not zero
-- [ ] **ADSR-06**: Release phase triggered by KOFF, decays to zero then silences voice
+- [x] **ADSR-01**: Four-phase envelope (Attack, Decay, Sustain, Release) per voice
+- [x] **ADSR-02**: Counter-accumulate stepping mechanism (bit-15 trigger, not fixed-rate ramp)
+- [x] **ADSR-03**: Fake exponential attack (step halves above 0x6000)
+- [x] **ADSR-04**: Real exponential decay (step proportional to current level: step * level / 0x8000)
+- [x] **ADSR-05**: Sustain target is (N+1) * 0x800, not zero
+- [x] **ADSR-06**: Release phase triggered by KOFF, decays to zero then silences voice
 
 ### Loop Mechanics
 
@@ -90,12 +90,12 @@ Build a spec-faithful PS1 SPU voice playback engine (24-voice ADPCM sampler), st
 | RAM-02 | Phase 27 | Single Voice Playback | Pending |
 | RAM-03 | Phase 27 | Single Voice Playback | Pending |
 | RAM-04 | Phase 27 | Single Voice Playback | Pending |
-| ADSR-01 | Phase 28 | ADSR Envelope | Pending |
-| ADSR-02 | Phase 28 | ADSR Envelope | Pending |
-| ADSR-03 | Phase 28 | ADSR Envelope | Pending |
-| ADSR-04 | Phase 28 | ADSR Envelope | Pending |
-| ADSR-05 | Phase 28 | ADSR Envelope | Pending |
-| ADSR-06 | Phase 28 | ADSR Envelope | Pending |
+| ADSR-01 | Phase 28 | ADSR Envelope | Complete |
+| ADSR-02 | Phase 28 | ADSR Envelope | Complete |
+| ADSR-03 | Phase 28 | ADSR Envelope | Complete |
+| ADSR-04 | Phase 28 | ADSR Envelope | Complete |
+| ADSR-05 | Phase 28 | ADSR Envelope | Complete |
+| ADSR-06 | Phase 28 | ADSR Envelope | Complete |
 | LOOP-01 | Phase 29 | Loop Mechanics | Pending |
 | LOOP-02 | Phase 29 | Loop Mechanics | Pending |
 | LOOP-03 | Phase 29 | Loop Mechanics | Pending |
