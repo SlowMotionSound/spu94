@@ -38,59 +38,27 @@
 #include <string.h>
 
 /* -----------------------------------------------------------------------
- * v1.8 Voice Engine scaffolding — Phase 27 (voice 0 only).
+ * v1.8 Voice Engine — Phase 30: Full 24-voice mixer (MIX-01 through MIX-06).
  *
- * voice_ram is a SEPARATE 512 KB buffer from state->work_buf (C6 / RAM-01).
- * Phase 30 will migrate to a caller-allocated spu94_voice_mixer_t.
+ * Replaces the Phase 27 scaffolding with spu94_voice_mixer_t.
  *
  * Pitfall prevention:
- *   C6: s_voice_ram is distinct from state->work_buf (reverb). No aliasing.
+ *   C6: voice_ram inside s_mixer is distinct from state->work_buf (reverb).
+ *   C8: pending_kon/pending_koff applied at tick start, not mid-tick.
+ *   S1: int32 accumulation, sat_s16 only at output.
+ *   MIX-06: voice dry + ADPCM coloration coexist (summed into patina slot).
  *   VOICE-06: 24 isolated spu94_voice_t structs with per-voice gauss_ring.
  * ----------------------------------------------------------------------- */
-static uint8_t      s_voice_ram[SPU94_SPU_RAM_BYTES];
-static spu94_voice_t s_voices[24];   /* VOICE-06: 24 isolated structs */
-static uint8_t      s_voice_engine_init = 0;
-static uint8_t      s_voice_engine_enabled = 0;
+static spu94_voice_mixer_t s_mixer;
+static uint8_t             s_mixer_init = 0;
 
-/* Forward declarations for Phase 27 voice engine scaffolding functions.
- * Not yet in spu94.h — Phase 31 will formalize the public API. */
-spu94_result_t spu94_voice_load_sample_raw(
-    uint32_t addr, const uint8_t *source, uint32_t source_size);
-spu94_result_t spu94_voice0_key_on(
-    uint32_t start_addr, uint16_t pitch, int16_t vol_l, int16_t vol_r);
-spu94_result_t spu94_voice0_key_off(void);
-
-/* Load pre-encoded ADPCM block sequence into voice RAM.
- * addr: byte offset within s_voice_ram. source_size: bytes to copy.
- * Returns SPU94_OK or SPU94_INVALID_ARG if addr+source_size > SPU94_SPU_RAM_BYTES. */
-spu94_result_t spu94_voice_load_sample_raw(
-    uint32_t addr, const uint8_t *source, uint32_t source_size)
-{
-    if (!source || addr + source_size > SPU94_SPU_RAM_BYTES)
-        return SPU94_INVALID_ARG;
-    memcpy(s_voice_ram + addr, source, source_size);
-    return SPU94_OK;
-}
-
-/* Key on voice 0 with the given start address, pitch, and volume.
- * Enables the voice engine if not already enabled. */
-spu94_result_t spu94_voice0_key_on(
-    uint32_t start_addr, uint16_t pitch, int16_t vol_l, int16_t vol_r)
-{
-    if (!s_voice_engine_init) {
-        for (int i = 0; i < 24; i++) spu94_voice_init(&s_voices[i]);
-        s_voice_engine_init = 1;
+/* Phase 31 accessor: expose the file-scope mixer for external use. */
+spu94_voice_mixer_t *spu94_get_voice_mixer(void) {
+    if (!s_mixer_init) {
+        spu94_voice_mixer_init(&s_mixer);
+        s_mixer_init = 1;
     }
-    spu94_voice_key_on(&s_voices[0], start_addr, pitch, vol_l, vol_r);
-    s_voice_engine_enabled = 1;
-    return SPU94_OK;
-}
-
-/* Key off voice 0. */
-spu94_result_t spu94_voice0_key_off(void)
-{
-    spu94_voice_key_off(&s_voices[0]);
-    return SPU94_OK;
+    return &s_mixer;
 }
 
 void spu94_process(spu94_state *state,
@@ -115,23 +83,22 @@ void spu94_process(spu94_state *state,
          * them. Default = passthrough (input signal). */
         int16_t patina_l = l, patina_r = r;
 
-        /* v1.8 Voice Engine: voice 0 only (Phase 27 scaffolding).
-         * Voice output is mixed into the patina bus slot — this routes it
-         * through the existing reverb send path without touching dry bus logic.
-         * Phase 30 will replace this with the full 24-voice mixer and separate
-         * send buses.
-         *
-         * MIX-06 note: when adpcm_enabled=1 AND s_voice_engine_enabled=1, the
-         * coloration path below will overwrite patina_l/patina_r with its own
-         * output. Voice engine and coloration bus are independent features —
-         * only one should be active at a time in Phase 27. Phase 30 resolves
-         * coexistence with a proper mixer topology. */
-        if (s_voice_engine_enabled) {
-            int16_t vl = 0, vr = 0;
-            spu94_voice_tick(&s_voices[0], s_voice_ram, SPU94_SPU_RAM_BYTES,
-                             &vl, &vr);
-            patina_l = vl;
-            patina_r = vr;
+        /* v1.8 Voice Engine — Phase 30: full 24-voice mixer.
+         * MIX-05: voice_dry_l/r goes into patina slot (dry DAC path).
+         * MIX-05: voice_rev_l/r feeds into send_l/r before spu94_fir_chain_step.
+         * MIX-06: voice output and ADPCM coloration coexist — both summed. */
+        int16_t voice_dry_l = 0, voice_dry_r = 0;
+        int16_t voice_rev_l = 0, voice_rev_r = 0;
+
+        if (!s_mixer_init) {
+            spu94_voice_mixer_init(&s_mixer);
+            s_mixer_init = 1;
+        }
+
+        if (s_mixer.enabled) {
+            spu94_voice_mixer_tick(&s_mixer,
+                &voice_dry_l, &voice_dry_r,
+                &voice_rev_l, &voice_rev_r);
         }
 
         /* 2. ADPCM voice path (PS1-faithful single-counter architecture):
@@ -227,13 +194,18 @@ void spu94_process(spu94_state *state,
                 patina_l = state->gauss_ring_l[prev];
                 patina_r = state->gauss_ring_r[prev];
             }
-        } else if (!s_voice_engine_enabled) {
-            /* Passthrough: no coloration, no voice engine.
-             * When voice engine IS enabled, patina_l/r already hold
-             * voice output from the block above. Don't overwrite. */
-            patina_l = l;
-            patina_r = r;
         }
+        /* When adpcm_enabled=0: patina_l/r remain as passthrough (input signal),
+         * which is the correct behavior — no coloration applied. */
+
+        /* MIX-06: Voice dry output coexists with ADPCM coloration bus.
+         * Both contribute to patina_l/r (which feeds patina_fader in master mix).
+         * This sum happens AFTER the adpcm_enabled block, so:
+         *   - When adpcm_enabled=1: coloration output + voice output both present.
+         *   - When adpcm_enabled=0: passthrough (input) + voice output present.
+         * Either way, voice output is additive, not overwriting. */
+        patina_l = sat_s16((int32_t)patina_l + (int32_t)voice_dry_l);
+        patina_r = sat_s16((int32_t)patina_r + (int32_t)voice_dry_r);
 
         /* 3. Dry bus with latency compensation (D-07, D-08) */
         int16_t dry_l = l, dry_r = r;
@@ -247,11 +219,13 @@ void spu94_process(spu94_state *state,
             dry_r = delayed_r;
         }
 
-        /* 4. Reverb sends: sum of dry and patina sends (D-01) */
+        /* 4. Reverb sends: sum of dry + patina + voice reverb sends (D-01, MIX-05) */
         int16_t send_l = sat_s16((int32_t)q15_mul_truncate(dry_l,    state->dry_send)
-                               + (int32_t)q15_mul_truncate(patina_l, state->patina_send));
+                               + (int32_t)q15_mul_truncate(patina_l, state->patina_send)
+                               + (int32_t)voice_rev_l);   /* MIX-05: voice reverb send */
         int16_t send_r = sat_s16((int32_t)q15_mul_truncate(dry_r,    state->dry_send)
-                               + (int32_t)q15_mul_truncate(patina_r, state->patina_send));
+                               + (int32_t)q15_mul_truncate(patina_r, state->patina_send)
+                               + (int32_t)voice_rev_r);   /* MIX-05: voice reverb send */
 
         /* 5. Reverb: unchanged chain internals; only the input changes */
         int16_t rev_l = 0, rev_r = 0;

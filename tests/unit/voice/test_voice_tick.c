@@ -752,6 +752,160 @@ void test_mixer_invalid_voice_idx(void) {
 }
 
 /* ---------------------------------------------------------------
+ * Phase 30 Task 2: Mixer tick integration tests
+ * --------------------------------------------------------------- */
+
+/* Test: two voices sum — combined output > single voice (MIX-01 polyphony) */
+void test_mixer_tick_two_voices_sum(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Load a known non-silent sample into voice RAM */
+    uint8_t sample[64];
+    make_long_sample(sample, 4);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+
+    /* Key on voices 0 and 1 pointing to same sample */
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* First tick applies pending KON */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+
+    /* Run more ticks to get past zero ring buffer */
+    int16_t single_max = 0;
+    int16_t dual_max = 0;
+
+    /* Now measure — key on only voice 0 and run alone */
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    for (int i = 0; i < 10; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+        if (dry_l > single_max) single_max = dry_l;
+        if ((-dry_l) > single_max) single_max = (int16_t)(-dry_l);
+    }
+
+    /* Key on both voices and measure */
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    for (int i = 0; i < 10; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+        if (dry_l > dual_max) dual_max = dry_l;
+        if ((-dry_l) > dual_max) dual_max = (int16_t)(-dry_l);
+    }
+
+    /* Dual output must be greater or equal to single (sum of two identical voices) */
+    TEST_ASSERT_TRUE(dual_max >= single_max);
+    /* And single must be non-zero for the test to be meaningful */
+    TEST_ASSERT_TRUE(single_max > 0);
+}
+
+/* Test: EON routes only flagged voices to reverb (MIX-02/MIX-05) */
+void test_mixer_eon_routes_only_flagged(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Load sample */
+    uint8_t sample[64];
+    make_long_sample(sample, 4);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+
+    /* Voice 0: EON=0 (dry only). Voice 1: EON=1 (reverb send) */
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 0, 0x1000, 0x7FFF, 0x7FFF, 1, NULL);
+
+    /* Tick to apply KON and let voices produce output */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    int found_rev_nonzero = 0;
+    int found_dry_nonzero = 0;
+    for (int i = 0; i < 10; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+        if (rev_l != 0 || rev_r != 0) found_rev_nonzero = 1;
+        if (dry_l != 0 || dry_r != 0) found_dry_nonzero = 1;
+    }
+
+    /* Both dry and reverb should be non-zero (voice 1 is EON) */
+    TEST_ASSERT_TRUE(found_dry_nonzero);
+    TEST_ASSERT_TRUE(found_rev_nonzero);
+
+    /* Now key on voice 0 with EON=0 only — reverb sum should be zero */
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    int found_rev = 0;
+    for (int i = 0; i < 10; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+        if (rev_l != 0 || rev_r != 0) found_rev = 1;
+    }
+    /* No reverb output when EON=0 for all active voices */
+    TEST_ASSERT_FALSE(found_rev);
+}
+
+/* Test: master_vol = 0 silences output (MIX-03) */
+void test_mixer_master_vol_zero_silences(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0;  /* zero master volume */
+    s_test_mixer.master_vol_r = 0;
+
+    /* Load sample */
+    uint8_t sample[64];
+    make_long_sample(sample, 4);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+
+    /* Key on a voice at full individual volume */
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* Tick — dry output should be zero due to master_vol=0 */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    for (int i = 0; i < 10; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+        TEST_ASSERT_EQUAL_INT16(0, dry_l);
+        TEST_ASSERT_EQUAL_INT16(0, dry_r);
+    }
+}
+
+/* Test: KON deferred — voice not active until next tick (C8/MIX-04) */
+void test_mixer_kon_deferred(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    uint8_t sample[64];
+    make_long_sample(sample, 4);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+
+    /* Key on voice 0 */
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* Before tick: voice should NOT be active (pending only) */
+    TEST_ASSERT_EQUAL_UINT8(0, s_test_mixer.voices[0].active);
+
+    /* After tick: voice should be active */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    TEST_ASSERT_EQUAL_UINT8(1, s_test_mixer.voices[0].active);
+}
+
+/* ---------------------------------------------------------------
  * Main
  * --------------------------------------------------------------- */
 int main(void) {
@@ -785,5 +939,10 @@ int main(void) {
     RUN_TEST(test_mixer_eon_set_and_clear);
     RUN_TEST(test_mixer_load_sample_bounds);
     RUN_TEST(test_mixer_invalid_voice_idx);
+    /* Phase 30 Task 2: Mixer tick integration tests */
+    RUN_TEST(test_mixer_tick_two_voices_sum);
+    RUN_TEST(test_mixer_eon_routes_only_flagged);
+    RUN_TEST(test_mixer_master_vol_zero_silences);
+    RUN_TEST(test_mixer_kon_deferred);
     return UNITY_END();
 }
