@@ -26,6 +26,7 @@ add_library(spu94_obj OBJECT
     spu94_dac_fir.c
     spu94_dac_fir_coef.c
     spu94_dac_noise.c
+    spu94_adsr.c
     spu94_voice.c
     spu94_sample_loader.c
 )
