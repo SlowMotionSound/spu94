@@ -78,14 +78,41 @@ Build a spec-faithful PS1 SPU voice playback engine (24-voice ADPCM sampler), st
 
 ## Traceability
 
-| Requirement | Phase | Phase Description |
-|---|---|---|
-| VOICE-01..06 | TBD | Voice playback core |
-| ADSR-01..06 | TBD | ADSR envelope |
-| LOOP-01..05 | TBD | Loop mechanics |
-| MIX-01..06 | TBD | Mixer & routing |
-| RAM-01..04 | TBD | SPU RAM model |
-| TEST-01..04 | TBD | Standalone testbed UX |
+| Requirement | Phase | Phase Description | Status |
+|---|---|---|---|
+| VOICE-01 | Phase 27 | Single Voice Playback | Pending |
+| VOICE-02 | Phase 27 | Single Voice Playback | Pending |
+| VOICE-03 | Phase 27 | Single Voice Playback | Pending |
+| VOICE-04 | Phase 27 | Single Voice Playback | Pending |
+| VOICE-05 | Phase 27 | Single Voice Playback | Pending |
+| VOICE-06 | Phase 27 | Single Voice Playback | Pending |
+| RAM-01 | Phase 27 | Single Voice Playback | Pending |
+| RAM-02 | Phase 27 | Single Voice Playback | Pending |
+| RAM-03 | Phase 27 | Single Voice Playback | Pending |
+| RAM-04 | Phase 27 | Single Voice Playback | Pending |
+| ADSR-01 | Phase 28 | ADSR Envelope | Pending |
+| ADSR-02 | Phase 28 | ADSR Envelope | Pending |
+| ADSR-03 | Phase 28 | ADSR Envelope | Pending |
+| ADSR-04 | Phase 28 | ADSR Envelope | Pending |
+| ADSR-05 | Phase 28 | ADSR Envelope | Pending |
+| ADSR-06 | Phase 28 | ADSR Envelope | Pending |
+| LOOP-01 | Phase 29 | Loop Mechanics | Pending |
+| LOOP-02 | Phase 29 | Loop Mechanics | Pending |
+| LOOP-03 | Phase 29 | Loop Mechanics | Pending |
+| LOOP-04 | Phase 29 | Loop Mechanics | Pending |
+| LOOP-05 | Phase 29 | Loop Mechanics | Pending |
+| MIX-01 | Phase 30 | 24-Voice Polyphony + Mixer | Pending |
+| MIX-02 | Phase 30 | 24-Voice Polyphony + Mixer | Pending |
+| MIX-03 | Phase 30 | 24-Voice Polyphony + Mixer | Pending |
+| MIX-04 | Phase 30 | 24-Voice Polyphony + Mixer | Pending |
+| MIX-05 | Phase 30 | 24-Voice Polyphony + Mixer | Pending |
+| MIX-06 | Phase 30 | 24-Voice Polyphony + Mixer | Pending |
+| TEST-01 | Phase 31 | Standalone Testbed UX | Pending |
+| TEST-02 | Phase 31 | Standalone Testbed UX | Pending |
+| TEST-03 | Phase 31 | Standalone Testbed UX | Pending |
+| TEST-04 | Phase 31 | Standalone Testbed UX | Pending |
+
+**Coverage: 31/31 requirements mapped. No orphans.**
 
 ## Out of Scope (v1.8)
 
@@ -103,8 +130,8 @@ Build a spec-faithful PS1 SPU voice playback engine (24-voice ADPCM sampler), st
 
 | # | Item | When |
 |---|---|---|
-| 1 | Loop seam filter state: snapshot after or before decode of loop-start block? | Phase implementing LOOP-03 |
-| 2 | 24-voice mixer saturation: confirm int32 accumulate + single final sat_s16 vs per-voice clip | Witness test against real PS1 |
-| 3 | ADSR exponential attack boundary: strictly > 0x6000 or >= 0x6000? | Phase implementing ADSR-03 |
-| 4 | KON timing: first output sample in same tick as KON or following tick? | Phase implementing MIX-04 |
-| 5 | Voice engine + coloration bus coexistence: stackable or mutually exclusive? | Architecture decision during MIX-06 |
+| 1 | Loop seam filter state: snapshot after or before decode of loop-start block? | Phase 29 |
+| 2 | 24-voice mixer saturation: confirm int32 accumulate + single final sat_s16 vs per-voice clip | Witness test during Phase 30 |
+| 3 | ADSR exponential attack boundary: strictly > 0x6000 or >= 0x6000? | Phase 28 |
+| 4 | KON timing: first output sample in same tick as KON or following tick? | Phase 30 |
+| 5 | Voice engine + coloration bus coexistence: stackable or mutually exclusive? | Architecture decision during Phase 30 (MIX-06) |
