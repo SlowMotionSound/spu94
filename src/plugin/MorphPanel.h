@@ -38,6 +38,11 @@ private:
     juce::Slider speedKnob;
     juce::Label speedLabel;
 
+    // Speed Range: Fast (0–0.5s) / Slow (0.5s–60s). Mutually exclusive.
+    juce::TextButton speedFastButton;
+    juce::TextButton speedSlowButton;
+    void setSpeedRange(int range); // 0=Fast, 1=Slow
+
     // Morph Grit: binary radio strip [Int][Fract.].
     // Coral PS1 palette differentiates from Morph Speed's mauve. The
     // selected button lights coral; the other sits dark gray.

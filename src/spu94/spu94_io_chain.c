@@ -180,8 +180,8 @@ void spu94_set_gauss_enabled(spu94_state *state, int enabled) {
             state->gauss_ring_r[j] = 0;
         }
         state->gauss_ring_pos = 0;
-        state->gauss_read_pos = 0;
-        state->gauss_counter = 0;
+        state->gauss_out_pos = 0;
+        state->voice_counter = 0;
     }
     state->gauss_enabled = enabled ? 1 : 0;
 }

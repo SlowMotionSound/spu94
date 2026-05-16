@@ -152,10 +152,10 @@ struct spu94_state {
      * 0x0800 = 22.05 kHz, 0x005C ≈ 4000 Hz. Default 0x0800. */
     uint16_t           voice_pitch;
 
-    /* Decimator: pitch counter accumulates voice_pitch per 44.1 kHz tick.
-     * When it overflows past a sample boundary, a new sample is fed to
-     * the ADPCM encoder. */
-    uint16_t           decim_counter;       /* 4.12 fixed-point accumulator */
+    /* Single voice counter (PS1-faithful): accumulates voice_pitch per
+     * 44.1 kHz tick. Bits 12+: sample index (triggers decode/ring advance).
+     * Bits 4-11: Gaussian interpolation index. Same register drives both. */
+    uint16_t           voice_counter;       /* 4.12 fixed-point accumulator */
     int16_t            decim_prev_l;        /* previous input for AA filter */
     int16_t            decim_prev_r;
 
@@ -163,19 +163,18 @@ struct spu94_state {
     uint8_t            adpcm_buf_pos;       /* 0..27 accumulation index */
     int16_t            adpcm_in_buf_l[28];
     int16_t            adpcm_in_buf_r[28];
-    int16_t            adpcm_out_buf_l[28]; /* decoded output ring */
+    int16_t            adpcm_out_buf_l[28]; /* decoded output buffer */
     int16_t            adpcm_out_buf_r[28];
     spu94_adpcm_state  adpcm_state_l;
     spu94_adpcm_state  adpcm_state_r;
 
     /* Gaussian interpolation: 4-tap FIR upsampler from voice rate to
      * 44.1 kHz. Ring buffer of last 4 decoded samples per channel.
-     * gauss_counter tracks read position with same pitch rate. */
-    uint16_t           gauss_counter;       /* 4.12 fixed-point, mirrors decim */
+     * Driven by the same voice_counter crossings — no separate state. */
     int16_t            gauss_ring_l[4];     /* [0]=oldest..[3]=newest */
     int16_t            gauss_ring_r[4];
     uint8_t            gauss_ring_pos;      /* write position in ring (0..3) */
-    uint8_t            gauss_read_pos;      /* which decoded sample we're on */
+    uint8_t            gauss_out_pos;       /* read position in decoded buf */
 
     /* -----------------------------------------------------------------
      * Phase 7 (DAC-INT / Mixer): send/return mixer state.

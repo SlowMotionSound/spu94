@@ -152,6 +152,28 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
     speedLabel.setFont(juce::FontOptions(11.0f));
     addAndMakeVisible(speedLabel);
 
+    // Speed Range: Fast / Slow toggle strip (mauve, matches speed knob).
+    auto configureSpeedRangeButton = [this](juce::TextButton& b, const char* label) {
+        b.setClickingTogglesState(true);
+        b.setRadioGroupId(0x5BED);
+        b.setButtonText(label);
+        b.setColour(juce::TextButton::buttonColourId, psxDarkGray);
+        b.setColour(juce::TextButton::buttonOnColourId, psxMauve);
+        b.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
+        b.setColour(juce::TextButton::textColourOffId, psxLightGray);
+        b.setLookAndFeel(&gritLookAndFeel);
+        addAndMakeVisible(b);
+    };
+    configureSpeedRangeButton(speedFastButton, "Fast");
+    configureSpeedRangeButton(speedSlowButton, "Slow");
+    speedFastButton.setConnectedEdges(juce::Button::ConnectedOnRight);
+    speedSlowButton.setConnectedEdges(juce::Button::ConnectedOnLeft);
+    speedFastButton.setTooltip("Morph glide 0–0.5 seconds");
+    speedSlowButton.setTooltip("Morph glide 0.5–1.5 seconds");
+    speedFastButton.onClick = [this]() { setSpeedRange(0); };
+    speedSlowButton.onClick = [this]() { setSpeedRange(1); };
+    setSpeedRange(processorRef.getMorphSpeedRange().load(std::memory_order_relaxed));
+
     // Morph Grit: binary radio strip [Int][Fract.].
     // Default Int = all reads integer, hardware-faithful, the project's
     // north-star setting. Coral PS1 palette to differentiate from the
@@ -237,6 +259,8 @@ MorphPanel::~MorphPanel()
 {
     gritIntButton.setLookAndFeel(nullptr);
     gritFractButton.setLookAndFeel(nullptr);
+    speedFastButton.setLookAndFeel(nullptr);
+    speedSlowButton.setLookAndFeel(nullptr);
 }
 
 //==============================================================================
@@ -274,6 +298,14 @@ void MorphPanel::setMorphGrit(int grit)
     p->beginChangeGesture();
     p->setValueNotifyingHost(grit >= 1 ? 1.0f : 0.0f);
     p->endChangeGesture();
+}
+
+void MorphPanel::setSpeedRange(int range)
+{
+    if (range != 0 && range != 1) range = 0;
+    speedFastButton.setToggleState(range == 0, juce::dontSendNotification);
+    speedSlowButton.setToggleState(range == 1, juce::dontSendNotification);
+    processorRef.getMorphSpeedRange().store(range, std::memory_order_relaxed);
 }
 
 //==============================================================================
@@ -421,13 +453,13 @@ void MorphPanel::resized()
     morphKnob.setBounds(startX, startY, knobSize, knobSize);
     morphLabel.setBounds(startX, startY + knobSize + 8, knobSize, labelHeight);
 
-    // Speed knob + 2-button Grit strip: paired row at the bottom of the
-    // viewport, centered horizontally with a gap between them. Each has
-    // its label below at the same baseline so the labels align.
+    // Speed knob + Fast/Slow strip + Grit strip: bottom row.
     constexpr int speedSize = 60;
+    constexpr int rangeBtnW = 44;
+    constexpr int rangeBtnH = 24;
     constexpr int gritBtnW = 60;
     constexpr int gritBtnH = 28;
-    constexpr int gritStripW = gritBtnW * 2; // buttons share edges, no inter-gap
+    constexpr int gritStripW = gritBtnW * 2;
     constexpr int controlLabelH = 14;
     constexpr int bottomMargin = 4;
     constexpr int gap = 32;
@@ -440,6 +472,13 @@ void MorphPanel::resized()
     int speedX = pairX;
     speedKnob.setBounds(speedX, rowY, speedSize, speedSize);
     speedLabel.setBounds(speedX - 20, rowY + speedSize, speedSize + 40, controlLabelH);
+
+    // Fast/Slow strip below speed knob label
+    int rangeStripW = rangeBtnW * 2;
+    int rangeX = speedX + (speedSize - rangeStripW) / 2;
+    int rangeY = rowY - rangeBtnH - 4;
+    speedFastButton.setBounds(rangeX,              rangeY, rangeBtnW, rangeBtnH);
+    speedSlowButton.setBounds(rangeX + rangeBtnW,  rangeY, rangeBtnW, rangeBtnH);
 
     // Grit strip vertically centered on the speed-knob row.
     int stripX = pairX + speedSize + gap;

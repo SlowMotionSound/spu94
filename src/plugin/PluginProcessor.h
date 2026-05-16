@@ -106,6 +106,7 @@ public:
     // --- Morph Speed: 0.0 = Instant Snap (registers latch at next tick),
     //     1.0 = Glide (full slew duration). In between scales slew duration. ---
     std::atomic<float>& getMorphSpeed() { return morphSpeed; }
+    std::atomic<int>& getMorphSpeedRange() { return morphSpeedRange; }
 
     // --- Morph Grit (binary):
     //     0 = Int (default — all integer reads, hardware-faithful, "alive")
@@ -218,7 +219,7 @@ private:
     std::atomic<bool> latencyCompEnabled{true};
 
     // DAC coloration toggles (default ON)
-    std::atomic<bool> gaussEnabled{false};
+    std::atomic<bool> gaussEnabled{true};
     std::atomic<bool> aaFilterEnabled{false};
     std::atomic<int> voicePitch{0x0800};
     std::atomic<bool> dacEnabled{true};
@@ -244,6 +245,9 @@ private:
     // Default 0.5 (mid-glide) -- the polished launch default sits between
     // hardware-faithful snap and v1.6 full glide.
     std::atomic<float> morphSpeed{0.5f};
+
+    // Morph Speed Range: 0 = Fast (0–0.5s), 1 = Slow (0.5s–60s).
+    std::atomic<int> morphSpeedRange{0};
 
     // Morph Grit (see getMorphGrit for full docs).
     // Default 0 = Int — all reads integer, PS1 hardware faithful.

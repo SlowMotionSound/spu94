@@ -481,10 +481,14 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 spu94_apply_pending_writes(engines[1]);
                 spu94_snapshot_registers(engines[1], targetRegs);
                 spu94_set_slew_targets(engines[0], targetRegs);
-                const int32_t maxDelta =
-                    spu94_is_slewing(engines[0])
-                        ? std::max(1, (int)(behavior * 22050.0f))
-                        : 1;
+                int32_t maxDelta = 1;
+                if (spu94_is_slewing(engines[0])) {
+                    const int range = morphSpeedRange.load(std::memory_order_relaxed);
+                    if (range == 0)
+                        maxDelta = std::max(1, (int)(behavior * 22050.0f));
+                    else
+                        maxDelta = std::max(1, (int)(11025.0f + behavior * 165375.0f));
+                }
                 spu94_set_slew_duration(engines[0], maxDelta);
             }
             // Sync shadows from the engine that holds the FINAL target

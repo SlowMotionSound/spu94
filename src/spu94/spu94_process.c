@@ -51,21 +51,15 @@ void spu94_process(spu94_state *state,
         l = q15_mul_truncate(l, state->input_gain);
         r = q15_mul_truncate(r, state->input_gain);
 
-        /* 2. ADPCM voice path: downsample → encode/decode → Gaussian upsample */
+        /* 2. ADPCM voice path (PS1-faithful single-counter architecture):
+         *    One pitch counter drives both sample decimation and Gaussian
+         *    interpolation — bits 12+ = sample advancement, bits 4-11 =
+         *    Gaussian table index. Matches real SPU voice hardware. */
         int16_t patina_l, patina_r;
         if (state->adpcm_enabled) {
             const uint16_t pitch = state->voice_pitch ? state->voice_pitch : 0x1000;
 
-            /* --- Decimator: feed input to ADPCM at the voice rate --- */
-            uint16_t old_counter = state->decim_counter;
-            state->decim_counter += pitch;
-            int crossed = (state->decim_counter < old_counter)
-                        || ((old_counter >> 12) != (state->decim_counter >> 12));
-
-            /* AA filter runs every tick (before decimation) to accumulate
-             * a proper average. Single-pole IIR: alpha = pitch/0x1000.
-             * At pitch 0x0800, alpha=0.5 → -3 dB at ~7 kHz.
-             * At pitch 0x0400, alpha=0.25 → -3 dB at ~3.5 kHz. */
+            /* AA filter runs every tick unconditionally */
             if (state->aa_filter_enabled) {
                 int32_t alpha = pitch;  /* Q12: 0x1000 = 1.0 */
                 state->decim_prev_l = (int16_t)(
@@ -79,12 +73,20 @@ void spu94_process(spu94_state *state,
                 state->decim_prev_r = r;
             }
 
-            if (crossed) {
-                int16_t dl = state->decim_prev_l;
-                int16_t dr = state->decim_prev_r;
+            /* Advance single pitch counter */
+            uint16_t old_counter = state->voice_counter;
+            state->voice_counter += pitch;
+            uint16_t samples_consumed =
+                (state->voice_counter >> 12) - (old_counter >> 12);
+            if (state->voice_counter < old_counter)
+                samples_consumed = 1;  /* 16-bit wrap */
+            state->voice_counter &= 0x0FFF;  /* keep fractional part only */
 
-                state->adpcm_in_buf_l[state->adpcm_buf_pos] = dl;
-                state->adpcm_in_buf_r[state->adpcm_buf_pos] = dr;
+            /* For each sample consumed: feed ADPCM + advance Gaussian ring */
+            for (uint16_t s = 0; s < samples_consumed; s++) {
+                /* Push input to ADPCM encode buffer */
+                state->adpcm_in_buf_l[state->adpcm_buf_pos] = state->decim_prev_l;
+                state->adpcm_in_buf_r[state->adpcm_buf_pos] = state->decim_prev_r;
                 state->adpcm_buf_pos++;
 
                 if (state->adpcm_buf_pos == SPU94_ADPCM_BLOCK_SAMPLES) {
@@ -101,35 +103,27 @@ void spu94_process(spu94_state *state,
                         block, state->adpcm_out_buf_r);
 
                     state->adpcm_buf_pos = 0;
+                    state->gauss_out_pos = 0;
                 }
-            } else {
-                state->decim_prev_l = l;
-                state->decim_prev_r = r;
-            }
 
-            /* --- Gaussian interpolation: upsample decoded ADPCM to 44.1 kHz --- */
-            uint16_t old_gauss = state->gauss_counter;
-            state->gauss_counter += pitch;
-            int gauss_crossed = (state->gauss_counter < old_gauss)
-                              || ((old_gauss >> 12) != (state->gauss_counter >> 12));
-
-            if (gauss_crossed) {
+                /* Push decoded sample into Gaussian ring */
                 uint8_t wp = state->gauss_ring_pos;
-                state->gauss_ring_l[wp] = state->adpcm_out_buf_l[state->gauss_read_pos];
-                state->gauss_ring_r[wp] = state->adpcm_out_buf_r[state->gauss_read_pos];
+                state->gauss_ring_l[wp] = state->adpcm_out_buf_l[state->gauss_out_pos];
+                state->gauss_ring_r[wp] = state->adpcm_out_buf_r[state->gauss_out_pos];
                 state->gauss_ring_pos = (uint8_t)((wp + 1u) & 3u);
-                state->gauss_read_pos++;
-                if (state->gauss_read_pos >= SPU94_ADPCM_BLOCK_SAMPLES)
-                    state->gauss_read_pos = 0;
+                state->gauss_out_pos++;
+                if (state->gauss_out_pos >= SPU94_ADPCM_BLOCK_SAMPLES)
+                    state->gauss_out_pos = 0;
             }
 
+            /* Gaussian interpolation: index from fractional part of same counter */
             if (state->gauss_enabled) {
-                const uint8_t gi = (uint8_t)((state->gauss_counter >> 4) & 0xFF);
+                const uint8_t gi = (uint8_t)((state->voice_counter >> 4) & 0xFF);
                 const uint8_t wp = state->gauss_ring_pos;
-                const int16_t s0 = state->gauss_ring_l[(wp + 0) & 3]; /* oldest */
-                const int16_t s1 = state->gauss_ring_l[(wp + 1) & 3]; /* older */
-                const int16_t s2 = state->gauss_ring_l[(wp + 2) & 3]; /* old */
-                const int16_t s3 = state->gauss_ring_l[(wp + 3) & 3]; /* newest */
+                const int16_t s0 = state->gauss_ring_l[(wp + 0) & 3];
+                const int16_t s1 = state->gauss_ring_l[(wp + 1) & 3];
+                const int16_t s2 = state->gauss_ring_l[(wp + 2) & 3];
+                const int16_t s3 = state->gauss_ring_l[(wp + 3) & 3];
                 int32_t gl = (int32_t)spu94_gauss_table[0x0FF - gi] * (int32_t)s0
                            + (int32_t)spu94_gauss_table[0x1FF - gi] * (int32_t)s1
                            + (int32_t)spu94_gauss_table[0x100 + gi] * (int32_t)s2
@@ -146,10 +140,10 @@ void spu94_process(spu94_state *state,
                            + (int32_t)spu94_gauss_table[0x000 + gi] * (int32_t)r3;
                 patina_r = (int16_t)(gr >> 15);
             } else {
-                patina_l = state->adpcm_out_buf_l[state->gauss_read_pos > 0
-                           ? state->gauss_read_pos - 1 : SPU94_ADPCM_BLOCK_SAMPLES - 1];
-                patina_r = state->adpcm_out_buf_r[state->gauss_read_pos > 0
-                           ? state->gauss_read_pos - 1 : SPU94_ADPCM_BLOCK_SAMPLES - 1];
+                /* Gauss off: output last decoded sample (zero-order hold) */
+                uint8_t prev = (state->gauss_ring_pos + 3u) & 3u;
+                patina_l = state->gauss_ring_l[prev];
+                patina_r = state->gauss_ring_r[prev];
             }
         } else {
             patina_l = l;
