@@ -38,7 +38,8 @@
   3. Setting the pitch register to 0x3FFF clamps to hardware maximum; values above are rejected, not wrapped
   4. Per-voice L/R volume registers scale the output amplitude across the 0–32767 unsigned range
   5. Loading a sample whose encoded size would exceed the 512 KB voice RAM boundary is rejected with a bounds error
-**Plans**: TBD
+**Plans**: 1 plan
+  - [ ] 27-01-PLAN.md — Voice struct, tick, sample loader, voice 0 wired into spu94_process
 **UI hint**: yes
 
 ### Phase 28: ADSR Envelope
@@ -92,7 +93,7 @@
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 27. Single Voice Playback | v1.8 | 0/? | Not started | - |
+| 27. Single Voice Playback | v1.8 | 0/1 | Planned | - |
 | 28. ADSR Envelope | v1.8 | 0/? | Not started | - |
 | 29. Loop Mechanics | v1.8 | 0/? | Not started | - |
 | 30. 24-Voice Polyphony + Mixer | v1.8 | 0/? | Not started | - |
