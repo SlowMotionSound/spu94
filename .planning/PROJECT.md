@@ -20,9 +20,26 @@
 
 **Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`, `v1.5`, `v1.6`, `v1.7`.
 
-## Current State
+## Current Milestone: v1.8 PSX Voice Engine
 
-v1.7 shipped. SPU-94 is now a fully functional multi-format DAW plugin distributed to beta testers on all 3 platforms. No active milestone — next direction to be determined.
+**Goal:** Build a spec-faithful PS1 SPU voice playback engine, starting as a single monophonic voice in the standalone testbed, then expanding to 24 voices.
+
+**Target features:**
+- ADPCM sample loading (encode WAV on intake into 4-bit ADPCM)
+- Single-voice playback with pitch control (single-counter architecture)
+- 4-tap Gaussian interpolation on playback
+- Exponential ADSR envelope
+- Loop start/end markers (SPU loop flags)
+- PS1-faithful mixer routing: voices sum to dry output (→ DAC), with per-voice reverb-on flag for optional reverb send
+- Expand to full 24-voice polyphony
+- 512 KB sample memory budget (SPU RAM constraint)
+
+**Key context:**
+- Build off existing standalone WAV load/play/stop code
+- Spec-strict: faithful PS1 limitations, no expansions yet
+- Mixer/reverb routing matches real SPU architecture (dry path + optional per-voice reverb send)
+- Shares C core, ADPCM codec, Gaussian interpolation, and reverb engine with SPU-94
+- Standalone is the development testbed
 
 ## What This Is
 
@@ -177,4 +194,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-16 after v1.7 milestone*
+*Last updated: 2026-05-16 — v1.8 PSX Voice Engine milestone started*

@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.7
-milestone_name: DAW Plugin Port
-status: shipped
-stopped_at: Milestone v1.7 closed and archived
-last_updated: "2026-05-16T17:00:00Z"
-last_activity: 2026-05-16 -- v1.7 milestone closed, tagged, archived
+milestone: v1.8
+milestone_name: PSX Voice Engine
+status: planning
+stopped_at: Defining requirements
+last_updated: "2026-05-16T17:15:00Z"
+last_activity: 2026-05-16 -- Milestone v1.8 started
 progress:
   total_phases: 7
   completed_phases: 6
@@ -21,7 +21,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-10)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.7 shipped — next milestone to be determined
+**Current focus:** v1.8 PSX Voice Engine — defining requirements
 
 ## Current Position
 
@@ -117,5 +117,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-05-16
-Stopped at: v1.7 milestone formally closed and archived. Next milestone unselected.
-Resume file: .planning/HANDOFF.json
+Stopped at: v1.8 milestone started, defining requirements
+Resume file: none
