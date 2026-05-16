@@ -53,6 +53,11 @@ typedef struct {
     int16_t   vol_l;              /* per-voice left volume (0..32767, unsigned semantics) */
     int16_t   vol_r;              /* per-voice right volume (0..32767, unsigned semantics) */
     spu94_adsr_state_t adsr;     /* Phase 28: per-voice ADSR envelope state */
+    /* Phase 29: Loop mechanics fields (LOOP-01..05; C4, C5 pitfall prevention) */
+    uint32_t  loop_addr;          /* byte offset latched on Loop-Start flag (LOOP-02) */
+    int16_t   loop_adpcm_old;     /* ADPCM filter history snapshot at loop start (LOOP-03 / C5) */
+    int16_t   loop_adpcm_older;   /* ADPCM filter history snapshot at loop start (LOOP-03 / C5) */
+    uint8_t   endx;               /* set on Loop-End; cleared on KON (LOOP-05 / M3) */
     uint8_t   active;             /* 1 = voice is playing; 0 = silent */
 } spu94_voice_t;
 
@@ -71,6 +76,10 @@ void spu94_voice_key_on(spu94_voice_t *v, uint32_t start_addr,
  * envelope level decays to 0, at which point spu94_voice_tick sets active=0.
  * If ADSR is disabled (adsr.enabled=0), reverts to immediate silence. */
 void spu94_voice_key_off(spu94_voice_t *v);
+
+/* Returns 1 if this voice has reached a loop-end block since the last KON,
+ * 0 otherwise. Cleared on KON. Set on Loop-End. NOT cleared by KOFF (M3). */
+uint8_t spu94_voice_get_endx(const spu94_voice_t *v);
 
 /* Tick one voice: advance counter, decode if needed, Gaussian interpolate,
  * apply per-voice volume. Writes stereo output samples to *out_l, *out_r.

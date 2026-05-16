@@ -29,6 +29,8 @@
 void spu94_voice_init(spu94_voice_t *v) {
     if (v == NULL) return;
     memset(v, 0, sizeof(*v));
+    /* Phase 29: loop_addr=0, loop_adpcm_old=0, loop_adpcm_older=0, endx=0
+     * are intentionally zero-init by memset (LOOP-02, LOOP-05). */
     spu94_adsr_init(&v->adsr);
 }
 
@@ -65,6 +67,9 @@ void spu94_voice_key_on(spu94_voice_t *v, uint32_t start_addr,
 
     /* Phase 28: reset ADSR to attack (level=0, counter=0) */
     spu94_adsr_key_on(&v->adsr);
+
+    /* M3: ENDX cleared on KON, not KOFF */
+    v->endx = 0;
 
     v->active = 1;
 }
@@ -193,4 +198,11 @@ void spu94_voice_tick(spu94_voice_t *v,
             }
         }
     }
+}
+
+/* LOOP-05: query the per-voice ENDX status bit.
+ * Set on Loop-End, cleared only by KON (M3). */
+uint8_t spu94_voice_get_endx(const spu94_voice_t *v) {
+    if (v == NULL) return 0;
+    return v->endx;
 }

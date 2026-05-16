@@ -15,6 +15,7 @@
 #include <spu94/spu94_voice.h>
 #include <spu94/spu94_adsr.h>
 #include <spu94/spu94_adpcm.h>
+#include <spu94/spu94_vag.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -509,6 +510,124 @@ void test_adsr_full_pipeline_attack_sustain_release(void) {
 }
 
 /* ---------------------------------------------------------------
+ * Phase 29: Loop Mechanics Tests (LOOP-01..05)
+ * --------------------------------------------------------------- */
+
+/* Test A: Loop-Start latch — block with LOOP_START flag causes loop_addr
+ * and filter state snapshot to be latched. (LOOP-02, C4, C5) */
+void test_loop_start_latches_address(void) {
+    spu94_voice_t v;
+    spu94_voice_init(&v);
+
+    /* Build 2-block stream:
+     * Block 0 (offset 0): flags = LOOP_START (bit 2)
+     * Block 1 (offset 16): flags = 0 (no flags) */
+    uint8_t ram[32];
+    memset(ram, 0, sizeof(ram));
+    /* Block 0: shift=0, filter=0, flag=LOOP_START, silence samples */
+    ram[0]  = 0x00;
+    ram[1]  = SPU94_VAG_FLAG_LOOP_START;  /* bit 2 = 0x04 */
+    /* Block 1: shift=0, filter=0, no flags, silence */
+    ram[16] = 0x00;
+    ram[17] = 0x00;
+
+    /* key_on with ADSR disabled (bypass), start at offset 0 */
+    spu94_voice_key_on(&v, 0, 0x1000, 0x7FFF, 0x7FFF);
+
+    /* Tick once — at pitch 0x1000, the first tick triggers decode of block 0 */
+    int16_t out_l, out_r;
+    spu94_voice_tick(&v, ram, sizeof(ram), &out_l, &out_r);
+
+    /* After block 0 is decoded, loop_addr should be latched to address of block 0 */
+    TEST_ASSERT_EQUAL_UINT32(0, v.loop_addr);
+
+    /* Filter state snapshot should match adpcm_state after decode.
+     * With shift=0, filter=0, all-zero samples: old=0, older=0 */
+    TEST_ASSERT_EQUAL_INT16(0, v.loop_adpcm_old);
+    TEST_ASSERT_EQUAL_INT16(0, v.loop_adpcm_older);
+}
+
+/* Test B: Loop-End+Repeat — jump to loop_addr, restore filter state,
+ * remain active, set ENDX. (LOOP-01, LOOP-03, LOOP-05, C5) */
+void test_loop_end_repeat_jumps_to_loop_addr(void) {
+    spu94_voice_t v;
+    spu94_voice_init(&v);
+
+    /* Build 2-block stream:
+     * Block 0 (offset 0): flags = LOOP_START
+     * Block 1 (offset 16): flags = LOOP_END | LOOP_REPEAT */
+    uint8_t ram[32];
+    memset(ram, 0, sizeof(ram));
+    ram[0]  = 0x00;
+    ram[1]  = SPU94_VAG_FLAG_LOOP_START;             /* 0x04 */
+    ram[16] = 0x00;
+    ram[17] = SPU94_VAG_FLAG_END | SPU94_VAG_FLAG_LOOP_REPEAT;  /* 0x01 | 0x02 = 0x03 */
+
+    /* key_on with ADSR disabled, start at offset 0 */
+    spu94_voice_key_on(&v, 0, 0x1000, 0x7FFF, 0x7FFF);
+
+    /* Tick through block 0 (28 samples at pitch 0x1000 = 28 ticks decodes block 0,
+     * then 1 more tick triggers decode of block 1) */
+    int16_t out_l, out_r;
+    for (int i = 0; i < 29; i++) {
+        spu94_voice_tick(&v, ram, sizeof(ram), &out_l, &out_r);
+    }
+
+    /* After block 1 is decoded: current_addr should have jumped to loop_addr (0) */
+    TEST_ASSERT_EQUAL_UINT32(0, v.current_addr);
+
+    /* Voice should still be active */
+    TEST_ASSERT_EQUAL_UINT8(1, v.active);
+
+    /* ENDX should be set (LOOP-05: set on Loop-End regardless of repeat) */
+    TEST_ASSERT_EQUAL_UINT8(1, spu94_voice_get_endx(&v));
+}
+
+/* Test C: One-shot — Loop-End without Repeat silences voice and sets ENDX.
+ * (LOOP-04, LOOP-05) */
+void test_one_shot_silences_voice(void) {
+    spu94_voice_t v;
+    spu94_voice_init(&v);
+
+    /* Build 1-block stream:
+     * Block 0 (offset 0): flags = LOOP_END only (bit 0 set, bit 1 clear) */
+    uint8_t ram[16];
+    memset(ram, 0, sizeof(ram));
+    ram[0] = 0x00;
+    ram[1] = SPU94_VAG_FLAG_END;  /* 0x01 — loop end, no repeat */
+
+    /* key_on with ADSR disabled */
+    spu94_voice_key_on(&v, 0, 0x1000, 0x7FFF, 0x7FFF);
+
+    /* Tick once — triggers decode of block 0 with LOOP_END flag */
+    int16_t out_l, out_r;
+    spu94_voice_tick(&v, ram, sizeof(ram), &out_l, &out_r);
+
+    /* ENDX should be set immediately on flag parse */
+    TEST_ASSERT_EQUAL_UINT8(1, spu94_voice_get_endx(&v));
+
+    /* With ADSR disabled, active should be 0 immediately */
+    TEST_ASSERT_EQUAL_UINT8(0, v.active);
+}
+
+/* Test D: ENDX cleared by KON (LOOP-05, M3) */
+void test_endx_cleared_by_key_on(void) {
+    spu94_voice_t v;
+    spu94_voice_init(&v);
+
+    /* Manually set endx = 1 */
+    v.endx = 1;
+    TEST_ASSERT_EQUAL_UINT8(1, spu94_voice_get_endx(&v));
+
+    /* key_on should clear endx */
+    uint8_t ram[32];
+    memset(ram, 0, sizeof(ram));
+    spu94_voice_key_on(&v, 0, 0x1000, 0x7FFF, 0x7FFF);
+
+    TEST_ASSERT_EQUAL_UINT8(0, spu94_voice_get_endx(&v));
+}
+
+/* ---------------------------------------------------------------
  * Main
  * --------------------------------------------------------------- */
 int main(void) {
@@ -529,5 +648,10 @@ int main(void) {
     RUN_TEST(test_key_off_enters_release);
     RUN_TEST(test_adsr_attack_ramps_output);
     RUN_TEST(test_adsr_full_pipeline_attack_sustain_release);
+    /* Phase 29 Loop Mechanics tests */
+    RUN_TEST(test_loop_start_latches_address);
+    RUN_TEST(test_loop_end_repeat_jumps_to_loop_addr);
+    RUN_TEST(test_one_shot_silences_voice);
+    RUN_TEST(test_endx_cleared_by_key_on);
     return UNITY_END();
 }
