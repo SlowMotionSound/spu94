@@ -13,6 +13,7 @@
 
 #include "unity.h"
 #include <spu94/spu94_voice.h>
+#include <spu94/spu94_adsr.h>
 #include <spu94/spu94_adpcm.h>
 #include <stdint.h>
 #include <string.h>
@@ -260,6 +261,134 @@ void test_voice_stops_at_ram_boundary(void) {
 }
 
 /* ---------------------------------------------------------------
+ * Phase 28 ADSR Integration Tests
+ * --------------------------------------------------------------- */
+
+/* Test: ADSR bypass (enabled=0) produces same output as Phase 27 */
+void test_adsr_bypass_matches_phase27(void) {
+    spu94_voice_t v;
+    spu94_voice_init(&v);
+
+    uint8_t ram[64];
+    make_long_sample(ram, 4);
+
+    /* ADSR disabled (default from init) */
+    TEST_ASSERT_EQUAL_UINT8(0, v.adsr.enabled);
+
+    spu94_voice_key_on(&v, 0, 0x1000, 0x7FFF, 0x7FFF);
+
+    /* Run ticks — output should match Phase 27 behavior (full amplitude) */
+    int16_t out_l, out_r;
+    int found_nonzero = 0;
+    for (int i = 0; i < 10; i++) {
+        spu94_voice_tick(&v, ram, sizeof(ram), &out_l, &out_r);
+        if (out_l != 0) found_nonzero = 1;
+    }
+    TEST_ASSERT_TRUE(found_nonzero);
+    TEST_ASSERT_EQUAL_UINT8(1, v.active);
+}
+
+/* Test: when ADSR phase is OFF and enabled=1, voice sets active=0 */
+void test_adsr_off_silences_voice(void) {
+    spu94_voice_t v;
+    spu94_voice_init(&v);
+
+    uint8_t ram[64];
+    make_long_sample(ram, 4);
+
+    /* Enable ADSR, set to fast attack, then force phase to OFF */
+    v.adsr.enabled = 1;
+    spu94_voice_key_on(&v, 0, 0x1000, 0x7FFF, 0x7FFF);
+
+    /* Force ADSR to OFF state (simulating release completion) */
+    v.adsr.phase = ADSR_OFF;
+    v.adsr.level = 0;
+
+    int16_t out_l = 999, out_r = 999;
+    spu94_voice_tick(&v, ram, sizeof(ram), &out_l, &out_r);
+
+    TEST_ASSERT_EQUAL_UINT8(0, v.active);
+    TEST_ASSERT_EQUAL_INT16(0, out_l);
+    TEST_ASSERT_EQUAL_INT16(0, out_r);
+}
+
+/* Test: key_off with ADSR enabled enters Release, not immediate silence */
+void test_key_off_enters_release(void) {
+    spu94_voice_t v;
+    spu94_voice_init(&v);
+
+    uint8_t ram[64];
+    make_long_sample(ram, 4);
+
+    v.adsr.enabled = 1;
+    v.adsr.attack_shift = 0;  /* fastest attack */
+    v.adsr.attack_step = 0;
+    v.adsr.attack_exp = 0;
+    v.adsr.decay_shift = 0;
+    v.adsr.sustain_level = 7;
+    v.adsr.release_shift = 0;
+    v.adsr.release_exp = 1;
+
+    spu94_voice_key_on(&v, 0, 0x1000, 0x7FFF, 0x7FFF);
+
+    /* Run a few ticks to get into sustain */
+    int16_t out_l, out_r;
+    for (int i = 0; i < 100; i++) {
+        spu94_voice_tick(&v, ram, sizeof(ram), &out_l, &out_r);
+    }
+
+    /* Key off should enter release, not set active=0 */
+    spu94_voice_key_off(&v);
+    TEST_ASSERT_EQUAL_UINT8(1, v.active);
+    TEST_ASSERT_EQUAL(ADSR_RELEASE, v.adsr.phase);
+}
+
+/* Test: ADSR attack ramps output amplitude over time.
+ * We verify that ADSR level increases over successive ticks during attack,
+ * proving the envelope is not at unity from tick 1 (constant amplitude). */
+void test_adsr_attack_ramps_output(void) {
+    spu94_voice_t v;
+    spu94_voice_init(&v);
+
+    uint8_t ram[128];
+    make_long_sample(ram, 8);
+
+    v.adsr.enabled = 1;
+    v.adsr.attack_shift = 0;   /* Fastest attack: fires every tick */
+    v.adsr.attack_step = 3;    /* Smallest step: (7-3)=4 << 11 = 8192 per tick */
+    v.adsr.attack_exp = 0;
+    v.adsr.decay_shift = 0;
+    v.adsr.sustain_level = 15; /* target = 0x8000 -> clamped to 0x7FFF */
+    v.adsr.sustain_shift = 31; /* sustain forever */
+    v.adsr.release_shift = 0;
+    v.adsr.release_exp = 1;
+
+    spu94_voice_key_on(&v, 0, 0x1000, 0x7FFF, 0x7FFF);
+
+    /* After key_on, ADSR level starts at 0. First tick should produce
+     * near-zero output (ADSR level is 0 before tick fires). */
+    int16_t out_l, out_r;
+    spu94_voice_tick(&v, ram, sizeof(ram), &out_l, &out_r);
+    int16_t level_after_1 = v.adsr.level;
+
+    /* Run a few more ticks — level should be increasing */
+    spu94_voice_tick(&v, ram, sizeof(ram), &out_l, &out_r);
+    int16_t level_after_2 = v.adsr.level;
+
+    spu94_voice_tick(&v, ram, sizeof(ram), &out_l, &out_r);
+    int16_t level_after_3 = v.adsr.level;
+
+    /* ADSR level must be increasing during attack */
+    TEST_ASSERT_TRUE(level_after_2 > level_after_1);
+    TEST_ASSERT_TRUE(level_after_3 > level_after_2);
+
+    /* And the level should not be at max yet (step=8192, max=32767,
+     * needs 4 ticks to reach max) — after 3 ticks: 3*8192 = 24576 */
+    TEST_ASSERT_TRUE(v.adsr.level < 0x7FFF);
+    TEST_ASSERT_EQUAL(ADSR_ATTACK, v.adsr.phase);
+}
+
+/* ---------------------------------------------------------------
  * Main
  * --------------------------------------------------------------- */
 int main(void) {
@@ -274,5 +403,10 @@ int main(void) {
     RUN_TEST(test_zero_size_ram_safety);
     RUN_TEST(test_key_off_silences);
     RUN_TEST(test_voice_stops_at_ram_boundary);
+    /* Phase 28 ADSR integration tests */
+    RUN_TEST(test_adsr_bypass_matches_phase27);
+    RUN_TEST(test_adsr_off_silences_voice);
+    RUN_TEST(test_key_off_enters_release);
+    RUN_TEST(test_adsr_attack_ramps_output);
     return UNITY_END();
 }

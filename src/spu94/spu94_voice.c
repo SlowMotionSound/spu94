@@ -29,6 +29,7 @@
 void spu94_voice_init(spu94_voice_t *v) {
     if (v == NULL) return;
     memset(v, 0, sizeof(*v));
+    spu94_adsr_init(&v->adsr);
 }
 
 void spu94_voice_key_on(spu94_voice_t *v, uint32_t start_addr,
@@ -62,13 +63,22 @@ void spu94_voice_key_on(spu94_voice_t *v, uint32_t start_addr,
     v->has_block = 0;
     v->decode_buf_pos = 0;
 
+    /* Phase 28: reset ADSR to attack (level=0, counter=0) */
+    spu94_adsr_key_on(&v->adsr);
+
     v->active = 1;
 }
 
 void spu94_voice_key_off(spu94_voice_t *v) {
     if (v == NULL) return;
-    /* Phase 28 will replace with ADSR release; for now, immediate silence. */
-    v->active = 0;
+    /* Phase 28: enter ADSR release. Voice stays active until level reaches 0.
+     * If ADSR is disabled, fall back to immediate silence (Phase 27 behavior). */
+    if (v->adsr.enabled) {
+        spu94_adsr_key_off(&v->adsr);
+        /* voice remains active; ADSR_OFF transition in tick will clear active */
+    } else {
+        v->active = 0;
+    }
 }
 
 void spu94_voice_tick(spu94_voice_t *v,
@@ -125,6 +135,23 @@ void spu94_voice_tick(spu94_voice_t *v,
             + (int32_t)spu94_gauss_table[0x100 + gi] * (int32_t)s2
             + (int32_t)spu94_gauss_table[0x000 + gi] * (int32_t)s3;
         int16_t gauss_out = sat_s16(interpolated >> 15);
+
+        /* ---------------------------------------------------------------
+         * STEP 2.5 — ADSR envelope (ADSR-01..06)
+         * spu94_adsr_tick returns current level 0..0x7FFF.
+         * Level is applied as a Q15 multiply against the Gaussian output.
+         * When ADSR transitions to OFF, voice is silenced immediately.
+         * --------------------------------------------------------------- */
+        {
+            int16_t adsr_level = spu94_adsr_tick(&v->adsr);
+            if (v->adsr.phase == ADSR_OFF && v->adsr.enabled) {
+                v->active = 0;
+                *out_l = 0;
+                *out_r = 0;
+                return;  /* skip Steps 3 and 4 — voice is done */
+            }
+            gauss_out = q15_mul_truncate(gauss_out, adsr_level);
+        }
 
         /* ---------------------------------------------------------------
          * STEP 3 — Apply per-voice volume (VOICE-04)

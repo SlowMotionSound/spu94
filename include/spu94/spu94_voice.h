@@ -17,6 +17,7 @@
 #define SPU94_VOICE_H
 
 #include <spu94/spu94_adpcm.h>
+#include <spu94/spu94_adsr.h>
 #include <spu94/spu94_spu_ram.h>
 #include <stdint.h>
 
@@ -51,6 +52,7 @@ typedef struct {
     uint8_t   gauss_ring_pos;     /* write head in gauss_ring (0..3) */
     int16_t   vol_l;              /* per-voice left volume (0..32767, unsigned semantics) */
     int16_t   vol_r;              /* per-voice right volume (0..32767, unsigned semantics) */
+    spu94_adsr_state_t adsr;     /* Phase 28: per-voice ADSR envelope state */
     uint8_t   active;             /* 1 = voice is playing; 0 = silent */
 } spu94_voice_t;
 
@@ -59,12 +61,15 @@ void spu94_voice_init(spu94_voice_t *v);
 
 /* Key on: start playback from start_addr with given pitch and volume.
  * Resets pitch counter, decoder state, Gaussian ring. Sets active=1.
+ * Calls spu94_adsr_key_on to reset envelope to attack phase (level=0).
+ * Caller should configure voice->adsr register fields before calling key_on.
  * Pitch is clamped to 0x3FFF (C7 / VOICE-03). Pitch 0 is treated as 0x1000. */
 void spu94_voice_key_on(spu94_voice_t *v, uint32_t start_addr,
                         uint16_t pitch, int16_t vol_l, int16_t vol_r);
 
-/* Key off: immediately silence the voice. Sets active=0.
- * (Phase 28 will replace with ADSR release; for now, immediate silence.) */
+/* Key off: enter ADSR release phase. Voice remains active until the
+ * envelope level decays to 0, at which point spu94_voice_tick sets active=0.
+ * If ADSR is disabled (adsr.enabled=0), reverts to immediate silence. */
 void spu94_voice_key_off(spu94_voice_t *v);
 
 /* Tick one voice: advance counter, decode if needed, Gaussian interpolate,
