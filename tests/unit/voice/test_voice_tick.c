@@ -389,6 +389,126 @@ void test_adsr_attack_ramps_output(void) {
 }
 
 /* ---------------------------------------------------------------
+ * Full pipeline smoke test: ADSR shape through spu94_voice_tick
+ * with known parameters.
+ *
+ * This test drives a single voice with a synthetic DC-like ADPCM block
+ * through attack, sustain, and release, asserting the envelope shape
+ * at key points.
+ * --------------------------------------------------------------- */
+void test_adsr_full_pipeline_attack_sustain_release(void) {
+    spu94_voice_t v;
+    spu94_voice_init(&v);
+
+    /* Create a multi-block sample with maximum-amplitude content.
+     * Use shift=0, filter=0, all nibbles=7 -> each decoded sample is +7.
+     * The Gaussian ring stabilizes at ~7 after a few ticks. */
+    uint8_t ram[512];
+    memset(ram, 0, sizeof(ram));
+    uint32_t num_blocks = sizeof(ram) / 16;
+    for (uint32_t b = 0; b < num_blocks; b++) {
+        ram[b * 16 + 0] = 0x00;  /* shift=0, filter=0 */
+        ram[b * 16 + 1] = 0x00;  /* no flags (continuous) */
+        /* Fill all 14 data bytes with 0x77 (nibbles +7, +7) */
+        for (int j = 2; j < 16; j++) {
+            ram[b * 16 + j] = 0x77;
+        }
+    }
+    /* Last block: end flag */
+    ram[(num_blocks - 1) * 16 + 1] = 0x01;
+
+    /* Configure voice */
+    v.adsr.enabled = 1;
+    v.adsr.attack_shift = 0;    /* fastest attack: fires every tick */
+    v.adsr.attack_step = 3;     /* step = (7-3) << 11 = 8192 per tick */
+    v.adsr.attack_exp = 1;      /* fake exponential above 0x6000 */
+    v.adsr.decay_shift = 0;     /* fast decay */
+    v.adsr.sustain_level = 7;   /* target = 8 * 0x800 = 0x4000 */
+    v.adsr.sustain_shift = 31;  /* sustain holds forever */
+    v.adsr.sustain_step = 0;
+    v.adsr.sustain_exp = 0;
+    v.adsr.sustain_dir = 0;
+    v.adsr.release_shift = 0;   /* fastest release */
+    v.adsr.release_exp = 1;
+
+    /* pitch=0x1000 = 1:1 playback, vol=max */
+    spu94_voice_key_on(&v, 0, 0x1000, 0x7FFF, 0x7FFF);
+
+    /* --- ATTACK PHASE ---
+     * Run several ticks. Output should be increasing as ADSR ramps up. */
+    int16_t out_l, out_r;
+    int16_t prev_abs = 0;
+    int attack_increasing = 0;
+
+    /* Warm up the Gaussian ring (first few ticks may be 0 from ring cold start) */
+    for (int i = 0; i < 5; i++) {
+        spu94_voice_tick(&v, ram, sizeof(ram), &out_l, &out_r);
+    }
+
+    /* Now measure — the ring should have non-zero samples.
+     * Track whether output generally increases. */
+    for (int i = 0; i < 5; i++) {
+        spu94_voice_tick(&v, ram, sizeof(ram), &out_l, &out_r);
+        int16_t abs_out = out_l > 0 ? out_l : (int16_t)(-out_l);
+        if (abs_out > prev_abs) attack_increasing = 1;
+        prev_abs = abs_out;
+    }
+    /* ADSR level is increasing during attack (or already reached sustain) */
+    TEST_ASSERT_TRUE(attack_increasing || v.adsr.phase >= ADSR_DECAY);
+
+    /* --- Run until SUSTAIN ---
+     * The ADSR should transition attack->decay->sustain */
+    for (int i = 0; i < 200; i++) {
+        spu94_voice_tick(&v, ram, sizeof(ram), &out_l, &out_r);
+        if (v.adsr.phase == ADSR_SUSTAIN) break;
+    }
+    TEST_ASSERT_EQUAL(ADSR_SUSTAIN, v.adsr.phase);
+
+    /* Sustain level should be at target 0x4000 */
+    TEST_ASSERT_EQUAL_INT16(0x4000, v.adsr.level);
+
+    /* Output should be non-zero (sustained) */
+    spu94_voice_tick(&v, ram, sizeof(ram), &out_l, &out_r);
+    TEST_ASSERT_TRUE(out_l != 0 || out_r != 0);
+
+    /* Record sustain-level output for later comparison */
+    int16_t sustain_out = out_l > 0 ? out_l : (int16_t)(-out_l);
+    TEST_ASSERT_TRUE(sustain_out > 0);
+
+    /* --- RELEASE PHASE ---
+     * Key off. Output should decrease. */
+    spu94_voice_key_off(&v);
+    TEST_ASSERT_EQUAL(ADSR_RELEASE, v.adsr.phase);
+    TEST_ASSERT_EQUAL_UINT8(1, v.active);  /* still active during release */
+
+    /* Run a few ticks — output should be decreasing */
+    int16_t release_out_first = 0;
+    spu94_voice_tick(&v, ram, sizeof(ram), &out_l, &out_r);
+    release_out_first = out_l > 0 ? out_l : (int16_t)(-out_l);
+
+    int16_t release_out_later = 0;
+    for (int i = 0; i < 10; i++) {
+        spu94_voice_tick(&v, ram, sizeof(ram), &out_l, &out_r);
+    }
+    release_out_later = out_l > 0 ? out_l : (int16_t)(-out_l);
+
+    /* Later output should be less than or equal to first release output
+     * (decreasing amplitude during release) */
+    TEST_ASSERT_TRUE(release_out_later <= release_out_first);
+
+    /* --- Run until voice goes silent ---
+     * ADSR should reach OFF, voice active=0 */
+    for (int i = 0; i < 10000; i++) {
+        spu94_voice_tick(&v, ram, sizeof(ram), &out_l, &out_r);
+        if (v.active == 0) break;
+    }
+    TEST_ASSERT_EQUAL_UINT8(0, v.active);
+    TEST_ASSERT_EQUAL_INT16(0, out_l);
+    TEST_ASSERT_EQUAL_INT16(0, out_r);
+    TEST_ASSERT_EQUAL(ADSR_OFF, v.adsr.phase);
+}
+
+/* ---------------------------------------------------------------
  * Main
  * --------------------------------------------------------------- */
 int main(void) {
@@ -408,5 +528,6 @@ int main(void) {
     RUN_TEST(test_adsr_off_silences_voice);
     RUN_TEST(test_key_off_enters_release);
     RUN_TEST(test_adsr_attack_ramps_output);
+    RUN_TEST(test_adsr_full_pipeline_attack_sustain_release);
     return UNITY_END();
 }
