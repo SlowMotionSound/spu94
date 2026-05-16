@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: PSX Voice Engine
 status: executing
-stopped_at: Phase 28 ADSR Envelope complete
-last_updated: "2026-05-16T20:48:36Z"
-last_activity: 2026-05-16 -- Phase 28 ADSR Envelope executed (4 tasks, all passing)
+stopped_at: Phase 29 Loop Mechanics complete; Phase 30 ready
+last_updated: "2026-05-16T21:34:17Z"
+last_activity: 2026-05-16
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 5
-  completed_plans: 2
-  percent: 40
+  completed_phases: 4
+  total_plans: 4
+  completed_plans: 4
+  percent: 80
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-16)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.8 PSX Voice Engine -- Phase 29 Loop Mechanics next
+**Current focus:** v1.8 PSX Voice Engine -- Phase 30 24-Voice Polyphony + Mixer next
 
 ## Current Position
 
-Phase: 29 — Loop Mechanics
+Phase: 30 — 24-Voice Polyphony + Mixer
 Plan: Not yet planned
 Status: Ready to plan
 Last activity: 2026-05-16
 
-Progress: [########░░░░░░░░░░░░] 40%
+Progress: [################░░░░] 80%
 
 ## v1.8 Phase Map
 
@@ -38,7 +38,7 @@ Progress: [########░░░░░░░░░░░░] 40%
 |-------|------|--------------|--------|
 | 27 | Single Voice Playback | VOICE-01..06, RAM-01..04 | Complete |
 | 28 | ADSR Envelope | ADSR-01..06 | Complete |
-| 29 | Loop Mechanics | LOOP-01..05 | Not started |
+| 29 | Loop Mechanics | LOOP-01..05 | Complete |
 | 30 | 24-Voice Polyphony + Mixer | MIX-01..06 | Not started |
 | 31 | Standalone Testbed UX | TEST-01..04 | Not started |
 
@@ -70,7 +70,7 @@ Voice mixer output feeds the same seam the coloration bus currently uses.
 
 ### Open Items (from REQUIREMENTS.md)
 
-1. Loop seam filter state: snapshot after or before decode of loop-start block? (Phase 29)
+1. ~~Loop seam filter state: snapshot after or before decode of loop-start block?~~ (Resolved in Phase 29: snapshot AFTER decode, per C5 pitfall prevention)
 2. 24-voice mixer saturation: int32 accumulate + single final sat_s16 vs per-voice clip (Phase 30, witness test)
 3. ADSR exponential attack boundary: strictly > 0x6000 (resolved in Phase 28, matches nocash spec)
 4. KON timing: first output sample in same tick as KON or following tick? (Phase 30)
@@ -134,9 +134,10 @@ None.
 | 16 | 01 | 50m 19s | 2 | 6 |
 | 27 | 01 | 55m 13s | 3 | 8 |
 | 28 | 01 | 47m 54s | 4 | 8 |
+| 29 | 01 | 33m 36s | 2 | 3 |
 
 ## Session Continuity
 
-Last session: 2026-05-16T20:48:36Z
-Stopped at: Phase 28 ADSR Envelope complete; Phase 29 Loop Mechanics ready to plan
-Resume file: .planning/phases/28-adsr-envelope/28-PLAN-SUMMARY.md
+Last session: 2026-05-16T21:34:17Z
+Stopped at: Phase 29 Loop Mechanics complete; Phase 30 ready to plan
+Resume file: .planning/phases/29-loop-mechanics/29-PLAN-SUMMARY.md

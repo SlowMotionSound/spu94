@@ -47,11 +47,11 @@ Build a spec-faithful PS1 SPU voice playback engine (24-voice ADPCM sampler), st
 
 ### Loop Mechanics
 
-- [ ] **LOOP-01**: Loop start/end flags read from ADPCM block header byte 1 (bits 0/1/2)
-- [ ] **LOOP-02**: Loop-start address auto-latches as playback cursor passes a flagged block
-- [ ] **LOOP-03**: ADPCM filter state snapshot at loop-start block, restore on every loop-end jump
-- [ ] **LOOP-04**: One-shot termination when loop-end flag has repeat bit clear
-- [ ] **LOOP-05**: ENDX status bit set when voice reaches end (queryable per voice)
+- [x] **LOOP-01**: Loop start/end flags read from ADPCM block header byte 1 (bits 0/1/2)
+- [x] **LOOP-02**: Loop-start address auto-latches as playback cursor passes a flagged block
+- [x] **LOOP-03**: ADPCM filter state snapshot at loop-start block, restore on every loop-end jump
+- [x] **LOOP-04**: One-shot termination when loop-end flag has repeat bit clear
+- [x] **LOOP-05**: ENDX status bit set when voice reaches end (queryable per voice)
 
 ### Mixer & Routing
 
@@ -96,11 +96,11 @@ Build a spec-faithful PS1 SPU voice playback engine (24-voice ADPCM sampler), st
 | ADSR-04 | Phase 28 | ADSR Envelope | Complete |
 | ADSR-05 | Phase 28 | ADSR Envelope | Complete |
 | ADSR-06 | Phase 28 | ADSR Envelope | Complete |
-| LOOP-01 | Phase 29 | Loop Mechanics | Pending |
-| LOOP-02 | Phase 29 | Loop Mechanics | Pending |
-| LOOP-03 | Phase 29 | Loop Mechanics | Pending |
-| LOOP-04 | Phase 29 | Loop Mechanics | Pending |
-| LOOP-05 | Phase 29 | Loop Mechanics | Pending |
+| LOOP-01 | Phase 29 | Loop Mechanics | Complete |
+| LOOP-02 | Phase 29 | Loop Mechanics | Complete |
+| LOOP-03 | Phase 29 | Loop Mechanics | Complete |
+| LOOP-04 | Phase 29 | Loop Mechanics | Complete |
+| LOOP-05 | Phase 29 | Loop Mechanics | Complete |
 | MIX-01 | Phase 30 | 24-Voice Polyphony + Mixer | Pending |
 | MIX-02 | Phase 30 | 24-Voice Polyphony + Mixer | Pending |
 | MIX-03 | Phase 30 | 24-Voice Polyphony + Mixer | Pending |

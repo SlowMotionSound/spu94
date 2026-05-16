@@ -22,7 +22,7 @@
 
 - [x] **Phase 27: Single Voice Playback** - One voice plays an ADPCM sample with pitch control and Gaussian interpolation, backed by dedicated 512 KB voice RAM
 - [x] **Phase 28: ADSR Envelope** - PS1-faithful exponential ADSR wired into the voice tick; silence follows KOFF
-- [ ] **Phase 29: Loop Mechanics** - SPU loop flags (start/end/repeat) drive auto-latching loop address and one-shot termination
+- [x] **Phase 29: Loop Mechanics** - SPU loop flags (start/end/repeat) drive auto-latching loop address and one-shot termination
 - [ ] **Phase 30: 24-Voice Polyphony + Mixer** - All 24 voice slots run simultaneously; their output sums into the dry output and optional reverb send
 - [ ] **Phase 31: Standalone Testbed UX** - Load WAV, trigger voice, control pitch, and play notes from MIDI in the standalone GUI
 
@@ -65,7 +65,7 @@
   3. A sample flagged as loop-end without the repeat bit plays to the end of that block then stops; the ENDX bit for that voice reads set
   4. Removing the loop-start flag from a sample causes playback to run off the end of voice RAM and stop, confirming the latch is flag-driven not address-hardwired
 **Plans**: 1 plan
-  - [ ] 29-PLAN.md — Loop fields in spu94_voice_t, flag-byte dispatch in spu94_voice_tick, ENDX API, four unit tests
+  - [x] 29-PLAN.md — Loop fields in spu94_voice_t, flag-byte dispatch in spu94_voice_tick, ENDX API, four unit tests
 
 ### Phase 30: 24-Voice Polyphony + Mixer
 **Goal**: All 24 voice slots run in parallel per sample tick; their outputs accumulate into a 32-bit sum, saturate to int16 at the master output, scale by Master Volume L/R, and split into a dry path (to DAC) and a per-voice-gated reverb send (to the existing reverb engine input)
@@ -97,7 +97,7 @@
 |-------|-----------|----------------|--------|-----------|
 | 27. Single Voice Playback | v1.8 | 1/1 | Complete | 2026-05-16 |
 | 28. ADSR Envelope | v1.8 | 1/1 | Complete | 2026-05-16 |
-| 29. Loop Mechanics | v1.8 | 0/1 | In progress | - |
+| 29. Loop Mechanics | v1.8 | 1/1 | Complete | 2026-05-16 |
 | 30. 24-Voice Polyphony + Mixer | v1.8 | 0/? | Not started | - |
 | 31. Standalone Testbed UX | v1.8 | 0/? | Not started | - |
 | 21. Build Skeleton & CI Matrix | v1.7 | 1/1 | Complete | 2026-05-11 |
