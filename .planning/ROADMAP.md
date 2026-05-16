@@ -64,7 +64,8 @@
   2. After a loop jump, the ADPCM filter state (predictor history) matches the snapshot taken when the loop-start block was first passed — no filter-seam click on repeated loops
   3. A sample flagged as loop-end without the repeat bit plays to the end of that block then stops; the ENDX bit for that voice reads set
   4. Removing the loop-start flag from a sample causes playback to run off the end of voice RAM and stop, confirming the latch is flag-driven not address-hardwired
-**Plans**: TBD
+**Plans**: 1 plan
+  - [ ] 29-PLAN.md — Loop fields in spu94_voice_t, flag-byte dispatch in spu94_voice_tick, ENDX API, four unit tests
 
 ### Phase 30: 24-Voice Polyphony + Mixer
 **Goal**: All 24 voice slots run in parallel per sample tick; their outputs accumulate into a 32-bit sum, saturate to int16 at the master output, scale by Master Volume L/R, and split into a dry path (to DAC) and a per-voice-gated reverb send (to the existing reverb engine input)
@@ -96,7 +97,7 @@
 |-------|-----------|----------------|--------|-----------|
 | 27. Single Voice Playback | v1.8 | 1/1 | Complete | 2026-05-16 |
 | 28. ADSR Envelope | v1.8 | 1/1 | Complete | 2026-05-16 |
-| 29. Loop Mechanics | v1.8 | 0/? | Not started | - |
+| 29. Loop Mechanics | v1.8 | 0/1 | In progress | - |
 | 30. 24-Voice Polyphony + Mixer | v1.8 | 0/? | Not started | - |
 | 31. Standalone Testbed UX | v1.8 | 0/? | Not started | - |
 | 21. Build Skeleton & CI Matrix | v1.7 | 1/1 | Complete | 2026-05-11 |
