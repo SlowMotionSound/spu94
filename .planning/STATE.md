@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: DAW Plugin Port
 status: active
-stopped_at: Single-counter voice path + Fast/Slow morph speed shipped
-last_updated: "2026-05-15T23:30:00Z"
-last_activity: 2026-05-15 -- Single-counter voice path, Fast/Slow morph, Gauss default on
+stopped_at: Beta artifacts rebuilt for all 3 platforms; ready to distribute
+last_updated: "2026-05-16T16:20:00Z"
+last_activity: 2026-05-16 -- Beta artifacts rebuilt (all 3 platforms), repo public on GitHub
 progress:
   total_phases: 7
   completed_phases: 6
@@ -116,6 +116,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-15
-Stopped at: Single-counter voice path + Fast/Slow morph speed committed; Gauss defaults on; beta needs rebuild with these changes
+Last session: 2026-05-16
+Stopped at: Beta artifacts rebuilt for all 3 platforms (Linux local, macOS + Windows via CI). Repo now public on GitHub. Ready to distribute to testers.
 Resume file: .planning/HANDOFF.json

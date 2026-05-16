@@ -1,31 +1,35 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-15T23:30:00Z",
+  "timestamp": "2026-05-16T16:20:00Z",
   "phase": "post-beta",
-  "phase_name": "voice path hardening + morph speed UX",
+  "phase_name": "Beta artifact rebuild complete",
   "phase_dir": null,
   "plan": 0,
   "task": 0,
   "total_tasks": 0,
   "status": "paused",
   "completed_tasks": [
-    {"id": 1, "name": "Single-counter voice path (PS1-faithful)", "status": "done", "details": "Replaced dual decim_counter/gauss_counter with one voice_counter. Bits 12+ = sample advancement, bits 4-11 = Gaussian index. Matches real PS1 SPU hardware architecture."},
-    {"id": 2, "name": "Fast/Slow morph speed toggle", "status": "done", "details": "Mauve button strip above speed knob. Fast: 0–0.5s. Slow: 0.5–8s. Slow range creates evolving feedback textures during morph transitions."},
-    {"id": 3, "name": "Gaussian interpolation defaults ON", "status": "done", "details": "Real PS1 always runs Gauss — no bypass in hardware. Toggle remains for A/B comparison."},
-    {"id": 4, "name": "Golden files regenerated", "status": "done", "details": "All 80 goldens (50 reverb + 30 ADPCM) regenerated for single-counter output."}
+    {"id": 1, "name": "Single-counter voice path (PS1-faithful)", "status": "done", "details": "Prior session. Replaced dual decim_counter/gauss_counter with one voice_counter."},
+    {"id": 2, "name": "Fast/Slow morph speed toggle", "status": "done", "details": "Prior session. Mauve button strip above speed knob. Fast: 0–0.5s, Slow: 0.5–8s."},
+    {"id": 3, "name": "Gaussian interpolation defaults ON", "status": "done", "details": "Prior session. Real PS1 always runs Gauss."},
+    {"id": 4, "name": "Golden files regenerated", "status": "done", "details": "Prior session. All 80 goldens regenerated for single-counter output."},
+    {"id": 5, "name": "Rebuild Linux beta artifact", "status": "done", "details": "This session. build/ confirmed up-to-date with 57eca98. Repackaged into ~/Desktop/SPU-94-v1.7-beta.1-linux.tar.gz (13 MB)."},
+    {"id": 6, "name": "Push to GitHub + CI on macOS/Windows", "status": "done", "details": "This session. Pushed aed0265 to origin/main. plugins.yml run 25966545148 — all 3 OSes green, pluginval strictness-7 passed."},
+    {"id": 7, "name": "Download CI artifacts + repackage macOS/Windows betas", "status": "done", "details": "This session. ~/Desktop/SPU-94-v1.7-beta.1-macOS.zip (24 MB), ~/Desktop/SPU-94-v1.7-beta.1-windows.zip (17 MB)."}
   ],
   "remaining_tasks": [],
   "blockers": [],
   "human_actions_pending": [
-    {"action": "Rebuild beta artifacts with single-counter voice path + Fast/Slow + Gauss-on defaults", "context": "Current beta builds on ~/Desktop are from the dual-counter era. Need rebuild before distributing.", "blocking": false}
+    {"action": "Distribute updated beta packages to testers", "context": "All three packages on ~/Desktop are built from single-counter voice path commit (57eca98). Ready to send.", "blocking": false}
   ],
   "decisions": [
-    {"decision": "Single-counter voice path replaces dual-counter", "rationale": "Real PS1 SPU uses one pitch counter for both decode and interpolation. Dual-counter produced 98%+ sample divergence vs hardware-faithful architecture.", "phase": "post-beta"},
-    {"decision": "Gaussian interpolation defaults ON", "rationale": "PS1 hardware always runs Gauss — no bypass exists. Off-by-default was a textbook-DSP instinct, not hardware-faithful.", "phase": "post-beta"},
-    {"decision": "Fast/Slow morph speed: Fast 0–0.5s, Slow 0.5–8s", "rationale": "Slow mode creates evolving feedback textures during transitions. 8s is the sweet spot — long enough for bubbling/crusty effects, short enough to avoid runaway feedback instability.", "phase": "post-beta"},
-    {"decision": "AA filter stays but is non-default", "rationale": "Real PS1 has no AA filter on the voice decimation path. ADPCM codec band-limits naturally. AA filter is opt-in creative toggle only.", "phase": "post-beta"}
+    {"decision": "Single-counter voice path replaces dual-counter", "rationale": "Real PS1 SPU uses one pitch counter for both decode and interpolation.", "phase": "post-beta"},
+    {"decision": "Gaussian interpolation defaults ON", "rationale": "PS1 hardware always runs Gauss — no bypass exists.", "phase": "post-beta"},
+    {"decision": "Fast/Slow morph speed: Fast 0–0.5s, Slow 0.5–8s", "rationale": "Slow mode creates evolving feedback textures during transitions.", "phase": "post-beta"},
+    {"decision": "AA filter stays but is non-default", "rationale": "Real PS1 has no AA filter on the voice decimation path.", "phase": "post-beta"},
+    {"decision": "Repo made public on GitHub", "rationale": "User chose to publicize SlowMotionSound/spu94 to enable CI builds.", "phase": "post-beta"}
   ],
   "uncommitted_files": [],
-  "next_action": "Rebuild beta plugin artifacts (all 3 platforms) with single-counter voice path + Fast/Slow morph + Gauss-on defaults. Then distribute to testers.",
-  "context_notes": "Started from signal flow discussion. Identified dual-counter voice path as non-faithful to PS1 hardware. Research confirmed PS1 uses single pitch counter (bits 12+ = sample index, bits 4-11 = Gauss index). Implemented, tested, verified. Then added Fast/Slow morph speed after Anthony identified the slow morph transitions as 'secret sauce' — tried 60s (feedback blowup), 1.5s (too short), 5s (good), landed on 8s ceiling."
+  "next_action": "Distribute beta packages to testers. Post-beta refinement is feature-complete — next work is whatever Anthony decides (deferred items in STATE.md, or new direction).",
+  "context_notes": "This session was resume → rebuild. No code changes — just repackaged existing build (Linux local) and triggered CI for macOS/Windows. Repo is now public on GitHub (SlowMotionSound/spu94). All beta artifacts current as of single-counter voice path + Fast/Slow morph + Gauss-on."
 }
