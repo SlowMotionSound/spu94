@@ -77,7 +77,9 @@
   3. Master Volume L/R attenuate the final mixed output proportionally
   4. KON applies at the start of the next sample tick, not the current one; two voices keyed on in the same block start at the same sample offset
   5. The voice engine output and the ADPCM coloration bus (existing patina path) are independently active — both can be heard simultaneously without mutual cancellation
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 30-PLAN.md — spu94_voice_mixer_t, 24-voice mixer loop, pending KON/KOFF, EON routing, Master Volume, MIX-06 coexistence
 
 ### Phase 31: Standalone Testbed UX
 **Goal**: The standalone application can load a WAV into voice RAM, trigger a voice with pitch control from a GUI button, receive MIDI note-on/off from the host to trigger voices, and remains the sole v1.8 development surface (no plugin UX changes)
