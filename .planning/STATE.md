@@ -4,8 +4,8 @@ milestone: v1.8
 milestone_name: PSX Voice Engine
 status: executing
 stopped_at: Phase 30 Mixer complete; Phase 31 Standalone Testbed UX ready to plan
-last_updated: "2026-05-16T23:40:20.106Z"
-last_activity: 2026-05-16 -- Phase 31 planning complete
+last_updated: "2026-05-17T00:09:59.713Z"
+last_activity: 2026-05-17 -- Phase 31 execution started
 progress:
   total_phases: 5
   completed_phases: 4
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-16)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.8 PSX Voice Engine -- Phase 31 Standalone Testbed UX next
+**Current focus:** Phase 31 — Standalone Testbed UX
 
 ## Current Position
 
-Phase: 31 — Standalone Testbed UX
-Plan: 01 of 02
-Status: Ready to execute
-Last activity: 2026-05-16 -- Phase 31 planning complete
+Phase: 31 (Standalone Testbed UX) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 31
+Last activity: 2026-05-17 -- Phase 31 execution started
 
 Progress: [####################] 100%
 
