@@ -322,6 +322,11 @@ private:
                                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
     int nextVoice{0};
 
+    // Pending GUI trigger/stop — staged on message thread, applied on audio thread
+    std::atomic<uint16_t> pendingGuiTriggerPitch{0}; // 0 = no pending trigger
+    std::atomic<bool> pendingGuiStop{false};
+    std::atomic<bool> pendingMixerEnable{false};
+
     // Voice engine helpers (Phase 31)
     static uint16_t midiNoteToPitch(int note, int baseNote = 60);
     int allocateVoice(int note);

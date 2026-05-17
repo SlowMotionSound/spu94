@@ -522,6 +522,22 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     {
         // === STANDALONE PATH (v1.6 back-compat) =========================
 
+        // Apply pending GUI commands on the audio thread (CR-01/CR-02 fix)
+        if (pendingMixerEnable.exchange(false, std::memory_order_acquire))
+        {
+            auto* mx = spu94_get_voice_mixer();
+            mx->enabled = 1;
+            mx->master_vol_l = 0x7FFF;
+            mx->master_vol_r = 0x7FFF;
+        }
+        {
+            uint16_t trigPitch = pendingGuiTriggerPitch.exchange(0, std::memory_order_acquire);
+            if (trigPitch != 0)
+                spu94_voice_mixer_key_on(spu94_get_voice_mixer(), 0, 0, trigPitch, 0x7FFF, 0x7FFF, 1, nullptr);
+        }
+        if (pendingGuiStop.exchange(false, std::memory_order_acquire))
+            spu94_voice_mixer_key_off(spu94_get_voice_mixer(), 0);
+
         // MIDI dispatch -- process note events before spu94_process (Phase 31)
         if (voiceSampleLoaded.load(std::memory_order_acquire))
         {
@@ -856,9 +872,7 @@ void SPU94AudioProcessor::loadVoiceSample(const juce::File& file)
     );
 
     if (bytes > 0) {
-        mixer->enabled = 1;
-        mixer->master_vol_l = 0x7FFF;
-        mixer->master_vol_r = 0x7FFF;
+        pendingMixerEnable.store(true, std::memory_order_release);
         voiceSampleName = file.getFileName();
         voiceSampleBytes = static_cast<uint32_t>(bytes);
         voiceSampleLoaded.store(true, std::memory_order_release);
@@ -867,14 +881,12 @@ void SPU94AudioProcessor::loadVoiceSample(const juce::File& file)
 
 void SPU94AudioProcessor::triggerVoice(uint16_t pitch)
 {
-    auto* mixer = spu94_get_voice_mixer();
-    spu94_voice_mixer_key_on(mixer, 0, 0, pitch, 0x7FFF, 0x7FFF, 1, nullptr);
+    pendingGuiTriggerPitch.store(pitch, std::memory_order_release);
 }
 
 void SPU94AudioProcessor::stopVoice()
 {
-    auto* mixer = spu94_get_voice_mixer();
-    spu94_voice_mixer_key_off(mixer, 0);
+    pendingGuiStop.store(true, std::memory_order_release);
 }
 
 uint16_t SPU94AudioProcessor::midiNoteToPitch(int note, int baseNote)
@@ -889,6 +901,8 @@ uint16_t SPU94AudioProcessor::midiNoteToPitch(int note, int baseNote)
 int SPU94AudioProcessor::allocateVoice(int note)
 {
     int voice = nextVoice;
+    if (noteForVoice[voice] >= 0)
+        spu94_voice_mixer_key_off(spu94_get_voice_mixer(), voice);
     noteForVoice[voice] = static_cast<int8_t>(note);
     nextVoice = (nextVoice + 1) % 24;
     return voice;
