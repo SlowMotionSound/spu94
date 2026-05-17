@@ -1,0 +1,40 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-17T18:14:20.472Z",
+  "phase": "31",
+  "phase_name": "standalone-testbed-ux",
+  "phase_dir": ".planning/phases/31-standalone-testbed-ux",
+  "plan": 0,
+  "task": 0,
+  "total_tasks": 0,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": "31-01", "name": "Voice engine processor API", "status": "done", "commit": "136791b"},
+    {"id": "31-02", "name": "Voice panel GUI", "status": "done", "commit": "ea24a98"},
+    {"id": "thread-fix", "name": "Thread-safety for GUI trigger/stop + voice-steal key-off", "status": "done", "commit": "ce23265"}
+  ],
+  "remaining_tasks": [
+    {"id": "window-fix", "name": "JUCE window position fix for KDE/Wayland", "status": "not_started"},
+    {"id": "sampler-bus", "name": "Re-apply C core sampler bus separation (sampler_fader, sampler_send)", "status": "not_started"},
+    {"id": "rename", "name": "Rename Voice Rate to Input Rate", "status": "not_started"},
+    {"id": "sampler-window", "name": "Separate JUCE window for sampler instrument", "status": "not_started"},
+    {"id": "mixer-gui", "name": "Mixer GUI sections (ADPCM/Dry/Reverb) + sampler knobs", "status": "not_started"},
+    {"id": "gui-polish", "name": "GUI polish (Anthony to walk through issues)", "status": "not_started"},
+    {"id": "midi-verify", "name": "MIDI input verification", "status": "not_started"}
+  ],
+  "blockers": [
+    {"description": "JUCE standalone window invisible on KDE/Wayland — saves (0,44) as position, lands offscreen every launch", "type": "technical", "workaround": "User manually maximizes from taskbar icon"}
+  ],
+  "human_actions_pending": [
+    {"action": "Maximize SPU-94 from taskbar on each launch until window fix is applied", "context": "KDE/Wayland window position bug", "blocking": false}
+  ],
+  "decisions": [
+    {"decision": "Sampler and SPU-94 are separate products connected at audio level", "rationale": "Anthony wants them to feel like two independent codebases wired together like analog hardware", "phase": "31"},
+    {"decision": "Global sampler send replaces per-voice EON", "rationale": "Simpler for now; per-voice routing deferred", "phase": "31"},
+    {"decision": "Mixer sections: ADPCM (Input ADPCM Level + Sampler Level) / Dry / Reverb", "rationale": "Groups controls by sound character — PSX crunchy vs clean vs wet", "phase": "31"},
+    {"decision": "Voice Rate renamed to Input Rate", "rationale": "It controls the live input sample rate, not the sampler voices", "phase": "31"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Fix JUCE standalone window positioning on Wayland/KDE by reading the JUCE StandaloneFilterWindow source and implementing a code-level fix. Verify window appears before any other work.",
+  "context_notes": "Code is at ce23265 (known good). GUI rework was attempted, broke window, reverted. Signal flow decisions are solid but only exist in conversation and memory — not yet in code. C core sampler bus separation needs re-applying. All changes must be done one at a time with build+verify between each."
+}
