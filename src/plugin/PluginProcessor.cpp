@@ -252,7 +252,7 @@ void SPU94AudioProcessor::releaseResources()
 }
 
 void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
-                                        juce::MidiBuffer& /*midiMessages*/)
+                                        juce::MidiBuffer& midiMessages)
 {
     // Phase 22 / PLUG-16 (R3): denormals OFF for the entire block.
     // RAII guarantees DAZ/FTZ remain set through the SRC sandwich and the
@@ -521,6 +521,32 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     if (isStandalone)
     {
         // === STANDALONE PATH (v1.6 back-compat) =========================
+
+        // MIDI dispatch -- process note events before spu94_process (Phase 31)
+        if (voiceSampleLoaded.load(std::memory_order_acquire))
+        {
+            for (const auto metadata : midiMessages)
+            {
+                auto msg = metadata.getMessage();
+                if (msg.isNoteOn())
+                {
+                    int note = msg.getNoteNumber();
+                    uint16_t pitch = midiNoteToPitch(note);
+                    int vel = msg.getVelocity();
+                    int16_t vol = static_cast<int16_t>((vel * 0x7FFF) / 127);
+                    int voice = allocateVoice(note);
+                    spu94_voice_mixer_key_on(spu94_get_voice_mixer(), voice,
+                        0, pitch, vol, vol, 1, nullptr);
+                }
+                else if (msg.isNoteOff())
+                {
+                    int voice = findVoiceForNote(msg.getNoteNumber());
+                    if (voice >= 0)
+                        spu94_voice_mixer_key_off(spu94_get_voice_mixer(), voice);
+                }
+            }
+        }
+
         // wavSource gate: when no WAV is loaded or playback is paused,
         // emit silence. This preserves the standalone testbed's
         // Load-Play-Stop behaviour byte-identically with end-of-Phase-21.
@@ -809,6 +835,76 @@ bool SPU94AudioProcessor::isPlaying() const
 bool SPU94AudioProcessor::isLoaded() const
 {
     return wavSource.loaded.load(std::memory_order_relaxed);
+}
+
+// --- Voice engine methods (Phase 31: standalone testbed) ---
+
+void SPU94AudioProcessor::loadVoiceSample(const juce::File& file)
+{
+    auto result = WavLoader::load(file);
+    if (!result.has_value()) return;
+
+    auto* mixer = spu94_get_voice_mixer();
+
+    int32_t bytes = spu94_sample_encode_to_ram(
+        result->L.data(),
+        static_cast<uint32_t>(result->numFrames),
+        mixer->voice_ram,
+        0,                        // ram_offset
+        SPU94_SPU_RAM_BYTES,      // ram_size
+        1                         // loop_enable
+    );
+
+    if (bytes > 0) {
+        mixer->enabled = 1;
+        mixer->master_vol_l = 0x7FFF;
+        mixer->master_vol_r = 0x7FFF;
+        voiceSampleName = file.getFileName();
+        voiceSampleBytes = static_cast<uint32_t>(bytes);
+        voiceSampleLoaded.store(true, std::memory_order_release);
+    }
+}
+
+void SPU94AudioProcessor::triggerVoice(uint16_t pitch)
+{
+    auto* mixer = spu94_get_voice_mixer();
+    spu94_voice_mixer_key_on(mixer, 0, 0, pitch, 0x7FFF, 0x7FFF, 1, nullptr);
+}
+
+void SPU94AudioProcessor::stopVoice()
+{
+    auto* mixer = spu94_get_voice_mixer();
+    spu94_voice_mixer_key_off(mixer, 0);
+}
+
+uint16_t SPU94AudioProcessor::midiNoteToPitch(int note, int baseNote)
+{
+    double ratio = std::pow(2.0, (note - baseNote) / 12.0);
+    int pitch = static_cast<int>(0x1000 * ratio + 0.5);
+    if (pitch < 1) pitch = 1;
+    if (pitch > 0x3FFF) pitch = 0x3FFF;
+    return static_cast<uint16_t>(pitch);
+}
+
+int SPU94AudioProcessor::allocateVoice(int note)
+{
+    int voice = nextVoice;
+    noteForVoice[voice] = static_cast<int8_t>(note);
+    nextVoice = (nextVoice + 1) % 24;
+    return voice;
+}
+
+int SPU94AudioProcessor::findVoiceForNote(int note)
+{
+    for (int i = 0; i < 24; ++i)
+    {
+        if (noteForVoice[i] == static_cast<int8_t>(note))
+        {
+            noteForVoice[i] = -1;
+            return i;
+        }
+    }
+    return -1;
 }
 
 bool SPU94AudioProcessor::isUserSlotFilled(int slot) const
