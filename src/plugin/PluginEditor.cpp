@@ -49,6 +49,60 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         {
             processorRef.stopPlayback();
         };
+
+        // ---- Voice engine panel (Phase 31: standalone testbed UX) ----
+        // Load Sample button -- opens async file picker, encodes WAV to ADPCM.
+        addAndMakeVisible(loadSampleButton);
+        loadSampleButton.onClick = [this]()
+        {
+            fileChooser = std::make_unique<juce::FileChooser>(
+                "Select a WAV file for voice engine",
+                juce::File::getSpecialLocation(juce::File::userMusicDirectory),
+                "*.wav;*.aiff;*.aif");
+
+            fileChooser->launchAsync(
+                juce::FileBrowserComponent::openMode |
+                juce::FileBrowserComponent::canSelectFiles,
+                [this](const juce::FileChooser& fc)
+                {
+                    auto result = fc.getResult();
+                    if (result.existsAsFile())
+                        processorRef.loadVoiceSample(result);
+                });
+        };
+
+        // Trigger button -- keys on voice 0 at pitch from the voice engine knob.
+        addAndMakeVisible(triggerVoiceButton);
+        triggerVoiceButton.onClick = [this]()
+        {
+            uint16_t pitch = static_cast<uint16_t>(voiceEnginePitchKnob.getValue());
+            processorRef.triggerVoice(pitch);
+        };
+
+        // Stop Voice button -- keys off voice 0.
+        addAndMakeVisible(stopVoiceButton);
+        stopVoiceButton.onClick = [this]()
+        {
+            processorRef.stopVoice();
+        };
+
+        // Voice engine pitch knob -- raw SPU pitch register value (0x0001..0x3FFF).
+        // 0x1000 (4096) = unity playback rate (middle C at 44.1 kHz).
+        voiceEnginePitchKnob.setSliderStyle(juce::Slider::Rotary);
+        voiceEnginePitchKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        voiceEnginePitchKnob.setRange(1.0, 16383.0, 1.0);
+        voiceEnginePitchKnob.setValue(4096.0, juce::dontSendNotification);
+        voiceEnginePitchKnob.setTextValueSuffix(" pitch");
+        addAndMakeVisible(voiceEnginePitchKnob);
+
+        voiceEnginePitchLabel.setText("Voice Pitch", juce::dontSendNotification);
+        voiceEnginePitchLabel.setJustificationType(juce::Justification::centred);
+        addAndMakeVisible(voiceEnginePitchLabel);
+
+        // Voice sample status label -- shows filename + byte count after load.
+        voiceSampleLabel.setText("", juce::dontSendNotification);
+        voiceSampleLabel.setJustificationType(juce::Justification::centredLeft);
+        addAndMakeVisible(voiceSampleLabel);
     }
 
     presetLabel.setText("Preset:", juce::dontSendNotification);
@@ -410,6 +464,15 @@ void SPU94AudioProcessorEditor::timerCallback()
         syncKnob(patinaKnob,      processorRef.getParamAdpcmLevel()->get());
         syncKnob(reverbKnob,      processorRef.getParamReverbLevel()->get());
     }
+
+    // Phase 31: Update voice sample status label (standalone only).
+    if (processorRef.getVoiceSampleLoaded().load(std::memory_order_acquire))
+    {
+        voiceSampleLabel.setText(
+            processorRef.getVoiceSampleName() + " " +
+            juce::String(processorRef.getVoiceSampleBytes()) + "B",
+            juce::dontSendNotification);
+    }
 }
 
 void SPU94AudioProcessorEditor::paint(juce::Graphics& g)
@@ -439,6 +502,14 @@ void SPU94AudioProcessorEditor::resized()
         loadButton.setBounds(10, 10, 100, 30);
         playButton.setBounds(115, 10, 70, 30);
         stopButton.setBounds(190, 10, 70, 30);
+
+        // Voice engine panel (Phase 31) -- second row below WAV toolbar
+        loadSampleButton.setBounds(10, 45, 110, 30);
+        triggerVoiceButton.setBounds(125, 45, 70, 30);
+        stopVoiceButton.setBounds(200, 45, 90, 30);
+        voiceEnginePitchLabel.setBounds(295, 37, 80, 16);
+        voiceEnginePitchKnob.setBounds(295, 51, 80, 54);
+        voiceSampleLabel.setBounds(380, 45, 200, 30);
     }
     presetLabel.setBounds(210, 10, 55, 30);
     savePresetButton.setBounds(270, 10, 55, 30);
@@ -460,7 +531,8 @@ void SPU94AudioProcessorEditor::resized()
 
     // ---- ZONE 2: Register panel in scrollable viewport (fills middle) ----
     const int bottomZoneHeight = 80;
-    const int registerTop = 75;
+    // Standalone voice panel extends to y=105; push Zone 2 down to avoid overlap.
+    const int registerTop = (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone) ? 110 : 75;
     const int registerBottom = getHeight() - bottomZoneHeight - 5;
     const int viewportW = w - 20;
     const int viewportH = registerBottom - registerTop;

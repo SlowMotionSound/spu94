@@ -82,6 +82,14 @@ private:
     juce::Slider voicePitchKnob;
     juce::Label voicePitchLabel;
 
+    // Voice engine panel (standalone-only, Phase 31)
+    juce::TextButton loadSampleButton{"Load Sample"};
+    juce::TextButton triggerVoiceButton{"Trigger"};
+    juce::TextButton stopVoiceButton{"Stop Voice"};
+    juce::Label voiceSampleLabel;
+    juce::Slider voiceEnginePitchKnob;
+    juce::Label voiceEnginePitchLabel;
+
     // Zone 4: DAC section
     juce::ToggleButton dacToggle{"DAC"};
     juce::ToggleButton dacFirToggle{"FIR"};
