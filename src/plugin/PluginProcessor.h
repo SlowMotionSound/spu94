@@ -12,6 +12,8 @@
 extern "C" {
 #include <spu94/spu94.h>
 #include <spu94/spu94_registers.h>
+#include <spu94/spu94_voice.h>
+#include <spu94/spu94_sample_loader.h>
 }
 
 class SPU94AudioProcessor : public juce::AudioProcessor
@@ -33,7 +35,10 @@ public:
 
     const juce::String getName() const override;
 
-    bool acceptsMidi() const override { return false; }
+    bool acceptsMidi() const override
+    {
+        return wrapperType == wrapperType_Standalone;
+    }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
@@ -53,6 +58,11 @@ public:
     void stopPlayback();
     bool isPlaying() const;
     bool isLoaded() const;
+
+    // --- Voice engine control (message-thread callers, Phase 31) ---
+    void loadVoiceSample(const juce::File& file);
+    void triggerVoice(uint16_t pitch);
+    void stopVoice();
 
     // --- Parameter bridge (Plan 03: lock-free GUI <-> audio handoff) ---
     RegisterBridge& getRegisterBridge() { return registerBridge; }
@@ -91,6 +101,11 @@ public:
     std::atomic<bool>& getGaussEnabled() { return gaussEnabled; }
     std::atomic<bool>& getAAFilterEnabled() { return aaFilterEnabled; }
     std::atomic<int>& getVoicePitch() { return voicePitch; }
+
+    // --- Voice engine state (Phase 31: standalone testbed) ---
+    std::atomic<bool>& getVoiceSampleLoaded() { return voiceSampleLoaded; }
+    const juce::String& getVoiceSampleName() const { return voiceSampleName; }
+    uint32_t getVoiceSampleBytes() const { return voiceSampleBytes; }
 
     // --- DAC coloration toggles (D-09 through D-12) ---
     std::atomic<bool>& getDacEnabled() { return dacEnabled; }
@@ -298,6 +313,19 @@ private:
     std::array<PendingWav, 2> pendingSlots;
     std::atomic<int> pendingWriteSlot{0};
     std::atomic<bool> newWavReady{false};
+
+    // Voice engine state (Phase 31: standalone testbed)
+    std::atomic<bool> voiceSampleLoaded{false};
+    juce::String voiceSampleName;
+    uint32_t voiceSampleBytes{0};
+    int8_t noteForVoice[24] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+                               -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
+    int nextVoice{0};
+
+    // Voice engine helpers (Phase 31)
+    static uint16_t midiNoteToPitch(int note, int baseNote = 60);
+    int allocateVoice(int note);
+    int findVoiceForNote(int note);
 
     // Phase 22: bidirectional libsamplerate SRC sandwich around the
     // SPU-94 core. Allocated in prepareToPlay (via srcChain_.prepare),
