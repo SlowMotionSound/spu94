@@ -118,7 +118,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 31-02-PLAN.md — Voice panel GUI: Load Sample, pitch knob, Trigger/Stop, status label
+- [x] 31-02-PLAN.md — Voice panel GUI: Load Sample, pitch knob, Trigger/Stop, status label
 
 **UI hint**: yes
 
@@ -130,7 +130,7 @@ Plans:
 | 28. ADSR Envelope | v1.8 | 1/1 | Complete | 2026-05-16 |
 | 29. Loop Mechanics | v1.8 | 1/1 | Complete | 2026-05-16 |
 | 30. 24-Voice Polyphony + Mixer | v1.8 | 1/1 | Complete | 2026-05-16 |
-| 31. Standalone Testbed UX | v1.8 | 1/2 | In Progress|  |
+| 31. Standalone Testbed UX | v1.8 | 2/2 | Complete   | 2026-05-17 |
 | 21. Build Skeleton & CI Matrix | v1.7 | 1/1 | Complete | 2026-05-11 |
 | 22. SRC & Latency Reporting | v1.7 | 1/1 | Complete | 2026-05-11 |
 | 23. Float↔int16 Boundary | v1.7 | 2/2 | Complete   | 2026-05-12 |
