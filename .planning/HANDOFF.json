@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-18T01:54:04.537Z",
+  "timestamp": "2026-05-18T22:01:45.860Z",
   "phase": "31",
   "phase_name": "standalone-testbed-ux",
   "phase_dir": ".planning/phases/31-standalone-testbed-ux",
@@ -12,43 +12,34 @@
     {"id": "31-01", "name": "Voice engine processor API", "status": "done", "commit": "136791b"},
     {"id": "31-02", "name": "Voice panel GUI", "status": "done", "commit": "ea24a98"},
     {"id": "thread-fix", "name": "Thread-safety for GUI trigger/stop + voice-steal key-off", "status": "done", "commit": "ce23265"},
-    {"id": "window-fix", "name": "XWayland window sizing fix — poke editor bounds on first timer tick", "status": "done", "commit": "uncommitted"},
-    {"id": "rename", "name": "Voice Rate → Input Rate label rename", "status": "done", "commit": "uncommitted"},
-    {"id": "sampler-bus", "name": "C core sampler bus separation (sampler_fader, sampler_send)", "status": "done", "commit": "uncommitted"},
-    {"id": "sampler-knobs", "name": "Sampler Level + Samp Send knobs in GUI", "status": "done", "commit": "uncommitted"},
-    {"id": "sampler-window", "name": "Separate PSX Sampler window with voice controls moved into it", "status": "done", "commit": "uncommitted"},
-    {"id": "send-move", "name": "Samp Send knob moved to toolbar with other sends", "status": "done", "commit": "uncommitted"}
+    {"id": "window-fix", "name": "XWayland window sizing fix", "status": "done", "commit": "53ed9f5"},
+    {"id": "sampler-bus", "name": "C core sampler bus separation + sampler window", "status": "done", "commit": "53ed9f5"},
+    {"id": "gui-polish", "name": "Mixer reorg, toolbar reorder, morph panel spacing", "status": "done", "commit": "d81d03b"},
+    {"id": "live-pitch", "name": "Real-time pitch control for sampler voices", "status": "done", "commit": "094e521"},
+    {"id": "waveform", "name": "Waveform thumbnail display in sampler window", "status": "done", "commit": "e1a3d21"},
+    {"id": "markers", "name": "Draggable start/end markers + playback head", "status": "done", "commit": "d679f94"}
   ],
   "remaining_tasks": [
-    {"id": "mixer-reorg", "name": "Reorganize mixer labels into ADPCM / Dry / Reverb sections", "status": "not_started"},
-    {"id": "gui-polish", "name": "GUI polish (Anthony to walk through issues)", "status": "not_started"},
+    {"id": "loop-toggle", "name": "Loop mode toggle + loop marker wiring", "status": "not_started"},
+    {"id": "adsr-faders", "name": "ADSR vertical faders wired to voice engine", "status": "not_started"},
     {"id": "midi-verify", "name": "MIDI input verification (needs controller)", "status": "not_started"}
   ],
   "blockers": [],
   "human_actions_pending": [
-    {"action": "Walk through GUI and flag visual issues for polish pass", "context": "Anthony hasn't done visual review yet", "blocking": false},
-    {"action": "Plug in MIDI controller for MIDI verification", "context": "No controller available last two sessions", "blocking": false}
+    {"action": "Plug in MIDI controller for MIDI verification", "context": "No controller available recent sessions", "blocking": false}
   ],
   "decisions": [
-    {"decision": "Sampler and SPU-94 are separate products connected at audio level", "rationale": "Anthony wants them to feel like two independent codebases wired together like analog hardware", "phase": "31"},
+    {"decision": "Sampler and SPU-94 are separate products connected at audio level", "rationale": "Anthony wants them to feel like two independent codebases wired together", "phase": "31"},
     {"decision": "Global sampler send replaces per-voice EON", "rationale": "Simpler for now; per-voice routing deferred", "phase": "31"},
     {"decision": "Sampler bus independent from ADPCM coloration bus", "rationale": "Own fader and send so sampler volume doesn't couple to live input ADPCM level", "phase": "31"},
-    {"decision": "Samp Send lives in toolbar with other sends, not in mixer row", "rationale": "Anthony: sends go with sends — consistent grouping by function", "phase": "31"},
-    {"decision": "Voice Rate renamed to Input Rate", "rationale": "It controls the live input sample rate, not the sampler voices", "phase": "31"},
-    {"decision": "XWayland fix threshold 800px not 100px", "rationale": "Second window creation changed initial size from 2x58 to 128x128, need generous threshold", "phase": "31"}
+    {"decision": "Mixer bottom row: Dry knob alone, then Input | Sampler | Reverb", "rationale": "Dry is clean passthrough; Input/Sampler/Reverb all touch ADPCM", "phase": "31"},
+    {"decision": "Toolbar order: Input Gain | Input Rate | Gauss | AA | sends", "rationale": "Input controls grouped left, sends grouped right", "phase": "31"},
+    {"decision": "All marker lines coral color", "rationale": "Teal clashed with waveform; coral has good contrast", "phase": "31"},
+    {"decision": "One-shot default, loop mode reveals loop marker", "rationale": "Loop is opt-in with a selector", "phase": "31"},
+    {"decision": "Phase 32 added: Sampler Anti-Aliasing Toggle", "rationale": "Gauss bypass for raw zero-order-hold aliasing as creative texture", "phase": "32"},
+    {"decision": "Aliasing is a creative texture, not a defect", "rationale": "Core project philosophy: hardware artifacts ARE the sound", "phase": "31"}
   ],
-  "uncommitted_files": [
-    "include/spu94/spu94.h",
-    "src/plugin/PluginEditor.cpp",
-    "src/plugin/PluginEditor.h",
-    "src/plugin/PluginProcessor.cpp",
-    "src/plugin/PluginProcessor.h",
-    "src/plugin/SamplerWindow.h",
-    "src/spu94/spu94_io_chain.c",
-    "src/spu94/spu94_preset_io.c",
-    "src/spu94/spu94_process.c",
-    "src/spu94/spu94_state_internal.h"
-  ],
-  "next_action": "Commit all session work. Then optionally reorganize mixer section labels (ADPCM / Dry / Reverb groupings). GUI polish and MIDI verification are blocked on Anthony's input.",
-  "context_notes": "All changes were done one at a time with build+verify between each. No batching. The XWayland window fix uses a generous threshold (800px) because creating the second sampler window changed the initial bogus size from 2x58 to 128x128. Signal flow: voice engine now has 4 independent paths — sampler_fader to master mix, sampler_send to reverb input, plus the existing 4 live-input paths (ADPCM fader/send, dry fader/send). All C core tests pass."
+  "uncommitted_files": [],
+  "next_action": "Implement loop mode toggle (One-Shot/Loop selector in sampler window) + wire loop marker to ADPCM loop-start address. Then ADSR vertical faders.",
+  "context_notes": "All code is committed. Session built the sampler window from scratch: waveform display with AudioThumbnail, draggable S/E markers wired to voice engine start_addr/end_addr, animated playback head. The end_addr field is new in spu94_voice_t. The loop marker visual exists but is hidden (loopMode=false). Next step is adding the toggle and wiring loop position to Phase 29's loop-start flag mechanism. ADSR faders come after that."
 }
