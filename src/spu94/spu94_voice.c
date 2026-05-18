@@ -339,6 +339,19 @@ spu94_result_t spu94_voice_mixer_set_eon(spu94_voice_mixer_t *m, int voice_idx,
     return SPU94_OK;
 }
 
+spu94_result_t spu94_voice_mixer_set_pitch(spu94_voice_mixer_t *m, int voice_idx,
+    uint16_t pitch)
+{
+    if (m == NULL || voice_idx < 0 || voice_idx >= 24)
+        return SPU94_INVALID_ARG;
+
+    if (pitch == 0) pitch = 0x1000;
+    if (pitch > 0x3FFF) pitch = 0x3FFF;
+    m->voices[voice_idx].pitch = pitch;
+
+    return SPU94_OK;
+}
+
 spu94_result_t spu94_voice_mixer_load_sample(spu94_voice_mixer_t *m,
     uint32_t addr, const uint8_t *source, uint32_t source_size)
 {

@@ -63,6 +63,7 @@ public:
     void loadVoiceSample(const juce::File& file);
     void triggerVoice(uint16_t pitch);
     void stopVoice();
+    void setGuiVoicePitch(uint16_t pitch) { guiVoicePitch.store(pitch, std::memory_order_relaxed); }
 
     // --- Parameter bridge (Plan 03: lock-free GUI <-> audio handoff) ---
     RegisterBridge& getRegisterBridge() { return registerBridge; }
@@ -333,6 +334,8 @@ private:
     // Pending GUI trigger/stop — staged on message thread, applied on audio thread
     std::atomic<uint16_t> pendingGuiTriggerPitch{0}; // 0 = no pending trigger
     std::atomic<bool> pendingGuiStop{false};
+    // Live pitch for GUI-triggered voice 0 — updated every audio callback
+    std::atomic<uint16_t> guiVoicePitch{0x1000};
     std::atomic<bool> pendingMixerEnable{false};
 
     // Voice engine helpers (Phase 31)

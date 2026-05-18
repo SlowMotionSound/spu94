@@ -95,6 +95,10 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         voiceEnginePitchKnob.setRange(1.0, 16383.0, 1.0);
         voiceEnginePitchKnob.setValue(4096.0, juce::dontSendNotification);
         voiceEnginePitchKnob.setTextValueSuffix(" pitch");
+        voiceEnginePitchKnob.onValueChange = [this] {
+            processorRef.setGuiVoicePitch(
+                static_cast<uint16_t>(voiceEnginePitchKnob.getValue()));
+        };
         panel.addAndMakeVisible(voiceEnginePitchKnob);
 
         voiceEnginePitchLabel.setText("Voice Pitch", juce::dontSendNotification);

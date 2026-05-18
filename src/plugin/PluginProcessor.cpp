@@ -544,6 +544,9 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         if (pendingGuiStop.exchange(false, std::memory_order_acquire))
             spu94_voice_mixer_key_off(spu94_get_voice_mixer(), 0);
 
+        spu94_voice_mixer_set_pitch(spu94_get_voice_mixer(), 0,
+            guiVoicePitch.load(std::memory_order_relaxed));
+
         // MIDI dispatch -- process note events before spu94_process (Phase 31)
         if (voiceSampleLoaded.load(std::memory_order_acquire))
         {

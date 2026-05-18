@@ -146,6 +146,12 @@ spu94_result_t spu94_voice_mixer_key_off(spu94_voice_mixer_t *m, int voice_idx);
 spu94_result_t spu94_voice_mixer_set_eon(spu94_voice_mixer_t *m, int voice_idx,
     int enabled);
 
+/* Update the pitch register of a playing voice without re-triggering.
+ * Takes effect on the next tick. Clamped to 0x3FFF.
+ * Returns SPU94_INVALID_ARG if voice_idx out of range. */
+spu94_result_t spu94_voice_mixer_set_pitch(spu94_voice_mixer_t *m, int voice_idx,
+    uint16_t pitch);
+
 /* Load pre-encoded ADPCM blocks into mixer->voice_ram at given byte offset.
  * Validates addr + source_size <= SPU94_SPU_RAM_BYTES.
  * Returns SPU94_INVALID_ARG on bounds violation or NULL source. */
