@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "WaveformDisplay.h"
 
 class SamplerWindow : public juce::DocumentWindow
 {
@@ -13,7 +14,8 @@ public:
         setUsingNativeTitleBar(true);
         setResizable(false, false);
 
-        contentPanel.setSize(300, 160);
+        contentPanel.addAndMakeVisible(waveformDisplay);
+        contentPanel.setSize(400, 300);
         setContentNonOwned(&contentPanel, true);
 
         setVisible(true);
@@ -25,8 +27,10 @@ public:
     }
 
     juce::Component& getPanel() { return contentPanel; }
+    WaveformDisplay& getWaveformDisplay() { return waveformDisplay; }
 
 private:
+    WaveformDisplay waveformDisplay;
     juce::Component contentPanel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SamplerWindow)

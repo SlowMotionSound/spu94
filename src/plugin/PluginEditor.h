@@ -110,6 +110,7 @@ private:
 
     // Separate sampler window (standalone-only)
     std::unique_ptr<SamplerWindow> samplerWindow;
+    uint64_t lastWaveformFrames = 0;
 
     // Modified-state tracking (D-11, D-12)
     // Baseline snapshot captured on every preset load (factory or custom)

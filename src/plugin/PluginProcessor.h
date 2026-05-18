@@ -65,6 +65,10 @@ public:
     void stopVoice();
     void setGuiVoicePitch(uint16_t pitch) { guiVoicePitch.store(pitch, std::memory_order_relaxed); }
 
+    // Waveform display data — stashed on load for the GUI thumbnail
+    const std::vector<int16_t>& getWaveformData() const { return waveformData; }
+    uint64_t getWaveformFrames() const { return waveformFrames; }
+
     // --- Parameter bridge (Plan 03: lock-free GUI <-> audio handoff) ---
     RegisterBridge& getRegisterBridge() { return registerBridge; }
     PresetCommandQueue& getPresetQueue() { return presetQueue; }
@@ -337,6 +341,10 @@ private:
     // Live pitch for GUI-triggered voice 0 — updated every audio callback
     std::atomic<uint16_t> guiVoicePitch{0x1000};
     std::atomic<bool> pendingMixerEnable{false};
+
+    // Waveform display data (stashed on sample load for GUI thumbnail)
+    std::vector<int16_t> waveformData;
+    uint64_t waveformFrames = 0;
 
     // Voice engine helpers (Phase 31)
     static uint16_t midiNoteToPitch(int note, int baseNote = 60);

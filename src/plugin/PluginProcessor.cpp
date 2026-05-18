@@ -884,6 +884,10 @@ void SPU94AudioProcessor::loadVoiceSample(const juce::File& file)
         pendingMixerEnable.store(true, std::memory_order_release);
         voiceSampleName = file.getFileName();
         voiceSampleBytes = static_cast<uint32_t>(bytes);
+
+        waveformData = result->L;
+        waveformFrames = result->numFrames;
+
         voiceSampleLoaded.store(true, std::memory_order_release);
     }
 }

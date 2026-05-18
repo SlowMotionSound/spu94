@@ -518,13 +518,21 @@ void SPU94AudioProcessorEditor::timerCallback()
         syncKnob(reverbKnob,      processorRef.getParamReverbLevel()->get());
     }
 
-    // Phase 31: Update voice sample status label (standalone only).
+    // Phase 31: Update voice sample status label + waveform (standalone only).
     if (processorRef.getVoiceSampleLoaded().load(std::memory_order_acquire))
     {
         voiceSampleLabel.setText(
             processorRef.getVoiceSampleName() + " " +
             juce::String(processorRef.getVoiceSampleBytes()) + "B",
             juce::dontSendNotification);
+
+        if (samplerWindow && processorRef.getWaveformFrames() != lastWaveformFrames)
+        {
+            lastWaveformFrames = processorRef.getWaveformFrames();
+            samplerWindow->getWaveformDisplay().setSample(
+                processorRef.getWaveformData().data(),
+                processorRef.getWaveformFrames(), 44100.0);
+        }
     }
 }
 
@@ -568,6 +576,7 @@ void SPU94AudioProcessorEditor::resized()
             voiceEnginePitchLabel.setBounds(10, 50, 80, 16);
             voiceEnginePitchKnob.setBounds(10, 64, 80, 54);
             voiceSampleLabel.setBounds(100, 50, 190, 30);
+            samplerWindow->getWaveformDisplay().setBounds(10, 125, 380, 160);
         }
     }
 
