@@ -50,9 +50,12 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             processorRef.stopPlayback();
         };
 
-        // ---- Voice engine panel (Phase 31: standalone testbed UX) ----
+        // ---- Sampler window + voice engine controls ----
+        samplerWindow = std::make_unique<SamplerWindow>();
+        auto& panel = samplerWindow->getPanel();
+
         // Load Sample button -- opens async file picker, encodes WAV to ADPCM.
-        addAndMakeVisible(loadSampleButton);
+        panel.addAndMakeVisible(loadSampleButton);
         loadSampleButton.onClick = [this]()
         {
             fileChooser = std::make_unique<juce::FileChooser>(
@@ -72,7 +75,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         };
 
         // Trigger button -- keys on voice 0 at pitch from the voice engine knob.
-        addAndMakeVisible(triggerVoiceButton);
+        panel.addAndMakeVisible(triggerVoiceButton);
         triggerVoiceButton.onClick = [this]()
         {
             uint16_t pitch = static_cast<uint16_t>(voiceEnginePitchKnob.getValue());
@@ -80,29 +83,57 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         };
 
         // Stop Voice button -- keys off voice 0.
-        addAndMakeVisible(stopVoiceButton);
+        panel.addAndMakeVisible(stopVoiceButton);
         stopVoiceButton.onClick = [this]()
         {
             processorRef.stopVoice();
         };
 
         // Voice engine pitch knob -- raw SPU pitch register value (0x0001..0x3FFF).
-        // 0x1000 (4096) = unity playback rate (middle C at 44.1 kHz).
         voiceEnginePitchKnob.setSliderStyle(juce::Slider::Rotary);
         voiceEnginePitchKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
         voiceEnginePitchKnob.setRange(1.0, 16383.0, 1.0);
         voiceEnginePitchKnob.setValue(4096.0, juce::dontSendNotification);
         voiceEnginePitchKnob.setTextValueSuffix(" pitch");
-        addAndMakeVisible(voiceEnginePitchKnob);
+        panel.addAndMakeVisible(voiceEnginePitchKnob);
 
         voiceEnginePitchLabel.setText("Voice Pitch", juce::dontSendNotification);
         voiceEnginePitchLabel.setJustificationType(juce::Justification::centred);
-        addAndMakeVisible(voiceEnginePitchLabel);
+        panel.addAndMakeVisible(voiceEnginePitchLabel);
 
         // Voice sample status label -- shows filename + byte count after load.
         voiceSampleLabel.setText("", juce::dontSendNotification);
         voiceSampleLabel.setJustificationType(juce::Justification::centredLeft);
-        addAndMakeVisible(voiceSampleLabel);
+        panel.addAndMakeVisible(voiceSampleLabel);
+
+        // Sampler mixer knobs -- own bus in the master mixer.
+        samplerLevelKnob.setSliderStyle(juce::Slider::Rotary);
+        samplerLevelKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        samplerLevelKnob.setRange(0.0, 1.0, 0.01);
+        samplerLevelKnob.setValue(1.0, juce::dontSendNotification);
+        samplerLevelKnob.onValueChange = [this] {
+            processorRef.getSamplerFader().store(
+                static_cast<float>(samplerLevelKnob.getValue()),
+                std::memory_order_relaxed);
+        };
+        addAndMakeVisible(samplerLevelKnob);
+        samplerLevelLabel.setText("Sampler", juce::dontSendNotification);
+        samplerLevelLabel.setJustificationType(juce::Justification::centred);
+        addAndMakeVisible(samplerLevelLabel);
+
+        samplerSendKnob.setSliderStyle(juce::Slider::Rotary);
+        samplerSendKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        samplerSendKnob.setRange(0.0, 1.0, 0.01);
+        samplerSendKnob.setValue(0.0, juce::dontSendNotification);
+        samplerSendKnob.onValueChange = [this] {
+            processorRef.getSamplerSend().store(
+                static_cast<float>(samplerSendKnob.getValue()),
+                std::memory_order_relaxed);
+        };
+        addAndMakeVisible(samplerSendKnob);
+        samplerSendLabel.setText("Samp Send", juce::dontSendNotification);
+        samplerSendLabel.setJustificationType(juce::Justification::centred);
+        addAndMakeVisible(samplerSendLabel);
     }
 
     presetLabel.setText("Preset:", juce::dontSendNotification);
@@ -317,7 +348,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     };
     addAndMakeVisible(voicePitchKnob);
 
-    voicePitchLabel.setText("Voice Rate", juce::dontSendNotification);
+    voicePitchLabel.setText("Input Rate", juce::dontSendNotification);
     voicePitchLabel.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(voicePitchLabel);
 
@@ -418,6 +449,24 @@ SPU94AudioProcessorEditor::~SPU94AudioProcessorEditor()
 
 void SPU94AudioProcessorEditor::timerCallback()
 {
+#if JUCE_LINUX
+    if (!windowSizeFixed)
+    {
+        windowSizeFixed = true;
+        if (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
+        {
+            if (auto* topLevel = getTopLevelComponent())
+            {
+                if (topLevel->getWidth() < 800 || topLevel->getHeight() < 800)
+                {
+                    setSize(901, 951);
+                    setSize(900, 950);
+                }
+            }
+        }
+    }
+#endif
+
     // Detect file-preset load completion (Save Preset / Load Preset buttons).
     const int fileCount = processorRef.getFilePresetAppliedCount();
     if (fileCount != lastFilePresetCount)
@@ -503,31 +552,39 @@ void SPU94AudioProcessorEditor::resized()
         playButton.setBounds(115, 10, 70, 30);
         stopButton.setBounds(190, 10, 70, 30);
 
-        // Voice engine panel (Phase 31) -- second row below WAV toolbar
-        loadSampleButton.setBounds(10, 45, 110, 30);
-        triggerVoiceButton.setBounds(125, 45, 70, 30);
-        stopVoiceButton.setBounds(200, 45, 90, 30);
-        voiceEnginePitchLabel.setBounds(295, 37, 80, 16);
-        voiceEnginePitchKnob.setBounds(295, 51, 80, 54);
-        voiceSampleLabel.setBounds(380, 45, 200, 30);
+        // Voice engine controls are in the sampler window — lay them out there.
+        if (samplerWindow)
+        {
+            loadSampleButton.setBounds(10, 10, 110, 30);
+            triggerVoiceButton.setBounds(125, 10, 70, 30);
+            stopVoiceButton.setBounds(200, 10, 90, 30);
+            voiceEnginePitchLabel.setBounds(10, 50, 80, 16);
+            voiceEnginePitchKnob.setBounds(10, 64, 80, 54);
+            voiceSampleLabel.setBounds(100, 50, 190, 30);
+        }
     }
     presetLabel.setBounds(210, 10, 55, 30);
     savePresetButton.setBounds(270, 10, 55, 30);
     loadPresetButton.setBounds(330, 10, 55, 30);
 
-    // ADPCM voice path: Voice Rate knob + Gauss + AA toggles
+    // ADPCM voice path: Input Rate knob + Gauss + AA toggles
     voicePitchLabel.setBounds(400, 2, 80, 16);
     voicePitchKnob.setBounds(400, 16, 80, 54);
     gaussToggle.setBounds(485, 10, 65, 30);
     aaFilterToggle.setBounds(485, 38, 120, 30);
 
-    // Three equal-sized knobs: Input Gain, ADPCM Send, Dry Send
-    inputLevelLabel.setBounds(640, 2, 80, 16);
-    inputLevelKnob.setBounds(640, 16, 80, 54);
-    adpcmSendLabel.setBounds(725, 2, 80, 16);
-    adpcmSendKnob.setBounds(725, 16, 80, 54);
-    drySendLabel.setBounds(810, 2, 80, 16);
-    drySendKnob.setBounds(810, 16, 80, 54);
+    // Input Gain + Send knobs
+    inputLevelLabel.setBounds(640, 2, 70, 16);
+    inputLevelKnob.setBounds(640, 16, 70, 54);
+    adpcmSendLabel.setBounds(710, 2, 65, 16);
+    adpcmSendKnob.setBounds(710, 16, 65, 54);
+    drySendLabel.setBounds(775, 2, 60, 16);
+    drySendKnob.setBounds(775, 16, 60, 54);
+    if (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
+    {
+        samplerSendLabel.setBounds(835, 2, 65, 16);
+        samplerSendKnob.setBounds(835, 16, 65, 54);
+    }
 
     // ---- ZONE 2: Register panel in scrollable viewport (fills middle) ----
     const int bottomZoneHeight = 80;
@@ -553,12 +610,19 @@ void SPU94AudioProcessorEditor::resized()
     patinaKnob.setBounds(220, bottomY + 14, 80, 54);
     reverbKnobLabel.setBounds(320, bottomY, 80, 16);
     reverbKnob.setBounds(320, bottomY + 14, 80, 54);
+    if (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
+    {
+        samplerLevelLabel.setBounds(420, bottomY, 70, 16);
+        samplerLevelKnob.setBounds(420, bottomY + 14, 70, 54);
+    }
     // Toggles: Latency Comp + DAC section
-    latencyCompToggle.setBounds(420, bottomY + 15, 100, 30);
-    dacToggle.setBounds(520, bottomY + 15, 55, 30);
-    dacFirToggle.setBounds(575, bottomY + 15, 50, 30);
-    dacNoiseToggle.setBounds(625, bottomY + 15, 60, 30);
-    dacOversampleToggle.setBounds(690, bottomY + 15, 50, 30);
+    const int toggleX = (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
+                        ? 500 : 420;
+    latencyCompToggle.setBounds(toggleX, bottomY + 15, 90, 30);
+    dacToggle.setBounds(toggleX + 95, bottomY + 15, 50, 30);
+    dacFirToggle.setBounds(toggleX + 145, bottomY + 15, 45, 30);
+    dacNoiseToggle.setBounds(toggleX + 190, bottomY + 15, 55, 30);
+    dacOversampleToggle.setBounds(toggleX + 250, bottomY + 15, 45, 30);
 
     // SAVE / REVERT hover at the TOP of the Advanced viewport (matching
     // where the master-branch Abort button lived). Floats over the top

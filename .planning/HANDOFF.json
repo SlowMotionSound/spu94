@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-17T18:14:20.472Z",
+  "timestamp": "2026-05-18T01:54:04.537Z",
   "phase": "31",
   "phase_name": "standalone-testbed-ux",
   "phase_dir": ".planning/phases/31-standalone-testbed-ux",
@@ -11,30 +11,44 @@
   "completed_tasks": [
     {"id": "31-01", "name": "Voice engine processor API", "status": "done", "commit": "136791b"},
     {"id": "31-02", "name": "Voice panel GUI", "status": "done", "commit": "ea24a98"},
-    {"id": "thread-fix", "name": "Thread-safety for GUI trigger/stop + voice-steal key-off", "status": "done", "commit": "ce23265"}
+    {"id": "thread-fix", "name": "Thread-safety for GUI trigger/stop + voice-steal key-off", "status": "done", "commit": "ce23265"},
+    {"id": "window-fix", "name": "XWayland window sizing fix — poke editor bounds on first timer tick", "status": "done", "commit": "uncommitted"},
+    {"id": "rename", "name": "Voice Rate → Input Rate label rename", "status": "done", "commit": "uncommitted"},
+    {"id": "sampler-bus", "name": "C core sampler bus separation (sampler_fader, sampler_send)", "status": "done", "commit": "uncommitted"},
+    {"id": "sampler-knobs", "name": "Sampler Level + Samp Send knobs in GUI", "status": "done", "commit": "uncommitted"},
+    {"id": "sampler-window", "name": "Separate PSX Sampler window with voice controls moved into it", "status": "done", "commit": "uncommitted"},
+    {"id": "send-move", "name": "Samp Send knob moved to toolbar with other sends", "status": "done", "commit": "uncommitted"}
   ],
   "remaining_tasks": [
-    {"id": "window-fix", "name": "JUCE window position fix for KDE/Wayland", "status": "not_started"},
-    {"id": "sampler-bus", "name": "Re-apply C core sampler bus separation (sampler_fader, sampler_send)", "status": "not_started"},
-    {"id": "rename", "name": "Rename Voice Rate to Input Rate", "status": "not_started"},
-    {"id": "sampler-window", "name": "Separate JUCE window for sampler instrument", "status": "not_started"},
-    {"id": "mixer-gui", "name": "Mixer GUI sections (ADPCM/Dry/Reverb) + sampler knobs", "status": "not_started"},
+    {"id": "mixer-reorg", "name": "Reorganize mixer labels into ADPCM / Dry / Reverb sections", "status": "not_started"},
     {"id": "gui-polish", "name": "GUI polish (Anthony to walk through issues)", "status": "not_started"},
-    {"id": "midi-verify", "name": "MIDI input verification", "status": "not_started"}
+    {"id": "midi-verify", "name": "MIDI input verification (needs controller)", "status": "not_started"}
   ],
-  "blockers": [
-    {"description": "JUCE standalone window invisible on KDE/Wayland — saves (0,44) as position, lands offscreen every launch", "type": "technical", "workaround": "User manually maximizes from taskbar icon"}
-  ],
+  "blockers": [],
   "human_actions_pending": [
-    {"action": "Maximize SPU-94 from taskbar on each launch until window fix is applied", "context": "KDE/Wayland window position bug", "blocking": false}
+    {"action": "Walk through GUI and flag visual issues for polish pass", "context": "Anthony hasn't done visual review yet", "blocking": false},
+    {"action": "Plug in MIDI controller for MIDI verification", "context": "No controller available last two sessions", "blocking": false}
   ],
   "decisions": [
     {"decision": "Sampler and SPU-94 are separate products connected at audio level", "rationale": "Anthony wants them to feel like two independent codebases wired together like analog hardware", "phase": "31"},
     {"decision": "Global sampler send replaces per-voice EON", "rationale": "Simpler for now; per-voice routing deferred", "phase": "31"},
-    {"decision": "Mixer sections: ADPCM (Input ADPCM Level + Sampler Level) / Dry / Reverb", "rationale": "Groups controls by sound character — PSX crunchy vs clean vs wet", "phase": "31"},
-    {"decision": "Voice Rate renamed to Input Rate", "rationale": "It controls the live input sample rate, not the sampler voices", "phase": "31"}
+    {"decision": "Sampler bus independent from ADPCM coloration bus", "rationale": "Own fader and send so sampler volume doesn't couple to live input ADPCM level", "phase": "31"},
+    {"decision": "Samp Send lives in toolbar with other sends, not in mixer row", "rationale": "Anthony: sends go with sends — consistent grouping by function", "phase": "31"},
+    {"decision": "Voice Rate renamed to Input Rate", "rationale": "It controls the live input sample rate, not the sampler voices", "phase": "31"},
+    {"decision": "XWayland fix threshold 800px not 100px", "rationale": "Second window creation changed initial size from 2x58 to 128x128, need generous threshold", "phase": "31"}
   ],
-  "uncommitted_files": [],
-  "next_action": "Fix JUCE standalone window positioning on Wayland/KDE by reading the JUCE StandaloneFilterWindow source and implementing a code-level fix. Verify window appears before any other work.",
-  "context_notes": "Code is at ce23265 (known good). GUI rework was attempted, broke window, reverted. Signal flow decisions are solid but only exist in conversation and memory — not yet in code. C core sampler bus separation needs re-applying. All changes must be done one at a time with build+verify between each."
+  "uncommitted_files": [
+    "include/spu94/spu94.h",
+    "src/plugin/PluginEditor.cpp",
+    "src/plugin/PluginEditor.h",
+    "src/plugin/PluginProcessor.cpp",
+    "src/plugin/PluginProcessor.h",
+    "src/plugin/SamplerWindow.h",
+    "src/spu94/spu94_io_chain.c",
+    "src/spu94/spu94_preset_io.c",
+    "src/spu94/spu94_process.c",
+    "src/spu94/spu94_state_internal.h"
+  ],
+  "next_action": "Commit all session work. Then optionally reorganize mixer section labels (ADPCM / Dry / Reverb groupings). GUI polish and MIDI verification are blocked on Anthony's input.",
+  "context_notes": "All changes were done one at a time with build+verify between each. No batching. The XWayland window fix uses a generous threshold (800px) because creating the second sampler window changed the initial bogus size from 2x58 to 128x128. Signal flow: voice engine now has 4 independent paths — sampler_fader to master mix, sampler_send to reverb input, plus the existing 4 live-input paths (ADPCM fader/send, dry fader/send). All C core tests pass."
 }

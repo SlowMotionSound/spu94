@@ -102,6 +102,10 @@ public:
     std::atomic<bool>& getAAFilterEnabled() { return aaFilterEnabled; }
     std::atomic<int>& getVoicePitch() { return voicePitch; }
 
+    // --- Voice engine mixer (standalone-only) ---
+    std::atomic<float>& getSamplerFader() { return samplerFader; }
+    std::atomic<float>& getSamplerSend() { return samplerSend; }
+
     // --- Voice engine state (Phase 31: standalone testbed) ---
     std::atomic<bool>& getVoiceSampleLoaded() { return voiceSampleLoaded; }
     const juce::String& getVoiceSampleName() const { return voiceSampleName; }
@@ -229,6 +233,10 @@ private:
     std::atomic<float> reverbLevel{1.0f};     // reverb return level
     std::atomic<float> adpcmSend{1.0f};       // ADPCM bus reverb send (default FULL)
     std::atomic<float> drySend{0.0f};         // dry bus reverb send (default OFF)
+
+    // Voice engine mixer (standalone-only, not host-automated)
+    std::atomic<float> samplerFader{1.0f};
+    std::atomic<float> samplerSend{0.0f};
 
     // Latency compensation (default ON per D-07)
     std::atomic<bool> latencyCompEnabled{true};

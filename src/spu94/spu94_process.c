@@ -198,14 +198,10 @@ void spu94_process(spu94_state *state,
         /* When adpcm_enabled=0: patina_l/r remain as passthrough (input signal),
          * which is the correct behavior — no coloration applied. */
 
-        /* MIX-06: Voice dry output coexists with ADPCM coloration bus.
-         * Both contribute to patina_l/r (which feeds patina_fader in master mix).
-         * This sum happens AFTER the adpcm_enabled block, so:
-         *   - When adpcm_enabled=1: coloration output + voice output both present.
-         *   - When adpcm_enabled=0: passthrough (input) + voice output present.
-         * Either way, voice output is additive, not overwriting. */
-        patina_l = sat_s16((int32_t)patina_l + (int32_t)voice_dry_l);
-        patina_r = sat_s16((int32_t)patina_r + (int32_t)voice_dry_r);
+        /* MIX-06: Voice engine has its own bus (sampler_fader/sampler_send),
+         * independent from the ADPCM coloration path (patina_fader/patina_send).
+         * voice_dry_l/r feeds sampler_fader at master mix.
+         * voice_rev_l/r feeds sampler_send at reverb input. */
 
         /* 3. Dry bus with latency compensation (D-07, D-08) */
         int16_t dry_l = l, dry_r = r;
@@ -219,13 +215,13 @@ void spu94_process(spu94_state *state,
             dry_r = delayed_r;
         }
 
-        /* 4. Reverb sends: sum of dry + patina + voice reverb sends (D-01, MIX-05) */
-        int16_t send_l = sat_s16((int32_t)q15_mul_truncate(dry_l,    state->dry_send)
-                               + (int32_t)q15_mul_truncate(patina_l, state->patina_send)
-                               + (int32_t)voice_rev_l);   /* MIX-05: voice reverb send */
-        int16_t send_r = sat_s16((int32_t)q15_mul_truncate(dry_r,    state->dry_send)
-                               + (int32_t)q15_mul_truncate(patina_r, state->patina_send)
-                               + (int32_t)voice_rev_r);   /* MIX-05: voice reverb send */
+        /* 4. Reverb sends: dry + patina + sampler, each with own send level */
+        int16_t send_l = sat_s16((int32_t)q15_mul_truncate(dry_l,       state->dry_send)
+                               + (int32_t)q15_mul_truncate(patina_l,    state->patina_send)
+                               + (int32_t)q15_mul_truncate(voice_rev_l, state->sampler_send));
+        int16_t send_r = sat_s16((int32_t)q15_mul_truncate(dry_r,       state->dry_send)
+                               + (int32_t)q15_mul_truncate(patina_r,    state->patina_send)
+                               + (int32_t)q15_mul_truncate(voice_rev_r, state->sampler_send));
 
         /* 5. Reverb: unchanged chain internals; only the input changes */
         int16_t rev_l = 0, rev_r = 0;
@@ -259,15 +255,17 @@ void spu94_process(spu94_state *state,
             state->fir_lc_pos = (uint8_t)((pos + 1u) % 58u);
         }
 
-        /* 6. Master mixer: three-bus sum, int32 accumulation + sat_s16 (D-01) */
+        /* 6. Master mixer: four-bus sum, int32 accumulation + sat_s16 (D-01) */
         int16_t out_l = sat_s16(
-            (int32_t)q15_mul_truncate(mix_dry_l, state->dry_fader)
-          + (int32_t)q15_mul_truncate(mix_pat_l, state->patina_fader)
-          + (int32_t)q15_mul_truncate(rev_l,     state->reverb_fader));
+            (int32_t)q15_mul_truncate(mix_dry_l,    state->dry_fader)
+          + (int32_t)q15_mul_truncate(mix_pat_l,    state->patina_fader)
+          + (int32_t)q15_mul_truncate(voice_dry_l,  state->sampler_fader)
+          + (int32_t)q15_mul_truncate(rev_l,        state->reverb_fader));
         int16_t out_r = sat_s16(
-            (int32_t)q15_mul_truncate(mix_dry_r, state->dry_fader)
-          + (int32_t)q15_mul_truncate(mix_pat_r, state->patina_fader)
-          + (int32_t)q15_mul_truncate(rev_r,    state->reverb_fader));
+            (int32_t)q15_mul_truncate(mix_dry_r,    state->dry_fader)
+          + (int32_t)q15_mul_truncate(mix_pat_r,    state->patina_fader)
+          + (int32_t)q15_mul_truncate(voice_dry_r,  state->sampler_fader)
+          + (int32_t)q15_mul_truncate(rev_r,        state->reverb_fader));
 
         /* 7. DAC section: mode-selectable v1.2/v1.3 processing (Phase 11) */
         if (state->dac_enabled) {

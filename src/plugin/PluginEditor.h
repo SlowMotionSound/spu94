@@ -3,6 +3,7 @@
 #include "PluginProcessor.h"
 #include "RegisterPanel.h"
 #include "MorphPanel.h"
+#include "SamplerWindow.h"
 #include <memory>
 
 class SPU94AudioProcessorEditor : public juce::AudioProcessorEditor,
@@ -90,6 +91,12 @@ private:
     juce::Slider voiceEnginePitchKnob;
     juce::Label voiceEnginePitchLabel;
 
+    // Sampler mixer knobs (standalone-only)
+    juce::Slider samplerLevelKnob;
+    juce::Label samplerLevelLabel;
+    juce::Slider samplerSendKnob;
+    juce::Label samplerSendLabel;
+
     // Zone 4: DAC section
     juce::ToggleButton dacToggle{"DAC"};
     juce::ToggleButton dacFirToggle{"FIR"};
@@ -97,6 +104,12 @@ private:
     juce::ToggleButton dacOversampleToggle{"8x"};
 
 
+
+    // XWayland window size fix — runs once on first timer tick
+    bool windowSizeFixed = false;
+
+    // Separate sampler window (standalone-only)
+    std::unique_ptr<SamplerWindow> samplerWindow;
 
     // Modified-state tracking (D-11, D-12)
     // Baseline snapshot captured on every preset load (factory or custom)

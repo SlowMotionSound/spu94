@@ -90,7 +90,9 @@ int spu94_preset_save(const spu94_state *state,
     EMIT("patina_fader=0x%04X\n", (unsigned)(uint16_t)spu94_get_patina_fader(state));
     EMIT("dry_send=0x%04X\n",     (unsigned)(uint16_t)spu94_get_dry_send(state));
     EMIT("patina_send=0x%04X\n",  (unsigned)(uint16_t)spu94_get_patina_send(state));
-    EMIT("reverb_fader=0x%04X\n", (unsigned)(uint16_t)spu94_get_reverb_fader(state));
+    EMIT("reverb_fader=0x%04X\n",  (unsigned)(uint16_t)spu94_get_reverb_fader(state));
+    EMIT("sampler_fader=0x%04X\n", (unsigned)(uint16_t)spu94_get_sampler_fader(state));
+    EMIT("sampler_send=0x%04X\n",  (unsigned)(uint16_t)spu94_get_sampler_send(state));
     EMIT("latency_comp=%d\n",     spu94_get_latency_comp(state));
 
     /* ---- [dac] section ---- */
@@ -302,6 +304,10 @@ if (strcmp(key, "input_gain") == 0)
                 spu94_set_patina_send(state, (int16_t)parse_hex_u16(value));
             else if (strcmp(key, "reverb_fader") == 0)
                 spu94_set_reverb_fader(state, (int16_t)parse_hex_u16(value));
+            else if (strcmp(key, "sampler_fader") == 0)
+                spu94_set_sampler_fader(state, (int16_t)parse_hex_u16(value));
+            else if (strcmp(key, "sampler_send") == 0)
+                spu94_set_sampler_send(state, (int16_t)parse_hex_u16(value));
             else if (strcmp(key, "latency_comp") == 0) {
                 int b = parse_bool(value);
                 if (b >= 0) spu94_set_latency_comp(state, b);

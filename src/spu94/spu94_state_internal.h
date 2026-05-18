@@ -197,6 +197,8 @@ struct spu94_state {
     int16_t        dry_send;          /* dry bus -> reverb send level */
     int16_t        patina_send;       /* patina bus -> reverb send level */
     int16_t        reverb_fader;      /* reverb return level at master mixer */
+    int16_t        sampler_fader;     /* voice engine level at master mixer */
+    int16_t        sampler_send;      /* voice engine -> reverb send level */
 
     /* Latency compensation (D-07, D-08)
      *

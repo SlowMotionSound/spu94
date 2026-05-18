@@ -295,6 +295,24 @@ int16_t spu94_get_reverb_fader(const spu94_state *state) {
     return state->reverb_fader;
 }
 
+void spu94_set_sampler_fader(spu94_state *state, int16_t level) {
+    if (state == NULL) return;
+    state->sampler_fader = level;
+}
+int16_t spu94_get_sampler_fader(const spu94_state *state) {
+    if (state == NULL) return 0;
+    return state->sampler_fader;
+}
+
+void spu94_set_sampler_send(spu94_state *state, int16_t level) {
+    if (state == NULL) return;
+    state->sampler_send = level;
+}
+int16_t spu94_get_sampler_send(const spu94_state *state) {
+    if (state == NULL) return 0;
+    return state->sampler_send;
+}
+
 /* -----------------------------------------------------------------------
  * Latency compensation (Phase 7, D-07, D-08)
  *

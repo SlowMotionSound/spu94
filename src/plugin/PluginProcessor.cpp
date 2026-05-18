@@ -205,6 +205,8 @@ void SPU94AudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     spu94_set_reverb_fader(engines[0], 0x7FFF);
     spu94_set_dry_send(engines[0], 0x0000);
     spu94_set_patina_send(engines[0], 0x7FFF);
+    spu94_set_sampler_fader(engines[0], 0x7FFF);
+    spu94_set_sampler_send(engines[0], 0x0000);
     spu94_set_dac_enabled(engines[0], 1);
     spu94_set_latency_comp(engines[0], 1);
 
@@ -431,6 +433,10 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         paramDrySend->get() * 0x7FFF));
     spu94_set_patina_send(engines[0], static_cast<int16_t>(
         paramAdpcmSend->get() * 0x7FFF));
+    spu94_set_sampler_fader(engines[0], static_cast<int16_t>(
+        samplerFader.load(std::memory_order_relaxed) * 0x7FFF));
+    spu94_set_sampler_send(engines[0], static_cast<int16_t>(
+        samplerSend.load(std::memory_order_relaxed) * 0x7FFF));
     spu94_set_latency_comp(engines[0],
         latencyCompEnabled.load(std::memory_order_relaxed) ? 1 : 0);
     spu94_set_dac_enabled(engines[0],
