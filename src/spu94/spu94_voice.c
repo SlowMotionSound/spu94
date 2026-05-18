@@ -123,6 +123,19 @@ void spu94_voice_tick(spu94_voice_t *v,
         v->decode_buf_pos = 0;
         v->has_block = 1;
 
+        /* End-address stop: if set, halt when we reach or pass it */
+        if (v->end_addr > 0 && v->current_addr >= v->end_addr) {
+            if (v->adsr.enabled) {
+                v->adsr.phase = ADSR_OFF;
+                v->adsr.level = 0;
+            } else {
+                v->active = 0;
+            }
+            *out_l = 0;
+            *out_r = 0;
+            return;
+        }
+
         /* --- Loop flag dispatch (LOOP-01 through LOOP-05; C4, C5, S3) --- */
 
         /* LOOP-02 / C4: Loop-Start — latch loop_addr and snapshot filter state.

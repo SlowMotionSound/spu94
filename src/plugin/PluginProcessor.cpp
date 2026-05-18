@@ -539,13 +539,22 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         {
             uint16_t trigPitch = pendingGuiTriggerPitch.exchange(0, std::memory_order_acquire);
             if (trigPitch != 0)
-                spu94_voice_mixer_key_on(spu94_get_voice_mixer(), 0, 0, trigPitch, 0x7FFF, 0x7FFF, 1, nullptr);
+            {
+                uint32_t startAddr = posToBlockAddr(sampleStartPos.load(std::memory_order_relaxed));
+                spu94_voice_mixer_key_on(spu94_get_voice_mixer(), 0, startAddr, trigPitch, 0x7FFF, 0x7FFF, 1, nullptr);
+            }
         }
         if (pendingGuiStop.exchange(false, std::memory_order_acquire))
             spu94_voice_mixer_key_off(spu94_get_voice_mixer(), 0);
 
         spu94_voice_mixer_set_pitch(spu94_get_voice_mixer(), 0,
             guiVoicePitch.load(std::memory_order_relaxed));
+
+        // Update end_addr on voice 0 from marker position
+        {
+            auto* mx = spu94_get_voice_mixer();
+            mx->voices[0].end_addr = posToBlockAddr(sampleEndPos.load(std::memory_order_relaxed));
+        }
 
         // MIDI dispatch -- process note events before spu94_process (Phase 31)
         if (voiceSampleLoaded.load(std::memory_order_acquire))
@@ -900,6 +909,22 @@ void SPU94AudioProcessor::triggerVoice(uint16_t pitch)
 void SPU94AudioProcessor::stopVoice()
 {
     pendingGuiStop.store(true, std::memory_order_release);
+}
+
+uint32_t SPU94AudioProcessor::posToBlockAddr(double pos) const
+{
+    if (voiceSampleBytes == 0) return 0;
+    uint32_t bytePos = static_cast<uint32_t>(pos * voiceSampleBytes);
+    return (bytePos / SPU94_ADPCM_BLOCK_BYTES) * SPU94_ADPCM_BLOCK_BYTES;
+}
+
+double SPU94AudioProcessor::getVoicePlaybackPos() const
+{
+    if (voiceSampleBytes == 0) return 0.0;
+    auto* mx = spu94_get_voice_mixer();
+    auto& v = mx->voices[0];
+    if (!v.active) return 0.0;
+    return static_cast<double>(v.current_addr) / static_cast<double>(voiceSampleBytes);
 }
 
 uint16_t SPU94AudioProcessor::midiNoteToPitch(int note, int baseNote)

@@ -11,6 +11,7 @@
 
 extern "C" {
 #include <spu94/spu94.h>
+#include <spu94/spu94_adpcm.h>
 #include <spu94/spu94_registers.h>
 #include <spu94/spu94_voice.h>
 #include <spu94/spu94_sample_loader.h>
@@ -64,10 +65,15 @@ public:
     void triggerVoice(uint16_t pitch);
     void stopVoice();
     void setGuiVoicePitch(uint16_t pitch) { guiVoicePitch.store(pitch, std::memory_order_relaxed); }
+    void setSampleStartPos(double pos) { sampleStartPos.store(pos, std::memory_order_relaxed); }
+    void setSampleEndPos(double pos) { sampleEndPos.store(pos, std::memory_order_relaxed); }
 
     // Waveform display data — stashed on load for the GUI thumbnail
     const std::vector<int16_t>& getWaveformData() const { return waveformData; }
     uint64_t getWaveformFrames() const { return waveformFrames; }
+
+    // Playback position for waveform display (normalized 0..1)
+    double getVoicePlaybackPos() const;
 
     // --- Parameter bridge (Plan 03: lock-free GUI <-> audio handoff) ---
     RegisterBridge& getRegisterBridge() { return registerBridge; }
@@ -340,6 +346,9 @@ private:
     std::atomic<bool> pendingGuiStop{false};
     // Live pitch for GUI-triggered voice 0 — updated every audio callback
     std::atomic<uint16_t> guiVoicePitch{0x1000};
+    // Sample start/end positions (normalized 0..1) from waveform markers
+    std::atomic<double> sampleStartPos{0.0};
+    std::atomic<double> sampleEndPos{1.0};
     std::atomic<bool> pendingMixerEnable{false};
 
     // Waveform display data (stashed on sample load for GUI thumbnail)
@@ -348,6 +357,7 @@ private:
 
     // Voice engine helpers (Phase 31)
     static uint16_t midiNoteToPitch(int note, int baseNote = 60);
+    uint32_t posToBlockAddr(double pos) const;
     int allocateVoice(int note);
     int findVoiceForNote(int note);
 

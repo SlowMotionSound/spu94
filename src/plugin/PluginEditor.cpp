@@ -526,12 +526,21 @@ void SPU94AudioProcessorEditor::timerCallback()
             juce::String(processorRef.getVoiceSampleBytes()) + "B",
             juce::dontSendNotification);
 
-        if (samplerWindow && processorRef.getWaveformFrames() != lastWaveformFrames)
+        if (samplerWindow)
         {
-            lastWaveformFrames = processorRef.getWaveformFrames();
-            samplerWindow->getWaveformDisplay().setSample(
-                processorRef.getWaveformData().data(),
-                processorRef.getWaveformFrames(), 44100.0);
+            if (processorRef.getWaveformFrames() != lastWaveformFrames)
+            {
+                lastWaveformFrames = processorRef.getWaveformFrames();
+                samplerWindow->getWaveformDisplay().setSample(
+                    processorRef.getWaveformData().data(),
+                    processorRef.getWaveformFrames(), 44100.0);
+            }
+            samplerWindow->getWaveformDisplay().setPlayheadPos(
+                processorRef.getVoicePlaybackPos());
+            processorRef.setSampleStartPos(
+                samplerWindow->getWaveformDisplay().getStartPos());
+            processorRef.setSampleEndPos(
+                samplerWindow->getWaveformDisplay().getEndPos());
         }
     }
 }
