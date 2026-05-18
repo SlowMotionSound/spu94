@@ -455,14 +455,14 @@ void MorphPanel::resized()
 
     // Speed knob + Fast/Slow strip + Grit strip: bottom row.
     constexpr int speedSize = 60;
-    constexpr int rangeBtnW = 44;
-    constexpr int rangeBtnH = 24;
+    constexpr int rangeBtnW = 60;
+    constexpr int rangeBtnH = 28;
     constexpr int gritBtnW = 60;
     constexpr int gritBtnH = 28;
     constexpr int gritStripW = gritBtnW * 2;
     constexpr int controlLabelH = 14;
-    constexpr int bottomMargin = 4;
-    constexpr int gap = 32;
+    constexpr int bottomMargin = 36;
+    constexpr int gap = 56;
 
     int rowY = area.getHeight() - speedSize - controlLabelH - bottomMargin;
 
@@ -470,19 +470,19 @@ void MorphPanel::resized()
     int pairX = (area.getWidth() - pairW) / 2;
 
     int speedX = pairX;
-    speedKnob.setBounds(speedX, rowY, speedSize, speedSize);
     speedLabel.setBounds(speedX - 20, rowY + speedSize, speedSize + 40, controlLabelH);
-
-    // Fast/Slow strip below speed knob label
-    int rangeStripW = rangeBtnW * 2;
-    int rangeX = speedX + (speedSize - rangeStripW) / 2;
-    int rangeY = rowY - rangeBtnH - 4;
-    speedFastButton.setBounds(rangeX,              rangeY, rangeBtnW, rangeBtnH);
-    speedSlowButton.setBounds(rangeX + rangeBtnW,  rangeY, rangeBtnW, rangeBtnH);
 
     // Grit strip vertically centered on the speed-knob row.
     int stripX = pairX + speedSize + gap;
     int stripY = rowY + (speedSize - gritBtnH) / 2;
+
+    // Fast/Slow strip aligned with Grit buttons, encoder above it
+    int rangeStripW = rangeBtnW * 2;
+    int rangeX = speedX + (speedSize - rangeStripW) / 2;
+    int rangeY = stripY;
+    speedFastButton.setBounds(rangeX,              rangeY, rangeBtnW, rangeBtnH);
+    speedSlowButton.setBounds(rangeX + rangeBtnW,  rangeY, rangeBtnW, rangeBtnH);
+    speedKnob.setBounds(speedX, rangeY - speedSize - 4, speedSize, speedSize);
     gritIntButton  .setBounds(stripX,             stripY, gritBtnW, gritBtnH);
     gritFractButton.setBounds(stripX + gritBtnW,  stripY, gritBtnW, gritBtnH);
     gritLabel.setBounds(stripX - 20, rowY + speedSize, gritStripW + 40, controlLabelH);

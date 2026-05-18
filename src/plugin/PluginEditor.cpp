@@ -217,7 +217,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             static_cast<float>(adpcmSendKnob.getValue()));
     };
     addAndMakeVisible(adpcmSendLabel);
-    adpcmSendLabel.setText("ADPCM Send", juce::dontSendNotification);
+    adpcmSendLabel.setText("Input Send", juce::dontSendNotification);
     adpcmSendLabel.setJustificationType(juce::Justification::centred);
 
     // Reverb Sends: Dry Input Send knob
@@ -281,7 +281,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             static_cast<float>(patinaKnob.getValue()));
     };
     addAndMakeVisible(patinaKnobLabel);
-    patinaKnobLabel.setText("ADPCM", juce::dontSendNotification);
+    patinaKnobLabel.setText("Input", juce::dontSendNotification);
     patinaKnobLabel.setJustificationType(juce::Justification::centred);
 
     // Reverb level knob
@@ -528,15 +528,12 @@ void SPU94AudioProcessorEditor::paint(juce::Graphics& g)
 {
     g.fillAll(juce::Colours::darkgrey);
 
-    // Combined mixer + DAC zone label
-    auto mixerLabelArea = juce::Rectangle<int>(10, getHeight() - 85, 100, 16);
-    g.setFont(12.0f);
-    g.setColour(juce::Colours::white);
-    g.drawText("Mixer / DAC", mixerLabelArea, juce::Justification::left, false);
-
     // Horizontal separator line above combined zone
     g.setColour(juce::Colours::grey);
     g.drawHorizontalLine(getHeight() - 90, 10.0f, static_cast<float>(getWidth() - 10));
+
+    g.setFont(12.0f);
+    g.setColour(juce::Colours::white);
 }
 
 void SPU94AudioProcessorEditor::resized()
@@ -546,11 +543,17 @@ void SPU94AudioProcessorEditor::resized()
     // ---- ZONE 1: Toolbar (y=10, h=60) ----
     // WAV-loader buttons positioned only in the standalone testbed; plugin
     // formats leave x=10..265 intentionally empty (no reflow in Phase 21).
+    // Preset row (top left)
+    presetLabel.setBounds(10, 10, 55, 30);
+    savePresetButton.setBounds(70, 10, 55, 30);
+    loadPresetButton.setBounds(130, 10, 55, 30);
+
     if (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
     {
-        loadButton.setBounds(10, 10, 100, 30);
-        playButton.setBounds(115, 10, 70, 30);
-        stopButton.setBounds(190, 10, 70, 30);
+        // WAV loader row (below preset row, left-aligned)
+        loadButton.setBounds(10, 42, 100, 30);
+        playButton.setBounds(115, 42, 70, 30);
+        stopButton.setBounds(190, 42, 70, 30);
 
         // Voice engine controls are in the sampler window — lay them out there.
         if (samplerWindow)
@@ -563,19 +566,16 @@ void SPU94AudioProcessorEditor::resized()
             voiceSampleLabel.setBounds(100, 50, 190, 30);
         }
     }
-    presetLabel.setBounds(210, 10, 55, 30);
-    savePresetButton.setBounds(270, 10, 55, 30);
-    loadPresetButton.setBounds(330, 10, 55, 30);
 
-    // ADPCM voice path: Input Rate knob + Gauss + AA toggles
-    voicePitchLabel.setBounds(400, 2, 80, 16);
-    voicePitchKnob.setBounds(400, 16, 80, 54);
-    gaussToggle.setBounds(485, 10, 65, 30);
-    aaFilterToggle.setBounds(485, 38, 120, 30);
+    // Input controls: Input Gain, Input Rate, Gauss, Anti-Aliasing
+    inputLevelLabel.setBounds(400, 2, 70, 16);
+    inputLevelKnob.setBounds(400, 16, 70, 54);
+    voicePitchLabel.setBounds(475, 2, 80, 16);
+    voicePitchKnob.setBounds(475, 16, 80, 54);
+    gaussToggle.setBounds(560, 10, 65, 30);
+    aaFilterToggle.setBounds(560, 38, 120, 30);
 
-    // Input Gain + Send knobs
-    inputLevelLabel.setBounds(640, 2, 70, 16);
-    inputLevelKnob.setBounds(640, 16, 70, 54);
+    // Send knobs: Input Send, Dry Send, Samp Send
     adpcmSendLabel.setBounds(710, 2, 65, 16);
     adpcmSendKnob.setBounds(710, 16, 65, 54);
     drySendLabel.setBounds(775, 2, 60, 16);
@@ -602,22 +602,23 @@ void SPU94AudioProcessorEditor::resized()
 
     // ---- ZONE 3+4: Combined mixer + DAC (single bottom row) ----
     const int bottomY = registerBottom + 5;
-    // (Morph Speed knob is laid out by MorphPanel inside the viewport.)
-    // Three level knobs (unchanged)
-    dryKnobLabel.setBounds(120, bottomY, 80, 16);
-    dryKnob.setBounds(120, bottomY + 14, 80, 54);
-    patinaKnobLabel.setBounds(220, bottomY, 80, 16);
-    patinaKnob.setBounds(220, bottomY + 14, 80, 54);
-    reverbKnobLabel.setBounds(320, bottomY, 80, 16);
-    reverbKnob.setBounds(320, bottomY + 14, 80, 54);
+    // DRY section: Dry Level knob
+    dryKnobLabel.setBounds(10, bottomY, 80, 16);
+    dryKnob.setBounds(10, bottomY + 14, 80, 54);
+    // ADPCM section: Input | Sampler | Reverb
+    patinaKnobLabel.setBounds(120, bottomY, 80, 16);
+    patinaKnob.setBounds(120, bottomY + 14, 80, 54);
     if (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
     {
-        samplerLevelLabel.setBounds(420, bottomY, 70, 16);
-        samplerLevelKnob.setBounds(420, bottomY + 14, 70, 54);
+        samplerLevelLabel.setBounds(220, bottomY, 80, 16);
+        samplerLevelKnob.setBounds(220, bottomY + 14, 80, 54);
     }
+    const int reverbX = (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
+                        ? 320 : 220;
+    reverbKnobLabel.setBounds(reverbX, bottomY, 80, 16);
+    reverbKnob.setBounds(reverbX, bottomY + 14, 80, 54);
     // Toggles: Latency Comp + DAC section
-    const int toggleX = (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
-                        ? 500 : 420;
+    const int toggleX = reverbX + 100;
     latencyCompToggle.setBounds(toggleX, bottomY + 15, 90, 30);
     dacToggle.setBounds(toggleX + 95, bottomY + 15, 50, 30);
     dacFirToggle.setBounds(toggleX + 145, bottomY + 15, 45, 30);

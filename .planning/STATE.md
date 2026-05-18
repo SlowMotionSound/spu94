@@ -7,7 +7,7 @@ stopped_at: Phase 30 Mixer complete; Phase 31 Standalone Testbed UX ready to pla
 last_updated: "2026-05-17T00:09:59.713Z"
 last_activity: 2026-05-17 -- Phase 31 execution started
 progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 4
   total_plans: 6
   completed_plans: 4
@@ -41,6 +41,7 @@ Progress: [####################] 100%
 | 29 | Loop Mechanics | LOOP-01..05 | Complete |
 | 30 | 24-Voice Polyphony + Mixer | MIX-01..06 | Complete |
 | 31 | Standalone Testbed UX | TEST-01..04 | Not started |
+| 32 | Sampler Anti-Aliasing Toggle | AA-01..03 | Not started |
 
 ## Accumulated Context
 

@@ -5,7 +5,7 @@
 
 ## Milestones
 
-- 🔄 **v1.8 PSX Voice Engine** -- Phases 27-31 (in progress)
+- 🔄 **v1.8 PSX Voice Engine** -- Phases 27-32 (in progress)
 - ✅ **v1.7 DAW Plugin Port** -- Phases 21-26 (shipped 2026-05-16, tag `v1.7`)
 - ✅ **v1.6 User Programmable Waypoints** -- Phases 18-20 (shipped 2026-05-10, tag `v1.6`)
 - ✅ **v1.5 Preset Interpolation Engine** -- Phases 16-17 (shipped 2026-05-06, tag `v1.5`)
@@ -25,6 +25,7 @@
 - [x] **Phase 29: Loop Mechanics** - SPU loop flags (start/end/repeat) drive auto-latching loop address and one-shot termination
 - [x] **Phase 30: 24-Voice Polyphony + Mixer** - All 24 voice slots run simultaneously; their output sums into the dry output and optional reverb send
 - [ ] **Phase 31: Standalone Testbed UX** - Load WAV, trigger voice, control pitch, and play notes from MIDI in the standalone GUI
+- [ ] **Phase 32: Sampler Anti-Aliasing Toggle** - Per-sampler Gaussian interpolation bypass; OFF gives raw zero-order-hold aliasing artifacts, ON (default) is PS1-faithful 4-tap Gauss
 
 ## Phase Details
 
@@ -122,6 +123,21 @@ Plans:
 
 **UI hint**: yes
 
+### Phase 32: Sampler Anti-Aliasing Toggle
+
+**Goal**: A single toggle on the sampler switches all 24 voices between PS1-faithful 4-tap Gaussian interpolation (default ON) and raw zero-order-hold playback (OFF), exposing aliasing artifacts as a creative texture
+**Depends on**: Phase 27 (voice tick with Gaussian interpolation), Phase 31 (sampler GUI surface)
+**Requirements**: AA-01, AA-02, AA-03
+**Success Criteria** (what must be TRUE):
+
+  1. With Anti-Aliasing ON (default), voice playback sounds identical to the current Gauss-interpolated output — no regression
+  2. With Anti-Aliasing OFF, pitched playback produces audible aliasing artifacts from zero-order hold (sample-skipping on pitch-up, sample-repeating on pitch-down) — the raw, unfiltered sound
+  3. The toggle is a single global control on the sampler (not per-voice), visible in the Sampler window, and defaults to ON on fresh state
+
+**Plans**: TBD (not yet planned)
+
+**UI hint**: yes
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -131,6 +147,7 @@ Plans:
 | 29. Loop Mechanics | v1.8 | 1/1 | Complete | 2026-05-16 |
 | 30. 24-Voice Polyphony + Mixer | v1.8 | 1/1 | Complete | 2026-05-16 |
 | 31. Standalone Testbed UX | v1.8 | 2/2 | Complete   | 2026-05-17 |
+| 32. Sampler Anti-Aliasing Toggle | v1.8 | 0/0 | Not started | — |
 | 21. Build Skeleton & CI Matrix | v1.7 | 1/1 | Complete | 2026-05-11 |
 | 22. SRC & Latency Reporting | v1.7 | 1/1 | Complete | 2026-05-11 |
 | 23. Float↔int16 Boundary | v1.7 | 2/2 | Complete   | 2026-05-12 |
