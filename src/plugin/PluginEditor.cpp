@@ -110,6 +110,71 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         voiceSampleLabel.setJustificationType(juce::Justification::centredLeft);
         panel.addAndMakeVisible(voiceSampleLabel);
 
+        // Loop mode toggle -- one-shot (default) vs loop playback.
+        panel.addAndMakeVisible(loopToggle);
+        loopToggle.setClickingTogglesState(true);
+        loopToggle.onClick = [this] {
+            bool on = loopToggle.getToggleState();
+            processorRef.getLoopModeEnabled().store(on, std::memory_order_relaxed);
+            if (samplerWindow)
+                samplerWindow->getWaveformDisplay().setLoopMode(on);
+        };
+
+        // Marker position knobs — precise control for start/loop/end points.
+        auto setupPosKnob = [&](juce::Slider& knob, juce::Label& label,
+                                const char* name, double initVal) {
+            knob.setSliderStyle(juce::Slider::Rotary);
+            knob.setTextBoxStyle(juce::Slider::NoTextBox, true, 0, 0);
+            knob.setRange(0.0, 1.0, 0.001);
+            knob.setValue(initVal, juce::dontSendNotification);
+            panel.addAndMakeVisible(knob);
+            label.setText(name, juce::dontSendNotification);
+            label.setJustificationType(juce::Justification::centred);
+            label.setFont(juce::Font(10.0f));
+            panel.addAndMakeVisible(label);
+        };
+        setupPosKnob(startPosKnob, startPosLabel, "Start", 0.0);
+        setupPosKnob(loopPosKnob,  loopPosLabel,  "Loop",  0.0);
+        setupPosKnob(endPosKnob,   endPosLabel,   "End",   1.0);
+
+        startPosKnob.onValueChange = [this] {
+            double v = startPosKnob.getValue();
+            if (v > endPosKnob.getValue() - 0.01)
+                v = endPosKnob.getValue() - 0.01;
+            startPosKnob.setValue(v, juce::dontSendNotification);
+            if (loopPosKnob.getValue() < v)
+                loopPosKnob.setValue(v, juce::dontSendNotification);
+            processorRef.setSampleStartPos(v);
+            if (samplerWindow) {
+                auto& wd = samplerWindow->getWaveformDisplay();
+                wd.setStartPos(v);
+                wd.setLoopPos(loopPosKnob.getValue());
+            }
+        };
+        endPosKnob.onValueChange = [this] {
+            double v = endPosKnob.getValue();
+            if (v < startPosKnob.getValue() + 0.01)
+                v = startPosKnob.getValue() + 0.01;
+            endPosKnob.setValue(v, juce::dontSendNotification);
+            if (loopPosKnob.getValue() > v)
+                loopPosKnob.setValue(v, juce::dontSendNotification);
+            processorRef.setSampleEndPos(v);
+            if (samplerWindow) {
+                auto& wd = samplerWindow->getWaveformDisplay();
+                wd.setEndPos(v);
+                wd.setLoopPos(loopPosKnob.getValue());
+            }
+        };
+        loopPosKnob.onValueChange = [this] {
+            double v = juce::jlimit(startPosKnob.getValue(),
+                                    endPosKnob.getValue(),
+                                    loopPosKnob.getValue());
+            loopPosKnob.setValue(v, juce::dontSendNotification);
+            processorRef.setSampleLoopPos(v);
+            if (samplerWindow)
+                samplerWindow->getWaveformDisplay().setLoopPos(v);
+        };
+
         // Sampler mixer knobs -- own bus in the master mixer.
         samplerLevelKnob.setSliderStyle(juce::Slider::Rotary);
         samplerLevelKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
@@ -537,10 +602,15 @@ void SPU94AudioProcessorEditor::timerCallback()
             }
             samplerWindow->getWaveformDisplay().setPlayheadPos(
                 processorRef.getVoicePlaybackPos());
-            processorRef.setSampleStartPos(
-                samplerWindow->getWaveformDisplay().getStartPos());
-            processorRef.setSampleEndPos(
-                samplerWindow->getWaveformDisplay().getEndPos());
+            double ws = samplerWindow->getWaveformDisplay().getStartPos();
+            double we = samplerWindow->getWaveformDisplay().getEndPos();
+            double wl = samplerWindow->getWaveformDisplay().getLoopPos();
+            processorRef.setSampleStartPos(ws);
+            processorRef.setSampleEndPos(we);
+            processorRef.setSampleLoopPos(wl);
+            startPosKnob.setValue(ws, juce::dontSendNotification);
+            endPosKnob.setValue(we, juce::dontSendNotification);
+            loopPosKnob.setValue(wl, juce::dontSendNotification);
         }
     }
 }
@@ -585,7 +655,14 @@ void SPU94AudioProcessorEditor::resized()
             voiceEnginePitchLabel.setBounds(10, 50, 80, 16);
             voiceEnginePitchKnob.setBounds(10, 64, 80, 54);
             voiceSampleLabel.setBounds(100, 50, 190, 30);
-            samplerWindow->getWaveformDisplay().setBounds(10, 125, 380, 160);
+            loopToggle.setBounds(300, 10, 85, 30);
+            samplerWindow->getWaveformDisplay().setBounds(10, 125, 380, 120);
+            startPosLabel.setBounds(15, 247, 60, 14);
+            startPosKnob.setBounds(15, 259, 60, 50);
+            loopPosLabel.setBounds(165, 247, 60, 14);
+            loopPosKnob.setBounds(165, 259, 60, 50);
+            endPosLabel.setBounds(325, 247, 60, 14);
+            endPosKnob.setBounds(325, 259, 60, 50);
         }
     }
 

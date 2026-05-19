@@ -15,7 +15,7 @@ public:
         setResizable(false, false);
 
         contentPanel.addAndMakeVisible(waveformDisplay);
-        contentPanel.setSize(400, 300);
+        contentPanel.setSize(400, 320);
         setContentNonOwned(&contentPanel, true);
 
         setVisible(true);

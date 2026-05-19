@@ -90,6 +90,15 @@ private:
     juce::Label voiceSampleLabel;
     juce::Slider voiceEnginePitchKnob;
     juce::Label voiceEnginePitchLabel;
+    juce::ToggleButton loopToggle{"Loop"};
+
+    // Marker position knobs (standalone-only)
+    juce::Slider startPosKnob;
+    juce::Label  startPosLabel;
+    juce::Slider loopPosKnob;
+    juce::Label  loopPosLabel;
+    juce::Slider endPosKnob;
+    juce::Label  endPosLabel;
 
     // Sampler mixer knobs (standalone-only)
     juce::Slider samplerLevelKnob;

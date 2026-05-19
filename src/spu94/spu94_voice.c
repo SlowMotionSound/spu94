@@ -115,6 +115,13 @@ void spu94_voice_tick(spu94_voice_t *v,
             *out_r = 0;
             return;
         }
+        /* GUI-driven loop latch: snapshot ADPCM state BEFORE decode so that
+         * restoring it later reproduces the block identically each iteration. */
+        if (v->loop_enabled && v->current_addr == v->loop_addr) {
+            v->loop_adpcm_old   = v->adpcm_state.old;
+            v->loop_adpcm_older = v->adpcm_state.older;
+        }
+
         /* LOOP-01: capture flag byte from block header byte 1 (C4) */
         uint8_t flag_byte = spu94_adpcm_decode_block(&v->adpcm_state,
             voice_ram + v->current_addr, v->decode_buf);
@@ -123,17 +130,25 @@ void spu94_voice_tick(spu94_voice_t *v,
         v->decode_buf_pos = 0;
         v->has_block = 1;
 
-        /* End-address stop: if set, halt when we reach or pass it */
+        /* End-address check: stop or loop back depending on loop_enabled */
         if (v->end_addr > 0 && v->current_addr >= v->end_addr) {
-            if (v->adsr.enabled) {
-                v->adsr.phase = ADSR_OFF;
-                v->adsr.level = 0;
+            if (v->loop_enabled && v->loop_addr < v->end_addr) {
+                v->current_addr = v->loop_addr;
+                v->adpcm_state.old   = v->loop_adpcm_old;
+                v->adpcm_state.older = v->loop_adpcm_older;
+                v->has_block = 0;
+                v->decode_buf_pos = 0;
             } else {
-                v->active = 0;
+                if (v->adsr.enabled) {
+                    v->adsr.phase = ADSR_OFF;
+                    v->adsr.level = 0;
+                } else {
+                    v->active = 0;
+                }
+                *out_l = 0;
+                *out_r = 0;
+                return;
             }
-            *out_l = 0;
-            *out_r = 0;
-            return;
         }
 
         /* --- Loop flag dispatch (LOOP-01 through LOOP-05; C4, C5, S3) --- */

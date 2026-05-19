@@ -540,8 +540,13 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             uint16_t trigPitch = pendingGuiTriggerPitch.exchange(0, std::memory_order_acquire);
             if (trigPitch != 0)
             {
+                auto* mx = spu94_get_voice_mixer();
                 uint32_t startAddr = posToBlockAddr(sampleStartPos.load(std::memory_order_relaxed));
-                spu94_voice_mixer_key_on(spu94_get_voice_mixer(), 0, startAddr, trigPitch, 0x7FFF, 0x7FFF, 1, nullptr);
+                spu94_voice_mixer_key_on(mx, 0, startAddr, trigPitch, 0x7FFF, 0x7FFF, 1, nullptr);
+                bool looping = loopModeEnabled.load(std::memory_order_relaxed);
+                mx->pending_config[0].loop_enabled = looping ? 1 : 0;
+                if (looping)
+                    mx->pending_config[0].loop_addr = posToBlockAddr(sampleLoopPos.load(std::memory_order_relaxed));
             }
         }
         if (pendingGuiStop.exchange(false, std::memory_order_acquire))
@@ -550,10 +555,23 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         spu94_voice_mixer_set_pitch(spu94_get_voice_mixer(), 0,
             guiVoicePitch.load(std::memory_order_relaxed));
 
-        // Update end_addr on voice 0 from marker position
+        // Update all marker positions on voice 0 in real time
         {
             auto* mx = spu94_get_voice_mixer();
-            mx->voices[0].end_addr = posToBlockAddr(sampleEndPos.load(std::memory_order_relaxed));
+            uint32_t sAddr = posToBlockAddr(sampleStartPos.load(std::memory_order_relaxed));
+            uint32_t eAddr = posToBlockAddr(sampleEndPos.load(std::memory_order_relaxed));
+            uint32_t lAddr = posToBlockAddr(sampleLoopPos.load(std::memory_order_relaxed));
+
+            if (eAddr <= sAddr)
+                eAddr = sAddr + SPU94_ADPCM_BLOCK_BYTES;
+            if (lAddr < sAddr) lAddr = sAddr;
+            if (lAddr >= eAddr) lAddr = (eAddr > SPU94_ADPCM_BLOCK_BYTES)
+                ? eAddr - SPU94_ADPCM_BLOCK_BYTES : sAddr;
+
+            mx->voices[0].end_addr = eAddr;
+            mx->voices[0].sample_start_addr = sAddr;
+            mx->voices[0].loop_addr = lAddr;
+            mx->voices[0].loop_enabled = loopModeEnabled.load(std::memory_order_relaxed) ? 1 : 0;
         }
 
         // MIDI dispatch -- process note events before spu94_process (Phase 31)

@@ -56,6 +56,10 @@ public:
     double getEndPos() const { return endPos; }
     double getLoopPos() const { return loopPos; }
 
+    void setStartPos(double pos) { startPos = pos; repaint(); }
+    void setEndPos(double pos)   { endPos = pos; repaint(); }
+    void setLoopPos(double pos)  { loopPos = pos; repaint(); }
+
     void setLoopMode(bool enabled) { loopMode = enabled; repaint(); }
     bool getLoopMode() const { return loopMode; }
 
@@ -118,9 +122,11 @@ public:
         {
             case DragTarget::start:
                 startPos = std::min(pos, endPos - 0.01);
+                loopPos = juce::jlimit(startPos, endPos, loopPos);
                 break;
             case DragTarget::end:
                 endPos = std::max(pos, startPos + 0.01);
+                loopPos = juce::jlimit(startPos, endPos, loopPos);
                 break;
             case DragTarget::loop:
                 loopPos = juce::jlimit(startPos, endPos, pos);

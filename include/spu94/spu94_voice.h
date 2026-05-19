@@ -60,6 +60,7 @@ typedef struct {
     int16_t   loop_adpcm_older;   /* ADPCM filter history snapshot at loop start (LOOP-03 / C5) */
     uint8_t   endx;               /* set on Loop-End; cleared on KON (LOOP-05 / M3) */
     uint8_t   active;             /* 1 = voice is playing; 0 = silent */
+    uint8_t   loop_enabled;      /* 1 = GUI-driven loop; end_addr loops back to loop_addr */
     uint32_t  end_addr;           /* byte offset to stop at (0 = no limit, use loop flags) */
 } spu94_voice_t;
 
