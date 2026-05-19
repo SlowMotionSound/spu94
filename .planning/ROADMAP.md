@@ -138,7 +138,7 @@ Plans:
 
 Plans:
 
-- [ ] 32-01-PLAN.md — gauss_bypass in C core + Anti-Alias toggle in Sampler window
+- [x] 32-01-PLAN.md — gauss_bypass in C core + Anti-Alias toggle in Sampler window
 
 **UI hint**: yes
 
@@ -151,7 +151,7 @@ Plans:
 | 29. Loop Mechanics | v1.8 | 1/1 | Complete | 2026-05-16 |
 | 30. 24-Voice Polyphony + Mixer | v1.8 | 1/1 | Complete | 2026-05-16 |
 | 31. Standalone Testbed UX | v1.8 | 2/2 | Complete   | 2026-05-17 |
-| 32. Sampler Anti-Aliasing Toggle | v1.8 | 0/0 | Not started | — |
+| 32. Sampler Anti-Aliasing Toggle | v1.8 | 1/1 | Complete | 2026-05-19 |
 | 21. Build Skeleton & CI Matrix | v1.7 | 1/1 | Complete | 2026-05-11 |
 | 22. SRC & Latency Reporting | v1.7 | 1/1 | Complete | 2026-05-11 |
 | 23. Float↔int16 Boundary | v1.7 | 2/2 | Complete   | 2026-05-12 |
