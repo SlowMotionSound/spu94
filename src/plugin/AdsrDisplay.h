@@ -22,6 +22,9 @@ public:
         a.enabled = 1;
         spu94_adsr_key_on(&a);
 
+        sustainTarget = static_cast<int16_t>(((int32_t)sLevel + 1) * 0x800);
+        if (sustainTarget > 0x7FFF) sustainTarget = 0x7FFF;
+
         levels.clear();
         constexpr int kDS = 128;
         constexpr int kMaxTicks = 80000;
@@ -79,6 +82,18 @@ public:
             else path.lineTo(x, y);
         }
 
+        // Sustain level reference line
+        float refY = static_cast<float>(area.getBottom()) -
+                     static_cast<float>(sustainTarget) * yScale;
+        g.setColour(juce::Colour(0x60D49EBF));
+        float dashX = static_cast<float>(area.getX());
+        float dashEnd = static_cast<float>(area.getRight());
+        while (dashX < dashEnd) {
+            float segEnd = std::min(dashX + 4.0f, dashEnd);
+            g.drawLine(dashX, refY, segEnd, refY, 1.0f);
+            dashX += 7.0f;
+        }
+
         g.setColour(juce::Colour(0xFF5B9279));
         g.strokePath(path, juce::PathStrokeType(1.5f));
         g.setColour(juce::Colours::grey);
@@ -87,4 +102,5 @@ public:
 
 private:
     std::vector<int16_t> levels;
+    int16_t sustainTarget = 0;
 };
