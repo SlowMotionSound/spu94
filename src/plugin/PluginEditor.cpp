@@ -149,29 +149,43 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
 
         startPosKnob.onValueChange = [this] {
             double v = startPosKnob.getValue();
-            if (v > endPosKnob.getValue() - 0.01)
-                v = endPosKnob.getValue() - 0.01;
+            double e = endPosKnob.getValue();
+            constexpr double minGap = 0.0001;
+            if (v > e - minGap) {
+                e = v + minGap;
+                if (e > 1.0) { e = 1.0; v = e - minGap; }
+                endPosKnob.setValue(e, juce::dontSendNotification);
+            }
             startPosKnob.setValue(v, juce::dontSendNotification);
             if (loopPosKnob.getValue() < v)
                 loopPosKnob.setValue(v, juce::dontSendNotification);
             processorRef.setSampleStartPos(v);
+            processorRef.setSampleEndPos(e);
             if (samplerWindow) {
                 auto& wd = samplerWindow->getWaveformDisplay();
                 wd.setStartPos(v);
+                wd.setEndPos(e);
                 wd.setLoopPos(loopPosKnob.getValue());
             }
         };
         endPosKnob.onValueChange = [this] {
-            double v = endPosKnob.getValue();
-            if (v < startPosKnob.getValue() + 0.01)
-                v = startPosKnob.getValue() + 0.01;
-            endPosKnob.setValue(v, juce::dontSendNotification);
-            if (loopPosKnob.getValue() > v)
-                loopPosKnob.setValue(v, juce::dontSendNotification);
-            processorRef.setSampleEndPos(v);
+            double e = endPosKnob.getValue();
+            double s = startPosKnob.getValue();
+            constexpr double minGap = 0.0001;
+            if (e < s + minGap) {
+                s = e - minGap;
+                if (s < 0.0) { s = 0.0; e = s + minGap; }
+                startPosKnob.setValue(s, juce::dontSendNotification);
+            }
+            endPosKnob.setValue(e, juce::dontSendNotification);
+            if (loopPosKnob.getValue() > e)
+                loopPosKnob.setValue(e, juce::dontSendNotification);
+            processorRef.setSampleStartPos(s);
+            processorRef.setSampleEndPos(e);
             if (samplerWindow) {
                 auto& wd = samplerWindow->getWaveformDisplay();
-                wd.setEndPos(v);
+                wd.setStartPos(s);
+                wd.setEndPos(e);
                 wd.setLoopPos(loopPosKnob.getValue());
             }
         };

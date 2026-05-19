@@ -15,10 +15,12 @@ public:
         setResizable(false, false);
 
         contentPanel.addAndMakeVisible(waveformDisplay);
-        contentPanel.setSize(400, 485);
+        contentPanel.setSize(400, 510);
         setContentNonOwned(&contentPanel, true);
 
         setVisible(true);
+        centreWithSize(401, 511);
+        centreWithSize(400, 510);
     }
 
     void closeButtonPressed() override

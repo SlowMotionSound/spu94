@@ -580,6 +580,14 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             mx->voices[0].loop_addr = lAddr;
             mx->voices[0].loop_enabled = loopModeEnabled.load(std::memory_order_relaxed) ? 1 : 0;
 
+            if (mx->voices[0].active) {
+                uint32_t cur = mx->voices[0].current_addr;
+                if (cur < sAddr || cur >= eAddr) {
+                    mx->voices[0].current_addr = sAddr;
+                    mx->voices[0].has_block = 0;
+                }
+            }
+
             if (mx->voices[0].active && mx->voices[0].adsr.enabled) {
                 spu94_adsr_state_t cfg = buildAdsrConfig();
                 if (cfg.enabled) {
@@ -962,23 +970,27 @@ spu94_adsr_state_t SPU94AudioProcessor::buildAdsrConfig() const
     spu94_adsr_init(&cfg);
     cfg.enabled = 1;
 
-    // PS1 ADSR shift-to-time reference (at 44.1kHz):
-    //   Attack: shift 0=52us, 8=13ms, 11=106ms, 14=849ms, 17=6.8s
-    //   Decay:  shift 0=45us, 9=33ms, 11=148ms, 13=592ms, 15=2.4s
-    // Musical envelope times: ~1ms (instant) to ~3s (slow pad).
-    // Knob 0.0 = instant, knob 1.0 = slowest musical time.
-    // Attack/release: map 0..1 to shift 0..20 (52us to 54s, musical sweet spot 10-17)
-    // Decay: map 0..1 to shift 0..15 (45us to 2.4s, musical sweet spot 10-15)
+    // Power-curve knob mapping: knob^0.55 concentrates the musical sweet
+    // spot (50ms-3s) in the middle 40% of the knob sweep, compresses the
+    // instant and extreme-slow ranges into the first/last 10%.
+    // Attack/release: 0..20 (52us to 54s). Decay: 0..15 (45us to 2.4s).
+    // Rise/Fall: 0..20 (inverted — full magnitude = fastest drift).
+    auto powerMap = [](float knob, float maxShift) -> uint8_t {
+        if (knob <= 0.0f) return 0;
+        if (knob >= 1.0f) return static_cast<uint8_t>(maxShift);
+        float s = maxShift * std::pow(knob, 0.55f);
+        int v = static_cast<int>(s + 0.5f);
+        if (v > static_cast<int>(maxShift)) v = static_cast<int>(maxShift);
+        return static_cast<uint8_t>(v);
+    };
 
     float atk = adsrAttack.load(std::memory_order_relaxed);
-    cfg.attack_shift = static_cast<uint8_t>(atk * 20.0f + 0.5f);
-    if (cfg.attack_shift > 20) cfg.attack_shift = 20;
+    cfg.attack_shift = powerMap(atk, 20.0f);
     cfg.attack_step  = 0;
     cfg.attack_exp   = adsrAttackExp.load(std::memory_order_relaxed) ? 1 : 0;
 
     float dec = adsrDecay.load(std::memory_order_relaxed);
-    cfg.decay_shift = static_cast<uint8_t>(dec * 15.0f + 0.5f);
-    if (cfg.decay_shift > 15) cfg.decay_shift = 15;
+    cfg.decay_shift = powerMap(dec, 15.0f);
 
     float sl = adsrSustainLvl.load(std::memory_order_relaxed);
     cfg.sustain_level = static_cast<uint8_t>(sl * 15.0f + 0.5f);
@@ -990,16 +1002,13 @@ spu94_adsr_state_t SPU94AudioProcessor::buildAdsrConfig() const
         cfg.sustain_shift = 31;
         cfg.sustain_step  = 3;
     } else {
-        uint8_t rateShift = static_cast<uint8_t>((1.0f - mag) * 20.0f + 0.5f);
-        if (rateShift > 20) rateShift = 20;
-        cfg.sustain_shift = rateShift;
+        cfg.sustain_shift = powerMap(1.0f - mag, 20.0f);
         cfg.sustain_step  = 0;
     }
     cfg.sustain_exp   = adsrSustainExp.load(std::memory_order_relaxed) ? 1 : 0;
 
     float rel = adsrRelease.load(std::memory_order_relaxed);
-    cfg.release_shift = static_cast<uint8_t>(rel * 20.0f + 0.5f);
-    if (cfg.release_shift > 20) cfg.release_shift = 20;
+    cfg.release_shift = powerMap(rel, 20.0f);
     cfg.release_exp   = adsrReleaseExp.load(std::memory_order_relaxed) ? 1 : 0;
 
     return cfg;

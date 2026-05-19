@@ -121,13 +121,27 @@ public:
         switch (dragTarget)
         {
             case DragTarget::start:
-                startPos = std::min(pos, endPos - 0.01);
+            {
+                double minGap = (totalFrames > 0) ? 56.0 / static_cast<double>(totalFrames) : 0.001;
+                startPos = pos;
+                if (startPos > endPos - minGap) {
+                    endPos = startPos + minGap;
+                    if (endPos > 1.0) { endPos = 1.0; startPos = endPos - minGap; }
+                }
                 loopPos = juce::jlimit(startPos, endPos, loopPos);
                 break;
+            }
             case DragTarget::end:
-                endPos = std::max(pos, startPos + 0.01);
+            {
+                double minGap = (totalFrames > 0) ? 56.0 / static_cast<double>(totalFrames) : 0.001;
+                endPos = pos;
+                if (endPos < startPos + minGap) {
+                    startPos = endPos - minGap;
+                    if (startPos < 0.0) { startPos = 0.0; endPos = startPos + minGap; }
+                }
                 loopPos = juce::jlimit(startPos, endPos, loopPos);
                 break;
+            }
             case DragTarget::loop:
                 loopPos = juce::jlimit(startPos, endPos, pos);
                 break;
@@ -167,10 +181,13 @@ private:
             return std::abs(mouseX - static_cast<int>(pos * w));
         };
 
-        // Check loop first (narrowest hit zone when overlapping)
         if (loopMode && dist(loopPos) <= grabRadius) return DragTarget::loop;
-        if (dist(startPos) <= grabRadius) return DragTarget::start;
-        if (dist(endPos) <= grabRadius) return DragTarget::end;
+        int dStart = dist(startPos);
+        int dEnd = dist(endPos);
+        if (dStart <= grabRadius && dEnd <= grabRadius)
+            return (dStart <= dEnd) ? DragTarget::start : DragTarget::end;
+        if (dStart <= grabRadius) return DragTarget::start;
+        if (dEnd <= grabRadius) return DragTarget::end;
         return DragTarget::none;
     }
 
