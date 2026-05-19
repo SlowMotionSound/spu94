@@ -542,7 +542,9 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             {
                 auto* mx = spu94_get_voice_mixer();
                 uint32_t startAddr = posToBlockAddr(sampleStartPos.load(std::memory_order_relaxed));
-                spu94_voice_mixer_key_on(mx, 0, startAddr, trigPitch, 0x7FFF, 0x7FFF, 1, nullptr);
+                spu94_adsr_state_t adsrCfg = buildAdsrConfig();
+                spu94_voice_mixer_key_on(mx, 0, startAddr, trigPitch, 0x7FFF, 0x7FFF, 1,
+                                         adsrCfg.enabled ? &adsrCfg : nullptr);
                 bool looping = loopModeEnabled.load(std::memory_order_relaxed);
                 mx->pending_config[0].loop_enabled = looping ? 1 : 0;
                 if (looping)
@@ -572,6 +574,24 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             mx->voices[0].sample_start_addr = sAddr;
             mx->voices[0].loop_addr = lAddr;
             mx->voices[0].loop_enabled = loopModeEnabled.load(std::memory_order_relaxed) ? 1 : 0;
+
+            if (mx->voices[0].active && mx->voices[0].adsr.enabled) {
+                spu94_adsr_state_t cfg = buildAdsrConfig();
+                if (cfg.enabled) {
+                    auto& ad = mx->voices[0].adsr;
+                    ad.attack_shift  = cfg.attack_shift;
+                    ad.attack_step   = cfg.attack_step;
+                    ad.attack_exp    = cfg.attack_exp;
+                    ad.decay_shift   = cfg.decay_shift;
+                    ad.sustain_level = cfg.sustain_level;
+                    ad.sustain_shift = cfg.sustain_shift;
+                    ad.sustain_step  = cfg.sustain_step;
+                    ad.sustain_exp   = cfg.sustain_exp;
+                    ad.sustain_dir   = cfg.sustain_dir;
+                    ad.release_shift = cfg.release_shift;
+                    ad.release_exp   = cfg.release_exp;
+                }
+            }
         }
 
         // MIDI dispatch -- process note events before spu94_process (Phase 31)
@@ -587,8 +607,10 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     int vel = msg.getVelocity();
                     int16_t vol = static_cast<int16_t>((vel * 0x7FFF) / 127);
                     int voice = allocateVoice(note);
+                    spu94_adsr_state_t midiAdsr = buildAdsrConfig();
                     spu94_voice_mixer_key_on(spu94_get_voice_mixer(), voice,
-                        0, pitch, vol, vol, 1, nullptr);
+                        0, pitch, vol, vol, 1,
+                        midiAdsr.enabled ? &midiAdsr : nullptr);
                 }
                 else if (msg.isNoteOff())
                 {
@@ -927,6 +949,40 @@ void SPU94AudioProcessor::triggerVoice(uint16_t pitch)
 void SPU94AudioProcessor::stopVoice()
 {
     pendingGuiStop.store(true, std::memory_order_release);
+}
+
+spu94_adsr_state_t SPU94AudioProcessor::buildAdsrConfig() const
+{
+    spu94_adsr_state_t cfg;
+    spu94_adsr_init(&cfg);
+    if (!adsrEnabled.load(std::memory_order_relaxed))
+        return cfg;
+
+    cfg.enabled = 1;
+
+    float atk = adsrAttack.load(std::memory_order_relaxed);
+    cfg.attack_shift = static_cast<uint8_t>(atk * 16.0f + 0.5f);
+    cfg.attack_step  = 0;
+    cfg.attack_exp   = adsrAttackExp.load(std::memory_order_relaxed) ? 1 : 0;
+
+    float dec = adsrDecay.load(std::memory_order_relaxed);
+    cfg.decay_shift = static_cast<uint8_t>(dec * 15.0f + 0.5f);
+
+    float sl = adsrSustainLvl.load(std::memory_order_relaxed);
+    cfg.sustain_level = static_cast<uint8_t>(sl * 15.0f + 0.5f);
+
+    float sr = adsrSustainRate.load(std::memory_order_relaxed);
+    cfg.sustain_dir  = sr < 0.0f ? 1 : 0;
+    float mag = sr < 0.0f ? -sr : sr;
+    cfg.sustain_shift = static_cast<uint8_t>((1.0f - mag) * 16.0f + 0.5f);
+    cfg.sustain_step  = 0;
+    cfg.sustain_exp   = adsrSustainExp.load(std::memory_order_relaxed) ? 1 : 0;
+
+    float rel = adsrRelease.load(std::memory_order_relaxed);
+    cfg.release_shift = static_cast<uint8_t>(rel * 16.0f + 0.5f);
+    cfg.release_exp   = adsrReleaseExp.load(std::memory_order_relaxed) ? 1 : 0;
+
+    return cfg;
 }
 
 uint32_t SPU94AudioProcessor::posToBlockAddr(double pos) const

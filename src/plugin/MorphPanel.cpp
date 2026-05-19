@@ -183,7 +183,7 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
         b.setRadioGroupId(0xC0DE); // shared id makes them mutually exclusive
         b.setButtonText(label);
         b.setColour(juce::TextButton::buttonColourId, psxDarkGray);
-        b.setColour(juce::TextButton::buttonOnColourId, psxCoral);
+        b.setColour(juce::TextButton::buttonOnColourId, psxMauve);
         b.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
         b.setColour(juce::TextButton::textColourOffId, psxLightGray);
         b.setLookAndFeel(&gritLookAndFeel);  // focus-stable saturation

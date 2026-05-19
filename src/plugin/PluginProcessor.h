@@ -70,6 +70,18 @@ public:
     void setSampleLoopPos(double pos) { sampleLoopPos.store(pos, std::memory_order_relaxed); }
     std::atomic<bool>& getLoopModeEnabled() { return loopModeEnabled; }
 
+    // ADSR parameter accessors (standalone sampler voice)
+    std::atomic<bool>&  getAdsrEnabled()     { return adsrEnabled; }
+    std::atomic<float>& getAdsrAttack()      { return adsrAttack; }
+    std::atomic<bool>&  getAdsrAttackExp()   { return adsrAttackExp; }
+    std::atomic<float>& getAdsrDecay()       { return adsrDecay; }
+    std::atomic<float>& getAdsrSustainLvl()  { return adsrSustainLvl; }
+    std::atomic<float>& getAdsrSustainRate() { return adsrSustainRate; }
+    std::atomic<bool>&  getAdsrSustainExp()  { return adsrSustainExp; }
+    std::atomic<float>& getAdsrRelease()     { return adsrRelease; }
+    std::atomic<bool>&  getAdsrReleaseExp()  { return adsrReleaseExp; }
+    spu94_adsr_state_t buildAdsrConfig() const;
+
     // Waveform display data — stashed on load for the GUI thumbnail
     const std::vector<int16_t>& getWaveformData() const { return waveformData; }
     uint64_t getWaveformFrames() const { return waveformFrames; }
@@ -353,6 +365,18 @@ private:
     std::atomic<double> sampleEndPos{1.0};
     std::atomic<double> sampleLoopPos{0.0};
     std::atomic<bool> loopModeEnabled{false};
+
+    // ADSR parameters (standalone sampler voice)
+    std::atomic<bool>  adsrEnabled{false};
+    std::atomic<float> adsrAttack{0.0f};
+    std::atomic<bool>  adsrAttackExp{false};
+    std::atomic<float> adsrDecay{0.0f};
+    std::atomic<float> adsrSustainLvl{1.0f};
+    std::atomic<float> adsrSustainRate{0.0f};
+    std::atomic<bool>  adsrSustainExp{false};
+    std::atomic<float> adsrRelease{0.2f};
+    std::atomic<bool>  adsrReleaseExp{true};
+
     std::atomic<bool> pendingMixerEnable{false};
 
     // Waveform display data (stashed on sample load for GUI thumbnail)

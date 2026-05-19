@@ -4,6 +4,7 @@
 #include "RegisterPanel.h"
 #include "MorphPanel.h"
 #include "SamplerWindow.h"
+#include "AdsrDisplay.h"
 #include <memory>
 
 class SPU94AudioProcessorEditor : public juce::AudioProcessorEditor,
@@ -99,6 +100,19 @@ private:
     juce::Label  loopPosLabel;
     juce::Slider endPosKnob;
     juce::Label  endPosLabel;
+
+    // ADSR controls (standalone-only)
+    AdsrDisplay adsrDisplay;
+    juce::ToggleButton adsrToggle{"ADSR"};
+    juce::Slider adsrAttackKnob;      juce::Label adsrAttackLabel;
+    juce::Slider adsrDecayKnob;       juce::Label adsrDecayLabel;
+    juce::Slider adsrSustainLvlKnob;  juce::Label adsrSustainLvlLabel;
+    juce::Slider adsrSustainRateKnob; juce::Label adsrSustainRateLabel;
+    juce::Slider adsrReleaseKnob;     juce::Label adsrReleaseLabel;
+    juce::ToggleButton adsrAttackExpToggle{"Exp"};
+    juce::ToggleButton adsrSustainExpToggle{"Exp"};
+    juce::ToggleButton adsrReleaseExpToggle{"Exp"};
+    void refreshAdsrDisplay();
 
     // Sampler mixer knobs (standalone-only)
     juce::Slider samplerLevelKnob;

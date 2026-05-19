@@ -175,6 +175,90 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
                 samplerWindow->getWaveformDisplay().setLoopPos(v);
         };
 
+        // ADSR section
+        panel.addAndMakeVisible(adsrDisplay);
+        panel.addAndMakeVisible(adsrToggle);
+        adsrToggle.setClickingTogglesState(true);
+        adsrToggle.onClick = [this] {
+            processorRef.getAdsrEnabled().store(
+                adsrToggle.getToggleState(), std::memory_order_relaxed);
+            refreshAdsrDisplay();
+        };
+
+        auto setupAdsrKnob = [&](juce::Slider& knob, juce::Label& label,
+                                  const char* name, double init,
+                                  double lo, double hi) {
+            knob.setSliderStyle(juce::Slider::Rotary);
+            knob.setTextBoxStyle(juce::Slider::NoTextBox, true, 0, 0);
+            knob.setRange(lo, hi, 0.01);
+            knob.setValue(init, juce::dontSendNotification);
+            panel.addAndMakeVisible(knob);
+            label.setText(name, juce::dontSendNotification);
+            label.setJustificationType(juce::Justification::centred);
+            label.setFont(juce::Font(10.0f));
+            panel.addAndMakeVisible(label);
+        };
+        setupAdsrKnob(adsrAttackKnob,      adsrAttackLabel,      "Atk",  0.0,  0.0, 1.0);
+        setupAdsrKnob(adsrDecayKnob,       adsrDecayLabel,       "Dec",  0.0,  0.0, 1.0);
+        setupAdsrKnob(adsrSustainLvlKnob,  adsrSustainLvlLabel,  "Sus",  1.0,  0.0, 1.0);
+        setupAdsrKnob(adsrSustainRateKnob, adsrSustainRateLabel,  "Rise/Fall", 0.0, -1.0, 1.0);
+
+        auto sustainTint = juce::Colour(0xFFD49EBF);
+        adsrSustainLvlKnob.setColour(juce::Slider::thumbColourId, sustainTint);
+        adsrSustainRateKnob.setColour(juce::Slider::thumbColourId, sustainTint);
+        setupAdsrKnob(adsrReleaseKnob,     adsrReleaseLabel,     "Rel",  0.2,  0.0, 1.0);
+
+        adsrAttackKnob.onValueChange = [this] {
+            processorRef.getAdsrAttack().store(
+                static_cast<float>(adsrAttackKnob.getValue()), std::memory_order_relaxed);
+            refreshAdsrDisplay();
+        };
+        adsrDecayKnob.onValueChange = [this] {
+            processorRef.getAdsrDecay().store(
+                static_cast<float>(adsrDecayKnob.getValue()), std::memory_order_relaxed);
+            refreshAdsrDisplay();
+        };
+        adsrSustainLvlKnob.onValueChange = [this] {
+            processorRef.getAdsrSustainLvl().store(
+                static_cast<float>(adsrSustainLvlKnob.getValue()), std::memory_order_relaxed);
+            refreshAdsrDisplay();
+        };
+        adsrSustainRateKnob.onValueChange = [this] {
+            processorRef.getAdsrSustainRate().store(
+                static_cast<float>(adsrSustainRateKnob.getValue()), std::memory_order_relaxed);
+            refreshAdsrDisplay();
+        };
+        adsrReleaseKnob.onValueChange = [this] {
+            processorRef.getAdsrRelease().store(
+                static_cast<float>(adsrReleaseKnob.getValue()), std::memory_order_relaxed);
+            refreshAdsrDisplay();
+        };
+
+        panel.addAndMakeVisible(adsrAttackExpToggle);
+        adsrAttackExpToggle.setClickingTogglesState(true);
+        adsrAttackExpToggle.onClick = [this] {
+            processorRef.getAdsrAttackExp().store(
+                adsrAttackExpToggle.getToggleState(), std::memory_order_relaxed);
+            refreshAdsrDisplay();
+        };
+        panel.addAndMakeVisible(adsrSustainExpToggle);
+        adsrSustainExpToggle.setClickingTogglesState(true);
+        adsrSustainExpToggle.onClick = [this] {
+            processorRef.getAdsrSustainExp().store(
+                adsrSustainExpToggle.getToggleState(), std::memory_order_relaxed);
+            refreshAdsrDisplay();
+        };
+        panel.addAndMakeVisible(adsrReleaseExpToggle);
+        adsrReleaseExpToggle.setClickingTogglesState(true);
+        adsrReleaseExpToggle.setToggleState(true, juce::dontSendNotification);
+        adsrReleaseExpToggle.onClick = [this] {
+            processorRef.getAdsrReleaseExp().store(
+                adsrReleaseExpToggle.getToggleState(), std::memory_order_relaxed);
+            refreshAdsrDisplay();
+        };
+
+        refreshAdsrDisplay();
+
         // Sampler mixer knobs -- own bus in the master mixer.
         samplerLevelKnob.setSliderStyle(juce::Slider::Rotary);
         samplerLevelKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
@@ -615,6 +699,28 @@ void SPU94AudioProcessorEditor::timerCallback()
     }
 }
 
+void SPU94AudioProcessorEditor::refreshAdsrDisplay()
+{
+    float atk = static_cast<float>(adsrAttackKnob.getValue());
+    float dec = static_cast<float>(adsrDecayKnob.getValue());
+    float sl  = static_cast<float>(adsrSustainLvlKnob.getValue());
+    float sr  = static_cast<float>(adsrSustainRateKnob.getValue());
+    float rel = static_cast<float>(adsrReleaseKnob.getValue());
+
+    uint8_t aShift = static_cast<uint8_t>(atk * 16.0f + 0.5f);
+    uint8_t aExp   = adsrAttackExpToggle.getToggleState() ? 1 : 0;
+    uint8_t dShift = static_cast<uint8_t>(dec * 15.0f + 0.5f);
+    uint8_t sLevel = static_cast<uint8_t>(sl * 15.0f + 0.5f);
+    uint8_t sDir   = sr < 0.0f ? 1 : 0;
+    float   mag    = sr < 0.0f ? -sr : sr;
+    uint8_t sShift = static_cast<uint8_t>((1.0f - mag) * 16.0f + 0.5f);
+    uint8_t sExp   = adsrSustainExpToggle.getToggleState() ? 1 : 0;
+    uint8_t rShift = static_cast<uint8_t>(rel * 16.0f + 0.5f);
+    uint8_t rExp   = adsrReleaseExpToggle.getToggleState() ? 1 : 0;
+
+    adsrDisplay.update(aShift, aExp, dShift, sLevel, sShift, sExp, sDir, rShift, rExp);
+}
+
 void SPU94AudioProcessorEditor::paint(juce::Graphics& g)
 {
     g.fillAll(juce::Colours::darkgrey);
@@ -663,6 +769,27 @@ void SPU94AudioProcessorEditor::resized()
             loopPosKnob.setBounds(165, 259, 60, 50);
             endPosLabel.setBounds(325, 247, 60, 14);
             endPosKnob.setBounds(325, 259, 60, 50);
+
+            // ADSR section
+            adsrToggle.setBounds(15, 315, 60, 20);
+            adsrDisplay.setBounds(10, 338, 380, 55);
+
+            constexpr int aky = 398, akw = 55, akh = 45;
+            adsrAttackLabel.setBounds(15, aky, akw, 12);
+            adsrAttackKnob.setBounds(15, aky + 12, akw, akh);
+            adsrDecayLabel.setBounds(87, aky, akw, 12);
+            adsrDecayKnob.setBounds(87, aky + 12, akw, akh);
+            adsrSustainLvlLabel.setBounds(159, aky, akw, 12);
+            adsrSustainLvlKnob.setBounds(159, aky + 12, akw, akh);
+            adsrSustainRateLabel.setBounds(231, aky, akw, 12);
+            adsrSustainRateKnob.setBounds(231, aky + 12, akw, akh);
+            adsrReleaseLabel.setBounds(303, aky, akw, 12);
+            adsrReleaseKnob.setBounds(303, aky + 12, akw, akh);
+
+            constexpr int tgy = aky + 12 + akh + 2;
+            adsrAttackExpToggle.setBounds(15, tgy, akw, 18);
+            adsrSustainExpToggle.setBounds(231, tgy, akw, 18);
+            adsrReleaseExpToggle.setBounds(303, tgy, akw, 18);
         }
     }
 
