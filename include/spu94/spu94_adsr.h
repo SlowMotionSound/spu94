@@ -72,6 +72,8 @@ typedef struct {
     int16_t  level;               /* current envelope level 0..0x7FFF */
     uint32_t counter;             /* accumulator; step fires when bit 15 set */
 
+    uint32_t tick_count;          /* ticks since key_on; for live display tracking */
+
     /* Control */
     uint8_t  enabled;             /* 0 = bypass (level always 0x7FFF) */
 } spu94_adsr_state_t;

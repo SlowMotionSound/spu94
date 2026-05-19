@@ -104,7 +104,6 @@ private:
 
     // ADSR controls (standalone-only)
     AdsrDisplay adsrDisplay;
-    juce::ToggleButton adsrToggle{"ADSR"};
     juce::Slider adsrAttackKnob;      juce::Label adsrAttackLabel;
     juce::Slider adsrDecayKnob;       juce::Label adsrDecayLabel;
     juce::Slider adsrSustainLvlKnob;  juce::Label adsrSustainLvlLabel;

@@ -369,15 +369,15 @@ private:
     std::atomic<bool> samplerAAEnabled{true};  // AA-03: true = Gauss interp ON (PS1 faithful)
 
     // ADSR parameters (standalone sampler voice)
-    std::atomic<bool>  adsrEnabled{false};
+    std::atomic<bool>  adsrEnabled{true};
     std::atomic<float> adsrAttack{0.0f};
     std::atomic<bool>  adsrAttackExp{false};
     std::atomic<float> adsrDecay{0.0f};
     std::atomic<float> adsrSustainLvl{1.0f};
     std::atomic<float> adsrSustainRate{0.0f};
     std::atomic<bool>  adsrSustainExp{false};
-    std::atomic<float> adsrRelease{0.2f};
-    std::atomic<bool>  adsrReleaseExp{true};
+    std::atomic<float> adsrRelease{0.0f};
+    std::atomic<bool>  adsrReleaseExp{false};
 
     std::atomic<bool> pendingMixerEnable{false};
 

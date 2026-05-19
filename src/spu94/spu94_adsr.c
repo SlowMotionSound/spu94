@@ -58,6 +58,7 @@ void spu94_adsr_init(spu94_adsr_state_t *a) {
     a->phase = ADSR_OFF;
     a->level = 0;
     a->counter = 0;
+    a->tick_count = 0;
     a->enabled = 0;
 }
 
@@ -66,6 +67,7 @@ void spu94_adsr_key_on(spu94_adsr_state_t *a) {
     a->phase = ADSR_ATTACK;
     a->level = 0;
     a->counter = 0;
+    a->tick_count = 0;
 }
 
 void spu94_adsr_key_off(spu94_adsr_state_t *a) {
@@ -248,5 +250,6 @@ int16_t spu94_adsr_tick(spu94_adsr_state_t *a) {
     }
 
     a->level = (int16_t)level;
+    a->tick_count++;
     return (int16_t)level;
 }

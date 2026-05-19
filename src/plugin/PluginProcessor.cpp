@@ -960,18 +960,25 @@ spu94_adsr_state_t SPU94AudioProcessor::buildAdsrConfig() const
 {
     spu94_adsr_state_t cfg;
     spu94_adsr_init(&cfg);
-    if (!adsrEnabled.load(std::memory_order_relaxed))
-        return cfg;
-
     cfg.enabled = 1;
 
+    // PS1 ADSR shift-to-time reference (at 44.1kHz):
+    //   Attack: shift 0=52us, 8=13ms, 11=106ms, 14=849ms, 17=6.8s
+    //   Decay:  shift 0=45us, 9=33ms, 11=148ms, 13=592ms, 15=2.4s
+    // Musical envelope times: ~1ms (instant) to ~3s (slow pad).
+    // Knob 0.0 = instant, knob 1.0 = slowest musical time.
+    // Attack/release: map 0..1 to shift 0..20 (52us to 54s, musical sweet spot 10-17)
+    // Decay: map 0..1 to shift 0..15 (45us to 2.4s, musical sweet spot 10-15)
+
     float atk = adsrAttack.load(std::memory_order_relaxed);
-    cfg.attack_shift = static_cast<uint8_t>(atk * 16.0f + 0.5f);
+    cfg.attack_shift = static_cast<uint8_t>(atk * 20.0f + 0.5f);
+    if (cfg.attack_shift > 20) cfg.attack_shift = 20;
     cfg.attack_step  = 0;
     cfg.attack_exp   = adsrAttackExp.load(std::memory_order_relaxed) ? 1 : 0;
 
     float dec = adsrDecay.load(std::memory_order_relaxed);
     cfg.decay_shift = static_cast<uint8_t>(dec * 15.0f + 0.5f);
+    if (cfg.decay_shift > 15) cfg.decay_shift = 15;
 
     float sl = adsrSustainLvl.load(std::memory_order_relaxed);
     cfg.sustain_level = static_cast<uint8_t>(sl * 15.0f + 0.5f);
@@ -979,12 +986,20 @@ spu94_adsr_state_t SPU94AudioProcessor::buildAdsrConfig() const
     float sr = adsrSustainRate.load(std::memory_order_relaxed);
     cfg.sustain_dir  = sr < 0.0f ? 1 : 0;
     float mag = sr < 0.0f ? -sr : sr;
-    cfg.sustain_shift = static_cast<uint8_t>((1.0f - mag) * 16.0f + 0.5f);
-    cfg.sustain_step  = 0;
+    if (mag < 0.01f) {
+        cfg.sustain_shift = 31;
+        cfg.sustain_step  = 3;
+    } else {
+        uint8_t rateShift = static_cast<uint8_t>((1.0f - mag) * 20.0f + 0.5f);
+        if (rateShift > 20) rateShift = 20;
+        cfg.sustain_shift = rateShift;
+        cfg.sustain_step  = 0;
+    }
     cfg.sustain_exp   = adsrSustainExp.load(std::memory_order_relaxed) ? 1 : 0;
 
     float rel = adsrRelease.load(std::memory_order_relaxed);
-    cfg.release_shift = static_cast<uint8_t>(rel * 16.0f + 0.5f);
+    cfg.release_shift = static_cast<uint8_t>(rel * 20.0f + 0.5f);
+    if (cfg.release_shift > 20) cfg.release_shift = 20;
     cfg.release_exp   = adsrReleaseExp.load(std::memory_order_relaxed) ? 1 : 0;
 
     return cfg;

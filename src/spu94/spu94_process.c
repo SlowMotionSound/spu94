@@ -255,7 +255,7 @@ void spu94_process(spu94_state *state,
             state->fir_lc_pos = (uint8_t)((pos + 1u) % 58u);
         }
 
-        /* 6. Master mixer: four-bus sum, int32 accumulation + sat_s16 (D-01) */
+/* 6. Master mixer: four-bus sum, int32 accumulation + sat_s16 (D-01) */
         int16_t out_l = sat_s16(
             (int32_t)q15_mul_truncate(mix_dry_l,    state->dry_fader)
           + (int32_t)q15_mul_truncate(mix_pat_l,    state->patina_fader)

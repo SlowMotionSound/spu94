@@ -187,13 +187,6 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
 
         // ADSR section
         panel.addAndMakeVisible(adsrDisplay);
-        panel.addAndMakeVisible(adsrToggle);
-        adsrToggle.setClickingTogglesState(true);
-        adsrToggle.onClick = [this] {
-            processorRef.getAdsrEnabled().store(
-                adsrToggle.getToggleState(), std::memory_order_relaxed);
-            refreshAdsrDisplay();
-        };
 
         auto setupAdsrKnob = [&](juce::Slider& knob, juce::Label& label,
                                   const char* name, double init,
@@ -707,6 +700,7 @@ void SPU94AudioProcessorEditor::timerCallback()
             loopPosKnob.setValue(wl, juce::dontSendNotification);
         }
     }
+
 }
 
 void SPU94AudioProcessorEditor::refreshAdsrDisplay()
@@ -782,7 +776,6 @@ void SPU94AudioProcessorEditor::resized()
             endPosKnob.setBounds(325, 259, 60, 50);
 
             // ADSR section
-            adsrToggle.setBounds(15, 315, 60, 20);
             adsrDisplay.setBounds(10, 338, 380, 55);
 
             constexpr int aky = 398, akw = 55, akh = 45;

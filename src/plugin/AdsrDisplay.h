@@ -68,26 +68,29 @@ public:
             return;
         }
 
+        constexpr float kPad = 4.0f;
+        auto inner = area.reduced(0, static_cast<int>(kPad));
+
         juce::Path path;
-        float xScale = static_cast<float>(area.getWidth()) /
+        float xScale = static_cast<float>(inner.getWidth()) /
                         static_cast<float>(levels.size() - 1);
-        float yScale = static_cast<float>(area.getHeight()) / 32767.0f;
+        float yScale = static_cast<float>(inner.getHeight()) / 32767.0f;
 
         for (size_t i = 0; i < levels.size(); i++) {
-            float x = static_cast<float>(area.getX()) +
+            float x = static_cast<float>(inner.getX()) +
                       static_cast<float>(i) * xScale;
-            float y = static_cast<float>(area.getBottom()) -
+            float y = static_cast<float>(inner.getBottom()) -
                       static_cast<float>(levels[i]) * yScale;
             if (i == 0) path.startNewSubPath(x, y);
             else path.lineTo(x, y);
         }
 
         // Sustain level reference line
-        float refY = static_cast<float>(area.getBottom()) -
+        float refY = static_cast<float>(inner.getBottom()) -
                      static_cast<float>(sustainTarget) * yScale;
         g.setColour(juce::Colour(0x60D49EBF));
-        float dashX = static_cast<float>(area.getX());
-        float dashEnd = static_cast<float>(area.getRight());
+        float dashX = static_cast<float>(inner.getX());
+        float dashEnd = static_cast<float>(inner.getRight());
         while (dashX < dashEnd) {
             float segEnd = std::min(dashX + 4.0f, dashEnd);
             g.drawLine(dashX, refY, segEnd, refY, 1.0f);
