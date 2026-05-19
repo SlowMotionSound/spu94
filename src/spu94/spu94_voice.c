@@ -89,6 +89,7 @@ void spu94_voice_key_off(spu94_voice_t *v) {
 
 void spu94_voice_tick(spu94_voice_t *v,
                       const uint8_t *voice_ram, uint32_t voice_ram_size,
+                      uint8_t gauss_bypass,
                       int16_t *out_l, int16_t *out_r) {
     if (v == NULL || out_l == NULL || out_r == NULL) return;
 
@@ -195,8 +196,10 @@ void spu94_voice_tick(spu94_voice_t *v,
     }
 
     /* ---------------------------------------------------------------
-     * STEP 2 — Gaussian interpolation
+     * STEP 2 — Gaussian interpolation (or zero-order hold if bypassed)
      * Exact formula from spu94_process.c lines 121-141.
+     * AA-01: gauss_bypass=1 skips the 4-tap table lookup and outputs
+     *        the newest decoded sample (s3) directly — zero-order hold.
      * --------------------------------------------------------------- */
     {
         const uint8_t gi = (uint8_t)((v->pitch_counter >> 4) & 0xFF);
@@ -205,12 +208,20 @@ void spu94_voice_tick(spu94_voice_t *v,
         const int16_t s1 = v->gauss_ring[(wp + 1) & 3];
         const int16_t s2 = v->gauss_ring[(wp + 2) & 3];
         const int16_t s3 = v->gauss_ring[(wp + 3) & 3];
-        int32_t interpolated =
-              (int32_t)spu94_gauss_table[0x0FF - gi] * (int32_t)s0
-            + (int32_t)spu94_gauss_table[0x1FF - gi] * (int32_t)s1
-            + (int32_t)spu94_gauss_table[0x100 + gi] * (int32_t)s2
-            + (int32_t)spu94_gauss_table[0x000 + gi] * (int32_t)s3;
-        int16_t gauss_out = sat_s16(interpolated >> 15);
+        int16_t gauss_out;
+        if (gauss_bypass) {
+            /* AA-01: Zero-order hold — output newest sample without interpolation.
+             * At pitch-up this produces sample-skipping aliasing; at pitch-down
+             * this produces sample-repeating staircase artifacts. */
+            gauss_out = s3;
+        } else {
+            int32_t interpolated =
+                  (int32_t)spu94_gauss_table[0x0FF - gi] * (int32_t)s0
+                + (int32_t)spu94_gauss_table[0x1FF - gi] * (int32_t)s1
+                + (int32_t)spu94_gauss_table[0x100 + gi] * (int32_t)s2
+                + (int32_t)spu94_gauss_table[0x000 + gi] * (int32_t)s3;
+            gauss_out = sat_s16(interpolated >> 15);
+        }
 
         /* ---------------------------------------------------------------
          * STEP 2.5 — ADSR envelope (ADSR-01..06)
@@ -297,8 +308,9 @@ void spu94_voice_mixer_init(spu94_voice_mixer_t *m) {
         spu94_voice_init(&m->voices[i]);
         spu94_voice_init(&m->pending_config[i]);
     }
-    /* pending_kon, pending_koff, eon_flags, master_vol_l/r, enabled
-     * are all zero from memset — correct defaults. */
+    /* pending_kon, pending_koff, eon_flags, master_vol_l/r, enabled,
+     * gauss_bypass are all zero from memset — correct defaults.
+     * gauss_bypass=0 means Gaussian interpolation ON (PS1 faithful). */
 }
 
 spu94_result_t spu94_voice_mixer_key_on(spu94_voice_mixer_t *m, int voice_idx,
@@ -445,6 +457,7 @@ void spu94_voice_mixer_tick(spu94_voice_mixer_t *m,
         int16_t vl = 0, vr = 0;
         spu94_voice_tick(&m->voices[v],
                          m->voice_ram, SPU94_SPU_RAM_BYTES,
+                         m->gauss_bypass,
                          &vl, &vr);
         dry_sum_l += vl;
         dry_sum_r += vr;

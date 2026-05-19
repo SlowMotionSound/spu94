@@ -90,10 +90,13 @@ uint8_t spu94_voice_get_endx(const spu94_voice_t *v);
  * voice_ram: pointer to the dedicated voice RAM buffer (C6: separate from
  *            reverb work buffer).
  * voice_ram_size: size in bytes (for bounds checking, T-27-01).
+ * gauss_bypass: AA-01: 0 = 4-tap Gaussian interpolation (PS1 faithful),
+ *               1 = zero-order hold (output newest sample, raw aliasing).
  *
  * RT-safe: no heap, no locks, no syscalls. */
 void spu94_voice_tick(spu94_voice_t *v,
                       const uint8_t *voice_ram, uint32_t voice_ram_size,
+                      uint8_t gauss_bypass,
                       int16_t *out_l, int16_t *out_r);
 
 /* -----------------------------------------------------------------------
@@ -123,6 +126,7 @@ typedef struct {
     int16_t       master_vol_l;        /* MIX-03: Q15, applied after voice sum */
     int16_t       master_vol_r;        /* MIX-03: Q15, applied after voice sum */
     uint8_t       enabled;             /* gate: 0 = voice engine bypassed entirely */
+    uint8_t       gauss_bypass;        /* AA-01: 0 = Gauss interp (PS1 faithful), 1 = zero-order hold (raw aliasing) */
 } spu94_voice_mixer_t;
 
 /* Initialize mixer: zero all 24 voices, clear pending masks, clear eon_flags,
