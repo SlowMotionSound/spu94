@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-19T03:01:14Z",
+  "timestamp": "2026-05-19T22:11:34Z",
   "phase": "31",
   "phase_name": "standalone-testbed-ux",
   "phase_dir": ".planning/phases/31-standalone-testbed-ux",
@@ -18,31 +18,33 @@
     {"id": "live-pitch", "name": "Real-time pitch control for sampler voices", "status": "done", "commit": "094e521"},
     {"id": "waveform", "name": "Waveform thumbnail display in sampler window", "status": "done", "commit": "e1a3d21"},
     {"id": "markers", "name": "Draggable start/end markers + playback head", "status": "done", "commit": "d679f94"},
-    {"id": "loop-mode", "name": "Loop mode with real-time marker updates, S/L/E knobs, ADPCM state fix", "status": "done", "commit": "049c072"},
-    {"id": "adsr", "name": "ADSR envelope controls with live engine display, Rise/Fall rename, mauve color pairing", "status": "done", "commit": "1456af2"}
+    {"id": "loop-mode", "name": "Loop mode with real-time marker updates, S/L/E knobs", "status": "done", "commit": "049c072"},
+    {"id": "adsr", "name": "ADSR envelope controls with live engine display", "status": "done", "commit": "1456af2"},
+    {"id": "adsr-refline", "name": "ADSR sustain level reference line", "status": "done", "commit": "4eb62e7"},
+    {"id": "phase-32", "name": "Anti-Aliasing toggle (Phase 32 complete)", "status": "done", "commit": "28d8058"},
+    {"id": "adsr-always-on", "name": "ADSR always-on with musical power-curve knob scaling", "status": "done", "commit": "33ec407"},
+    {"id": "marker-push", "name": "Start/End marker push logic, loop scrub, ADSR power curve refinement", "status": "done", "commit": "9077600"}
   ],
   "remaining_tasks": [
-    {"id": "adsr-test", "name": "Audio-test ADSR controls with various samples", "status": "not_started"},
-    {"id": "adsr-ref-line", "name": "ADSR display sustain level reference line", "status": "not_started"},
-    {"id": "volume-sweep", "name": "PS1 per-voice volume sweep (auto L/R ramp)", "status": "not_started"},
-    {"id": "noise-mode", "name": "PS1 per-voice noise mode (replace ADPCM with noise gen)", "status": "not_started"},
-    {"id": "pitch-mod", "name": "PS1 per-voice pitch modulation (voice N modulated by N-1)", "status": "not_started"},
+    {"id": "min-loop-test", "name": "Verify minimum-distance looping produces audible tone at 56 samples", "status": "not_started"},
+    {"id": "sampler-window-size", "name": "XWayland sampler window still occasionally launches tiny", "status": "not_started"},
     {"id": "midi-verify", "name": "MIDI input verification (needs controller)", "status": "not_started"}
   ],
   "blockers": [],
   "human_actions_pending": [
-    {"action": "Audio-test ADSR controls with samples", "context": "GUI built and visually approved; sound not yet tested", "blocking": false}
+    {"action": "Test minimum-distance looping with various samples", "context": "Changed min gap from 28 to 56 samples; needs confirmation that single-cycle tones work", "blocking": false}
   ],
   "decisions": [
-    {"decision": "Renamed 'Rate' to 'Rise/Fall' for sustain rate knob", "rationale": "Rate implies speed; Rise/Fall communicates whether the sound builds or fades while held", "phase": "31"},
-    {"decision": "Sus and Rise/Fall knob dots colored mauve (#D49EBF)", "rationale": "Visual pairing for sustain-related controls; matches PS1 palette", "phase": "31"},
-    {"decision": "Int/Fract buttons changed from coral to mauve", "rationale": "Anthony requested pink/mauve", "phase": "31"},
-    {"decision": "ADPCM loop state snapshot captured BEFORE decode", "rationale": "After-decode snapshot caused thin sound on subsequent loop passes", "phase": "31"},
-    {"decision": "ADSR knob ranges map to shift 0-16", "rationale": "Shift >16 produces practically infinite times; 0-16 covers instant to ~3.4s", "phase": "31"},
-    {"decision": "Build parallelism capped at -j4", "rationale": "OOM killer crashed terminal at -j12; JUCE cc1plus uses ~1.1GB each", "phase": "31"},
-    {"decision": "ADSR display uses live engine simulation, not idealized curves", "rationale": "Shows authentic PS1 counter-mechanism staircase artifacts; future UI design pattern", "phase": "31"}
+    {"decision": "ADSR always enabled, transparent defaults", "rationale": "PS1 always runs ADSR; instant attack/decay/release + max sustain = no audible effect until shaped", "phase": "31"},
+    {"decision": "Removed ADSR enable checkbox", "rationale": "Redundant when ADSR is always on", "phase": "31"},
+    {"decision": "ADSR power-curve mapping (knob^0.55)", "rationale": "PS1 shift register doubles time per increment; linear mapping put 90% of knob in sub-perceptual range", "phase": "31"},
+    {"decision": "Rise/Fall center = frozen sustain (shift 31, step 3)", "rationale": "Center position should hold flat, not slowly rise", "phase": "31"},
+    {"decision": "Start/End markers push each other at minimum gap", "rationale": "Dragging past minimum locks markers together and slides as a pair", "phase": "31"},
+    {"decision": "Minimum gap = 56 samples (2 ADPCM blocks), fixed count not percentage", "rationale": "28 samples caused decode-loop conflict; percentage scaled with file length preventing single-cycle work", "phase": "31"},
+    {"decision": "Voice current_addr resets when markers move outside playback region", "rationale": "Enables real-time loop region scrubbing without killing the voice", "phase": "31"},
+    {"decision": "Live envelope dot tracking attempted and stripped", "rationale": "Level-matching approach didn't track release correctly; deferred", "phase": "31"}
   ],
   "uncommitted_files": [],
-  "next_action": "Audio-test ADSR controls, then implement sustain level reference line in ADSR display",
-  "context_notes": "All code committed. This session added loop mode (real-time marker updates, single-cycle waveform support, ADPCM state fix) and full PS1-faithful ADSR envelope controls. ADSR display runs real spu94_adsr_tick engine. Extensive discussion about PS1 ADSR design rationale — Rise/Fall explained as 'what does the sound do when nobody is touching it' (rise, hold, or fall). Sound recipes discussed: cymbal self-decay, pad swell, texture evaporation. Planned next: reference line at sustain level in display. Remaining PS1 per-voice features (volume sweep, noise mode, pitch modulation) discussed but not yet scoped."
+  "next_action": "Test minimum-distance looping produces single-cycle tones, then consider v1.8 milestone completion",
+  "context_notes": "All phases 27-32 complete. Session focused on ADSR polish (always-on, knob scaling, reference line) and sampler UX (marker push, loop scrub, minimum gap). ADSR knob scaling was the hardest issue — PS1 shift register has exponential time relationship, initial naive mapping put all musical range in last 5% of knob. Power curve (knob^0.55) solved it. The ADPCM decoded amplitude is lower than source PCM (expected 4-bit codec behavior) but the ADSR engine IS shaping correctly — confirmed via diagnostic logging."
 }
