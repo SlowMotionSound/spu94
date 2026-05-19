@@ -76,6 +76,12 @@ Build a spec-faithful PS1 SPU voice playback engine (24-voice ADPCM sampler), st
 - [ ] **TEST-03**: MIDI note input triggers voices in standalone (JUCE native MIDI)
 - [ ] **TEST-04**: Standalone remains the development testbed — no plugin UX changes in v1.8
 
+### Anti-Aliasing Toggle
+
+- [ ] **AA-01**: With Anti-Aliasing ON (default), voice playback uses 4-tap Gaussian interpolation — identical to current output, no regression
+- [ ] **AA-02**: With Anti-Aliasing OFF, voice playback uses zero-order hold (no interpolation) — audible aliasing artifacts from sample-skipping on pitch-up, sample-repeating on pitch-down
+- [ ] **AA-03**: Single global toggle on the sampler (not per-voice), visible in the Sampler window, defaults to ON on fresh state
+
 ## Traceability
 
 | Requirement | Phase | Phase Description | Status |
@@ -111,8 +117,11 @@ Build a spec-faithful PS1 SPU voice playback engine (24-voice ADPCM sampler), st
 | TEST-02 | Phase 31 | Standalone Testbed UX | Pending |
 | TEST-03 | Phase 31 | Standalone Testbed UX | Pending |
 | TEST-04 | Phase 31 | Standalone Testbed UX | Pending |
+| AA-01 | Phase 32 | Sampler Anti-Aliasing Toggle | Pending |
+| AA-02 | Phase 32 | Sampler Anti-Aliasing Toggle | Pending |
+| AA-03 | Phase 32 | Sampler Anti-Aliasing Toggle | Pending |
 
-**Coverage: 31/31 requirements mapped. No orphans.**
+**Coverage: 34/34 requirements mapped. No orphans.**
 
 ## Out of Scope (v1.8)
 

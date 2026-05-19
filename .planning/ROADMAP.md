@@ -134,7 +134,11 @@ Plans:
   2. With Anti-Aliasing OFF, pitched playback produces audible aliasing artifacts from zero-order hold (sample-skipping on pitch-up, sample-repeating on pitch-down) — the raw, unfiltered sound
   3. The toggle is a single global control on the sampler (not per-voice), visible in the Sampler window, and defaults to ON on fresh state
 
-**Plans**: TBD (not yet planned)
+**Plans**: 1 plan
+
+Plans:
+
+- [ ] 32-01-PLAN.md — gauss_bypass in C core + Anti-Alias toggle in Sampler window
 
 **UI hint**: yes
 
