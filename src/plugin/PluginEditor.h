@@ -92,6 +92,7 @@ private:
     juce::Slider voiceEnginePitchKnob;
     juce::Label voiceEnginePitchLabel;
     juce::ToggleButton loopToggle{"Loop"};
+    juce::ToggleButton samplerAAToggle{"Anti-Alias"};
 
     // Marker position knobs (standalone-only)
     juce::Slider startPosKnob;

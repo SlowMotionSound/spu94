@@ -69,6 +69,7 @@ public:
     void setSampleEndPos(double pos) { sampleEndPos.store(pos, std::memory_order_relaxed); }
     void setSampleLoopPos(double pos) { sampleLoopPos.store(pos, std::memory_order_relaxed); }
     std::atomic<bool>& getLoopModeEnabled() { return loopModeEnabled; }
+    std::atomic<bool>& getSamplerAAEnabled() { return samplerAAEnabled; }
 
     // ADSR parameter accessors (standalone sampler voice)
     std::atomic<bool>&  getAdsrEnabled()     { return adsrEnabled; }
@@ -365,6 +366,7 @@ private:
     std::atomic<double> sampleEndPos{1.0};
     std::atomic<double> sampleLoopPos{0.0};
     std::atomic<bool> loopModeEnabled{false};
+    std::atomic<bool> samplerAAEnabled{true};  // AA-03: true = Gauss interp ON (PS1 faithful)
 
     // ADSR parameters (standalone sampler voice)
     std::atomic<bool>  adsrEnabled{false};

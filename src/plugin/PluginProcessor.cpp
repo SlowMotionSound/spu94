@@ -437,6 +437,11 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         samplerFader.load(std::memory_order_relaxed) * 0x7FFF));
     spu94_set_sampler_send(engines[0], static_cast<int16_t>(
         samplerSend.load(std::memory_order_relaxed) * 0x7FFF));
+    // AA-03: push anti-aliasing toggle to voice mixer. Inverted: AA enabled
+    // means Gaussian interpolation ON (gauss_bypass=0); AA disabled means raw
+    // zero-order hold (gauss_bypass=1).
+    spu94_get_voice_mixer()->gauss_bypass =
+        samplerAAEnabled.load(std::memory_order_relaxed) ? 0 : 1;
     spu94_set_latency_comp(engines[0],
         latencyCompEnabled.load(std::memory_order_relaxed) ? 1 : 0);
     spu94_set_dac_enabled(engines[0],

@@ -120,6 +120,16 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
                 samplerWindow->getWaveformDisplay().setLoopMode(on);
         };
 
+        // Anti-Aliasing toggle — switches all 24 voices between Gaussian
+        // interpolation (ON, default = PS1 faithful) and zero-order hold (OFF).
+        panel.addAndMakeVisible(samplerAAToggle);
+        samplerAAToggle.setClickingTogglesState(true);
+        samplerAAToggle.setToggleState(true, juce::dontSendNotification);
+        samplerAAToggle.onClick = [this] {
+            processorRef.getSamplerAAEnabled().store(
+                samplerAAToggle.getToggleState(), std::memory_order_relaxed);
+        };
+
         // Marker position knobs — precise control for start/loop/end points.
         auto setupPosKnob = [&](juce::Slider& knob, juce::Label& label,
                                 const char* name, double initVal) {
@@ -762,6 +772,7 @@ void SPU94AudioProcessorEditor::resized()
             voiceEnginePitchKnob.setBounds(10, 64, 80, 54);
             voiceSampleLabel.setBounds(100, 50, 190, 30);
             loopToggle.setBounds(300, 10, 85, 30);
+            samplerAAToggle.setBounds(300, 42, 95, 30);
             samplerWindow->getWaveformDisplay().setBounds(10, 125, 380, 120);
             startPosLabel.setBounds(15, 247, 60, 14);
             startPosKnob.setBounds(15, 259, 60, 50);
