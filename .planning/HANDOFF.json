@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-19T22:11:34Z",
+  "timestamp": "2026-05-20T01:30:00Z",
   "phase": "31",
   "phase_name": "standalone-testbed-ux",
   "phase_dir": ".planning/phases/31-standalone-testbed-ux",
@@ -23,28 +23,31 @@
     {"id": "adsr-refline", "name": "ADSR sustain level reference line", "status": "done", "commit": "4eb62e7"},
     {"id": "phase-32", "name": "Anti-Aliasing toggle (Phase 32 complete)", "status": "done", "commit": "28d8058"},
     {"id": "adsr-always-on", "name": "ADSR always-on with musical power-curve knob scaling", "status": "done", "commit": "33ec407"},
-    {"id": "marker-push", "name": "Start/End marker push logic, loop scrub, ADSR power curve refinement", "status": "done", "commit": "9077600"}
+    {"id": "marker-push", "name": "Start/End marker push logic, loop scrub, ADSR power curve refinement", "status": "done", "commit": "9077600"},
+    {"id": "adsr-display", "name": "ADSR display overhaul — analytical rendering, power-curve sync, Rise/Fall detent", "status": "done", "commit": "5ea7425"},
+    {"id": "decay-fix", "name": "Decay shift max 15→20 so mid-knob decay is audible", "status": "done", "commit": "27eff9b"},
+    {"id": "sampler-drive", "name": "Sampler drive stage + gate-style trigger button", "status": "done", "commit": "bfda726"}
   ],
   "remaining_tasks": [
     {"id": "min-loop-test", "name": "Verify minimum-distance looping produces audible tone at 56 samples", "status": "not_started"},
     {"id": "sampler-window-size", "name": "XWayland sampler window still occasionally launches tiny", "status": "not_started"},
-    {"id": "midi-verify", "name": "MIDI input verification (needs controller)", "status": "not_started"}
+    {"id": "midi-verify", "name": "MIDI input verification (needs controller)", "status": "not_started"},
+    {"id": "loop-scrub-silence", "name": "Some start-marker positions produce silence during loop scrub — likely ADPCM decoder state issue on block jumps", "status": "not_started"},
+    {"id": "scroll-resolution", "name": "Waveform display scroll/zoom not implemented; fixed 380x120 view feels clunky for long samples", "status": "not_started"},
+    {"id": "knob-size", "name": "ADSR knobs (55x45) and marker knobs (60x50) feel small and finicky vs main knobs (65-80 wide)", "status": "not_started"}
   ],
   "blockers": [],
-  "human_actions_pending": [
-    {"action": "Test minimum-distance looping with various samples", "context": "Changed min gap from 28 to 56 samples; needs confirmation that single-cycle tones work", "blocking": false}
-  ],
+  "human_actions_pending": [],
   "decisions": [
-    {"decision": "ADSR always enabled, transparent defaults", "rationale": "PS1 always runs ADSR; instant attack/decay/release + max sustain = no audible effect until shaped", "phase": "31"},
-    {"decision": "Removed ADSR enable checkbox", "rationale": "Redundant when ADSR is always on", "phase": "31"},
-    {"decision": "ADSR power-curve mapping (knob^0.55)", "rationale": "PS1 shift register doubles time per increment; linear mapping put 90% of knob in sub-perceptual range", "phase": "31"},
-    {"decision": "Rise/Fall center = frozen sustain (shift 31, step 3)", "rationale": "Center position should hold flat, not slowly rise", "phase": "31"},
-    {"decision": "Start/End markers push each other at minimum gap", "rationale": "Dragging past minimum locks markers together and slides as a pair", "phase": "31"},
-    {"decision": "Minimum gap = 56 samples (2 ADPCM blocks), fixed count not percentage", "rationale": "28 samples caused decode-loop conflict; percentage scaled with file length preventing single-cycle work", "phase": "31"},
-    {"decision": "Voice current_addr resets when markers move outside playback region", "rationale": "Enables real-time loop region scrubbing without killing the voice", "phase": "31"},
-    {"decision": "Live envelope dot tracking attempted and stripped", "rationale": "Level-matching approach didn't track release correctly; deferred", "phase": "31"}
+    {"decision": "ADSR display uses analytical rendering", "rationale": "Tick-by-tick simulation couldn't handle extreme shift values; analytical approach is instant and always shows all phases", "phase": "31"},
+    {"decision": "Display width allocation: linear knob weight with no floor", "rationale": "knob*0.05 with sustain=0.02; zero knob = near-invisible phase, smooth continuous growth, no snap thresholds", "phase": "31"},
+    {"decision": "Rise/Fall center detent at +/-3%", "rationale": "Ensures envelope sits exactly on sustain reference line at center position", "phase": "31"},
+    {"decision": "Decay max shift 15->20", "rationale": "PS1 limits decay_shift to 4 bits but mid-knob produced only 155ms decay. Shift 20 makes decay proportional to attack. Engine handles >15 fine.", "phase": "31"},
+    {"decision": "Sampler drive is Q12 int32 gain with sat_s16 clipping", "rationale": "Independent overdrive for sampler voices, same +24dB range as input gain", "phase": "31"},
+    {"decision": "Trigger button acts as gate (mouseDown=keyOn, mouseUp=keyOff)", "rationale": "Modular-style behavior: hold for sustain, release for release phase", "phase": "31"},
+    {"decision": "Default ADSR: Rel=0, all Exp off", "rationale": "Clean flat rectangle at launch, transparent envelope until shaped", "phase": "31"}
   ],
   "uncommitted_files": [],
-  "next_action": "Test minimum-distance looping produces single-cycle tones, then consider v1.8 milestone completion",
-  "context_notes": "All phases 27-32 complete. Session focused on ADSR polish (always-on, knob scaling, reference line) and sampler UX (marker push, loop scrub, minimum gap). ADSR knob scaling was the hardest issue — PS1 shift register has exponential time relationship, initial naive mapping put all musical range in last 5% of knob. Power curve (knob^0.55) solved it. The ADPCM decoded amplitude is lower than source PCM (expected 4-bit codec behavior) but the ADSR engine IS shaping correctly — confirmed via diagnostic logging."
+  "next_action": "Test remaining items (loop scrub silence, min-loop, scroll/zoom) or complete v1.8 milestone",
+  "context_notes": "Session focused on ADSR display accuracy and sampler UX. Display rewritten from tick-simulation to analytical rendering with smooth knob-proportional width allocation. Decay max shift raised to 20 for audible mid-knob decay. New sampler drive stage (independent +24dB overdrive). Trigger button changed to gate behavior. Three commits: 5ea7425 (display), 27eff9b (decay), bfda726 (drive+gate)."
 }
