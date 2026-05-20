@@ -650,6 +650,23 @@ void SPU94AudioProcessorEditor::timerCallback()
                     setSize(900, 950);
                 }
             }
+            if (auto* topLevel = getTopLevelComponent())
+            {
+                auto display = juce::Desktop::getInstance().getDisplays()
+                                   .getDisplayForPoint(topLevel->getScreenBounds().getCentre());
+                if (display != nullptr)
+                {
+                    auto area = display->userArea;
+                    int mainX = area.getRight() - topLevel->getWidth() - 20;
+                    int mainY = area.getY() + 40;
+                    topLevel->setTopLeftPosition(mainX, mainY);
+                }
+            }
+            if (samplerWindow)
+            {
+                samplerWindow->ensureMinimumSize();
+                samplerWindow->positionLeftOf(this);
+            }
         }
     }
 #endif
@@ -831,32 +848,32 @@ void SPU94AudioProcessorEditor::resized()
             loopToggle.setBounds(300, 10, 85, 30);
             samplerAAToggle.setBounds(300, 42, 95, 30);
             samplerWindow->getWaveformDisplay().setBounds(10, 125, 380, 120);
-            startPosLabel.setBounds(15, 247, 60, 14);
-            startPosKnob.setBounds(15, 259, 60, 50);
-            loopPosLabel.setBounds(165, 247, 60, 14);
-            loopPosKnob.setBounds(165, 259, 60, 50);
-            endPosLabel.setBounds(325, 247, 60, 14);
-            endPosKnob.setBounds(325, 259, 60, 50);
+            startPosLabel.setBounds(15, 247, 70, 14);
+            startPosKnob.setBounds(15, 259, 70, 54);
+            loopPosLabel.setBounds(160, 247, 70, 14);
+            loopPosKnob.setBounds(160, 259, 70, 54);
+            endPosLabel.setBounds(320, 247, 70, 14);
+            endPosKnob.setBounds(320, 259, 70, 54);
 
             // ADSR section
             adsrDisplay.setBounds(10, 338, 380, 55);
 
-            constexpr int aky = 398, akw = 55, akh = 45;
+            constexpr int aky = 398, akw = 65, akh = 54;
             adsrAttackLabel.setBounds(15, aky, akw, 12);
             adsrAttackKnob.setBounds(15, aky + 12, akw, akh);
-            adsrDecayLabel.setBounds(87, aky, akw, 12);
-            adsrDecayKnob.setBounds(87, aky + 12, akw, akh);
-            adsrSustainLvlLabel.setBounds(159, aky, akw, 12);
-            adsrSustainLvlKnob.setBounds(159, aky + 12, akw, akh);
-            adsrSustainRateLabel.setBounds(231, aky, akw, 12);
-            adsrSustainRateKnob.setBounds(231, aky + 12, akw, akh);
-            adsrReleaseLabel.setBounds(303, aky, akw, 12);
-            adsrReleaseKnob.setBounds(303, aky + 12, akw, akh);
+            adsrDecayLabel.setBounds(91, aky, akw, 12);
+            adsrDecayKnob.setBounds(91, aky + 12, akw, akh);
+            adsrSustainLvlLabel.setBounds(167, aky, akw, 12);
+            adsrSustainLvlKnob.setBounds(167, aky + 12, akw, akh);
+            adsrSustainRateLabel.setBounds(243, aky, akw, 12);
+            adsrSustainRateKnob.setBounds(243, aky + 12, akw, akh);
+            adsrReleaseLabel.setBounds(319, aky, akw, 12);
+            adsrReleaseKnob.setBounds(319, aky + 12, akw, akh);
 
             constexpr int tgy = aky + 12 + akh + 2;
             adsrAttackExpToggle.setBounds(15, tgy, akw, 18);
-            adsrSustainExpToggle.setBounds(231, tgy, akw, 18);
-            adsrReleaseExpToggle.setBounds(303, tgy, akw, 18);
+            adsrSustainExpToggle.setBounds(243, tgy, akw, 18);
+            adsrReleaseExpToggle.setBounds(319, tgy, akw, 18);
         }
     }
 

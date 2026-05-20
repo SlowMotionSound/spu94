@@ -18,9 +18,31 @@ public:
         contentPanel.setSize(400, 510);
         setContentNonOwned(&contentPanel, true);
 
-        setVisible(true);
-        centreWithSize(401, 511);
         centreWithSize(400, 510);
+        setVisible(true);
+    }
+
+    void positionLeftOf(juce::Component* mainWindow)
+    {
+        if (!mainWindow)
+            return;
+        if (auto* top = mainWindow->getTopLevelComponent())
+        {
+            auto mainBounds = top->getScreenBounds();
+            int x = mainBounds.getX() - getWidth() - 10;
+            int y = mainBounds.getY();
+            if (x < 0) x = 0;
+            setTopLeftPosition(x, y);
+        }
+    }
+
+    void ensureMinimumSize()
+    {
+        if (getWidth() < 400 || getHeight() < 500)
+        {
+            centreWithSize(401, 511);
+            centreWithSize(400, 510);
+        }
     }
 
     void closeButtonPressed() override
