@@ -990,7 +990,7 @@ spu94_adsr_state_t SPU94AudioProcessor::buildAdsrConfig() const
     cfg.attack_exp   = adsrAttackExp.load(std::memory_order_relaxed) ? 1 : 0;
 
     float dec = adsrDecay.load(std::memory_order_relaxed);
-    cfg.decay_shift = powerMap(dec, 15.0f);
+    cfg.decay_shift = powerMap(dec, 20.0f);
 
     float sl = adsrSustainLvl.load(std::memory_order_relaxed);
     cfg.sustain_level = static_cast<uint8_t>(sl * 15.0f + 0.5f);
