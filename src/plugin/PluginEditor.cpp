@@ -75,9 +75,11 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
                 });
         };
 
-        // Trigger button -- gate behavior: mouse-down = key_on, mouse-up = key_off.
+        // Trigger button -- gate or latch behavior depending on toggle.
         panel.addAndMakeVisible(triggerVoiceButton);
         triggerVoiceButton.addMouseListener(this, false);
+        panel.addAndMakeVisible(latchToggle);
+        latchToggle.setToggleState(false, juce::dontSendNotification);
 
         // Stop Voice button -- keys off voice 0.
         panel.addAndMakeVisible(stopVoiceButton);
@@ -117,6 +119,16 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
                 samplerWindow->getWaveformDisplay().setLoopMode(on);
         };
 
+        // Marker lock toggle — freeze relative distances, drag window as unit.
+        panel.addAndMakeVisible(markerLockToggle);
+        markerLockToggle.setClickingTogglesState(true);
+        markerLockToggle.onClick = [this] {
+            if (markerLockToggle.getToggleState()) {
+                lockedLoopOffset = loopPosKnob.getValue() - startPosKnob.getValue();
+                lockedEndOffset  = endPosKnob.getValue()  - startPosKnob.getValue();
+            }
+        };
+
         // Anti-Aliasing toggle — switches all 24 voices between Gaussian
         // interpolation (ON, default = PS1 faithful) and zero-order hold (OFF).
         panel.addAndMakeVisible(samplerAAToggle);
@@ -144,56 +156,73 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         setupPosKnob(loopPosKnob,  loopPosLabel,  "Loop",  0.0);
         setupPosKnob(endPosKnob,   endPosLabel,   "End",   1.0);
 
-        startPosKnob.onValueChange = [this] {
+        auto pushMarkers = [this](double s, double l, double e) {
+            startPosKnob.setValue(s, juce::dontSendNotification);
+            loopPosKnob.setValue(l, juce::dontSendNotification);
+            endPosKnob.setValue(e, juce::dontSendNotification);
+            processorRef.setSampleStartPos(s);
+            processorRef.setSampleLoopPos(l);
+            processorRef.setSampleEndPos(e);
+            if (samplerWindow) {
+                auto& wd = samplerWindow->getWaveformDisplay();
+                wd.setStartPos(s);
+                wd.setLoopPos(l);
+                wd.setEndPos(e);
+            }
+        };
+
+        startPosKnob.onValueChange = [this, pushMarkers] {
             double v = startPosKnob.getValue();
+            if (markerLockToggle.getToggleState()) {
+                double e = v + lockedEndOffset;
+                double l = v + lockedLoopOffset;
+                if (e > 1.0) { e = 1.0; v = e - lockedEndOffset; l = v + lockedLoopOffset; }
+                if (v < 0.0) v = 0.0;
+                pushMarkers(v, juce::jlimit(v, e, l), e);
+                return;
+            }
             double e = endPosKnob.getValue();
             constexpr double minGap = 0.0001;
             if (v > e - minGap) {
                 e = v + minGap;
                 if (e > 1.0) { e = 1.0; v = e - minGap; }
-                endPosKnob.setValue(e, juce::dontSendNotification);
             }
-            startPosKnob.setValue(v, juce::dontSendNotification);
-            if (loopPosKnob.getValue() < v)
-                loopPosKnob.setValue(v, juce::dontSendNotification);
-            processorRef.setSampleStartPos(v);
-            processorRef.setSampleEndPos(e);
-            if (samplerWindow) {
-                auto& wd = samplerWindow->getWaveformDisplay();
-                wd.setStartPos(v);
-                wd.setEndPos(e);
-                wd.setLoopPos(loopPosKnob.getValue());
-            }
+            double l = juce::jlimit(v, e, loopPosKnob.getValue());
+            pushMarkers(v, l, e);
         };
-        endPosKnob.onValueChange = [this] {
+        endPosKnob.onValueChange = [this, pushMarkers] {
             double e = endPosKnob.getValue();
+            if (markerLockToggle.getToggleState()) {
+                double v = e - lockedEndOffset;
+                double l = v + lockedLoopOffset;
+                if (v < 0.0) { v = 0.0; e = v + lockedEndOffset; l = v + lockedLoopOffset; }
+                if (e > 1.0) e = 1.0;
+                pushMarkers(v, juce::jlimit(v, e, l), e);
+                return;
+            }
             double s = startPosKnob.getValue();
             constexpr double minGap = 0.0001;
             if (e < s + minGap) {
                 s = e - minGap;
                 if (s < 0.0) { s = 0.0; e = s + minGap; }
-                startPosKnob.setValue(s, juce::dontSendNotification);
             }
-            endPosKnob.setValue(e, juce::dontSendNotification);
-            if (loopPosKnob.getValue() > e)
-                loopPosKnob.setValue(e, juce::dontSendNotification);
-            processorRef.setSampleStartPos(s);
-            processorRef.setSampleEndPos(e);
-            if (samplerWindow) {
-                auto& wd = samplerWindow->getWaveformDisplay();
-                wd.setStartPos(s);
-                wd.setEndPos(e);
-                wd.setLoopPos(loopPosKnob.getValue());
-            }
+            double l = juce::jlimit(s, e, loopPosKnob.getValue());
+            pushMarkers(s, l, e);
         };
-        loopPosKnob.onValueChange = [this] {
-            double v = juce::jlimit(startPosKnob.getValue(),
-                                    endPosKnob.getValue(),
-                                    loopPosKnob.getValue());
-            loopPosKnob.setValue(v, juce::dontSendNotification);
-            processorRef.setSampleLoopPos(v);
-            if (samplerWindow)
-                samplerWindow->getWaveformDisplay().setLoopPos(v);
+        loopPosKnob.onValueChange = [this, pushMarkers] {
+            if (markerLockToggle.getToggleState()) {
+                double l = loopPosKnob.getValue();
+                double v = l - lockedLoopOffset;
+                double e = v + lockedEndOffset;
+                if (v < 0.0) { v = 0.0; l = v + lockedLoopOffset; e = v + lockedEndOffset; }
+                if (e > 1.0) { e = 1.0; v = e - lockedEndOffset; l = v + lockedLoopOffset; }
+                pushMarkers(v, juce::jlimit(v, e, l), e);
+                return;
+            }
+            double s = startPosKnob.getValue();
+            double e = endPosKnob.getValue();
+            double l = juce::jlimit(s, e, loopPosKnob.getValue());
+            pushMarkers(s, l, e);
         };
 
         // ADSR section
@@ -792,14 +821,25 @@ void SPU94AudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
 {
     if (e.eventComponent == &triggerVoiceButton)
     {
-        uint16_t pitch = static_cast<uint16_t>(voiceEnginePitchKnob.getValue());
-        processorRef.triggerVoice(pitch);
+        if (latchToggle.getToggleState()) {
+            if (latchActive) {
+                processorRef.stopVoice();
+                latchActive = false;
+            } else {
+                uint16_t pitch = static_cast<uint16_t>(voiceEnginePitchKnob.getValue());
+                processorRef.triggerVoice(pitch);
+                latchActive = true;
+            }
+        } else {
+            uint16_t pitch = static_cast<uint16_t>(voiceEnginePitchKnob.getValue());
+            processorRef.triggerVoice(pitch);
+        }
     }
 }
 
 void SPU94AudioProcessorEditor::mouseUp(const juce::MouseEvent& e)
 {
-    if (e.eventComponent == &triggerVoiceButton)
+    if (e.eventComponent == &triggerVoiceButton && !latchToggle.getToggleState())
         processorRef.stopVoice();
 }
 
@@ -846,7 +886,9 @@ void SPU94AudioProcessorEditor::resized()
             samplerDriveKnob.setBounds(95, 64, 80, 54);
             voiceSampleLabel.setBounds(180, 50, 110, 30);
             loopToggle.setBounds(300, 10, 85, 30);
-            samplerAAToggle.setBounds(300, 42, 95, 30);
+            latchToggle.setBounds(300, 42, 65, 30);
+            markerLockToggle.setBounds(300, 74, 65, 30);
+            samplerAAToggle.setBounds(300, 106, 95, 30);
             samplerWindow->getWaveformDisplay().setBounds(10, 125, 380, 120);
             startPosLabel.setBounds(15, 247, 70, 14);
             startPosKnob.setBounds(15, 259, 70, 54);

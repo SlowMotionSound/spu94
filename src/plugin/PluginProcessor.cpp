@@ -553,10 +553,22 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 spu94_adsr_state_t adsrCfg = buildAdsrConfig();
                 spu94_voice_mixer_key_on(mx, 0, startAddr, trigPitch, 0x7FFF, 0x7FFF, 1,
                                          adsrCfg.enabled ? &adsrCfg : nullptr);
+                uint32_t blockIdx = startAddr / SPU94_ADPCM_BLOCK_BYTES;
+                if (blockIdx < adpcmStateCache.size()) {
+                    mx->voices[0].adpcm_state.old = adpcmStateCache[blockIdx].old;
+                    mx->voices[0].adpcm_state.older = adpcmStateCache[blockIdx].older;
+                }
+                uint32_t endAddr = posToBlockAddr(sampleEndPos.load(std::memory_order_relaxed));
+                if (endAddr <= startAddr)
+                    endAddr = startAddr + SPU94_ADPCM_BLOCK_BYTES;
+                mx->pending_config[0].end_addr = endAddr;
                 bool looping = loopModeEnabled.load(std::memory_order_relaxed);
                 mx->pending_config[0].loop_enabled = looping ? 1 : 0;
-                if (looping)
-                    mx->pending_config[0].loop_addr = posToBlockAddr(sampleLoopPos.load(std::memory_order_relaxed));
+                uint32_t loopAddr = posToBlockAddr(sampleLoopPos.load(std::memory_order_relaxed));
+                if (loopAddr < startAddr) loopAddr = startAddr;
+                if (loopAddr >= endAddr) loopAddr = (endAddr > SPU94_ADPCM_BLOCK_BYTES)
+                    ? endAddr - SPU94_ADPCM_BLOCK_BYTES : startAddr;
+                mx->pending_config[0].loop_addr = loopAddr;
             }
         }
         if (pendingGuiStop.exchange(false, std::memory_order_acquire))
@@ -588,6 +600,14 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 if (cur < sAddr || cur >= eAddr) {
                     mx->voices[0].current_addr = sAddr;
                     mx->voices[0].has_block = 0;
+                    uint32_t blockIdx = sAddr / SPU94_ADPCM_BLOCK_BYTES;
+                    if (blockIdx < adpcmStateCache.size()) {
+                        auto& cached = adpcmStateCache[blockIdx];
+                        mx->voices[0].adpcm_state.old = cached.old;
+                        mx->voices[0].adpcm_state.older = cached.older;
+                        mx->voices[0].loop_adpcm_old = cached.old;
+                        mx->voices[0].loop_adpcm_older = cached.older;
+                    }
                 }
             }
 
@@ -949,6 +969,15 @@ void SPU94AudioProcessor::loadVoiceSample(const juce::File& file)
         pendingMixerEnable.store(true, std::memory_order_release);
         voiceSampleName = file.getFileName();
         voiceSampleBytes = static_cast<uint32_t>(bytes);
+
+        uint32_t numBlocks = voiceSampleBytes / SPU94_ADPCM_BLOCK_BYTES;
+        adpcmStateCache.resize(numBlocks);
+        spu94_adpcm_state st = {0, 0};
+        int16_t tmp[SPU94_ADPCM_BLOCK_SAMPLES];
+        for (uint32_t b = 0; b < numBlocks; b++) {
+            adpcmStateCache[b] = st;
+            spu94_adpcm_decode_block(&st, mixer->voice_ram + b * SPU94_ADPCM_BLOCK_BYTES, tmp);
+        }
 
         waveformData = result->L;
         waveformFrames = result->numFrames;

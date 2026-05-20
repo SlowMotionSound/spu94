@@ -131,14 +131,14 @@ void spu94_voice_tick(spu94_voice_t *v,
         v->decode_buf_pos = 0;
         v->has_block = 1;
 
-        /* End-address check: stop or loop back depending on loop_enabled */
+        /* End-address check: stop or loop back depending on loop_enabled.
+         * Match the VAG flag loop path: keep has_block = 1 so the just-decoded
+         * block plays out before the next decode from loop_addr. */
         if (v->end_addr > 0 && v->current_addr >= v->end_addr) {
             if (v->loop_enabled && v->loop_addr < v->end_addr) {
                 v->current_addr = v->loop_addr;
                 v->adpcm_state.old   = v->loop_adpcm_old;
                 v->adpcm_state.older = v->loop_adpcm_older;
-                v->has_block = 0;
-                v->decode_buf_pos = 0;
             } else {
                 if (v->adsr.enabled) {
                     v->adsr.phase = ADSR_OFF;

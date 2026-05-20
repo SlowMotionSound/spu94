@@ -95,6 +95,11 @@ private:
     juce::Label voiceEnginePitchLabel;
     juce::ToggleButton loopToggle{"Loop"};
     juce::ToggleButton samplerAAToggle{"Anti-Alias"};
+    juce::ToggleButton latchToggle{"Latch"};
+    bool latchActive = false;
+    juce::ToggleButton markerLockToggle{"Lock"};
+    double lockedLoopOffset = 0.0;
+    double lockedEndOffset = 0.0;
 
     // Marker position knobs (standalone-only)
     juce::Slider startPosKnob;

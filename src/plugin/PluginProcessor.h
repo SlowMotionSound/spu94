@@ -354,6 +354,7 @@ private:
     std::atomic<bool> voiceSampleLoaded{false};
     juce::String voiceSampleName;
     uint32_t voiceSampleBytes{0};
+    std::vector<spu94_adpcm_state> adpcmStateCache;
     int8_t noteForVoice[24] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
                                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
     int nextVoice{0};
