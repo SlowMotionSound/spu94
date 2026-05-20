@@ -16,6 +16,8 @@ public:
 
     void paint(juce::Graphics& g) override;
     void resized() override;
+    void mouseDown(const juce::MouseEvent& e) override;
+    void mouseUp(const juce::MouseEvent& e) override;
 
 private:
     void timerCallback() override;
@@ -119,6 +121,8 @@ private:
     juce::Label samplerLevelLabel;
     juce::Slider samplerSendKnob;
     juce::Label samplerSendLabel;
+    juce::Slider samplerDriveKnob;
+    juce::Label samplerDriveLabel;
 
     // Zone 4: DAC section
     juce::ToggleButton dacToggle{"DAC"};

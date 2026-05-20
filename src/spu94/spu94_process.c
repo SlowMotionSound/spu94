@@ -198,6 +198,14 @@ void spu94_process(spu94_state *state,
         /* When adpcm_enabled=0: patina_l/r remain as passthrough (input signal),
          * which is the correct behavior — no coloration applied. */
 
+        /* Sampler drive: Q12 gain (0x1000 = unity) with sat_s16 clipping. */
+        if (state->sampler_drive != 0x1000) {
+            voice_dry_l = sat_s16(((int32_t)voice_dry_l * state->sampler_drive) >> 12);
+            voice_dry_r = sat_s16(((int32_t)voice_dry_r * state->sampler_drive) >> 12);
+            voice_rev_l = sat_s16(((int32_t)voice_rev_l * state->sampler_drive) >> 12);
+            voice_rev_r = sat_s16(((int32_t)voice_rev_r * state->sampler_drive) >> 12);
+        }
+
         /* MIX-06: Voice engine has its own bus (sampler_fader/sampler_send),
          * independent from the ADPCM coloration path (patina_fader/patina_send).
          * voice_dry_l/r feeds sampler_fader at master mix.

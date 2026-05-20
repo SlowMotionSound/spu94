@@ -131,6 +131,7 @@ public:
     // --- Voice engine mixer (standalone-only) ---
     std::atomic<float>& getSamplerFader() { return samplerFader; }
     std::atomic<float>& getSamplerSend() { return samplerSend; }
+    std::atomic<float>& getSamplerDrive() { return samplerDrive; }
 
     // --- Voice engine state (Phase 31: standalone testbed) ---
     std::atomic<bool>& getVoiceSampleLoaded() { return voiceSampleLoaded; }
@@ -263,6 +264,7 @@ private:
     // Voice engine mixer (standalone-only, not host-automated)
     std::atomic<float> samplerFader{1.0f};
     std::atomic<float> samplerSend{0.0f};
+    std::atomic<float> samplerDrive{1.0f};
 
     // Latency compensation (default ON per D-07)
     std::atomic<bool> latencyCompEnabled{true};

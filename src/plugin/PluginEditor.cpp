@@ -75,13 +75,9 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
                 });
         };
 
-        // Trigger button -- keys on voice 0 at pitch from the voice engine knob.
+        // Trigger button -- gate behavior: mouse-down = key_on, mouse-up = key_off.
         panel.addAndMakeVisible(triggerVoiceButton);
-        triggerVoiceButton.onClick = [this]()
-        {
-            uint16_t pitch = static_cast<uint16_t>(voiceEnginePitchKnob.getValue());
-            processorRef.triggerVoice(pitch);
-        };
+        triggerVoiceButton.addMouseListener(this, false);
 
         // Stop Voice button -- keys off voice 0.
         panel.addAndMakeVisible(stopVoiceButton);
@@ -311,6 +307,20 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         samplerSendLabel.setText("Samp Send", juce::dontSendNotification);
         samplerSendLabel.setJustificationType(juce::Justification::centred);
         addAndMakeVisible(samplerSendLabel);
+
+        samplerDriveKnob.setSliderStyle(juce::Slider::Rotary);
+        samplerDriveKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        samplerDriveKnob.setRange(0.0, 16.0, 0.01);
+        samplerDriveKnob.setValue(1.0, juce::dontSendNotification);
+        samplerDriveKnob.onValueChange = [this] {
+            processorRef.getSamplerDrive().store(
+                static_cast<float>(samplerDriveKnob.getValue()),
+                std::memory_order_relaxed);
+        };
+        panel.addAndMakeVisible(samplerDriveKnob);
+        samplerDriveLabel.setText("Samp Drive", juce::dontSendNotification);
+        samplerDriveLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(samplerDriveLabel);
     }
 
     presetLabel.setText("Preset:", juce::dontSendNotification);
@@ -761,6 +771,21 @@ void SPU94AudioProcessorEditor::refreshAdsrDisplay()
                        atk, dec, rel);
 }
 
+void SPU94AudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
+{
+    if (e.eventComponent == &triggerVoiceButton)
+    {
+        uint16_t pitch = static_cast<uint16_t>(voiceEnginePitchKnob.getValue());
+        processorRef.triggerVoice(pitch);
+    }
+}
+
+void SPU94AudioProcessorEditor::mouseUp(const juce::MouseEvent& e)
+{
+    if (e.eventComponent == &triggerVoiceButton)
+        processorRef.stopVoice();
+}
+
 void SPU94AudioProcessorEditor::paint(juce::Graphics& g)
 {
     g.fillAll(juce::Colours::darkgrey);
@@ -800,7 +825,9 @@ void SPU94AudioProcessorEditor::resized()
             stopVoiceButton.setBounds(200, 10, 90, 30);
             voiceEnginePitchLabel.setBounds(10, 50, 80, 16);
             voiceEnginePitchKnob.setBounds(10, 64, 80, 54);
-            voiceSampleLabel.setBounds(100, 50, 190, 30);
+            samplerDriveLabel.setBounds(95, 50, 80, 16);
+            samplerDriveKnob.setBounds(95, 64, 80, 54);
+            voiceSampleLabel.setBounds(180, 50, 110, 30);
             loopToggle.setBounds(300, 10, 85, 30);
             samplerAAToggle.setBounds(300, 42, 95, 30);
             samplerWindow->getWaveformDisplay().setBounds(10, 125, 380, 120);

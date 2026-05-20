@@ -297,6 +297,9 @@ int16_t  spu94_get_sampler_fader(const spu94_state *state);
 void     spu94_set_sampler_send(spu94_state *state, int16_t level);
 int16_t  spu94_get_sampler_send(const spu94_state *state);
 
+void     spu94_set_sampler_drive(spu94_state *state, int32_t drive);
+int32_t  spu94_get_sampler_drive(const spu94_state *state);
+
 /* -----------------------------------------------------------------------
  * Latency compensation (Phase 7, D-07, D-08)
  *
