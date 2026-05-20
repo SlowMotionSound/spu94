@@ -141,6 +141,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-19
-Stopped at: Phase 32 Anti-Aliasing Toggle complete
-Resume file: .planning/phases/32-sampler-anti-aliasing-toggle/32-01-SUMMARY.md
+Last session: 2026-05-20
+Stopped at: Phase 31 sampler UX polish — loop engine fix, latch/lock/zoom
+Resume file: .planning/phases/31-standalone-testbed-ux/.continue-here.md
