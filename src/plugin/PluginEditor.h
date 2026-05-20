@@ -100,6 +100,7 @@ private:
     juce::ToggleButton markerLockToggle{"Lock"};
     double lockedLoopOffset = 0.0;
     double lockedEndOffset = 0.0;
+    double prevStartVal = 0.0, prevLoopVal = 0.0, prevEndVal = 1.0;
 
     // Marker position knobs (standalone-only)
     juce::Slider startPosKnob;

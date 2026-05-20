@@ -157,6 +157,9 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         setupPosKnob(endPosKnob,   endPosLabel,   "End",   1.0);
 
         auto pushMarkers = [this](double s, double l, double e) {
+            prevStartVal = s;
+            prevLoopVal = l;
+            prevEndVal = e;
             startPosKnob.setValue(s, juce::dontSendNotification);
             loopPosKnob.setValue(l, juce::dontSendNotification);
             endPosKnob.setValue(e, juce::dontSendNotification);
@@ -171,8 +174,14 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             }
         };
 
-        startPosKnob.onValueChange = [this, pushMarkers] {
-            double v = startPosKnob.getValue();
+        auto scaleKnobDelta = [this](double raw, double prev) -> double {
+            double delta = raw - prev;
+            double viewSpan = samplerWindow ? samplerWindow->getWaveformDisplay().getViewSpan() : 1.0;
+            return juce::jlimit(0.0, 1.0, prev + delta * viewSpan * 0.125);
+        };
+
+        startPosKnob.onValueChange = [this, pushMarkers, scaleKnobDelta] {
+            double v = scaleKnobDelta(startPosKnob.getValue(), prevStartVal);
             if (markerLockToggle.getToggleState()) {
                 double e = v + lockedEndOffset;
                 double l = v + lockedLoopOffset;
@@ -181,17 +190,17 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
                 pushMarkers(v, juce::jlimit(v, e, l), e);
                 return;
             }
-            double e = endPosKnob.getValue();
+            double e = prevEndVal;
             constexpr double minGap = 0.0001;
             if (v > e - minGap) {
                 e = v + minGap;
                 if (e > 1.0) { e = 1.0; v = e - minGap; }
             }
-            double l = juce::jlimit(v, e, loopPosKnob.getValue());
+            double l = juce::jlimit(v, e, prevLoopVal);
             pushMarkers(v, l, e);
         };
-        endPosKnob.onValueChange = [this, pushMarkers] {
-            double e = endPosKnob.getValue();
+        endPosKnob.onValueChange = [this, pushMarkers, scaleKnobDelta] {
+            double e = scaleKnobDelta(endPosKnob.getValue(), prevEndVal);
             if (markerLockToggle.getToggleState()) {
                 double v = e - lockedEndOffset;
                 double l = v + lockedLoopOffset;
@@ -200,18 +209,18 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
                 pushMarkers(v, juce::jlimit(v, e, l), e);
                 return;
             }
-            double s = startPosKnob.getValue();
+            double s = prevStartVal;
             constexpr double minGap = 0.0001;
             if (e < s + minGap) {
                 s = e - minGap;
                 if (s < 0.0) { s = 0.0; e = s + minGap; }
             }
-            double l = juce::jlimit(s, e, loopPosKnob.getValue());
+            double l = juce::jlimit(s, e, prevLoopVal);
             pushMarkers(s, l, e);
         };
-        loopPosKnob.onValueChange = [this, pushMarkers] {
+        loopPosKnob.onValueChange = [this, pushMarkers, scaleKnobDelta] {
+            double l = scaleKnobDelta(loopPosKnob.getValue(), prevLoopVal);
             if (markerLockToggle.getToggleState()) {
-                double l = loopPosKnob.getValue();
                 double v = l - lockedLoopOffset;
                 double e = v + lockedEndOffset;
                 if (v < 0.0) { v = 0.0; l = v + lockedLoopOffset; e = v + lockedEndOffset; }
@@ -219,9 +228,9 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
                 pushMarkers(v, juce::jlimit(v, e, l), e);
                 return;
             }
-            double s = startPosKnob.getValue();
-            double e = endPosKnob.getValue();
-            double l = juce::jlimit(s, e, loopPosKnob.getValue());
+            double s = prevStartVal;
+            double e = prevEndVal;
+            l = juce::jlimit(s, e, l);
             pushMarkers(s, l, e);
         };
 
