@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include <cmath>
 
 SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     : AudioProcessorEditor(p),
@@ -223,7 +224,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         auto sustainTint = juce::Colour(0xFFD49EBF);
         adsrSustainLvlKnob.setColour(juce::Slider::thumbColourId, sustainTint);
         adsrSustainRateKnob.setColour(juce::Slider::thumbColourId, sustainTint);
-        setupAdsrKnob(adsrReleaseKnob,     adsrReleaseLabel,     "Rel",  0.2,  0.0, 1.0);
+        setupAdsrKnob(adsrReleaseKnob,     adsrReleaseLabel,     "Rel",  0.0,  0.0, 1.0);
 
         adsrAttackKnob.onValueChange = [this] {
             processorRef.getAdsrAttack().store(
@@ -241,8 +242,14 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             refreshAdsrDisplay();
         };
         adsrSustainRateKnob.onValueChange = [this] {
+            double v = adsrSustainRateKnob.getValue();
+            if (std::abs(v) < 0.03)
+            {
+                v = 0.0;
+                adsrSustainRateKnob.setValue(v, juce::dontSendNotification);
+            }
             processorRef.getAdsrSustainRate().store(
-                static_cast<float>(adsrSustainRateKnob.getValue()), std::memory_order_relaxed);
+                static_cast<float>(v), std::memory_order_relaxed);
             refreshAdsrDisplay();
         };
         adsrReleaseKnob.onValueChange = [this] {
@@ -267,7 +274,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         };
         panel.addAndMakeVisible(adsrReleaseExpToggle);
         adsrReleaseExpToggle.setClickingTogglesState(true);
-        adsrReleaseExpToggle.setToggleState(true, juce::dontSendNotification);
+        adsrReleaseExpToggle.setToggleState(false, juce::dontSendNotification);
         adsrReleaseExpToggle.onClick = [this] {
             processorRef.getAdsrReleaseExp().store(
                 adsrReleaseExpToggle.getToggleState(), std::memory_order_relaxed);
@@ -725,18 +732,33 @@ void SPU94AudioProcessorEditor::refreshAdsrDisplay()
     float sr  = static_cast<float>(adsrSustainRateKnob.getValue());
     float rel = static_cast<float>(adsrReleaseKnob.getValue());
 
-    uint8_t aShift = static_cast<uint8_t>(atk * 16.0f + 0.5f);
+    auto powerMap = [](float knob, float maxShift) -> uint8_t {
+        if (knob <= 0.0f) return 0;
+        if (knob >= 1.0f) return static_cast<uint8_t>(maxShift);
+        float s = maxShift * std::pow(knob, 0.55f);
+        int v = static_cast<int>(s + 0.5f);
+        if (v > static_cast<int>(maxShift)) v = static_cast<int>(maxShift);
+        return static_cast<uint8_t>(v);
+    };
+
+    uint8_t aShift = powerMap(atk, 20.0f);
     uint8_t aExp   = adsrAttackExpToggle.getToggleState() ? 1 : 0;
-    uint8_t dShift = static_cast<uint8_t>(dec * 15.0f + 0.5f);
+    uint8_t dShift = powerMap(dec, 15.0f);
     uint8_t sLevel = static_cast<uint8_t>(sl * 15.0f + 0.5f);
     uint8_t sDir   = sr < 0.0f ? 1 : 0;
     float   mag    = sr < 0.0f ? -sr : sr;
-    uint8_t sShift = static_cast<uint8_t>((1.0f - mag) * 16.0f + 0.5f);
+    uint8_t sShift;
+    if (mag < 0.01f) {
+        sShift = 31;
+    } else {
+        sShift = powerMap(1.0f - mag, 20.0f);
+    }
     uint8_t sExp   = adsrSustainExpToggle.getToggleState() ? 1 : 0;
-    uint8_t rShift = static_cast<uint8_t>(rel * 16.0f + 0.5f);
+    uint8_t rShift = powerMap(rel, 20.0f);
     uint8_t rExp   = adsrReleaseExpToggle.getToggleState() ? 1 : 0;
 
-    adsrDisplay.update(aShift, aExp, dShift, sLevel, sShift, sExp, sDir, rShift, rExp);
+    adsrDisplay.update(aShift, aExp, dShift, sLevel, sShift, sExp, sDir, rShift, rExp,
+                       atk, dec, rel);
 }
 
 void SPU94AudioProcessorEditor::paint(juce::Graphics& g)

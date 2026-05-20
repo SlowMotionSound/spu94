@@ -2,6 +2,8 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <spu94/spu94_adsr.h>
+#include <cmath>
+#include <algorithm>
 #include <vector>
 
 class AdsrDisplay : public juce::Component {
@@ -9,51 +11,92 @@ public:
     void update(uint8_t aShift, uint8_t aExp,
                 uint8_t dShift, uint8_t sLevel,
                 uint8_t sShift, uint8_t sExp, uint8_t sDir,
-                uint8_t rShift, uint8_t rExp)
+                uint8_t rShift, uint8_t rExp,
+                float atkKnob = 0.0f, float decKnob = 0.0f, float relKnob = 0.2f)
     {
-        spu94_adsr_state_t a;
-        spu94_adsr_init(&a);
-        a.attack_shift  = aShift;  a.attack_step = 0; a.attack_exp = aExp;
-        a.decay_shift   = dShift;
-        a.sustain_level = sLevel;
-        a.sustain_shift = sShift;  a.sustain_step = 0;
-        a.sustain_exp   = sExp;    a.sustain_dir  = sDir;
-        a.release_shift = rShift;  a.release_exp  = rExp;
-        a.enabled = 1;
-        spu94_adsr_key_on(&a);
+        sustainTarget = static_cast<int16_t>(
+            std::min(((int32_t)sLevel + 1) * 0x800, (int32_t)0x7FFF));
 
-        sustainTarget = static_cast<int16_t>(((int32_t)sLevel + 1) * 0x800);
-        if (sustainTarget > 0x7FFF) sustainTarget = 0x7FFF;
+        constexpr int kTotal = 380;
+        constexpr double kScale = 0.05;
+        constexpr double kSusW = 0.02;
+
+        double wA = (double)atkKnob * kScale;
+        double wD = (double)decKnob * kScale;
+        double wS = kSusW;
+        double wR = (double)relKnob * kScale;
+        double wT = wA + wD + wS + wR;
+
+        int nA = std::max(2, (int)(kTotal * wA / wT));
+        int nD = std::max(2, (int)(kTotal * wD / wT));
+        int nS = std::max(8, (int)(kTotal * wS / wT));
+        int nR = std::max(2, (int)(kTotal * wR / wT));
 
         levels.clear();
-        constexpr int kDS = 128;
-        constexpr int kMaxTicks = 80000;
-        constexpr int kSustainHold = 15000;
-        constexpr int kForceKeyOff = 40000;
-        int sustainCount = 0;
-        bool hitSustain = false, released = false;
+        levels.reserve(nA + nD + nS + nR + 8);
 
-        for (int i = 0; i < kMaxTicks; i++) {
-            int16_t lv = spu94_adsr_tick(&a);
-            if (i % kDS == 0) levels.push_back(lv);
+        // Attack: 0 -> 0x7FFF (linear ramp, kink at 0x6000 when fake-exp)
+        if (aExp) {
+            double kink = 0x6000;
+            double peak = 0x7FFF;
+            double fastFrac = kink / peak;
+            int nFast = std::max(1, (int)(nA * fastFrac / (fastFrac + (1.0 - fastFrac) * 4.0)));
+            int nSlow = std::max(1, nA - nFast);
+            for (int i = 0; i <= nFast; i++)
+                levels.push_back((int16_t)(kink * i / nFast));
+            for (int i = 1; i <= nSlow; i++)
+                levels.push_back((int16_t)(kink + (peak - kink) * i / nSlow));
+        } else {
+            for (int i = 0; i <= nA; i++)
+                levels.push_back((int16_t)(0x7FFF * i / nA));
+        }
 
-            if (a.phase == ADSR_SUSTAIN && !hitSustain) hitSustain = true;
+        // Decay: 0x7FFF -> sustain target (exponential)
+        double dStart = 0x7FFF;
+        double dEnd = std::max((double)sustainTarget, 1.0);
+        for (int i = 1; i <= nD; i++) {
+            double frac = (double)i / nD;
+            double lv = std::pow(dStart, 1.0 - frac) * std::pow(dEnd, frac);
+            levels.push_back((int16_t)std::clamp((int)lv, (int)sustainTarget, 0x7FFF));
+        }
 
-            if (hitSustain && !released) {
-                if (++sustainCount >= kSustainHold) {
-                    spu94_adsr_key_off(&a);
-                    released = true;
+        // Sustain hold: flat or drift
+        double sStart = (double)sustainTarget;
+        double sEnd = sStart;
+        if (sShift < 31) {
+            int sStep = 7 << std::max(0, 11 - (int)sShift);
+            double drift = sStep * (double)nS * 1.5;
+            if (sDir == 0) {
+                sEnd = std::min(sStart + drift, 32767.0);
+            } else {
+                if (sExp) {
+                    double f = (double)sStep / 0x8000;
+                    sEnd = sStart * std::pow(std::max(1.0 - f, 0.01), nS * 1.5);
+                } else {
+                    sEnd = std::max(sStart - drift, 0.0);
                 }
             }
-            if (!hitSustain && !released && i >= kForceKeyOff) {
-                spu94_adsr_key_off(&a);
-                released = true;
-            }
-            if (a.phase == ADSR_OFF) {
-                levels.push_back(0);
-                break;
-            }
         }
+        for (int i = 1; i <= nS; i++) {
+            double frac = (double)i / nS;
+            levels.push_back((int16_t)std::clamp(
+                (int)(sStart + frac * (sEnd - sStart)), 0, 0x7FFF));
+        }
+
+        // Release: sustain -> 0
+        double rStart = std::max((double)levels.back(), 1.0);
+        for (int i = 1; i <= nR; i++) {
+            double frac = (double)i / nR;
+            double lv;
+            if (rExp) {
+                lv = std::pow(rStart, 1.0 - frac);
+            } else {
+                lv = rStart * (1.0 - frac);
+            }
+            levels.push_back((int16_t)std::max((int)lv, 0));
+        }
+
+        if (levels.back() != 0) levels.push_back(0);
         repaint();
     }
 
