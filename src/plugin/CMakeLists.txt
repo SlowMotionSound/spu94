@@ -34,7 +34,7 @@ juce_add_plugin(spu94_plugin
     AU_MAIN_TYPE                kAudioUnitType_Effect
     VST3_CATEGORIES             Fx Reverb
     LV2URI                      "https://spu94project.org/spu94"
-    NEEDS_MIDI_INPUT            FALSE
+    NEEDS_MIDI_INPUT            TRUE
     NEEDS_MIDI_OUTPUT           FALSE
     IS_SYNTH                    FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE

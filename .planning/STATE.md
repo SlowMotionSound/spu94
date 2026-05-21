@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: PSX Voice Engine
-status: executing
-stopped_at: Phase 32 Anti-Aliasing Toggle complete
-last_updated: "2026-05-19T17:59:32Z"
-last_activity: 2026-05-19 -- Phase 32 Plan 01 complete
+status: Awaiting next milestone
+stopped_at: Phase 31 sampler UX polish — loop engine fix, latch/lock/zoom
+last_updated: "2026-05-21T00:51:51.790Z"
+last_activity: 2026-05-21 — Milestone v1.8 completed and archived
 progress:
   total_phases: 6
   completed_phases: 6
@@ -18,19 +18,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-16)
+See: .planning/PROJECT.md (updated 2026-05-21)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 32 — Sampler Anti-Aliasing Toggle
+**Current focus:** v1.8 shipped. Awaiting next milestone.
 
 ## Current Position
 
-Phase: 32 (Sampler Anti-Aliasing Toggle) — COMPLETE
-Plan: 1 of 1
-Status: Phase 32 complete
-Last activity: 2026-05-19 -- Phase 32 Plan 01 complete
-
-Progress: [####################] 100%
+Phase: Milestone v1.8 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-05-21 — Milestone v1.8 completed and archived
 
 ## v1.8 Phase Map
 
@@ -144,3 +142,7 @@ None.
 Last session: 2026-05-20
 Stopped at: Phase 31 sampler UX polish — loop engine fix, latch/lock/zoom
 Resume file: .planning/phases/31-standalone-testbed-ux/.continue-here.md
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

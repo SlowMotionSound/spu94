@@ -18,32 +18,13 @@
 
 **Shipped:** v1.7 — DAW Plugin Port (2026-05-16, tag `v1.7`). Multi-format DAW plugin (VST3 + AU + LV2 + CLAP) across Linux, macOS, Windows. Bidirectional libsamplerate SRC, float↔int16 truncation boundary, binary state persistence, 9 host-automatable parameters, bus layout whitelist, pluginval strictness-7 CI gate, per-OS installer packages, tag-triggered GitHub Release. Post-beta: PS1-faithful single-counter voice path, Fast/Slow morph speed, Gauss defaults on. 6 phases, 10 plans, 45/51 requirements satisfied (6 accepted as tech debt).
 
-**Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`, `v1.5`, `v1.6`, `v1.7`.
+**Shipped:** v1.8 — PSX Voice Engine (2026-05-21, tag `v1.8`). 24-voice ADPCM sampler engine with PS1-faithful single-counter Gaussian interpolation, counter-accumulate ADSR envelope, SPU loop mechanics with filter state snapshot/restore, polyphonic mixer with EON-gated reverb send. Full sampler GUI in standalone: waveform display with zoom/scroll, draggable markers, ADSR controls, latch/lock modes, drive stage, pitch control, MIDI dispatch. Anti-aliasing toggle for creative zero-order-hold aliasing. 6 phases, 7 plans, 34/34 requirements verified.
 
-## Current Milestone: v1.8 PSX Voice Engine
-
-**Goal:** Build a spec-faithful PS1 SPU voice playback engine, starting as a single monophonic voice in the standalone testbed, then expanding to 24 voices.
-
-**Target features:**
-- ADPCM sample loading (encode WAV on intake into 4-bit ADPCM)
-- Single-voice playback with pitch control (single-counter architecture)
-- 4-tap Gaussian interpolation on playback
-- Exponential ADSR envelope
-- Loop start/end markers (SPU loop flags)
-- PS1-faithful mixer routing: voices sum to dry output (→ DAC), with per-voice reverb-on flag for optional reverb send
-- Expand to full 24-voice polyphony
-- 512 KB sample memory budget (SPU RAM constraint)
-
-**Key context:**
-- Build off existing standalone WAV load/play/stop code
-- Spec-strict: faithful PS1 limitations, no expansions yet
-- Mixer/reverb routing matches real SPU architecture (dry path + optional per-voice reverb send)
-- Shares C core, ADPCM codec, Gaussian interpolation, and reverb engine with SPU-94
-- Standalone is the development testbed
+**Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`, `v1.5`, `v1.6`, `v1.7`, `v1.8`.
 
 ## What This Is
 
-SPU-94 is a bit-faithful software reimplementation of the Sony PlayStation 1 SPU reverb algorithm, built from the spec (nocash psx-spx) rather than ported from any existing emulator. It ships as a plain C library with Python bindings for development, and is designed to be wrapped later as a desktop audio plugin (JUCE) and eventually as hardware (Eurorack module, MCU firmware, or FPGA). SPU-94 is designed as a *living instrument*, not a static bank of presets — every parameter that moves in the original algorithm is designed to be controllable at runtime, smoothly and glitch-free, in service of performance, modulation, and CV control. The immediate audience is the author and a small circle of musicians who want the recognizable character of the PS1 reverb available as a modern, playable tool.
+SPU-94 is a bit-faithful software reimplementation of the Sony PlayStation 1 SPU, built from the spec (nocash psx-spx) rather than ported from any existing emulator. It includes the complete reverb network, a 24-voice ADPCM sampler engine with PS1-faithful ADSR envelopes and loop mechanics, ADPCM codec coloration, AK4309 DAC modeling, and a preset interpolation engine. It ships as a plain C library with Python bindings, a native CLI, a DAW plugin (VST3/AU/LV2/CLAP), and a standalone application with a sampler GUI. SPU-94 is designed as a *living instrument*, not a static bank of presets — every parameter that moves in the original algorithm is designed to be controllable at runtime, smoothly and glitch-free, in service of performance, modulation, and CV control. The immediate audience is the author and a small circle of musicians who want the recognizable character of the PS1 sound available as a modern, playable tool.
 
 ## Core Value
 
@@ -95,20 +76,32 @@ See `.planning/milestones/v1.1-REQUIREMENTS.md` for full 23-requirement traceabi
 
 See `.planning/milestones/v1.2-REQUIREMENTS.md` for full 14-requirement traceability.
 
+### Validated — v1.8 PSX Voice Engine (Shipped 2026-05-21, tag `v1.8`)
+
+- ✓ 24-voice ADPCM sampler: single-counter Gaussian interpolation, per-voice isolated state, 512 KB dedicated voice RAM — v1.8 (Phase 27)
+- ✓ PS1 ADSR envelope: counter-accumulate stepping, fake exponential attack, real exponential decay, sustain plateau, KOFF release — v1.8 (Phase 28)
+- ✓ SPU loop mechanics: flag-byte dispatch, loop-start auto-latch, filter state snapshot/restore, one-shot termination, ENDX status — v1.8 (Phase 29)
+- ✓ 24-voice polyphonic mixer: int32 accumulate + sat_s16, EON-gated reverb send, master volume, pending KON/KOFF — v1.8 (Phase 30)
+- ✓ Standalone sampler GUI: WAV load, pitch control, MIDI dispatch, waveform display with zoom/scroll, draggable markers, ADSR controls, latch/lock, drive stage — v1.8 (Phase 31)
+- ✓ Anti-aliasing toggle: Gaussian interpolation bypass for creative zero-order-hold aliasing — v1.8 (Phase 32)
+
+See `.planning/milestones/v1.8-REQUIREMENTS.md` for full 34-requirement traceability.
+
 ### Out of Scope (shipped or deferred, not abandoned)
 
 - **4-bit Sony ADPCM encode/decode** — SHIPPED as M2 / v1.1 (2026-04-27)
 - **AK4309 DAC digital modeling** — SHIPPED as v1.2 (2026-04-30)
 - **Real oversampling engine** — ACTIVE as v1.3 (True Oversampled DAC)
 - **DAC analog output stage** (op-amps, coupling caps, output impedance) — deferred; needs real hardware measurement
-- **JUCE DAW plugin (VST3 / AU / LV2 / CLAP)** — ACTIVE as v1.7 (DAW Plugin Port); wraps the existing C core for use in Reaper / Ableton / Logic / FL Studio etc.
+- **JUCE DAW plugin (VST3 / AU / LV2 / CLAP)** — SHIPPED as v1.7 (2026-05-16); wraps the existing C core for use in Reaper / Ableton / Logic / FL Studio etc.
 - **Named musical levers ("Room Size", "Pre Delay", etc.), parameter smoothing, CV mappings, plugin UI** — superseded by v1.5 interpolation engine approach for initial musical controls. Individual register levers may return as decoupled parameters on top of the interpolation base.
 - **Tempo-synced taps, BPM subdivision snapping** — archived with v1.5/v1.6 macro approach. May return as a layer on top of interpolation engine.
 - **Hardware validation via PSX homebrew + digital capture** — deferred to Milestone 5; Anthony has an original PSX
 - **Eurorack module** — explicitly future direction, separately documented in `ps1-reverb-eurorack.md`
 - **FPGA implementation** — future direction; C core chosen specifically to keep FPGA HLS path open
 - **MCU firmware port (Daisy, Cortex-M)** — Phase 8 (cross-compile smoke test) was scoped for v1.0 but parked per Anthony's 2026-04-24 decision; moves to between M4 and M5 as a portability gate. The portability claim is upheld by the M1 design discipline (no heap, no locks, no syscalls, no STL) and the existing `arm-none-eabi-gcc` build infrastructure that the v1.0 codebase already supports — the smoke test landing is a paper formality, not a discovery.
-- **SPU voice engine, envelope generation, pitch modulation, noise, ADSR** — out of scope for the entire project; reverb-only reimplementation
+- **SPU voice engine, envelope generation, ADSR** — SHIPPED as v1.8 (2026-05-21); 24-voice sampler with ADSR and loop mechanics
+- **Pitch modulation (PMON), noise generator (NON)** — deferred to v1.9+; advanced SPU features beyond basic voice playback
 - **Windows and macOS builds** — ACTIVE as v1.7; brought in alongside the DAW plugin port so beta testers on those OSes can participate
 - **Reading Mednafen / lv2-psx-reverb / DuckStation / MiSTer source as a primary development activity** — excluded by licensing posture (see Constraints)
 
@@ -194,4 +187,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-16 — v1.8 PSX Voice Engine milestone started*
+*Last updated: 2026-05-21 — v1.8 PSX Voice Engine shipped*

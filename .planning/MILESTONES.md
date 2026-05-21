@@ -1,5 +1,42 @@
 # Milestones
 
+## v1.8 PSX Voice Engine (Shipped: 2026-05-21)
+
+**Phases completed:** 6 phases, 7 plans (Phases 27-32)
+**Tag:** `v1.8`
+**Requirements:** 34/34 complete (VOICE-01..06, ADSR-01..06, LOOP-01..05, MIX-01..06, RAM-01..04, TEST-01..04, AA-01..03)
+
+**What shipped:**
+
+24-voice ADPCM sampler engine built on the existing SPU-94 C core. Samples load as WAV, encode to 4-bit Sony ADPCM on intake, and play back through a PS1-faithful single-counter pitch architecture with 4-tap Gaussian interpolation. Each voice has an independent counter-accumulate ADSR envelope (fake exponential attack above 0x6000, real exponential decay, sustain plateau, release to silence on KOFF). SPU loop mechanics: flag-byte dispatch from ADPCM block headers, loop-start auto-latch, filter state snapshot/restore at loop boundaries, one-shot termination with ENDX status. 24 voices run in parallel through an int32 accumulator with sat_s16 at the output, EON-gated per-voice reverb send, and master volume scaling. Full standalone sampler GUI: waveform display with mouse-wheel zoom and pan-drag scroll, draggable start/loop/end markers with push logic, ADSR knobs with analytical real-time display, gate/latch trigger modes, marker lock for window scanning, sampler drive stage, pitch control, MIDI note dispatch with round-robin voice allocation. Anti-aliasing toggle switches all 24 voices between Gaussian interpolation (default) and raw zero-order-hold for creative aliasing artifacts. 64 commits, 54 files changed, +11,410 lines over 5 days.
+
+**Key accomplishments:**
+
+1. `spu94_voice_t` / `spu94_voice_tick` — per-voice state struct with ADPCM decode, single-counter Gaussian interpolation, pitch register with 0x3FFF hardware clamp, isolated ring buffers
+2. `spu94_adsr_t` / `spu94_adsr_tick` — counter-accumulate envelope with bit-15 trigger, fake-exponential attack, real-exponential decay, configurable sustain target, KOFF-triggered release
+3. SPU loop mechanics — flag-byte dispatch after ADPCM decode, auto-latching loop address, filter state snapshot/restore at loop boundaries, ENDX status bit API
+4. `spu94_voice_mixer_t` — 24-voice parallel mixer with pending KON/KOFF bitmask dispatch, EON-gated reverb send, master volume Q15 scaling, coexistence with ADPCM coloration bus
+5. Sampler GUI — waveform display with zoom/scroll, draggable S/L/E markers with push logic, ADSR knobs with analytical rendering and power-curve scaling, gate/latch trigger, marker lock, drive stage
+6. MIDI dispatch — round-robin voice allocation, `midiNoteToPitch` with 0x3FFF clamp, note-on/note-off in processBlock, standalone-only via `acceptsMidi` gate
+
+**Key decisions:**
+
+- Separate 512 KB voice RAM (deliberate deviation from PS1's shared address space — avoids collision risk)
+- ADPCM state cache built at sample load time (correct decoder history at any position)
+- End-addr loop path keeps has_block=1 (matches VAG flag path — fixes DC on short loops)
+- Decay shift max extended 15→20 (PS1 limits to 4 bits but mid-knob decay was inaudible at 155ms)
+- Analytical ADSR display rendering (tick-by-tick simulation couldn't handle extreme shift values)
+- Delta interception for zoom-scaled knobs (factor 0.125 — JUCE slider sensitivity APIs didn't work for rotary)
+- Block 0 silence is expected content (ADPCM starts from zero history)
+- `NEEDS_MIDI_INPUT TRUE` in CMakeLists.txt (required for standalone MIDI routing)
+- Gate (hold) and latch (toggle) trigger modes for different playing styles
+
+Known deferred items at close: 5 (see STATE.md Deferred Items — all from prior milestones)
+
+**Archived to:** `.planning/milestones/v1.8-ROADMAP.md`, `.planning/milestones/v1.8-REQUIREMENTS.md`
+
+---
+
 ## v1.0 SPU-94 Standalone (Shipped: 2026-04-26)
 
 **Phases completed:** 8 phases, 33 plans (Phases 1-7 = M1 reverb core; Phase 8 = standalone GUI)
