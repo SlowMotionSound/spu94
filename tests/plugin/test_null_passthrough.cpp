@@ -145,8 +145,8 @@ TestResult runNullTest(double hostSampleRate)
     spu94_set_input_gain  (engine, kQ15Unity);
     spu94_set_dry_fader   (engine, kQ15Unity);
     spu94_set_dry_send    (engine, 0);
-    spu94_set_patina_send (engine, 0);
-    spu94_set_patina_fader(engine, 0);
+    spu94_set_adpcm_send (engine, 0);
+    spu94_set_adpcm_fader(engine, 0);
     spu94_set_reverb_fader(engine, 0);
     spu94_set_dac_enabled (engine, 0);
     spu94_set_latency_comp(engine, 1);

@@ -910,34 +910,34 @@ void test_mixer_kon_deferred(void) {
  * Phase 30 Task 3: MIX-06 coexistence + saturation + timing tests
  * --------------------------------------------------------------- */
 
-/* Test: MIX-06 — voice output and patina (ADPCM coloration bus) are independent.
- * Verifies the sat_s16 addition rule: patina + voice_dry = non-destructive sum.
+/* Test: MIX-06 — voice output and ADPCM (coloration bus) are independent.
+ * Verifies the sat_s16 addition rule: adpcm + voice_dry = non-destructive sum.
  * We test the math path directly since full process context is complex. */
-void test_mix06_voice_and_patina_independent(void) {
+void test_mix06_voice_and_adpcm_independent(void) {
     /* Simulate the coexistence sum from spu94_process.c:
-     *   patina_l = sat_s16((int32_t)patina_l + (int32_t)voice_dry_l);
+     *   adpcm_l = sat_s16((int32_t)adpcm_l + (int32_t)voice_dry_l);
      *
-     * When ADPCM coloration produces patina_l=100 and voice engine produces
+     * When ADPCM coloration produces adpcm_l=100 and voice engine produces
      * voice_dry_l=200, the merged result should be 300. */
-    int16_t patina_l = 100;
+    int16_t adpcm_l = 100;
     int16_t voice_dry_l = 200;
-    int16_t merged = sat_s16((int32_t)patina_l + (int32_t)voice_dry_l);
+    int16_t merged = sat_s16((int32_t)adpcm_l + (int32_t)voice_dry_l);
     TEST_ASSERT_EQUAL_INT16(300, merged);
 
     /* Both contributions are non-zero and independently audible */
-    TEST_ASSERT_TRUE(merged > patina_l);  /* voice added to it */
-    TEST_ASSERT_TRUE(merged > voice_dry_l);  /* patina also present */
+    TEST_ASSERT_TRUE(merged > adpcm_l);  /* voice added to it */
+    TEST_ASSERT_TRUE(merged > voice_dry_l);  /* ADPCM also present */
 
     /* Negative values (phase-inverted) also sum correctly */
-    patina_l = -500;
+    adpcm_l = -500;
     voice_dry_l = 300;
-    merged = sat_s16((int32_t)patina_l + (int32_t)voice_dry_l);
+    merged = sat_s16((int32_t)adpcm_l + (int32_t)voice_dry_l);
     TEST_ASSERT_EQUAL_INT16(-200, merged);
 
-    /* Zero voice_dry doesn't change patina (engine disabled produces 0) */
-    patina_l = 1234;
+    /* Zero voice_dry doesn't change ADPCM (engine disabled produces 0) */
+    adpcm_l = 1234;
     voice_dry_l = 0;
-    merged = sat_s16((int32_t)patina_l + (int32_t)voice_dry_l);
+    merged = sat_s16((int32_t)adpcm_l + (int32_t)voice_dry_l);
     TEST_ASSERT_EQUAL_INT16(1234, merged);
 }
 
@@ -1138,7 +1138,7 @@ int main(void) {
     RUN_TEST(test_mixer_master_vol_zero_silences);
     RUN_TEST(test_mixer_kon_deferred);
     /* Phase 30 Task 3: MIX-06 coexistence, saturation, timing */
-    RUN_TEST(test_mix06_voice_and_patina_independent);
+    RUN_TEST(test_mix06_voice_and_adpcm_independent);
     RUN_TEST(test_mix01_saturation_on_loud_chord);
     RUN_TEST(test_mix04_kon_timing_two_voices_same_tick);
     /* Phase 32: Anti-Aliasing / Gauss Bypass tests (AA-01..03) */

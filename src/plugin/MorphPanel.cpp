@@ -196,7 +196,7 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
     gritFractButton.setConnectedEdges(juce::Button::ConnectedOnLeft);
 
     gritIntButton.setTooltip("All reads integer — hardware-faithful PS1 character (default)");
-    gritFractButton.setTooltip("All reads fractional — smoothed morph with feedback patina");
+    gritFractButton.setTooltip("All reads fractional — smoothed morph with ADPCM feedback texture");
 
     gritIntButton.onClick   = [this]() { setMorphGrit(0); };
     gritFractButton.onClick = [this]() { setMorphGrit(1); };
@@ -283,8 +283,24 @@ void MorphPanel::updateEditButtonState()
     const bool onTick = (slot >= 0);
     editButton.setEnabled(onTick);
     loadButton.setEnabled(onTick);
-    // EXPORT additionally requires the slot to actually have contents.
     exportButton.setEnabled(onTick && processorRef.isUserSlotFilled(slot));
+
+    auto styleSlotButton = [](juce::TextButton& b, bool active) {
+        if (active) {
+            b.removeColour(juce::TextButton::buttonColourId);
+            b.removeColour(juce::TextButton::buttonOnColourId);
+            b.removeColour(juce::TextButton::textColourOnId);
+            b.removeColour(juce::TextButton::textColourOffId);
+        } else {
+            b.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF5A5A5A));
+            b.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xFF7079CC));
+            b.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
+            b.setColour(juce::TextButton::textColourOffId, juce::Colour(0xFFB0B0B0));
+        }
+    };
+    styleSlotButton(editButton, onTick);
+    styleSlotButton(exportButton, exportButton.isEnabled());
+    styleSlotButton(loadButton, onTick);
 }
 
 //==============================================================================

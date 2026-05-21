@@ -1,7 +1,7 @@
 """DAC-IO-01: CLI integration tests for mixer faders and DAC flags.
 
 Tests the 10 new CLI flags added in Phase 8 Plan 01:
-  - 6 fader flags (--input-gain, --dry, --patina, --dry-send, --patina-send, --reverb)
+  - 6 fader flags (--input-gain, --dry, --adpcm-level, --dry-send, --adpcm-send, --reverb)
   - 3 DAC toggles (--dac, --no-dac-fir, --no-dac-noise)
   - Latency comp (--latency-comp, --no-latency-comp)
 """

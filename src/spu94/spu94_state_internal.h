@@ -181,7 +181,7 @@ struct spu94_state {
      * Six Q15 faders/sends, latency compensation delay buffer,
      * DAC section toggles and module state.
      *
-     * Signal flow (D-01): input_gain -> bus split -> dry/patina buses
+     * Signal flow (D-01): input_gain -> bus split -> dry/ADPCM buses
      * -> reverb sends -> reverb -> three-fader master mixer -> DAC
      * section -> output.
      *
@@ -193,9 +193,9 @@ struct spu94_state {
     /* Mixer controls -- Q15 int16, range [0x0000, 0x7FFF] (D-05) */
     int16_t        input_gain;        /* applied before bus split */
     int16_t        dry_fader;         /* dry bus level at master mixer */
-    int16_t        patina_fader;      /* patina (ADPCM) bus level at master mixer */
+    int16_t        adpcm_fader;       /* ADPCM bus level at master mixer */
     int16_t        dry_send;          /* dry bus -> reverb send level */
-    int16_t        patina_send;       /* patina bus -> reverb send level */
+    int16_t        adpcm_send;        /* ADPCM bus -> reverb send level */
     int16_t        reverb_fader;      /* reverb return level at master mixer */
     int16_t        sampler_fader;     /* voice engine level at master mixer */
     int16_t        sampler_send;      /* voice engine -> reverb send level */
@@ -206,13 +206,13 @@ struct spu94_state {
      * Two stages, both gated by `latency_comp`:
      *
      * Stage A (28-sample, ADPCM-only): delay dry bus to match the ADPCM
-     *   block delay so dry and patina enter the reverb send chain
+     *   block delay so dry and ADPCM enter the reverb send chain
      *   time-aligned (prevents reverb-send comb-filtering).
      *
-     * Stage B (58-sample, FIR-match): delay dry and patina at the master
+     * Stage B (58-sample, FIR-match): delay dry and ADPCM at the master
      *   mix stage to align with the FIR reverb chain's group delay
      *   (SPU94_LATENCY_SAMPLES = 58). Active whenever latency_comp is on,
-     *   regardless of ADPCM. Without this, the dry/patina contributions
+     *   regardless of ADPCM. Without this, the dry/ADPCM contributions
      *   to the master mix arrive 58 samples ahead of the reverb tail,
      *   producing transient smearing in dry+reverb mixes and breaking
      *   host PDC for passthrough configurations (PLUG-15 finding).
@@ -224,8 +224,8 @@ struct spu94_state {
     uint8_t        fir_lc_pos;        /* Stage B ring write pos, 0..57 */
     int16_t        fir_lc_dry_buf_l[58]; /* Stage B 58-sample dry delay, L */
     int16_t        fir_lc_dry_buf_r[58]; /* Stage B 58-sample dry delay, R */
-    int16_t        fir_lc_pat_buf_l[58]; /* Stage B 58-sample patina delay, L */
-    int16_t        fir_lc_pat_buf_r[58]; /* Stage B 58-sample patina delay, R */
+    int16_t        fir_lc_adpcm_buf_l[58]; /* Stage B 58-sample ADPCM delay, L */
+    int16_t        fir_lc_adpcm_buf_r[58]; /* Stage B 58-sample ADPCM delay, R */
 
     /* DAC section (D-09 through D-12) */
     uint8_t        dac_enabled;       /* master toggle, 0=off (default) */
@@ -289,7 +289,7 @@ struct spu94_state {
      *   SPU94_GRIT_FRACT (1) -- all reads use linear interpolation between
      *     adjacent halfwords. Smoothes morph transitions by reading
      *     between integer halfword positions; the +-0.5 read/write
-     *     mismatch in feedback loops also produces a textured patina. */
+     *     mismatch in feedback loops also produces a textured coloration. */
     uint8_t        morph_grit;
 
     /* User-programmable waypoints: 8 slots at the midpoints between Sony's

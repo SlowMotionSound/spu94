@@ -259,13 +259,13 @@ int16_t spu94_get_dry_fader(const spu94_state *state) {
     return state->dry_fader;
 }
 
-void spu94_set_patina_fader(spu94_state *state, int16_t level) {
+void spu94_set_adpcm_fader(spu94_state *state, int16_t level) {
     if (state == NULL) return;
-    state->patina_fader = level;
+    state->adpcm_fader = level;
 }
-int16_t spu94_get_patina_fader(const spu94_state *state) {
+int16_t spu94_get_adpcm_fader(const spu94_state *state) {
     if (state == NULL) return 0;
-    return state->patina_fader;
+    return state->adpcm_fader;
 }
 
 void spu94_set_dry_send(spu94_state *state, int16_t level) {
@@ -277,13 +277,13 @@ int16_t spu94_get_dry_send(const spu94_state *state) {
     return state->dry_send;
 }
 
-void spu94_set_patina_send(spu94_state *state, int16_t level) {
+void spu94_set_adpcm_send(spu94_state *state, int16_t level) {
     if (state == NULL) return;
-    state->patina_send = level;
+    state->adpcm_send = level;
 }
-int16_t spu94_get_patina_send(const spu94_state *state) {
+int16_t spu94_get_adpcm_send(const spu94_state *state) {
     if (state == NULL) return 0;
-    return state->patina_send;
+    return state->adpcm_send;
 }
 
 void spu94_set_reverb_fader(spu94_state *state, int16_t level) {
@@ -347,8 +347,8 @@ void spu94_set_latency_comp(spu94_state *state, int enabled) {
         for (int j = 0; j < 58; j++) {
             state->fir_lc_dry_buf_l[j] = 0;
             state->fir_lc_dry_buf_r[j] = 0;
-            state->fir_lc_pat_buf_l[j] = 0;
-            state->fir_lc_pat_buf_r[j] = 0;
+            state->fir_lc_adpcm_buf_l[j] = 0;
+            state->fir_lc_adpcm_buf_r[j] = 0;
         }
     }
     state->latency_comp = enabled ? 1 : 0;

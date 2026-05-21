@@ -9,11 +9,11 @@
  *
  * Signal flow (Phase 7, D-01 through D-12):
  *   1. Input gain: scale input by Q15 fader
- *   2. ADPCM coloration -> patina bus (separable block, D-03)
+ *   2. ADPCM coloration -> ADPCM bus (separable block, D-03)
  *   3. Dry bus with latency compensation (D-07, D-08)
- *   4. Reverb sends: weighted sum of dry + patina sends
+ *   4. Reverb sends: weighted sum of dry + ADPCM sends
  *   5. Reverb: unchanged chain_step internals (decimate -> tick -> interp)
- *   6. Master mixer: three-bus sum (dry/patina/reverb) with sat_s16
+ *   6. Master mixer: three-bus sum (dry/ADPCM/reverb) with sat_s16
  *   7. DAC section: FIR + noise on master output (D-09 through D-12)
  *
  * Mix-bus wiring (ADR-Phase-5-B + ADR-Phase-6-I): this function does NOT
@@ -46,7 +46,7 @@
  *   C6: voice_ram inside s_mixer is distinct from state->work_buf (reverb).
  *   C8: pending_kon/pending_koff applied at tick start, not mid-tick.
  *   S1: int32 accumulation, sat_s16 only at output.
- *   MIX-06: voice dry + ADPCM coloration coexist (summed into patina slot).
+ *   MIX-06: voice dry + ADPCM coloration coexist (summed into ADPCM slot).
  *   VOICE-06: 24 isolated spu94_voice_t structs with per-voice gauss_ring.
  * ----------------------------------------------------------------------- */
 static spu94_voice_mixer_t s_mixer;
@@ -78,13 +78,13 @@ void spu94_process(spu94_state *state,
         l = q15_mul_truncate(l, state->input_gain);
         r = q15_mul_truncate(r, state->input_gain);
 
-        /* Patina bus samples — declared before voice engine block so both
+        /* ADPCM bus samples — declared before voice engine block so both
          * the voice engine injection AND the ADPCM coloration path can write
          * them. Default = passthrough (input signal). */
-        int16_t patina_l = l, patina_r = r;
+        int16_t adpcm_l = l, adpcm_r = r;
 
         /* v1.8 Voice Engine — Phase 30: full 24-voice mixer.
-         * MIX-05: voice_dry_l/r goes into patina slot (dry DAC path).
+         * MIX-05: voice_dry_l/r goes into ADPCM slot (dry DAC path).
          * MIX-05: voice_rev_l/r feeds into send_l/r before spu94_fir_chain_step.
          * MIX-06: voice output and ADPCM coloration coexist — both summed. */
         int16_t voice_dry_l = 0, voice_dry_r = 0;
@@ -177,7 +177,7 @@ void spu94_process(spu94_state *state,
                            + (int32_t)spu94_gauss_table[0x1FF - gi] * (int32_t)s1
                            + (int32_t)spu94_gauss_table[0x100 + gi] * (int32_t)s2
                            + (int32_t)spu94_gauss_table[0x000 + gi] * (int32_t)s3;
-                patina_l = (int16_t)(gl >> 15);
+                adpcm_l = (int16_t)(gl >> 15);
 
                 const int16_t r0 = state->gauss_ring_r[(wp + 0) & 3];
                 const int16_t r1 = state->gauss_ring_r[(wp + 1) & 3];
@@ -187,15 +187,15 @@ void spu94_process(spu94_state *state,
                            + (int32_t)spu94_gauss_table[0x1FF - gi] * (int32_t)r1
                            + (int32_t)spu94_gauss_table[0x100 + gi] * (int32_t)r2
                            + (int32_t)spu94_gauss_table[0x000 + gi] * (int32_t)r3;
-                patina_r = (int16_t)(gr >> 15);
+                adpcm_r = (int16_t)(gr >> 15);
             } else {
                 /* Gauss off: output last decoded sample (zero-order hold) */
                 uint8_t prev = (state->gauss_ring_pos + 3u) & 3u;
-                patina_l = state->gauss_ring_l[prev];
-                patina_r = state->gauss_ring_r[prev];
+                adpcm_l = state->gauss_ring_l[prev];
+                adpcm_r = state->gauss_ring_r[prev];
             }
         }
-        /* When adpcm_enabled=0: patina_l/r remain as passthrough (input signal),
+        /* When adpcm_enabled=0: adpcm_l/r remain as passthrough (input signal),
          * which is the correct behavior — no coloration applied. */
 
         /* Sampler drive: Q12 gain (0x1000 = unity) with sat_s16 clipping. */
@@ -207,7 +207,7 @@ void spu94_process(spu94_state *state,
         }
 
         /* MIX-06: Voice engine has its own bus (sampler_fader/sampler_send),
-         * independent from the ADPCM coloration path (patina_fader/patina_send).
+         * independent from the ADPCM coloration path (adpcm_fader/adpcm_send).
          * voice_dry_l/r feeds sampler_fader at master mix.
          * voice_rev_l/r feeds sampler_send at reverb input. */
 
@@ -223,12 +223,12 @@ void spu94_process(spu94_state *state,
             dry_r = delayed_r;
         }
 
-        /* 4. Reverb sends: dry + patina + sampler, each with own send level */
+        /* 4. Reverb sends: dry + ADPCM + sampler, each with own send level */
         int16_t send_l = sat_s16((int32_t)q15_mul_truncate(dry_l,       state->dry_send)
-                               + (int32_t)q15_mul_truncate(patina_l,    state->patina_send)
+                               + (int32_t)q15_mul_truncate(adpcm_l,    state->adpcm_send)
                                + (int32_t)q15_mul_truncate(voice_rev_l, state->sampler_send));
         int16_t send_r = sat_s16((int32_t)q15_mul_truncate(dry_r,       state->dry_send)
-                               + (int32_t)q15_mul_truncate(patina_r,    state->patina_send)
+                               + (int32_t)q15_mul_truncate(adpcm_r,    state->adpcm_send)
                                + (int32_t)q15_mul_truncate(voice_rev_r, state->sampler_send));
 
         /* 5. Reverb: unchanged chain internals; only the input changes */
@@ -236,7 +236,7 @@ void spu94_process(spu94_state *state,
         spu94_fir_chain_step(state, send_l, send_r, &rev_l, &rev_r);
 
         /* 5b. Stage B latency comp: when latency_comp is on, delay the dry
-         * and patina buses by SPU94_LATENCY_SAMPLES (58) at this point so
+         * and ADPCM buses by SPU94_LATENCY_SAMPLES (58) at this point so
          * they enter the master mixer time-aligned with the FIR-delayed
          * reverb tail. Without this stage, dry+reverb mixes smear by 58
          * samples on transients, and a Dry=1/Reverb=0 passthrough produces
@@ -244,34 +244,34 @@ void spu94_process(spu94_state *state,
          * (PLUG-15 null test cannot null without this).
          *
          * When latency_comp is off, this stage is a no-op -- the dry and
-         * patina contributions reach the master mix without extra delay,
+         * ADPCM contributions reach the master mix without extra delay,
          * preserving the historically authentic PS1 SPU behavior (dry
          * leads reverb by the FIR group delay; intentional creative
          * smearing). */
         int16_t mix_dry_l = dry_l,    mix_dry_r = dry_r;
-        int16_t mix_pat_l = patina_l, mix_pat_r = patina_r;
+        int16_t mix_adpcm_l = adpcm_l, mix_adpcm_r = adpcm_r;
         if (state->latency_comp) {
             const uint8_t pos = state->fir_lc_pos;
             mix_dry_l = state->fir_lc_dry_buf_l[pos];
             mix_dry_r = state->fir_lc_dry_buf_r[pos];
-            mix_pat_l = state->fir_lc_pat_buf_l[pos];
-            mix_pat_r = state->fir_lc_pat_buf_r[pos];
+            mix_adpcm_l = state->fir_lc_adpcm_buf_l[pos];
+            mix_adpcm_r = state->fir_lc_adpcm_buf_r[pos];
             state->fir_lc_dry_buf_l[pos] = dry_l;
             state->fir_lc_dry_buf_r[pos] = dry_r;
-            state->fir_lc_pat_buf_l[pos] = patina_l;
-            state->fir_lc_pat_buf_r[pos] = patina_r;
+            state->fir_lc_adpcm_buf_l[pos] = adpcm_l;
+            state->fir_lc_adpcm_buf_r[pos] = adpcm_r;
             state->fir_lc_pos = (uint8_t)((pos + 1u) % 58u);
         }
 
 /* 6. Master mixer: four-bus sum, int32 accumulation + sat_s16 (D-01) */
         int16_t out_l = sat_s16(
             (int32_t)q15_mul_truncate(mix_dry_l,    state->dry_fader)
-          + (int32_t)q15_mul_truncate(mix_pat_l,    state->patina_fader)
+          + (int32_t)q15_mul_truncate(mix_adpcm_l,    state->adpcm_fader)
           + (int32_t)q15_mul_truncate(voice_dry_l,  state->sampler_fader)
           + (int32_t)q15_mul_truncate(rev_l,        state->reverb_fader));
         int16_t out_r = sat_s16(
             (int32_t)q15_mul_truncate(mix_dry_r,    state->dry_fader)
-          + (int32_t)q15_mul_truncate(mix_pat_r,    state->patina_fader)
+          + (int32_t)q15_mul_truncate(mix_adpcm_r,    state->adpcm_fader)
           + (int32_t)q15_mul_truncate(voice_dry_r,  state->sampler_fader)
           + (int32_t)q15_mul_truncate(rev_r,        state->reverb_fader));
 

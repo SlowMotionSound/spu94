@@ -263,9 +263,9 @@ uint32_t spu94_get_total_latency_samples(const spu94_state *state);
  * Six Q15 fader/send values control the mixer architecture:
  *   input_gain:    scales input before bus split
  *   dry_fader:     dry bus level at master mixer
- *   patina_fader:  patina (ADPCM) bus level at master mixer
+ *   adpcm_fader:   ADPCM bus level at master mixer
  *   dry_send:      dry bus contribution to reverb input
- *   patina_send:   patina bus contribution to reverb input
+ *   adpcm_send:    ADPCM bus contribution to reverb input
  *   reverb_fader:  reverb return level at master mixer
  *
  * All values are Q15 int16 in range [0x0000, 0x7FFF].
@@ -279,14 +279,14 @@ int16_t  spu94_get_input_gain(const spu94_state *state);
 void     spu94_set_dry_fader(spu94_state *state, int16_t level);
 int16_t  spu94_get_dry_fader(const spu94_state *state);
 
-void     spu94_set_patina_fader(spu94_state *state, int16_t level);
-int16_t  spu94_get_patina_fader(const spu94_state *state);
+void     spu94_set_adpcm_fader(spu94_state *state, int16_t level);
+int16_t  spu94_get_adpcm_fader(const spu94_state *state);
 
 void     spu94_set_dry_send(spu94_state *state, int16_t level);
 int16_t  spu94_get_dry_send(const spu94_state *state);
 
-void     spu94_set_patina_send(spu94_state *state, int16_t level);
-int16_t  spu94_get_patina_send(const spu94_state *state);
+void     spu94_set_adpcm_send(spu94_state *state, int16_t level);
+int16_t  spu94_get_adpcm_send(const spu94_state *state);
 
 void     spu94_set_reverb_fader(spu94_state *state, int16_t level);
 int16_t  spu94_get_reverb_fader(const spu94_state *state);
@@ -655,7 +655,7 @@ void spu94_set_slew_duration(spu94_state *state, int32_t samples);
  *     and produces the "alive" character that motivates this project.
  *   SPU94_GRIT_FRACT (1): all reads fractional (linear interpolation
  *     between adjacent halfwords). Smooths morph transitions; the
- *     +-0.5 halfword feedback-loop mismatch also adds a textured patina.
+ *     +-0.5 halfword feedback-loop mismatch also adds a textured coloration.
  *
  * Out-of-range values are clamped to SPU94_GRIT_INT. NULL state is
  * a no-op. */

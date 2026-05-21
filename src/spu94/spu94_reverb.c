@@ -281,7 +281,7 @@ void spu94_reverb_same_iir(spu94_state *state,
         /* Feedback tap. Default integer read matches integer write at
          * [mLSAME]. Morph Grit fractional mode reintroduces the +-0.5
          * halfword read/write mismatch that modulates feedback delay
-         * during slew (the "patina" character). */
+         * during slew (the ADPCM coloration character). */
         int16_t  tap_prev = (state->morph_grit == SPU94_GRIT_FRACT)
             ? reverb_buf_read_interp(state, get_reg_frac(state, SPU94_REG_mLSAME) - 2.0f)
             : reverb_buf_read(state, (uint16_t)(mLSAME - 2u));

@@ -3,9 +3,9 @@
  *
  * Integration tests for the two-stage latency compensation system:
  *   Stage A -- 28-sample ADPCM-match delay on dry going into reverb send
- *              (so dry and patina enter the reverb send time-aligned).
+ *              (so dry and ADPCM enter the reverb send time-aligned).
  *              Active only when latency_comp + adpcm_enabled.
- *   Stage B -- 58-sample FIR-match delay on dry+patina before master mix
+ *   Stage B -- 58-sample FIR-match delay on dry+ADPCM before master mix
  *              (so they emerge aligned with the FIR-delayed reverb tail).
  *              Active whenever latency_comp is on; absence of this stage
  *              previously caused PDC misalignment (PLUG-15 finding).
@@ -91,7 +91,7 @@ static void test_latency_comp_null_safety(void) {
  * but ignored the dry-vs-reverb misalignment at the master mix stage
  * (PLUG-15). The new contract: latency_comp ON always engages Stage B,
  * delaying dry by 58 samples regardless of ADPCM state. Without Stage B,
- * dry/patina at the master mix lead the FIR-delayed reverb tail by 58
+ * dry/ADPCM at the master mix lead the FIR-delayed reverb tail by 58
  * samples, breaking host PDC alignment for any plugin mix involving
  * both dry and reverb (and breaking passthrough configs outright).
  * ----------------------------------------------------------------------- */
@@ -101,8 +101,8 @@ static void test_latency_comp_stage_b_without_adpcm(void) {
     spu94_set_dry_fader   (state, 0x7FFF);
     spu94_set_dry_send    (state, 0);
     spu94_set_reverb_fader(state, 0);
-    spu94_set_patina_fader(state, 0);
-    spu94_set_patina_send (state, 0);
+    spu94_set_adpcm_fader(state, 0);
+    spu94_set_adpcm_send (state, 0);
     spu94_set_adpcm_enabled(state, 0);
     spu94_set_latency_comp(state, 1);
 
@@ -141,8 +141,8 @@ static void test_latency_comp_dry_total_delay_with_adpcm(void) {
     spu94_set_dry_fader   (state, 0x7FFF);
     spu94_set_dry_send    (state, 0);
     spu94_set_reverb_fader(state, 0);
-    spu94_set_patina_fader(state, 0);
-    spu94_set_patina_send (state, 0);
+    spu94_set_adpcm_fader(state, 0);
+    spu94_set_adpcm_send (state, 0);
     spu94_set_adpcm_enabled(state, 1);
     spu94_set_latency_comp(state, 1);
 
@@ -177,8 +177,8 @@ static void test_latency_comp_off_no_delay(void) {
     spu94_set_dry_fader(state, 0x7FFF);
     spu94_set_dry_send(state, 0);
     spu94_set_reverb_fader(state, 0);
-    spu94_set_patina_fader(state, 0);
-    spu94_set_patina_send(state, 0);
+    spu94_set_adpcm_fader(state, 0);
+    spu94_set_adpcm_send(state, 0);
     spu94_set_adpcm_enabled(state, 1);
     spu94_set_latency_comp(state, 0);
 
@@ -235,8 +235,8 @@ static void test_latency_comp_state_reset_on_disable(void) {
     for (unsigned i = 0; i < SPU94_LATENCY_SAMPLES; i++) {
         TEST_ASSERT_EQUAL_INT16(0, state->fir_lc_dry_buf_l[i]);
         TEST_ASSERT_EQUAL_INT16(0, state->fir_lc_dry_buf_r[i]);
-        TEST_ASSERT_EQUAL_INT16(0, state->fir_lc_pat_buf_l[i]);
-        TEST_ASSERT_EQUAL_INT16(0, state->fir_lc_pat_buf_r[i]);
+        TEST_ASSERT_EQUAL_INT16(0, state->fir_lc_adpcm_buf_l[i]);
+        TEST_ASSERT_EQUAL_INT16(0, state->fir_lc_adpcm_buf_r[i]);
     }
 }
 

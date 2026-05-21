@@ -104,9 +104,9 @@ static void print_reverb_help(void) {
         "Mixer controls:\n"
         "  --input-gain <0.0-1.0>   Input gain (default: 1.0 = unity)\n"
         "  --dry <0.0-1.0>          Dry bus level (default: 1.0)\n"
-        "  --patina <0.0-1.0>       ADPCM bus level (default: 0.0, set to 1.0 with --adpcm)\n"
+        "  --adpcm-level <0.0-1.0>  ADPCM bus level (default: 0.0, set to 1.0 with --adpcm)\n"
         "  --dry-send <0.0-1.0>     Dry bus reverb send (default: 1.0)\n"
-        "  --patina-send <0.0-1.0>  ADPCM bus reverb send (default: 0.0, set to 1.0 with --adpcm)\n"
+        "  --adpcm-send <0.0-1.0>   ADPCM bus reverb send (default: 0.0, set to 1.0 with --adpcm)\n"
         "  --reverb <0.0-1.0>       Reverb return level (default: 1.0)\n"
         "\n"
         "DAC coloration:\n"
@@ -150,9 +150,9 @@ int cmd_reverb(int argc, char **argv) {
         {"no-latency-comp", no_argument,       NULL, 1004},
         {"input-gain",      required_argument, NULL, 1005},
         {"dry",             required_argument, NULL, 1006},
-        {"patina",          required_argument, NULL, 1007},
+        {"adpcm-level",     required_argument, NULL, 1007},
         {"dry-send",        required_argument, NULL, 1008},
-        {"patina-send",     required_argument, NULL, 1009},
+        {"adpcm-send",      required_argument, NULL, 1009},
         {"reverb",          required_argument, NULL, 1010},
         {"list-presets",    no_argument,       NULL, 'l'},
         {"help",            no_argument,       NULL, 'h'},
@@ -172,9 +172,9 @@ int cmd_reverb(int argc, char **argv) {
     /* Fader overrides: -1.0 means "not set by user" (use defaults). */
     double fader_input_gain = -1.0;
     double fader_dry = -1.0;
-    double fader_patina = -1.0;
+    double fader_adpcm = -1.0;
     double fader_dry_send = -1.0;
-    double fader_patina_send = -1.0;
+    double fader_adpcm_send = -1.0;
     double fader_reverb = -1.0;
     int opt;
 
@@ -243,14 +243,14 @@ int cmd_reverb(int argc, char **argv) {
                 fader_dry = val;
                 break;
             }
-            case 1007: {  /* --patina */
+            case 1007: {  /* --adpcm-level */
                 char *endptr;
                 double val = strtod(optarg, &endptr);
                 if (endptr == optarg || *endptr != '\0' || val < 0.0 || val > 1.0) {
-                    SPU94_ERROR("invalid value for --patina: '%s' (accepts 0.0 to 1.0)", optarg);
+                    SPU94_ERROR("invalid value for --adpcm-level: '%s' (accepts 0.0 to 1.0)", optarg);
                     return 2;
                 }
-                fader_patina = val;
+                fader_adpcm = val;
                 break;
             }
             case 1008: {  /* --dry-send */
@@ -263,14 +263,14 @@ int cmd_reverb(int argc, char **argv) {
                 fader_dry_send = val;
                 break;
             }
-            case 1009: {  /* --patina-send */
+            case 1009: {  /* --adpcm-send */
                 char *endptr;
                 double val = strtod(optarg, &endptr);
                 if (endptr == optarg || *endptr != '\0' || val < 0.0 || val > 1.0) {
-                    SPU94_ERROR("invalid value for --patina-send: '%s' (accepts 0.0 to 1.0)", optarg);
+                    SPU94_ERROR("invalid value for --adpcm-send: '%s' (accepts 0.0 to 1.0)", optarg);
                     return 2;
                 }
-                fader_patina_send = val;
+                fader_adpcm_send = val;
                 break;
             }
             case 1010: {  /* --reverb */
@@ -349,10 +349,10 @@ int cmd_reverb(int argc, char **argv) {
     if (adpcm_enabled) {
         spu94_set_adpcm_enabled(state, 1);
         /* Phase 7: with the mixer architecture, ADPCM output goes to the
-         * patina bus. Set patina fader and send so the ADPCM coloration
-         * is audible. Without this, patina_fader=0 silences ADPCM. */
-        spu94_set_patina_fader(state, 0x7FFF);
-        spu94_set_patina_send(state, 0x7FFF);
+         * ADPCM bus. Set ADPCM fader and send so the ADPCM coloration
+         * is audible. Without this, adpcm_fader=0 silences ADPCM. */
+        spu94_set_adpcm_fader(state, 0x7FFF);
+        spu94_set_adpcm_send(state, 0x7FFF);
     }
 
     int loaded_pid = -1;  /* -1 = JSON config, >= 0 = preset ID */
@@ -451,12 +451,12 @@ int cmd_reverb(int argc, char **argv) {
         spu94_set_input_gain(state, spu94_cli_float_to_q15(fader_input_gain));
     if (fader_dry >= 0.0)
         spu94_set_dry_fader(state, spu94_cli_float_to_q15(fader_dry));
-    if (fader_patina >= 0.0)
-        spu94_set_patina_fader(state, spu94_cli_float_to_q15(fader_patina));
+    if (fader_adpcm >= 0.0)
+        spu94_set_adpcm_fader(state, spu94_cli_float_to_q15(fader_adpcm));
     if (fader_dry_send >= 0.0)
         spu94_set_dry_send(state, spu94_cli_float_to_q15(fader_dry_send));
-    if (fader_patina_send >= 0.0)
-        spu94_set_patina_send(state, spu94_cli_float_to_q15(fader_patina_send));
+    if (fader_adpcm_send >= 0.0)
+        spu94_set_adpcm_send(state, spu94_cli_float_to_q15(fader_adpcm_send));
     if (fader_reverb >= 0.0)
         spu94_set_reverb_fader(state, spu94_cli_float_to_q15(fader_reverb));
 

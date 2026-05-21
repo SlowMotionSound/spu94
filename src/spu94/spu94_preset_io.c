@@ -87,9 +87,9 @@ int spu94_preset_save(const spu94_state *state,
 
     EMIT("input_gain=0x%04X\n",   (unsigned)(uint16_t)spu94_get_input_gain(state));
     EMIT("dry_fader=0x%04X\n",    (unsigned)(uint16_t)spu94_get_dry_fader(state));
-    EMIT("patina_fader=0x%04X\n", (unsigned)(uint16_t)spu94_get_patina_fader(state));
+    EMIT("adpcm_fader=0x%04X\n",  (unsigned)(uint16_t)spu94_get_adpcm_fader(state));
     EMIT("dry_send=0x%04X\n",     (unsigned)(uint16_t)spu94_get_dry_send(state));
-    EMIT("patina_send=0x%04X\n",  (unsigned)(uint16_t)spu94_get_patina_send(state));
+    EMIT("adpcm_send=0x%04X\n",   (unsigned)(uint16_t)spu94_get_adpcm_send(state));
     EMIT("reverb_fader=0x%04X\n",  (unsigned)(uint16_t)spu94_get_reverb_fader(state));
     EMIT("sampler_fader=0x%04X\n", (unsigned)(uint16_t)spu94_get_sampler_fader(state));
     EMIT("sampler_send=0x%04X\n",  (unsigned)(uint16_t)spu94_get_sampler_send(state));
@@ -296,12 +296,12 @@ if (strcmp(key, "input_gain") == 0)
                 spu94_set_input_gain(state, (int16_t)parse_hex_u16(value));
             else if (strcmp(key, "dry_fader") == 0)
                 spu94_set_dry_fader(state, (int16_t)parse_hex_u16(value));
-            else if (strcmp(key, "patina_fader") == 0)
-                spu94_set_patina_fader(state, (int16_t)parse_hex_u16(value));
+            else if (strcmp(key, "adpcm_fader") == 0)
+                spu94_set_adpcm_fader(state, (int16_t)parse_hex_u16(value));
             else if (strcmp(key, "dry_send") == 0)
                 spu94_set_dry_send(state, (int16_t)parse_hex_u16(value));
-            else if (strcmp(key, "patina_send") == 0)
-                spu94_set_patina_send(state, (int16_t)parse_hex_u16(value));
+            else if (strcmp(key, "adpcm_send") == 0)
+                spu94_set_adpcm_send(state, (int16_t)parse_hex_u16(value));
             else if (strcmp(key, "reverb_fader") == 0)
                 spu94_set_reverb_fader(state, (int16_t)parse_hex_u16(value));
             else if (strcmp(key, "sampler_fader") == 0)

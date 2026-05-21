@@ -44,17 +44,17 @@ class TestMixerFaders:
         _lib.spu94_set_dry_fader(state, 0x7FFF)
         assert _lib.spu94_get_dry_fader(state) == 0x7FFF
 
-    def test_patina_fader_set_get(self, state):
-        _lib.spu94_set_patina_fader(state, 0x3FFF)
-        assert _lib.spu94_get_patina_fader(state) == 0x3FFF
+    def test_adpcm_fader_set_get(self, state):
+        _lib.spu94_set_adpcm_fader(state, 0x3FFF)
+        assert _lib.spu94_get_adpcm_fader(state) == 0x3FFF
 
     def test_dry_send_set_get(self, state):
         _lib.spu94_set_dry_send(state, 0x7FFF)
         assert _lib.spu94_get_dry_send(state) == 0x7FFF
 
-    def test_patina_send_set_get(self, state):
-        _lib.spu94_set_patina_send(state, 0x1000)
-        assert _lib.spu94_get_patina_send(state) == 0x1000
+    def test_adpcm_send_set_get(self, state):
+        _lib.spu94_set_adpcm_send(state, 0x1000)
+        assert _lib.spu94_get_adpcm_send(state) == 0x1000
 
     def test_reverb_fader_set_get(self, state):
         _lib.spu94_set_reverb_fader(state, 0x5000)

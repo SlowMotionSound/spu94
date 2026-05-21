@@ -204,9 +204,9 @@ void SPU94AudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     spu94_set_dry_fader(engines[0], 0x0000);
     spu94_set_reverb_fader(engines[0], 0x7FFF);
     spu94_set_dry_send(engines[0], 0x0000);
-    spu94_set_patina_send(engines[0], 0x7FFF);
+    spu94_set_adpcm_send(engines[0], 0x7FFF);
     spu94_set_sampler_fader(engines[0], 0x7FFF);
-    spu94_set_sampler_send(engines[0], 0x0000);
+    spu94_set_sampler_send(engines[0], 0x7FFF);
     spu94_set_sampler_drive(engines[0], 0x1000);
     spu94_set_dac_enabled(engines[0], 1);
     spu94_set_latency_comp(engines[0], 1);
@@ -343,10 +343,10 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // Sync mixer/DAC atomics from loaded SPU state so GUI reflects the file's values
         inputLevel.store(static_cast<float>(spu94_get_input_gain(engines[0])) / 0x7FFF, std::memory_order_relaxed);
         dryLevel.store(static_cast<float>(spu94_get_dry_fader(engines[0])) / 0x7FFF, std::memory_order_relaxed);
-        patinaLevel.store(static_cast<float>(spu94_get_patina_fader(engines[0])) / 0x7FFF, std::memory_order_relaxed);
+        adpcmLevel.store(static_cast<float>(spu94_get_adpcm_fader(engines[0])) / 0x7FFF, std::memory_order_relaxed);
         reverbLevel.store(static_cast<float>(spu94_get_reverb_fader(engines[0])) / 0x7FFF, std::memory_order_relaxed);
         drySend.store(static_cast<float>(spu94_get_dry_send(engines[0])) / 0x7FFF, std::memory_order_relaxed);
-        adpcmSend.store(static_cast<float>(spu94_get_patina_send(engines[0])) / 0x7FFF, std::memory_order_relaxed);
+        adpcmSend.store(static_cast<float>(spu94_get_adpcm_send(engines[0])) / 0x7FFF, std::memory_order_relaxed);
         latencyCompEnabled.store(spu94_get_latency_comp(engines[0]) != 0, std::memory_order_relaxed);
         dacEnabled.store(spu94_get_dac_enabled(engines[0]) != 0, std::memory_order_relaxed);
         dacFirEnabled.store(spu94_get_dac_fir_enabled(engines[0]) != 0, std::memory_order_relaxed);
@@ -358,7 +358,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // host sees the correct values in automation lanes. setValueNotifyingHost
         // takes NORMALIZED 0..1; for mixer params (0..1 real range) normalized == real.
         paramDryLevel->setValueNotifyingHost(dryLevel.load(std::memory_order_relaxed));
-        paramAdpcmLevel->setValueNotifyingHost(patinaLevel.load(std::memory_order_relaxed));
+        paramAdpcmLevel->setValueNotifyingHost(adpcmLevel.load(std::memory_order_relaxed));
         paramReverbLevel->setValueNotifyingHost(reverbLevel.load(std::memory_order_relaxed));
         paramDrySend->setValueNotifyingHost(drySend.load(std::memory_order_relaxed));
         paramAdpcmSend->setValueNotifyingHost(adpcmSend.load(std::memory_order_relaxed));
@@ -390,14 +390,14 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
     // 3. ADPCM coloration toggle (ADPCM-IO-06, D-06): read GUI atomic,
     // push to C API. Takes effect on the next spu94_process block.
-    // ADPCM auto-enables when patina fader or ADPCM send is non-zero.
+    // ADPCM auto-enables when ADPCM fader or ADPCM send is non-zero.
     // The old dedicated toggle was removed (D-08); the mixer controls
     // now implicitly drive ADPCM on/off.
     {
-        const bool patina_active =
+        const bool adpcm_active =
             paramAdpcmLevel->get() > 0.0f ||
             paramAdpcmSend->get() > 0.0f;
-        const int adpcm_flag = patina_active ? 1 : 0;
+        const int adpcm_flag = adpcm_active ? 1 : 0;
         spu94_set_adpcm_enabled(engines[0], adpcm_flag);
     }
     spu94_set_gauss_enabled(engines[0],
@@ -426,13 +426,13 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // DAC/latency-comp toggles remain on their atomics (not host-automated).
     spu94_set_dry_fader(engines[0], static_cast<int16_t>(
         paramDryLevel->get() * 0x7FFF));
-    spu94_set_patina_fader(engines[0], static_cast<int16_t>(
+    spu94_set_adpcm_fader(engines[0], static_cast<int16_t>(
         paramAdpcmLevel->get() * 0x7FFF));
     spu94_set_reverb_fader(engines[0], static_cast<int16_t>(
         paramReverbLevel->get() * 0x7FFF));
     spu94_set_dry_send(engines[0], static_cast<int16_t>(
         paramDrySend->get() * 0x7FFF));
-    spu94_set_patina_send(engines[0], static_cast<int16_t>(
+    spu94_set_adpcm_send(engines[0], static_cast<int16_t>(
         paramAdpcmSend->get() * 0x7FFF));
     spu94_set_sampler_fader(engines[0], static_cast<int16_t>(
         samplerFader.load(std::memory_order_relaxed) * 0x7FFF));

@@ -256,17 +256,17 @@ _lib.spu94_set_dry_send.argtypes = [ctypes.c_void_p, ctypes.c_int16]
 _lib.spu94_get_dry_send.restype = ctypes.c_int16
 _lib.spu94_get_dry_send.argtypes = [ctypes.c_void_p]
 
-_lib.spu94_set_patina_fader.restype = None
-_lib.spu94_set_patina_fader.argtypes = [ctypes.c_void_p, ctypes.c_int16]
+_lib.spu94_set_adpcm_fader.restype = None
+_lib.spu94_set_adpcm_fader.argtypes = [ctypes.c_void_p, ctypes.c_int16]
 
-_lib.spu94_get_patina_fader.restype = ctypes.c_int16
-_lib.spu94_get_patina_fader.argtypes = [ctypes.c_void_p]
+_lib.spu94_get_adpcm_fader.restype = ctypes.c_int16
+_lib.spu94_get_adpcm_fader.argtypes = [ctypes.c_void_p]
 
-_lib.spu94_set_patina_send.restype = None
-_lib.spu94_set_patina_send.argtypes = [ctypes.c_void_p, ctypes.c_int16]
+_lib.spu94_set_adpcm_send.restype = None
+_lib.spu94_set_adpcm_send.argtypes = [ctypes.c_void_p, ctypes.c_int16]
 
-_lib.spu94_get_patina_send.restype = ctypes.c_int16
-_lib.spu94_get_patina_send.argtypes = [ctypes.c_void_p]
+_lib.spu94_get_adpcm_send.restype = ctypes.c_int16
+_lib.spu94_get_adpcm_send.argtypes = [ctypes.c_void_p]
 
 # Latency compensation (Phase 7, D-07/D-08)
 _lib.spu94_set_latency_comp.restype = None

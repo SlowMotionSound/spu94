@@ -129,7 +129,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             }
         };
 
-        // Anti-Aliasing toggle — switches all 24 voices between Gaussian
+        // Gauss toggle — switches all 24 voices between Gaussian
         // interpolation (ON, default = PS1 faithful) and zero-order hold (OFF).
         panel.addAndMakeVisible(samplerAAToggle);
         samplerAAToggle.setClickingTogglesState(true);
@@ -335,7 +335,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         samplerSendKnob.setSliderStyle(juce::Slider::Rotary);
         samplerSendKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
         samplerSendKnob.setRange(0.0, 1.0, 0.01);
-        samplerSendKnob.setValue(0.0, juce::dontSendNotification);
+        samplerSendKnob.setValue(1.0, juce::dontSendNotification);
         samplerSendKnob.onValueChange = [this] {
             processorRef.getSamplerSend().store(
                 static_cast<float>(samplerSendKnob.getValue()),
@@ -362,7 +362,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     }
 
     presetLabel.setText("Preset:", juce::dontSendNotification);
-    presetLabel.setJustificationType(juce::Justification::centredRight);
+    presetLabel.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(presetLabel);
 
     // Preset Save button (D-06: opens name prompt, then file dialog)
@@ -489,25 +489,25 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     dryKnobLabel.setText("Dry", juce::dontSendNotification);
     dryKnobLabel.setJustificationType(juce::Justification::centred);
 
-    // ADPCM (Patina) level knob
-    addAndMakeVisible(patinaKnob);
-    patinaKnob.setSliderStyle(juce::Slider::Rotary);
-    patinaKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-    patinaKnob.setRange(0.0, 1.0, 0.01);
-    patinaKnob.setValue(0.0, juce::dontSendNotification);
-    patinaKnob.onDragStart = [this] {
+    // ADPCM level knob
+    addAndMakeVisible(adpcmKnob);
+    adpcmKnob.setSliderStyle(juce::Slider::Rotary);
+    adpcmKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+    adpcmKnob.setRange(0.0, 1.0, 0.01);
+    adpcmKnob.setValue(0.0, juce::dontSendNotification);
+    adpcmKnob.onDragStart = [this] {
         processorRef.getParamAdpcmLevel()->beginChangeGesture();
     };
-    patinaKnob.onDragEnd = [this] {
+    adpcmKnob.onDragEnd = [this] {
         processorRef.getParamAdpcmLevel()->endChangeGesture();
     };
-    patinaKnob.onValueChange = [this] {
+    adpcmKnob.onValueChange = [this] {
         processorRef.getParamAdpcmLevel()->setValueNotifyingHost(
-            static_cast<float>(patinaKnob.getValue()));
+            static_cast<float>(adpcmKnob.getValue()));
     };
-    addAndMakeVisible(patinaKnobLabel);
-    patinaKnobLabel.setText("Input", juce::dontSendNotification);
-    patinaKnobLabel.setJustificationType(juce::Justification::centred);
+    addAndMakeVisible(adpcmKnobLabel);
+    adpcmKnobLabel.setText("Input", juce::dontSendNotification);
+    adpcmKnobLabel.setJustificationType(juce::Justification::centred);
 
     // Reverb level knob
     addAndMakeVisible(reverbKnob);
@@ -551,7 +551,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
 
     addAndMakeVisible(aaFilterToggle);
     aaFilterToggle.setClickingTogglesState(true);
-    aaFilterToggle.setToggleState(false, juce::dontSendNotification);
+    aaFilterToggle.setToggleState(true, juce::dontSendNotification);
     aaFilterToggle.onClick = [this] {
         processorRef.getAAFilterEnabled().store(
             aaFilterToggle.getToggleState(),
@@ -752,7 +752,7 @@ void SPU94AudioProcessorEditor::timerCallback()
         syncKnob(adpcmSendKnob,   processorRef.getParamAdpcmSend()->get());
         syncKnob(drySendKnob,     processorRef.getParamDrySend()->get());
         syncKnob(dryKnob,         processorRef.getParamDryLevel()->get());
-        syncKnob(patinaKnob,      processorRef.getParamAdpcmLevel()->get());
+        syncKnob(adpcmKnob,      processorRef.getParamAdpcmLevel()->get());
         syncKnob(reverbKnob,      processorRef.getParamReverbLevel()->get());
     }
 
@@ -869,19 +869,13 @@ void SPU94AudioProcessorEditor::resized()
     const int w = getWidth();
 
     // ---- ZONE 1: Toolbar (y=10, h=60) ----
-    // WAV-loader buttons positioned only in the standalone testbed; plugin
-    // formats leave x=10..265 intentionally empty (no reflow in Phase 21).
-    // Preset row (top left)
-    presetLabel.setBounds(10, 10, 55, 30);
-    savePresetButton.setBounds(70, 10, 55, 30);
-    loadPresetButton.setBounds(130, 10, 55, 30);
 
     if (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
     {
-        // WAV loader row (below preset row, left-aligned)
-        loadButton.setBounds(10, 42, 100, 30);
-        playButton.setBounds(115, 42, 70, 30);
-        stopButton.setBounds(190, 42, 70, 30);
+        // WAV loader buttons (stacked vertically, left-aligned)
+        loadButton.setBounds(10, 8, 80, 28);
+        playButton.setBounds(10, 40, 80, 28);
+        stopButton.setBounds(10, 72, 80, 28);
 
         // Voice engine controls are in the sampler window — lay them out there.
         if (samplerWindow)
@@ -894,10 +888,10 @@ void SPU94AudioProcessorEditor::resized()
             samplerDriveLabel.setBounds(95, 50, 80, 16);
             samplerDriveKnob.setBounds(95, 64, 80, 54);
             voiceSampleLabel.setBounds(180, 50, 110, 30);
-            loopToggle.setBounds(300, 10, 85, 30);
-            latchToggle.setBounds(300, 42, 65, 30);
-            markerLockToggle.setBounds(300, 74, 65, 30);
-            samplerAAToggle.setBounds(300, 106, 95, 30);
+            loopToggle.setBounds(300, 10, 85, 26);
+            latchToggle.setBounds(300, 36, 65, 26);
+            markerLockToggle.setBounds(300, 62, 65, 26);
+            samplerAAToggle.setBounds(300, 88, 70, 26);
             samplerWindow->getWaveformDisplay().setBounds(10, 125, 380, 120);
             startPosLabel.setBounds(15, 247, 70, 14);
             startPosKnob.setBounds(15, 259, 70, 54);
@@ -928,23 +922,25 @@ void SPU94AudioProcessorEditor::resized()
         }
     }
 
-    // Input controls: Input Gain, Input Rate, Gauss, Anti-Aliasing
-    inputLevelLabel.setBounds(400, 2, 70, 16);
-    inputLevelKnob.setBounds(400, 16, 70, 54);
-    voicePitchLabel.setBounds(475, 2, 80, 16);
-    voicePitchKnob.setBounds(475, 16, 80, 54);
-    gaussToggle.setBounds(560, 10, 65, 30);
-    aaFilterToggle.setBounds(560, 38, 120, 30);
+    // Input controls: Input Gain, Anti-Aliasing, Input Rate, Gauss, Input Send
+    // Centered as a group between Stop button (ends x=260) and Dry Send (starts x=770).
+    constexpr int groupLeft = 307;
+    inputLevelLabel.setBounds(groupLeft, 2, 70, 16);
+    inputLevelKnob.setBounds(groupLeft, 16, 70, 54);
+    aaFilterToggle.setBounds(groupLeft + 75, 24, 120, 30);
+    voicePitchLabel.setBounds(groupLeft + 190, 2, 80, 16);
+    voicePitchKnob.setBounds(groupLeft + 190, 16, 80, 54);
+    gaussToggle.setBounds(groupLeft + 275, 24, 65, 30);
+    adpcmSendLabel.setBounds(groupLeft + 345, 2, 70, 16);
+    adpcmSendKnob.setBounds(groupLeft + 345, 16, 70, 54);
 
-    // Send knobs: Input Send, Dry Send, Samp Send
-    adpcmSendLabel.setBounds(710, 2, 65, 16);
-    adpcmSendKnob.setBounds(710, 16, 65, 54);
-    drySendLabel.setBounds(775, 2, 60, 16);
-    drySendKnob.setBounds(775, 16, 60, 54);
+    // Send knobs: Dry Send, Samp Send
+    drySendLabel.setBounds(770, 2, 60, 16);
+    drySendKnob.setBounds(770, 16, 60, 54);
     if (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
     {
-        samplerSendLabel.setBounds(835, 2, 65, 16);
-        samplerSendKnob.setBounds(835, 16, 65, 54);
+        samplerSendLabel.setBounds(835, 2, 60, 16);
+        samplerSendKnob.setBounds(835, 16, 60, 54);
     }
 
     // ---- ZONE 2: Register panel in scrollable viewport (fills middle) ----
@@ -961,14 +957,31 @@ void SPU94AudioProcessorEditor::resized()
     // Morph panel occupies the same Zone 2 bounds (D-01)
     morphPanel.setBounds(10, registerTop, viewportW, viewportH);
 
+    // Preset section — stacked below User Slot in MorphPanel (matching style).
+    // Mirrors MorphPanel's slot layout: same btnW/btnH/gap/margin, same x column.
+    {
+        constexpr int slotBtnW = 80, slotBtnH = 28, slotBtnGap = 4, slotMargin = 12;
+        const int slotX = 10 + viewportW - slotBtnW - slotMargin;
+        const int morphStartY = (viewportH - (280 + 24 + 8)) / 2;
+        const int userSlotBottom = registerTop + morphStartY + slotMargin + 18
+                                   + (slotBtnH + slotBtnGap) * 2 + slotBtnH;
+        int py = userSlotBottom + slotBtnGap + 8;
+        presetLabel.setBounds(slotX, py, slotBtnW, 16); py += 18;
+        savePresetButton.setBounds(slotX, py, slotBtnW, slotBtnH); py += slotBtnH + slotBtnGap;
+        loadPresetButton.setBounds(slotX, py, slotBtnW, slotBtnH);
+        presetLabel.toFront(false);
+        savePresetButton.toFront(false);
+        loadPresetButton.toFront(false);
+    }
+
     // ---- ZONE 3+4: Combined mixer + DAC (single bottom row) ----
     const int bottomY = registerBottom + 5;
     // DRY section: Dry Level knob
     dryKnobLabel.setBounds(10, bottomY, 80, 16);
     dryKnob.setBounds(10, bottomY + 14, 80, 54);
     // ADPCM section: Input | Sampler | Reverb
-    patinaKnobLabel.setBounds(120, bottomY, 80, 16);
-    patinaKnob.setBounds(120, bottomY + 14, 80, 54);
+    adpcmKnobLabel.setBounds(120, bottomY, 80, 16);
+    adpcmKnob.setBounds(120, bottomY + 14, 80, 54);
     if (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
     {
         samplerLevelLabel.setBounds(220, bottomY, 80, 16);
@@ -1041,7 +1054,7 @@ void SPU94AudioProcessorEditor::captureBaseline()
         baseline.registers[i] = processorRef.getRegisterBridge().getShadowValue(i);
     baseline.inputGain = processorRef.getParamInputGain()->get();
     baseline.dry = processorRef.getParamDryLevel()->get();
-    baseline.patina = processorRef.getParamAdpcmLevel()->get();
+    baseline.adpcm = processorRef.getParamAdpcmLevel()->get();
     baseline.reverb = processorRef.getParamReverbLevel()->get();
     baseline.adpcmSend = processorRef.getParamAdpcmSend()->get();
     baseline.drySend = processorRef.getParamDrySend()->get();
@@ -1067,7 +1080,7 @@ bool SPU94AudioProcessorEditor::checkModified() const
     auto feq = [](float a, float b) { return std::memcmp(&a, &b, sizeof(float)) == 0; };
     if (!feq(p.getParamInputGain()->get(), baseline.inputGain)) return true;
     if (!feq(p.getParamDryLevel()->get(), baseline.dry)) return true;
-    if (!feq(p.getParamAdpcmLevel()->get(), baseline.patina)) return true;
+    if (!feq(p.getParamAdpcmLevel()->get(), baseline.adpcm)) return true;
     if (!feq(p.getParamReverbLevel()->get(), baseline.reverb)) return true;
     if (!feq(p.getParamAdpcmSend()->get(), baseline.adpcmSend)) return true;
     if (!feq(p.getParamDrySend()->get(), baseline.drySend)) return true;
@@ -1087,7 +1100,7 @@ void SPU94AudioProcessorEditor::syncMixerKnobsFromProcessor()
     dryKnob.setValue(
         static_cast<double>(processorRef.getParamDryLevel()->get()),
         juce::dontSendNotification);
-    patinaKnob.setValue(
+    adpcmKnob.setValue(
         static_cast<double>(processorRef.getParamAdpcmLevel()->get()),
         juce::dontSendNotification);
     reverbKnob.setValue(

@@ -102,7 +102,7 @@ public:
 
     // --- Mixer faders (0.0-1.0 float, converted to Q15 at processBlock boundary) ---
     std::atomic<float>& getDryLevel() { return dryLevel; }
-    std::atomic<float>& getPatinaLevel() { return patinaLevel; }
+    std::atomic<float>& getAdpcmLevel() { return adpcmLevel; }
     std::atomic<float>& getReverbLevel() { return reverbLevel; }
     std::atomic<float>& getAdpcmSend() { return adpcmSend; }
     std::atomic<float>& getDrySend() { return drySend; }
@@ -256,14 +256,14 @@ private:
 
     // Mixer faders (0.0-1.0 float, converted to Q15 at processBlock boundary)
     std::atomic<float> dryLevel{0.0f};        // dry bus level (default OFF)
-    std::atomic<float> patinaLevel{0.0f};     // ADPCM bus level
+    std::atomic<float> adpcmLevel{0.0f};     // ADPCM bus level
     std::atomic<float> reverbLevel{1.0f};     // reverb return level
     std::atomic<float> adpcmSend{1.0f};       // ADPCM bus reverb send (default FULL)
     std::atomic<float> drySend{0.0f};         // dry bus reverb send (default OFF)
 
     // Voice engine mixer (standalone-only, not host-automated)
     std::atomic<float> samplerFader{1.0f};
-    std::atomic<float> samplerSend{0.0f};
+    std::atomic<float> samplerSend{1.0f};
     std::atomic<float> samplerDrive{1.0f};
 
     // Latency compensation (default ON per D-07)
@@ -271,7 +271,7 @@ private:
 
     // DAC coloration toggles (default ON)
     std::atomic<bool> gaussEnabled{true};
-    std::atomic<bool> aaFilterEnabled{false};
+    std::atomic<bool> aaFilterEnabled{true};
     std::atomic<int> voicePitch{0x0800};
     std::atomic<bool> dacEnabled{true};
     std::atomic<bool> dacFirEnabled{true};    // sub-toggle: ON when DAC section is used

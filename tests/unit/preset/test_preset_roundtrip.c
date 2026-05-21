@@ -150,9 +150,9 @@ static void test_save_mixer_fields_present(void)
 
     TEST_ASSERT_NOT_NULL(strstr(preset_buf, "input_gain=0x"));
     TEST_ASSERT_NOT_NULL(strstr(preset_buf, "dry_fader=0x"));
-    TEST_ASSERT_NOT_NULL(strstr(preset_buf, "patina_fader=0x"));
+    TEST_ASSERT_NOT_NULL(strstr(preset_buf, "adpcm_fader=0x"));
     TEST_ASSERT_NOT_NULL(strstr(preset_buf, "dry_send=0x"));
-    TEST_ASSERT_NOT_NULL(strstr(preset_buf, "patina_send=0x"));
+    TEST_ASSERT_NOT_NULL(strstr(preset_buf, "adpcm_send=0x"));
     TEST_ASSERT_NOT_NULL(strstr(preset_buf, "reverb_fader=0x"));
     TEST_ASSERT_NOT_NULL(strstr(preset_buf, "latency_comp="));
 }
@@ -168,13 +168,13 @@ static void test_save_dac_fields_present(void)
     TEST_ASSERT_NOT_NULL(strstr(preset_buf, "dac_true_oversample="));
 }
 
-static void test_save_no_adpcm_field(void)
+static void test_save_no_adpcm_enabled_field(void)
 {
     spu94_load_preset(state, SPU94_PRESET_HALL);
     spu94_preset_save(state, "Hall", "test", preset_buf, sizeof preset_buf);
 
-    /* ADPCM toggle is not serialized per D-06 */
-    TEST_ASSERT_NULL(strstr(preset_buf, "adpcm"));
+    /* ADPCM toggle is not serialized per D-06 (fader/send fields are fine) */
+    TEST_ASSERT_NULL(strstr(preset_buf, "adpcm_enabled"));
 }
 
 /* -----------------------------------------------------------------------
@@ -286,14 +286,14 @@ static void test_roundtrip_hall_mixer(void)
         spu94_get_dry_fader(state), spu94_get_dry_fader(state2),
         "dry_fader mismatch");
     TEST_ASSERT_EQUAL_HEX16_MESSAGE(
-        spu94_get_patina_fader(state), spu94_get_patina_fader(state2),
-        "patina_fader mismatch");
+        spu94_get_adpcm_fader(state), spu94_get_adpcm_fader(state2),
+        "adpcm_fader mismatch");
     TEST_ASSERT_EQUAL_HEX16_MESSAGE(
         spu94_get_dry_send(state), spu94_get_dry_send(state2),
         "dry_send mismatch");
     TEST_ASSERT_EQUAL_HEX16_MESSAGE(
-        spu94_get_patina_send(state), spu94_get_patina_send(state2),
-        "patina_send mismatch");
+        spu94_get_adpcm_send(state), spu94_get_adpcm_send(state2),
+        "adpcm_send mismatch");
     TEST_ASSERT_EQUAL_HEX16_MESSAGE(
         spu94_get_reverb_fader(state), spu94_get_reverb_fader(state2),
         "reverb_fader mismatch");
@@ -332,9 +332,9 @@ static void test_roundtrip_custom_state(void)
     spu94_load_preset(state, SPU94_PRESET_DELAY);
     spu94_set_input_gain(state, 0x4000);
     spu94_set_dry_fader(state, 0x2000);
-    spu94_set_patina_fader(state, 0x1000);
+    spu94_set_adpcm_fader(state, 0x1000);
     spu94_set_dry_send(state, 0x3000);
-    spu94_set_patina_send(state, 0x0800);
+    spu94_set_adpcm_send(state, 0x0800);
     spu94_set_reverb_fader(state, 0x6000);
     spu94_set_latency_comp(state, 0);
     spu94_set_dac_enabled(state, 0);
@@ -371,14 +371,14 @@ static void test_roundtrip_custom_state(void)
         spu94_get_dry_fader(state), spu94_get_dry_fader(state2),
         "custom dry_fader mismatch");
     TEST_ASSERT_EQUAL_HEX16_MESSAGE(
-        spu94_get_patina_fader(state), spu94_get_patina_fader(state2),
-        "custom patina_fader mismatch");
+        spu94_get_adpcm_fader(state), spu94_get_adpcm_fader(state2),
+        "custom adpcm_fader mismatch");
     TEST_ASSERT_EQUAL_HEX16_MESSAGE(
         spu94_get_dry_send(state), spu94_get_dry_send(state2),
         "custom dry_send mismatch");
     TEST_ASSERT_EQUAL_HEX16_MESSAGE(
-        spu94_get_patina_send(state), spu94_get_patina_send(state2),
-        "custom patina_send mismatch");
+        spu94_get_adpcm_send(state), spu94_get_adpcm_send(state2),
+        "custom adpcm_send mismatch");
     TEST_ASSERT_EQUAL_HEX16_MESSAGE(
         spu94_get_reverb_fader(state), spu94_get_reverb_fader(state2),
         "custom reverb_fader mismatch");
@@ -447,7 +447,7 @@ int main(void) {
     RUN_TEST(test_save_register_names_present);
     RUN_TEST(test_save_mixer_fields_present);
     RUN_TEST(test_save_dac_fields_present);
-    RUN_TEST(test_save_no_adpcm_field);
+    RUN_TEST(test_save_no_adpcm_enabled_field);
     RUN_TEST(test_save_hex_format_4digit);
     RUN_TEST(test_save_null_name_description);
     RUN_TEST(test_save_buf_too_small);

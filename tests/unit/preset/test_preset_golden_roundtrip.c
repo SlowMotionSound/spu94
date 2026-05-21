@@ -124,9 +124,9 @@ static void configure_engine_a_custom(void)
     /* Custom mixer faders (all non-default) */
     spu94_set_input_gain(engine_a, 0x4000);
     spu94_set_dry_fader(engine_a, 0x2000);
-    spu94_set_patina_fader(engine_a, 0x1000);
+    spu94_set_adpcm_fader(engine_a, 0x1000);
     spu94_set_dry_send(engine_a, 0x3000);
-    spu94_set_patina_send(engine_a, 0x0800);
+    spu94_set_adpcm_send(engine_a, 0x0800);
     spu94_set_reverb_fader(engine_a, 0x6000);
     spu94_set_latency_comp(engine_a, 0);
 

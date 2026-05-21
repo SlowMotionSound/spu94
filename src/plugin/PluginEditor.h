@@ -74,8 +74,8 @@ private:
     // Zone 3: Mixer strip
     juce::Slider dryKnob;
     juce::Label dryKnobLabel;
-    juce::Slider patinaKnob;
-    juce::Label patinaKnobLabel;
+    juce::Slider adpcmKnob;
+    juce::Label adpcmKnobLabel;
     juce::Slider reverbKnob;
     juce::Label reverbKnobLabel;
     juce::ToggleButton latencyCompToggle{"Latency Comp"};
@@ -94,7 +94,7 @@ private:
     juce::Slider voiceEnginePitchKnob;
     juce::Label voiceEnginePitchLabel;
     juce::ToggleButton loopToggle{"Loop"};
-    juce::ToggleButton samplerAAToggle{"Anti-Alias"};
+    juce::ToggleButton samplerAAToggle{"Gauss"};
     juce::ToggleButton latchToggle{"Latch"};
     bool latchActive = false;
     juce::ToggleButton markerLockToggle{"Lock"};
@@ -150,7 +150,7 @@ private:
     struct PresetSnapshot {
         std::array<int16_t, SPU94_REG__COUNT> registers{};
         float inputGain = 0.25f;
-        float dry = 1.0f, patina = 0.0f, reverb = 1.0f;
+        float dry = 1.0f, adpcm = 0.0f, reverb = 1.0f;
         float adpcmSend = 0.0f, drySend = 1.0f;
         bool latencyComp = true;
         bool dac = false, dacFir = true, dacNoise = true, dacOversample = true;

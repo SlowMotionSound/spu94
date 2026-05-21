@@ -100,7 +100,7 @@ static void test_dac_on_off_on_bit_identical(void) {
      * latency_comp off/on so the Stage B fir-match buffers (which
      * persist across DAC toggles by design -- they're latency-comp
      * state, not DAC state) are flushed too. Without this, the previous
-     * spu94_process call left dry/patina history in the fir_lc buffers,
+     * spu94_process call left dry/ADPCM history in the fir_lc buffers,
      * and the second run would see non-zero output[0..57] from that
      * residue. */
     spu94_set_dac_enabled(sb, 0);
@@ -198,8 +198,8 @@ static void test_dac_adpcm_composition(void) {
     set_unity_passthrough(sb);
     spu94_load_preset(sb, SPU94_PRESET_ROOM);
     spu94_set_adpcm_enabled(sb, 1);
-    spu94_set_patina_fader(sb, 0x7FFF);
-    spu94_set_patina_send(sb, 0x7FFF);
+    spu94_set_adpcm_fader(sb, 0x7FFF);
+    spu94_set_adpcm_send(sb, 0x7FFF);
 
     int16_t out_adpcm_l[512], out_adpcm_r[512];
     spu94_process(sb, input, input, out_adpcm_l, out_adpcm_r, N);
@@ -214,8 +214,8 @@ static void test_dac_adpcm_composition(void) {
     spu94_set_dac_fir_enabled(sc, 1);
     spu94_set_dac_noise_enabled(sc, 1);
     spu94_set_adpcm_enabled(sc, 1);
-    spu94_set_patina_fader(sc, 0x7FFF);
-    spu94_set_patina_send(sc, 0x7FFF);
+    spu94_set_adpcm_fader(sc, 0x7FFF);
+    spu94_set_adpcm_send(sc, 0x7FFF);
 
     int16_t out_both_l[512], out_both_r[512];
     spu94_process(sc, input, input, out_both_l, out_both_r, N);

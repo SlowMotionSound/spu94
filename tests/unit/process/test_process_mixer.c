@@ -48,9 +48,9 @@ static void set_unity_passthrough(spu94_state *s) {
 static void test_mixer_faders_default_zero(void) {
     TEST_ASSERT_EQUAL_INT16(0, spu94_get_input_gain(state));
     TEST_ASSERT_EQUAL_INT16(0, spu94_get_dry_fader(state));
-    TEST_ASSERT_EQUAL_INT16(0, spu94_get_patina_fader(state));
+    TEST_ASSERT_EQUAL_INT16(0, spu94_get_adpcm_fader(state));
     TEST_ASSERT_EQUAL_INT16(0, spu94_get_dry_send(state));
-    TEST_ASSERT_EQUAL_INT16(0, spu94_get_patina_send(state));
+    TEST_ASSERT_EQUAL_INT16(0, spu94_get_adpcm_send(state));
     TEST_ASSERT_EQUAL_INT16(0, spu94_get_reverb_fader(state));
 }
 
@@ -74,13 +74,13 @@ static void test_mixer_fader_set_get(void) {
     spu94_set_dry_fader(state, 0);
     TEST_ASSERT_EQUAL_INT16(0, spu94_get_dry_fader(state));
 
-    /* patina_fader */
-    spu94_set_patina_fader(state, 0x4000);
-    TEST_ASSERT_EQUAL_INT16(0x4000, spu94_get_patina_fader(state));
-    spu94_set_patina_fader(state, 0x7FFF);
-    TEST_ASSERT_EQUAL_INT16(0x7FFF, spu94_get_patina_fader(state));
-    spu94_set_patina_fader(state, 0);
-    TEST_ASSERT_EQUAL_INT16(0, spu94_get_patina_fader(state));
+    /* adpcm_fader */
+    spu94_set_adpcm_fader(state, 0x4000);
+    TEST_ASSERT_EQUAL_INT16(0x4000, spu94_get_adpcm_fader(state));
+    spu94_set_adpcm_fader(state, 0x7FFF);
+    TEST_ASSERT_EQUAL_INT16(0x7FFF, spu94_get_adpcm_fader(state));
+    spu94_set_adpcm_fader(state, 0);
+    TEST_ASSERT_EQUAL_INT16(0, spu94_get_adpcm_fader(state));
 
     /* dry_send */
     spu94_set_dry_send(state, 0x4000);
@@ -90,13 +90,13 @@ static void test_mixer_fader_set_get(void) {
     spu94_set_dry_send(state, 0);
     TEST_ASSERT_EQUAL_INT16(0, spu94_get_dry_send(state));
 
-    /* patina_send */
-    spu94_set_patina_send(state, 0x4000);
-    TEST_ASSERT_EQUAL_INT16(0x4000, spu94_get_patina_send(state));
-    spu94_set_patina_send(state, 0x7FFF);
-    TEST_ASSERT_EQUAL_INT16(0x7FFF, spu94_get_patina_send(state));
-    spu94_set_patina_send(state, 0);
-    TEST_ASSERT_EQUAL_INT16(0, spu94_get_patina_send(state));
+    /* adpcm_send */
+    spu94_set_adpcm_send(state, 0x4000);
+    TEST_ASSERT_EQUAL_INT16(0x4000, spu94_get_adpcm_send(state));
+    spu94_set_adpcm_send(state, 0x7FFF);
+    TEST_ASSERT_EQUAL_INT16(0x7FFF, spu94_get_adpcm_send(state));
+    spu94_set_adpcm_send(state, 0);
+    TEST_ASSERT_EQUAL_INT16(0, spu94_get_adpcm_send(state));
 
     /* reverb_fader */
     spu94_set_reverb_fader(state, 0x4000);
@@ -114,17 +114,17 @@ static void test_mixer_fader_null_safety(void) {
     /* Setters: no crash */
     spu94_set_input_gain(NULL, 0x7FFF);
     spu94_set_dry_fader(NULL, 0x7FFF);
-    spu94_set_patina_fader(NULL, 0x7FFF);
+    spu94_set_adpcm_fader(NULL, 0x7FFF);
     spu94_set_dry_send(NULL, 0x7FFF);
-    spu94_set_patina_send(NULL, 0x7FFF);
+    spu94_set_adpcm_send(NULL, 0x7FFF);
     spu94_set_reverb_fader(NULL, 0x7FFF);
 
     /* Getters: return 0 */
     TEST_ASSERT_EQUAL_INT16(0, spu94_get_input_gain(NULL));
     TEST_ASSERT_EQUAL_INT16(0, spu94_get_dry_fader(NULL));
-    TEST_ASSERT_EQUAL_INT16(0, spu94_get_patina_fader(NULL));
+    TEST_ASSERT_EQUAL_INT16(0, spu94_get_adpcm_fader(NULL));
     TEST_ASSERT_EQUAL_INT16(0, spu94_get_dry_send(NULL));
-    TEST_ASSERT_EQUAL_INT16(0, spu94_get_patina_send(NULL));
+    TEST_ASSERT_EQUAL_INT16(0, spu94_get_adpcm_send(NULL));
     TEST_ASSERT_EQUAL_INT16(0, spu94_get_reverb_fader(NULL));
 }
 
@@ -137,8 +137,8 @@ static void test_mixer_input_gain_zero_produces_silence(void) {
     spu94_set_dry_fader(state, 0x7FFF);
     spu94_set_reverb_fader(state, 0x7FFF);
     spu94_set_dry_send(state, 0x7FFF);
-    spu94_set_patina_fader(state, 0x7FFF);
-    spu94_set_patina_send(state, 0x7FFF);
+    spu94_set_adpcm_fader(state, 0x7FFF);
+    spu94_set_adpcm_send(state, 0x7FFF);
 
     const uint32_t N = 128;
     int16_t input[128], out_l[128], out_r[128];
@@ -153,15 +153,15 @@ static void test_mixer_input_gain_zero_produces_silence(void) {
 }
 
 /* -----------------------------------------------------------------------
- * Test 5: Dry bus only (reverb fader=0, sends=0, patina=0)
+ * Test 5: Dry bus only (reverb fader=0, sends=0, adpcm=0)
  * ----------------------------------------------------------------------- */
 static void test_mixer_dry_only(void) {
     spu94_set_input_gain(state, 0x7FFF);
     spu94_set_dry_fader(state, 0x7FFF);
     spu94_set_reverb_fader(state, 0);
     spu94_set_dry_send(state, 0);
-    spu94_set_patina_fader(state, 0);
-    spu94_set_patina_send(state, 0);
+    spu94_set_adpcm_fader(state, 0);
+    spu94_set_adpcm_send(state, 0);
 
     const uint32_t N = 128;
     int16_t input[128], out_l[128], out_r[128];
@@ -182,7 +182,7 @@ static void test_mixer_dry_only(void) {
 }
 
 /* -----------------------------------------------------------------------
- * Test 6: Reverb bus only (dry_fader=0, patina_fader=0, dry_send max)
+ * Test 6: Reverb bus only (dry_fader=0, adpcm_fader=0, dry_send max)
  *
  * Load Hall preset, feed an impulse. After FIR group delay, reverb
  * output should appear. Early output (before tail arrives) should be
@@ -196,8 +196,8 @@ static void test_mixer_reverb_only(void) {
     spu94_set_dry_fader(state, 0);
     spu94_set_dry_send(state, 0x7FFF);
     spu94_set_reverb_fader(state, 0x7FFF);
-    spu94_set_patina_fader(state, 0);
-    spu94_set_patina_send(state, 0);
+    spu94_set_adpcm_fader(state, 0);
+    spu94_set_adpcm_send(state, 0);
 
     /* Prime TICK_LATCHED registers */
     {
@@ -242,8 +242,8 @@ static void test_mixer_reverb_only(void) {
 static void test_mixer_three_bus_sum_saturation(void) {
     /* Set up so all three buses contribute maximally */
     set_unity_passthrough(state);
-    spu94_set_patina_fader(state, 0x7FFF);
-    spu94_set_patina_send(state, 0x7FFF);
+    spu94_set_adpcm_fader(state, 0x7FFF);
+    spu94_set_adpcm_send(state, 0x7FFF);
     spu94_set_adpcm_enabled(state, 1);
 
     /* Load Hall preset for reverb contribution */
@@ -270,7 +270,7 @@ static void test_mixer_three_bus_sum_saturation(void) {
     }
 
     /* The output should contain at least some samples at or near saturation,
-     * since dry + patina + reverb all contribute at max level */
+     * since dry + ADPCM + reverb all contribute at max level */
     int has_saturated = 0;
     for (uint32_t i = 0; i < N; i++) {
         if (out_l[i] == 32767 || out_l[i] == -32768 ||
