@@ -1,29 +1,34 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-21T01:21:18Z",
+  "timestamp": "2026-05-21T19:00:00Z",
   "phase": null,
-  "phase_name": null,
+  "phase_name": "v1.8 polish (no milestone)",
   "phase_dir": null,
   "plan": 0,
   "task": 0,
   "total_tasks": 0,
-  "status": "milestone_complete",
+  "status": "polishing",
   "completed_tasks": [
-    {"id": "v1.8-close", "name": "v1.8 PSX Voice Engine milestone archived and tagged", "status": "done", "commit": "e7caccc"},
-    {"id": "midi-verify", "name": "MIDI dispatch verified via software MIDI (ALSA seq note-on/off)", "status": "done"},
-    {"id": "midi-cmake", "name": "NEEDS_MIDI_INPUT set TRUE in CMakeLists.txt for standalone MIDI routing", "status": "done", "commit": "b49d448"},
-    {"id": "juce-ump-diagnosis", "name": "Diagnosed JUCE UMP MIDI 2.0 vs Legacy mismatch on Linux", "status": "done"}
+    {"id": "patina-rename", "name": "Renamed all patina_* to adpcm_* codebase-wide (22 files)", "status": "done", "commit": "1ebbed2"},
+    {"id": "sampler-gauss-rename", "name": "Sampler 'Anti-Alias' toggle renamed to 'Gauss' (accurate label)", "status": "done", "commit": "1ebbed2"},
+    {"id": "toolbar-regroup", "name": "Toolbar input controls regrouped: Input Gain > AA > Input Rate > Gauss > Input Send, centered", "status": "done", "commit": "1ebbed2"},
+    {"id": "wav-buttons-stack", "name": "WAV buttons stacked vertically (Load WAV / Play / Stop)", "status": "done", "commit": "1ebbed2"},
+    {"id": "preset-relocate", "name": "Preset section moved below User Slot in MorphPanel zone", "status": "done", "commit": "1ebbed2"},
+    {"id": "slot-button-style", "name": "User Slot buttons match Preset button style when active (default LookAndFeel)", "status": "done", "commit": "1ebbed2"},
+    {"id": "defaults-update", "name": "Defaults: AA filter ON, Sampler Send max, Reverb max (was already)", "status": "done", "commit": "1ebbed2"},
+    {"id": "encode-rate-selector", "name": "Encode rate dropdown on sampler (44100/22050/11025/5512 Hz), resamples before ADPCM encode", "status": "done", "commit": "0267c5b"},
+    {"id": "ram-meter", "name": "RAM usage meter on sampler window (bytes used / 512 KB)", "status": "done", "commit": "0267c5b"}
   ],
   "remaining_tasks": [],
   "blockers": [],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "v1.8 milestone closed with 34/34 requirements verified", "rationale": "All 6 phases (27-32) complete, MIDI verified via software path", "phase": "milestone"},
-    {"decision": "NEEDS_MIDI_INPUT TRUE", "rationale": "Required for JUCE standalone wrapper to route MIDI into processBlock", "phase": "31"},
-    {"decision": "5 verification/UAT items deferred from prior milestones", "rationale": "All from phases 16/17/22/24, not v1.8 work — acknowledged and carried forward", "phase": "milestone"},
-    {"decision": "JUCE UMP MIDI 2.0 issue identified but not fixed", "rationale": "JUCE unconditionally sets SND_SEQ_CLIENT_UMP_MIDI_2_0 on Linux (juce_Midi_linux.cpp:547), preventing MIDI from Legacy devices. Temporary diagnostic patch to SND_SEQ_CLIENT_LEGACY_MIDI proved the connection works. Proper fix deferred — needs to support both protocols.", "phase": "31"}
+    {"decision": "patina naming eliminated everywhere", "rationale": "User never liked the name; ADPCM is what it is. Code fields, API, CLI flags, preset keys, comments all renamed.", "phase": "polish"},
+    {"decision": "Encode rate default is 22050 Hz", "rationale": "The PS1 workhorse rate — best tradeoff between RAM savings and fidelity. Most PS1 music samples lived here.", "phase": "polish"},
+    {"decision": "No preset back-compat needed for patina_fader/patina_send", "rationale": "No existing preset files use old names — clean cutover.", "phase": "polish"},
+    {"decision": "JUCE saved state file can override defaults", "rationale": "~/.config/SPU-94.settings persists session state. Delete to get fresh defaults after changing them.", "phase": "polish"}
   ],
   "uncommitted_files": [],
-  "next_action": "/gsd:new-milestone to start next version",
-  "context_notes": "v1.8 shipped. All milestone artifacts archived. Git tagged v1.8. REQUIREMENTS.md removed (fresh for next milestone). Roland J-6 USB MIDI doesn't work on Linux (kernel driver issue: 'quirk or no altset; falling back to MIDI 1.0' — device sends zero bytes at raw USB level). MIDI code verified working via ALSA sequencer software path. Deferred ideas list has SPU hardware features (PMON, NON, volume sweep, signed volume) as natural v1.9 candidates. Also: Bit Corrupt effect, codec re-sync, ratio drift experiments."
+  "next_action": "Continue sampler polish — see reference notes below",
+  "context_notes": "Session was v1.8 polish pass, no new milestone. User wants to continue refining sampler before starting v1.9.\n\n## Signal Flow (Reverb Window)\n\nLive Input > Input Gain > AA Filter > Pitch Counter decimation > ADPCM Encode > ADPCM Decode > Gauss Interpolation > Reverb Core\n\n- AA Filter and Gauss are toggleable. ADPCM path is always-on (no toggle).\n- Input Rate (pitch register) drives three stages: AA cutoff, decimation rate, and Gauss interpolation index.\n- Sampler voice mixer output goes DIRECTLY to reverb send — does NOT pass through the ADPCM path again. Authentic to PS1.\n\n## Missing PS1 SPU Sampler Features\n\n### High Priority (v1.9 candidates, already in deferred list)\n1. PMON (Pitch Modulation) — voice N output modulates voice N+1 pitch. Vibrato, FM synthesis.\n2. NON (Noise Generator) — LFSR noise replaces ADPCM output for a voice. Hi-hats, cymbals, wind.\n3. Volume Sweep — automatic per-voice volume ramp (linear/exponential). Tremolo, fades.\n4. Signed Volume / Phase Inversion — negative volume values flip phase. Stereo widening, cancellation.\n\n### Lower Priority (completeness)\n5. ENDX (Voice Status) — flags showing which voices hit loop-end. CPU polls for one-shot completion.\n6. SPU IRQ — interrupt on voice reading specific RAM address. Music sync trigger.\n7. CD/External Input Mixing — stereo line-in with own volume, mixes at master output, optional reverb send.\n8. Master Volume Sweep — global L/R volume registers support hardware-driven sweep.\n\n## PS1 Audio Paths (Reference)\n\n### Path 1: SPU RAM (what we've built)\n- Samples in 512 KB buffer. 24 voices with pitch, ADSR, reverb.\n- Instant trigger, full real-time control.\n- ~15-20 sec total audio at 22050 Hz if entire buffer used.\n\n### Path 2: CD-DA (Red Book Audio)\n- Standard audio CD tracks on game disc. CD drive's own DAC plays independently.\n- Zero RAM cost, perfect CD quality. Early PS1 games (Ridge Racer, WipEout).\n- Downside: disc space, seek gaps on loop, music skips if drive busy loading.\n\n### Path 3: CD-XA (Streaming ADPCM)\n- Interleaved compressed audio woven between game data sectors on disc.\n- Different codec than SPU ADPCM — own block format, decoded by CD drive DSP in hardware.\n- Decoded audio routes into SPU's CD input, mixes with 24 voices, can feed reverb.\n- Stereo 37.8 kHz or mono 18.9 kHz. 8 interleave channels for multiplexing.\n- Zero SPU RAM consumed. Minutes of continuous audio.\n- No pitch/envelope control (it's a stream, not a sample).\n- 100-300ms seek to start new stream. Only one XA stream at a time.\n\n### How Studios Split It\n- Music: XA streaming (long, no RAM cost) — FF7, MGS, most later PS1 titles\n- SFX: SPU RAM (instant, pitch control, short) — universal\n- Dialogue: XA streaming (long, sequential) — MGS codec, FF7 battle quotes\n- FMV: XA audio interleaved with MDEC video — all PS1 cutscenes\n- Exception: Crash Bandicoot — Naughty Dog fit everything in SPU RAM\n\n## Pre-existing Issues (carried forward)\n- CLI tests failing: 'init' preset not in test expectations (pre-existing)\n- JUCE UMP MIDI 2.0 issue on Linux (Legacy devices blocked)\n- Roland J-6 USB MIDI kernel driver issue (not our bug)\n- 5 deferred verification items from phases 16/17/22/24"
 }
