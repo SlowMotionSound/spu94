@@ -91,6 +91,9 @@ private:
     juce::TextButton triggerVoiceButton{"Trigger"};
     juce::TextButton stopVoiceButton{"Stop Voice"};
     juce::Label voiceSampleLabel;
+    juce::ComboBox encodeRateBox;
+    juce::Label encodeRateLabel;
+    juce::Label ramMeterLabel;
     juce::Slider voiceEnginePitchKnob;
     juce::Label voiceEnginePitchLabel;
     juce::ToggleButton loopToggle{"Loop"};

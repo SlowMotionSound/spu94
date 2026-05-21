@@ -109,6 +109,30 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         voiceSampleLabel.setJustificationType(juce::Justification::centredLeft);
         panel.addAndMakeVisible(voiceSampleLabel);
 
+        // Encode rate selector — pre-encode downsample rate (PS1 dev workflow).
+        encodeRateBox.addItem("44100 Hz", 1);
+        encodeRateBox.addItem("22050 Hz", 2);
+        encodeRateBox.addItem("11025 Hz", 3);
+        encodeRateBox.addItem("5512 Hz",  4);
+        encodeRateBox.setSelectedId(2, juce::dontSendNotification);
+        encodeRateBox.onChange = [this] {
+            static const int rates[] = { 44100, 22050, 11025, 5512 };
+            int idx = encodeRateBox.getSelectedId() - 1;
+            if (idx >= 0 && idx < 4)
+                processorRef.setEncodeRate(rates[idx]);
+        };
+        panel.addAndMakeVisible(encodeRateBox);
+        encodeRateLabel.setText("Encode Rate", juce::dontSendNotification);
+        encodeRateLabel.setJustificationType(juce::Justification::centred);
+        encodeRateLabel.setFont(juce::Font(10.0f));
+        panel.addAndMakeVisible(encodeRateLabel);
+
+        // RAM usage meter label — updated in timerCallback.
+        ramMeterLabel.setText("RAM: 0 / 512 KB", juce::dontSendNotification);
+        ramMeterLabel.setJustificationType(juce::Justification::centredLeft);
+        ramMeterLabel.setFont(juce::Font(10.0f));
+        panel.addAndMakeVisible(ramMeterLabel);
+
         // Loop mode toggle -- one-shot (default) vs loop playback.
         panel.addAndMakeVisible(loopToggle);
         loopToggle.setClickingTogglesState(true);
@@ -764,6 +788,12 @@ void SPU94AudioProcessorEditor::timerCallback()
             juce::String(processorRef.getVoiceSampleBytes()) + "B",
             juce::dontSendNotification);
 
+        uint32_t used = processorRef.getRamUsed();
+        float kb = used / 1024.0f;
+        ramMeterLabel.setText(
+            juce::String(kb, 1) + " / 512 KB",
+            juce::dontSendNotification);
+
         if (samplerWindow)
         {
             if (processorRef.getWaveformFrames() != lastWaveformFrames)
@@ -883,27 +913,30 @@ void SPU94AudioProcessorEditor::resized()
             loadSampleButton.setBounds(10, 10, 110, 30);
             triggerVoiceButton.setBounds(125, 10, 70, 30);
             stopVoiceButton.setBounds(200, 10, 90, 30);
+            encodeRateLabel.setBounds(295, 10, 95, 12);
+            encodeRateBox.setBounds(295, 22, 95, 22);
             voiceEnginePitchLabel.setBounds(10, 50, 80, 16);
             voiceEnginePitchKnob.setBounds(10, 64, 80, 54);
             samplerDriveLabel.setBounds(95, 50, 80, 16);
             samplerDriveKnob.setBounds(95, 64, 80, 54);
             voiceSampleLabel.setBounds(180, 50, 110, 30);
-            loopToggle.setBounds(300, 10, 85, 26);
-            latchToggle.setBounds(300, 36, 65, 26);
-            markerLockToggle.setBounds(300, 62, 65, 26);
-            samplerAAToggle.setBounds(300, 88, 70, 26);
-            samplerWindow->getWaveformDisplay().setBounds(10, 125, 380, 120);
-            startPosLabel.setBounds(15, 247, 70, 14);
-            startPosKnob.setBounds(15, 259, 70, 54);
-            loopPosLabel.setBounds(160, 247, 70, 14);
-            loopPosKnob.setBounds(160, 259, 70, 54);
-            endPosLabel.setBounds(320, 247, 70, 14);
-            endPosKnob.setBounds(320, 259, 70, 54);
+            loopToggle.setBounds(300, 50, 85, 26);
+            latchToggle.setBounds(300, 76, 65, 26);
+            markerLockToggle.setBounds(300, 102, 65, 26);
+            samplerAAToggle.setBounds(180, 82, 70, 26);
+            ramMeterLabel.setBounds(10, 128, 380, 12);
+            samplerWindow->getWaveformDisplay().setBounds(10, 142, 380, 108);
+            startPosLabel.setBounds(15, 252, 70, 14);
+            startPosKnob.setBounds(15, 264, 70, 54);
+            loopPosLabel.setBounds(160, 252, 70, 14);
+            loopPosKnob.setBounds(160, 264, 70, 54);
+            endPosLabel.setBounds(320, 252, 70, 14);
+            endPosKnob.setBounds(320, 264, 70, 54);
 
             // ADSR section
-            adsrDisplay.setBounds(10, 338, 380, 55);
+            adsrDisplay.setBounds(10, 343, 380, 55);
 
-            constexpr int aky = 398, akw = 65, akh = 54;
+            constexpr int aky = 403, akw = 65, akh = 54;
             adsrAttackLabel.setBounds(15, aky, akw, 12);
             adsrAttackKnob.setBounds(15, aky + 12, akw, akh);
             adsrDecayLabel.setBounds(91, aky, akw, 12);

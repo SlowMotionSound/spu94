@@ -2,6 +2,7 @@
 #include "BoundaryConverter.h"
 #include "PluginEditor.h"
 #include "WavLoader.h"
+#include <samplerate.h>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -954,11 +955,42 @@ void SPU94AudioProcessor::loadVoiceSample(const juce::File& file)
     auto result = WavLoader::load(file);
     if (!result.has_value()) return;
 
+    const int targetRate = encodeRate.load(std::memory_order_relaxed);
+    const int16_t* pcmData = result->L.data();
+    uint64_t pcmFrames = result->numFrames;
+    std::vector<int16_t> resampled;
+
+    if (targetRate < 44100) {
+        double ratio = static_cast<double>(targetRate) / 44100.0;
+        auto outFrames = static_cast<uint64_t>(std::ceil(pcmFrames * ratio));
+        resampled.resize(outFrames);
+        SRC_DATA src{};
+        std::vector<float> fIn(pcmFrames), fOut(outFrames);
+        for (uint64_t i = 0; i < pcmFrames; i++)
+            fIn[i] = result->L[i] / 32768.0f;
+        src.data_in = fIn.data();
+        src.input_frames = static_cast<long>(pcmFrames);
+        src.data_out = fOut.data();
+        src.output_frames = static_cast<long>(outFrames);
+        src.src_ratio = ratio;
+        src_simple(&src, SRC_SINC_BEST_QUALITY, 1);
+        outFrames = static_cast<uint64_t>(src.output_frames_gen);
+        resampled.resize(outFrames);
+        for (uint64_t i = 0; i < outFrames; i++) {
+            float s = fOut[i] * 32768.0f;
+            if (s > 32767.0f) s = 32767.0f;
+            if (s < -32768.0f) s = -32768.0f;
+            resampled[i] = static_cast<int16_t>(s);
+        }
+        pcmData = resampled.data();
+        pcmFrames = outFrames;
+    }
+
     auto* mixer = spu94_get_voice_mixer();
 
     int32_t bytes = spu94_sample_encode_to_ram(
-        result->L.data(),
-        static_cast<uint32_t>(result->numFrames),
+        pcmData,
+        static_cast<uint32_t>(pcmFrames),
         mixer->voice_ram,
         0,                        // ram_offset
         SPU94_SPU_RAM_BYTES,      // ram_size
@@ -969,6 +1001,7 @@ void SPU94AudioProcessor::loadVoiceSample(const juce::File& file)
         pendingMixerEnable.store(true, std::memory_order_release);
         voiceSampleName = file.getFileName();
         voiceSampleBytes = static_cast<uint32_t>(bytes);
+        ramUsed.store(voiceSampleBytes, std::memory_order_relaxed);
 
         uint32_t numBlocks = voiceSampleBytes / SPU94_ADPCM_BLOCK_BYTES;
         adpcmStateCache.resize(numBlocks);

@@ -65,6 +65,9 @@ public:
     void triggerVoice(uint16_t pitch);
     void stopVoice();
     void setGuiVoicePitch(uint16_t pitch) { guiVoicePitch.store(pitch, std::memory_order_relaxed); }
+    void setEncodeRate(int rateHz) { encodeRate.store(rateHz, std::memory_order_relaxed); }
+    int  getEncodeRate() const { return encodeRate.load(std::memory_order_relaxed); }
+    uint32_t getRamUsed() const { return ramUsed.load(std::memory_order_relaxed); }
     void setSampleStartPos(double pos) { sampleStartPos.store(pos, std::memory_order_relaxed); }
     void setSampleEndPos(double pos) { sampleEndPos.store(pos, std::memory_order_relaxed); }
     void setSampleLoopPos(double pos) { sampleLoopPos.store(pos, std::memory_order_relaxed); }
@@ -265,6 +268,8 @@ private:
     std::atomic<float> samplerFader{1.0f};
     std::atomic<float> samplerSend{1.0f};
     std::atomic<float> samplerDrive{1.0f};
+    std::atomic<int>   encodeRate{22050};
+    std::atomic<uint32_t> ramUsed{0};
 
     // Latency compensation (default ON per D-07)
     std::atomic<bool> latencyCompEnabled{true};
