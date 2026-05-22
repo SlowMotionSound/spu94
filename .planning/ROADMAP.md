@@ -52,7 +52,10 @@ Plans:
   2. All call sites that previously clamped volume to positive-only accept the full -0x4000..+0x3FFF range
   3. VxOUTX (post-ADSR, pre-volume) is unchanged by volume sign -- PMON reads are unaffected
   4. Sampler GUI exposes the signed volume range with a visible phase-flip indicator
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 34-01-PLAN.md -- C core signed volume API, outx field, TDD regression tests
+- [ ] 34-02-PLAN.md -- GUI Volume L/R knobs with phase-flip indicator
 
 ### Phase 35: Pitch Modulation (PMON)
 **Goal**: Voice N-1 output modulates voice N pitch, enabling FM synthesis and vibrato
@@ -108,8 +111,8 @@ Phases execute in numeric order: 33, 34, 35, 36, 37, 38
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 33. ADSR Correction | 0/1 | Not started | - |
-| 34. Signed Volume | 0/TBD | Not started | - |
+| 33. ADSR Correction | 1/1 | Complete | 2026-05-22 |
+| 34. Signed Volume | 0/2 | Planned | - |
 | 35. Pitch Modulation (PMON) | 0/TBD | Not started | - |
 | 36. Noise Generator (NON) | 0/TBD | Not started | - |
 | 37. Volume Sweep | 0/TBD | Not started | - |
@@ -232,4 +235,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-22 -- v1.9 Complete Voice roadmap created*
+*Last updated: 2026-05-22 -- Phase 34 planned (2 plans)*
