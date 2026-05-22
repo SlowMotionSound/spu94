@@ -386,6 +386,24 @@ spu94_result_t spu94_voice_mixer_set_eon(spu94_voice_mixer_t *m, int voice_idx,
     return SPU94_OK;
 }
 
+spu94_result_t spu94_voice_mixer_set_pmon(spu94_voice_mixer_t *m, int voice_idx,
+    int enabled)
+{
+    /* T-35-01: validate voice_idx 0..23 */
+    if (m == NULL || voice_idx < 0 || voice_idx >= 24)
+        return SPU94_INVALID_ARG;
+
+    /* PMON-01: set or clear pmon_flags bit. Bit 0 is accepted here but
+     * the mixer tick ignores it (voice 0 has no predecessor). */
+    if (enabled) {
+        m->pmon_flags |= (1u << voice_idx);
+    } else {
+        m->pmon_flags &= ~(1u << voice_idx);
+    }
+
+    return SPU94_OK;
+}
+
 spu94_result_t spu94_voice_mixer_set_pitch(spu94_voice_mixer_t *m, int voice_idx,
     uint16_t pitch)
 {
