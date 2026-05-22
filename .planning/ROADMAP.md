@@ -39,7 +39,9 @@
   2. Release step formula audited and corrected if off-by-one (matching decay's proven `-(8-step)` pattern)
   3. ADSR golden files reflect the corrected behavior and regression suite passes
   4. ADR documents the correction with spec source citation
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 33-01-PLAN.md -- Fix sustain-decrease and release step formulas, write ADR-0056
 
 ### Phase 34: Signed Volume
 **Goal**: Voices can produce phase-inverted output through negative volume values
@@ -106,7 +108,7 @@ Phases execute in numeric order: 33, 34, 35, 36, 37, 38
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 33. ADSR Correction | 0/TBD | Not started | - |
+| 33. ADSR Correction | 0/1 | Not started | - |
 | 34. Signed Volume | 0/TBD | Not started | - |
 | 35. Pitch Modulation (PMON) | 0/TBD | Not started | - |
 | 36. Noise Generator (NON) | 0/TBD | Not started | - |
