@@ -1099,6 +1099,173 @@ void test_gauss_bypass_default_off(void) {
 }
 
 /* ---------------------------------------------------------------
+ * Phase 34: Signed Volume / VxOUTX Tests (SVOL-01..04)
+ * --------------------------------------------------------------- */
+
+/* Test: negative volume produces exact phase inversion of positive volume.
+ * vol_l=-0x4000 output == -(vol_l=+0x4000 output) for every tick (SVOL-03). */
+void test_negative_volume_phase_inversion(void) {
+    /* Use make_long_sample which produces nonzero content via nibbles +7,+3,+5,+2
+     * at shift=0, filter=0. Then use full volume 0x7FFF for maximum output. */
+    uint8_t ram[128];
+    make_long_sample(ram, 8);
+
+    /* Run voice with positive volume: vol_l=+0x4000, vol_r=+0x4000 */
+    spu94_voice_t v_pos;
+    spu94_voice_init(&v_pos);
+    spu94_voice_key_on(&v_pos, 0, 0x1000, 0x4000, 0x4000);
+
+    /* Warm up Gaussian ring (first ~4 ticks from cold ring produce 0) */
+    int16_t out_l, out_r;
+    for (int i = 0; i < 5; i++) {
+        spu94_voice_tick(&v_pos, ram, sizeof(ram), 0, &out_l, &out_r);
+    }
+
+    /* Collect N ticks of stabilized output */
+    const int N = 20;
+    int16_t pos_l[20], pos_r[20];
+    for (int i = 0; i < N; i++) {
+        spu94_voice_tick(&v_pos, ram, sizeof(ram), 0, &pos_l[i], &pos_r[i]);
+    }
+
+    /* Run fresh voice with negative volume: vol_l=-0x4000, vol_r=-0x4000 */
+    spu94_voice_t v_neg;
+    spu94_voice_init(&v_neg);
+    spu94_voice_key_on(&v_neg, 0, 0x1000, (int16_t)(-0x4000), (int16_t)(-0x4000));
+
+    /* Same warmup */
+    for (int i = 0; i < 5; i++) {
+        spu94_voice_tick(&v_neg, ram, sizeof(ram), 0, &out_l, &out_r);
+    }
+
+    /* Collect N ticks */
+    int16_t neg_l[20], neg_r[20];
+    for (int i = 0; i < N; i++) {
+        spu94_voice_tick(&v_neg, ram, sizeof(ram), 0, &neg_l[i], &neg_r[i]);
+    }
+
+    /* For every tick where the positive output is nonzero, the negative output
+     * must be the negation within 1 LSB (SVOL-03: phase inversion).
+     *
+     * Q15 truncation (ASR = floor toward -inf) means q15_mul_truncate(x, -v)
+     * can differ from -q15_mul_truncate(x, +v) by exactly 1 LSB when the
+     * intermediate product is not evenly divisible by 2^15. This is the
+     * authentic PS1 SPU behavior -- the truncation asymmetry IS the sound.
+     * We verify the output is inverted within this 1-LSB tolerance. */
+    int checked = 0;
+    for (int i = 0; i < N; i++) {
+        if (pos_l[i] != 0) {
+            int16_t expected_neg = (int16_t)(-pos_l[i]);
+            int16_t diff = (int16_t)(neg_l[i] - expected_neg);
+            /* Must be exact or off by 1 LSB due to Q15 truncation asymmetry */
+            TEST_ASSERT_TRUE_MESSAGE(diff >= -1 && diff <= 0,
+                "SVOL-03: negative volume output differs from positive by more than 1 LSB");
+            checked++;
+        }
+        if (pos_r[i] != 0) {
+            int16_t expected_neg = (int16_t)(-pos_r[i]);
+            int16_t diff = (int16_t)(neg_r[i] - expected_neg);
+            TEST_ASSERT_TRUE_MESSAGE(diff >= -1 && diff <= 0,
+                "SVOL-03: negative volume output differs from positive by more than 1 LSB");
+        }
+    }
+    /* At least some samples must be nonzero for the test to be meaningful */
+    TEST_ASSERT_TRUE(checked > 0);
+}
+
+/* Test: key_on accepts negative volume without clamping (SVOL-01/SVOL-02). */
+void test_negative_volume_accepted_by_key_on(void) {
+    spu94_voice_t v;
+    spu94_voice_init(&v);
+
+    spu94_voice_key_on(&v, 0, 0x1000, (int16_t)(-0x4000), (int16_t)(-0x4000));
+
+    TEST_ASSERT_EQUAL_INT16((int16_t)(-0x4000), v.vol_l);
+    TEST_ASSERT_EQUAL_INT16((int16_t)(-0x4000), v.vol_r);
+}
+
+/* Test: outx stores post-ADSR, pre-volume value -- identical regardless of
+ * volume sign (SVOL-04). */
+void test_outx_stored_post_adsr_pre_volume(void) {
+    /* Create sample data with nonzero content */
+    uint8_t ram[128];
+    make_long_sample(ram, 8);
+
+    /* Voice A: positive volume, ADSR enabled with fast attack */
+    spu94_voice_t va;
+    spu94_voice_init(&va);
+    va.adsr.enabled = 1;
+    va.adsr.attack_shift = 0;    /* fastest attack */
+    va.adsr.attack_step = 0;     /* step = (7-0) << 11 = 14336 per tick */
+    va.adsr.attack_exp = 0;
+    va.adsr.decay_shift = 0;
+    va.adsr.sustain_level = 15;  /* max sustain */
+    va.adsr.sustain_shift = 31;  /* sustain forever */
+    va.adsr.release_shift = 0;
+    va.adsr.release_exp = 1;
+    spu94_voice_key_on(&va, 0, 0x1000, 0x4000, 0x4000);
+
+    /* Voice B: negative volume, same ADSR config */
+    spu94_voice_t vb;
+    spu94_voice_init(&vb);
+    vb.adsr.enabled = 1;
+    vb.adsr.attack_shift = 0;
+    vb.adsr.attack_step = 0;
+    vb.adsr.attack_exp = 0;
+    vb.adsr.decay_shift = 0;
+    vb.adsr.sustain_level = 15;
+    vb.adsr.sustain_shift = 31;
+    vb.adsr.release_shift = 0;
+    vb.adsr.release_exp = 1;
+    spu94_voice_key_on(&vb, 0, 0x1000, (int16_t)(-0x4000), (int16_t)(-0x4000));
+
+    /* Run ticks until outx is nonzero */
+    int16_t out_l, out_r;
+    int found_nonzero_outx = 0;
+    for (int i = 0; i < 20; i++) {
+        spu94_voice_tick(&va, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&vb, ram, sizeof(ram), 0, &out_l, &out_r);
+        if (va.outx != 0) {
+            found_nonzero_outx = 1;
+            /* outx must be identical for both voices regardless of volume sign */
+            TEST_ASSERT_EQUAL_INT16(va.outx, vb.outx);
+        }
+    }
+    TEST_ASSERT_TRUE(found_nonzero_outx);
+}
+
+/* Test: mixer key_on accepts negative volume and stores it through to
+ * live voice after pending KON is applied (SVOL-01/SVOL-02 at mixer layer). */
+void test_mixer_key_on_negative_volume(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Load a sample so tick doesn't immediately deactivate */
+    uint8_t sample[64];
+    make_long_sample(sample, 4);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+
+    /* Key on with negative volume */
+    spu94_result_t rc = spu94_voice_mixer_key_on(&s_test_mixer, 3,
+        0, 0x1000, (int16_t)(-0x4000), (int16_t)(-0x4000), 0, NULL);
+    TEST_ASSERT_EQUAL(SPU94_OK, rc);
+
+    /* Pending config should store the negative values */
+    TEST_ASSERT_EQUAL_INT16((int16_t)(-0x4000), s_test_mixer.pending_config[3].vol_l);
+    TEST_ASSERT_EQUAL_INT16((int16_t)(-0x4000), s_test_mixer.pending_config[3].vol_r);
+
+    /* Apply pending KON via a mixer tick */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+
+    /* Live voice should have vol_l == -0x4000 after KON is applied */
+    TEST_ASSERT_EQUAL_INT16((int16_t)(-0x4000), s_test_mixer.voices[3].vol_l);
+    TEST_ASSERT_EQUAL_INT16((int16_t)(-0x4000), s_test_mixer.voices[3].vol_r);
+}
+
+/* ---------------------------------------------------------------
  * Main
  * --------------------------------------------------------------- */
 int main(void) {
@@ -1144,5 +1311,10 @@ int main(void) {
     /* Phase 32: Anti-Aliasing / Gauss Bypass tests (AA-01..03) */
     RUN_TEST(test_gauss_bypass_zoh_differs_from_gauss);
     RUN_TEST(test_gauss_bypass_default_off);
+    /* Phase 34: Signed Volume / VxOUTX tests (SVOL-01..04) */
+    RUN_TEST(test_negative_volume_phase_inversion);
+    RUN_TEST(test_negative_volume_accepted_by_key_on);
+    RUN_TEST(test_outx_stored_post_adsr_pre_volume);
+    RUN_TEST(test_mixer_key_on_negative_volume);
     return UNITY_END();
 }

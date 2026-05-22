@@ -33,9 +33,8 @@ extern "C" {
  *     bus's state->gauss_ring_l/r (C2 prevention).
  *   - adpcm_state: ISOLATED per voice — never references the coloration
  *     bus's state->adpcm_state_l/r (C1 prevention).
- *   - vol_l/vol_r: declared int16_t to allow phase inversion (S2), but
- *     Phase 27 documents unsigned semantics (0-32767) per VOICE-04.
- *     Negative = polarity flip, which is correct SPU behavior.
+ *   - vol_l/vol_r: full signed range per SVOL-01; negative = polarity flip.
+ *     Range -0x4000..+0x3FFF matches PS1 hardware volume registers.
  *   - has_block: gate flag for decode-before-interpolate order (S5).
  *   - pitch_counter: 4.12 fixed-point. Bits 12+ = sample index advancement.
  *     Bits 4-11 = Gaussian interpolation index.
@@ -51,8 +50,9 @@ typedef struct {
     uint8_t   has_block;          /* 1 = decode_buf is valid; 0 = need to decode next block */
     int16_t   gauss_ring[4];      /* last 4 decoded samples for Gaussian interpolation */
     uint8_t   gauss_ring_pos;     /* write head in gauss_ring (0..3) */
-    int16_t   vol_l;              /* per-voice left volume (0..32767, unsigned semantics) */
-    int16_t   vol_r;              /* per-voice right volume (0..32767, unsigned semantics) */
+    int16_t   vol_l;              /* per-voice left volume (-0x4000..+0x3FFF, signed; negative = phase inversion per SVOL-01) */
+    int16_t   vol_r;              /* per-voice right volume (-0x4000..+0x3FFF, signed; negative = phase inversion per SVOL-01) */
+    int16_t   outx;              /* Phase 34/SVOL-04: post-ADSR, pre-volume output for PMON (Phase 35). Stored every tick. */
     spu94_adsr_state_t adsr;     /* Phase 28: per-voice ADSR envelope state */
     /* Phase 29: Loop mechanics fields (LOOP-01..05; C4, C5 pitfall prevention) */
     uint32_t  loop_addr;          /* byte offset latched on Loop-Start flag (LOOP-02) */
