@@ -552,8 +552,10 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 auto* mx = spu94_get_voice_mixer();
                 uint32_t startAddr = posToBlockAddr(sampleStartPos.load(std::memory_order_relaxed));
                 spu94_adsr_state_t adsrCfg = buildAdsrConfig();
-                spu94_voice_mixer_key_on(mx, 0, startAddr, trigPitch, 0x7FFF, 0x7FFF, 1,
-                                         adsrCfg.enabled ? &adsrCfg : nullptr);
+                spu94_voice_mixer_key_on(mx, 0, startAddr, trigPitch,
+                                         guiVoiceVolL.load(std::memory_order_relaxed),
+                                         guiVoiceVolR.load(std::memory_order_relaxed),
+                                         1, adsrCfg.enabled ? &adsrCfg : nullptr);
                 uint32_t blockIdx = startAddr / SPU94_ADPCM_BLOCK_BYTES;
                 if (blockIdx < adpcmStateCache.size()) {
                     mx->voices[0].adpcm_state.old = adpcmStateCache[blockIdx].old;

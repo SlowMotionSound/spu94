@@ -65,6 +65,8 @@ public:
     void triggerVoice(uint16_t pitch);
     void stopVoice();
     void setGuiVoicePitch(uint16_t pitch) { guiVoicePitch.store(pitch, std::memory_order_relaxed); }
+    void setGuiVoiceVolL(int16_t v) { guiVoiceVolL.store(v, std::memory_order_relaxed); }
+    void setGuiVoiceVolR(int16_t v) { guiVoiceVolR.store(v, std::memory_order_relaxed); }
     void setEncodeRate(int rateHz) { encodeRate.store(rateHz, std::memory_order_relaxed); }
     int  getEncodeRate() const { return encodeRate.load(std::memory_order_relaxed); }
     uint32_t getRamUsed() const { return ramUsed.load(std::memory_order_relaxed); }
@@ -135,6 +137,10 @@ public:
     std::atomic<float>& getSamplerFader() { return samplerFader; }
     std::atomic<float>& getSamplerSend() { return samplerSend; }
     std::atomic<float>& getSamplerDrive() { return samplerDrive; }
+
+    // --- GUI voice volume (Phase 34: signed volume for GUI trigger path) ---
+    std::atomic<int16_t>& getGuiVoiceVolL() { return guiVoiceVolL; }
+    std::atomic<int16_t>& getGuiVoiceVolR() { return guiVoiceVolR; }
 
     // --- Voice engine state (Phase 31: standalone testbed) ---
     std::atomic<bool>& getVoiceSampleLoaded() { return voiceSampleLoaded; }
@@ -369,6 +375,10 @@ private:
     std::atomic<bool> pendingGuiStop{false};
     // Live pitch for GUI-triggered voice 0 — updated every audio callback
     std::atomic<uint16_t> guiVoicePitch{0x1000};
+    // Per-voice signed volume for GUI trigger path (Phase 34: signed volume).
+    // Full PS1 range: -0x4000..+0x3FFF (-16384..+16383). Default = max positive.
+    std::atomic<int16_t> guiVoiceVolL{0x3FFF};
+    std::atomic<int16_t> guiVoiceVolR{0x3FFF};
     // Sample start/end/loop positions (normalized 0..1) from waveform markers
     std::atomic<double> sampleStartPos{0.0};
     std::atomic<double> sampleEndPos{1.0};
