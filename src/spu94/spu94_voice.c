@@ -19,6 +19,7 @@
  */
 
 #include <spu94/spu94_voice.h>
+#include <spu94/spu94_noise.h>
 #include <spu94/spu94_gauss.h>
 #include <spu94/spu94_q15.h>
 #include <spu94/spu94_adpcm.h>
@@ -90,8 +91,14 @@ void spu94_voice_key_off(spu94_voice_t *v) {
 void spu94_voice_tick(spu94_voice_t *v,
                       const uint8_t *voice_ram, uint32_t voice_ram_size,
                       uint8_t gauss_bypass,
+                      int16_t noise_level,
+                      uint8_t non_enabled,
                       int16_t *out_l, int16_t *out_r) {
     if (v == NULL || out_l == NULL || out_r == NULL) return;
+
+    /* NON parameters used in Task 2 (GREEN phase) */
+    (void)noise_level;
+    (void)non_enabled;
 
     if (v->active == 0) {
         *out_l = 0;
@@ -320,6 +327,9 @@ void spu94_voice_mixer_init(spu94_voice_mixer_t *m) {
     /* pending_kon, pending_koff, eon_flags, master_vol_l/r, enabled,
      * gauss_bypass are all zero from memset — correct defaults.
      * gauss_bypass=0 means Gaussian interpolation ON (PS1 faithful). */
+
+    /* NON-08: initialize the global noise generator (seed=1, not 0) */
+    spu94_noise_gen_init(&m->noise_gen);
 }
 
 spu94_result_t spu94_voice_mixer_key_on(spu94_voice_mixer_t *m, int voice_idx,
@@ -406,6 +416,37 @@ spu94_result_t spu94_voice_mixer_set_pmon(spu94_voice_mixer_t *m, int voice_idx,
     return SPU94_OK;
 }
 
+spu94_result_t spu94_voice_mixer_set_non(spu94_voice_mixer_t *m, int voice_idx,
+    int enabled)
+{
+    /* T-36-01: validate voice_idx 0..23 */
+    if (m == NULL || voice_idx < 0 || voice_idx >= 24)
+        return SPU94_INVALID_ARG;
+
+    /* NON-04: set or clear non_flags bit. All 24 voices can be NON. */
+    if (enabled) {
+        m->non_flags |= (1u << voice_idx);
+    } else {
+        m->non_flags &= ~(1u << voice_idx);
+    }
+
+    return SPU94_OK;
+}
+
+spu94_result_t spu94_voice_mixer_set_noise_freq(spu94_voice_mixer_t *m,
+    uint8_t shift, uint8_t step_raw)
+{
+    /* T-36-02: validate shift (0-15) and step_raw (0-3) */
+    if (m == NULL || shift > 15 || step_raw > 3)
+        return SPU94_INVALID_ARG;
+
+    /* NON-03: noise frequency from SPUCNT register fields */
+    m->noise_gen.shift = shift;
+    m->noise_gen.step = step_raw + 4;  /* SPUCNT[9:8] + 4 = 4..7 */
+
+    return SPU94_OK;
+}
+
 spu94_result_t spu94_voice_mixer_set_pitch(spu94_voice_mixer_t *m, int voice_idx,
     uint16_t pitch)
 {
@@ -476,6 +517,9 @@ void spu94_voice_mixer_tick(spu94_voice_mixer_t *m,
     m->pending_kon  = 0;
     m->pending_koff = 0;
 
+    /* NON-08: tick noise generator ONCE before voice loop */
+    spu94_noise_gen_tick(&m->noise_gen);
+
     /* S1 / MIX-01: accumulate 24 voices in int32 to prevent overflow */
     int32_t dry_sum_l = 0, dry_sum_r = 0;
     int32_t rev_sum_l = 0, rev_sum_r = 0;
@@ -508,10 +552,15 @@ void spu94_voice_mixer_tick(spu94_voice_mixer_t *m,
             m->voices[v].pitch = (uint16_t)mod_step;
         }
 
+        /* NON-04: determine if this voice uses noise */
+        uint8_t non_enabled = (m->non_flags & (1u << v)) ? 1 : 0;
+
         int16_t vl = 0, vr = 0;
         spu94_voice_tick(&m->voices[v],
                          m->voice_ram, SPU94_SPU_RAM_BYTES,
                          m->gauss_bypass,
+                         m->noise_gen.level,  /* NON-05: same value for all voices */
+                         non_enabled,
                          &vl, &vr);
 
         /* Restore original pitch register (PMON is per-tick, not persistent) */

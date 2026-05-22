@@ -13,6 +13,7 @@
 
 #include "unity.h"
 #include <spu94/spu94_voice.h>
+#include <spu94/spu94_noise.h>
 #include <spu94/spu94_adsr.h>
 #include <spu94/spu94_adpcm.h>
 #include <spu94/spu94_vag.h>
@@ -63,7 +64,7 @@ void test_inactive_voice_produces_silence(void) {
     make_test_block(ram);
 
     int16_t out_l = 999, out_r = 999;
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
 
     TEST_ASSERT_EQUAL_INT16(0, out_l);
     TEST_ASSERT_EQUAL_INT16(0, out_r);
@@ -134,7 +135,7 @@ void test_first_tick_decodes_and_outputs(void) {
     int16_t out_l = 0, out_r = 0;
     int found_nonzero = 0;
     for (int i = 0; i < 10; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
         if (out_l != 0 || out_r != 0) {
             found_nonzero = 1;
             break;
@@ -163,7 +164,7 @@ void test_volume_scaling(void) {
     int16_t out_l = 0, out_r = 0;
     /* Run enough ticks to get non-zero Gaussian output */
     for (int i = 0; i < 10; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
 
     /* out_l should be 0 (volume=0), out_r may be non-zero */
@@ -172,7 +173,7 @@ void test_volume_scaling(void) {
      * but let's run more ticks and check */
     int found_r_nonzero = 0;
     for (int i = 0; i < 20; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
         TEST_ASSERT_EQUAL_INT16(0, out_l);
         if (out_r != 0) found_r_nonzero = 1;
     }
@@ -188,7 +189,7 @@ void test_null_voice_ram_safety(void) {
     spu94_voice_key_on(&v, 0, 0x1000, 0x7FFF, 0x7FFF);
 
     int16_t out_l = 999, out_r = 999;
-    spu94_voice_tick(&v, NULL, 0, 0, &out_l, &out_r);
+    spu94_voice_tick(&v, NULL, 0, 0, 0, 0, &out_l, &out_r);
 
     TEST_ASSERT_EQUAL_INT16(0, out_l);
     TEST_ASSERT_EQUAL_INT16(0, out_r);
@@ -206,7 +207,7 @@ void test_zero_size_ram_safety(void) {
     make_test_block(ram);
 
     int16_t out_l = 999, out_r = 999;
-    spu94_voice_tick(&v, ram, 0, 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, 0, 0, 0, 0, &out_l, &out_r);
 
     TEST_ASSERT_EQUAL_INT16(0, out_l);
     TEST_ASSERT_EQUAL_INT16(0, out_r);
@@ -227,13 +228,13 @@ void test_key_off_silences(void) {
     /* Run a few ticks to get audio going */
     int16_t out_l, out_r;
     for (int i = 0; i < 5; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
 
     spu94_voice_key_off(&v);
     TEST_ASSERT_EQUAL_UINT8(0, v.active);
 
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     TEST_ASSERT_EQUAL_INT16(0, out_l);
     TEST_ASSERT_EQUAL_INT16(0, out_r);
 }
@@ -254,7 +255,7 @@ void test_voice_stops_at_ram_boundary(void) {
     /* Run enough ticks to consume the one block (28 samples at pitch 0x1000 = 28 ticks) */
     int16_t out_l, out_r;
     for (int i = 0; i < 40; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
 
     /* Voice should have deactivated (ran past the single block) */
@@ -282,7 +283,7 @@ void test_adsr_bypass_matches_phase27(void) {
     int16_t out_l, out_r;
     int found_nonzero = 0;
     for (int i = 0; i < 10; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
         if (out_l != 0) found_nonzero = 1;
     }
     TEST_ASSERT_TRUE(found_nonzero);
@@ -306,7 +307,7 @@ void test_adsr_off_silences_voice(void) {
     v.adsr.level = 0;
 
     int16_t out_l = 999, out_r = 999;
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
 
     TEST_ASSERT_EQUAL_UINT8(0, v.active);
     TEST_ASSERT_EQUAL_INT16(0, out_l);
@@ -335,7 +336,7 @@ void test_key_off_enters_release(void) {
     /* Run a few ticks to get into sustain */
     int16_t out_l, out_r;
     for (int i = 0; i < 100; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
 
     /* Key off should enter release, not set active=0 */
@@ -369,14 +370,14 @@ void test_adsr_attack_ramps_output(void) {
     /* After key_on, ADSR level starts at 0. First tick should produce
      * near-zero output (ADSR level is 0 before tick fires). */
     int16_t out_l, out_r;
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     int16_t level_after_1 = v.adsr.level;
 
     /* Run a few more ticks — level should be increasing */
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     int16_t level_after_2 = v.adsr.level;
 
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     int16_t level_after_3 = v.adsr.level;
 
     /* ADSR level must be increasing during attack */
@@ -443,13 +444,13 @@ void test_adsr_full_pipeline_attack_sustain_release(void) {
 
     /* Warm up the Gaussian ring (first few ticks may be 0 from ring cold start) */
     for (int i = 0; i < 5; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
 
     /* Now measure — the ring should have non-zero samples.
      * Track whether output generally increases. */
     for (int i = 0; i < 5; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
         int16_t abs_out = out_l > 0 ? out_l : (int16_t)(-out_l);
         if (abs_out > prev_abs) attack_increasing = 1;
         prev_abs = abs_out;
@@ -460,7 +461,7 @@ void test_adsr_full_pipeline_attack_sustain_release(void) {
     /* --- Run until SUSTAIN ---
      * The ADSR should transition attack->decay->sustain */
     for (int i = 0; i < 200; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
         if (v.adsr.phase == ADSR_SUSTAIN) break;
     }
     TEST_ASSERT_EQUAL(ADSR_SUSTAIN, v.adsr.phase);
@@ -469,7 +470,7 @@ void test_adsr_full_pipeline_attack_sustain_release(void) {
     TEST_ASSERT_EQUAL_INT16(0x4000, v.adsr.level);
 
     /* Output should be non-zero (sustained) */
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     TEST_ASSERT_TRUE(out_l != 0 || out_r != 0);
 
     /* Record sustain-level output for later comparison */
@@ -484,12 +485,12 @@ void test_adsr_full_pipeline_attack_sustain_release(void) {
 
     /* Run a few ticks — output should be decreasing */
     int16_t release_out_first = 0;
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     release_out_first = out_l > 0 ? out_l : (int16_t)(-out_l);
 
     int16_t release_out_later = 0;
     for (int i = 0; i < 10; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
     release_out_later = out_l > 0 ? out_l : (int16_t)(-out_l);
 
@@ -500,7 +501,7 @@ void test_adsr_full_pipeline_attack_sustain_release(void) {
     /* --- Run until voice goes silent ---
      * ADSR should reach OFF, voice active=0 */
     for (int i = 0; i < 10000; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
         if (v.active == 0) break;
     }
     TEST_ASSERT_EQUAL_UINT8(0, v.active);
@@ -536,7 +537,7 @@ void test_loop_start_latches_address(void) {
 
     /* Tick once — at pitch 0x1000, the first tick triggers decode of block 0 */
     int16_t out_l, out_r;
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
 
     /* After block 0 is decoded, loop_addr should be latched to address of block 0 */
     TEST_ASSERT_EQUAL_UINT32(0, v.loop_addr);
@@ -570,7 +571,7 @@ void test_loop_end_repeat_jumps_to_loop_addr(void) {
      * then 1 more tick triggers decode of block 1) */
     int16_t out_l, out_r;
     for (int i = 0; i < 29; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
 
     /* After block 1 is decoded: current_addr should have jumped to loop_addr (0) */
@@ -601,7 +602,7 @@ void test_one_shot_silences_voice(void) {
 
     /* Tick once — triggers decode of block 0 with LOOP_END flag */
     int16_t out_l, out_r;
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
 
     /* ENDX should be set immediately on flag parse */
     TEST_ASSERT_EQUAL_UINT8(1, spu94_voice_get_endx(&v));
@@ -1065,7 +1066,7 @@ void test_gauss_bypass_zoh_differs_from_gauss(void) {
     int16_t gauss_out[40];
     for (int i = 0; i < N; i++) {
         int16_t out_l, out_r;
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
         gauss_out[i] = out_l;
     }
 
@@ -1076,7 +1077,7 @@ void test_gauss_bypass_zoh_differs_from_gauss(void) {
     int16_t zoh_out[40];
     for (int i = 0; i < N; i++) {
         int16_t out_l, out_r;
-        spu94_voice_tick(&v, ram, sizeof(ram), 1, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 1, 0, 0, &out_l, &out_r);
         zoh_out[i] = out_l;
     }
 
@@ -1118,14 +1119,14 @@ void test_negative_volume_phase_inversion(void) {
     /* Warm up Gaussian ring (first ~4 ticks from cold ring produce 0) */
     int16_t out_l, out_r;
     for (int i = 0; i < 5; i++) {
-        spu94_voice_tick(&v_pos, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&v_pos, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
 
     /* Collect N ticks of stabilized output */
     const int N = 20;
     int16_t pos_l[20], pos_r[20];
     for (int i = 0; i < N; i++) {
-        spu94_voice_tick(&v_pos, ram, sizeof(ram), 0, &pos_l[i], &pos_r[i]);
+        spu94_voice_tick(&v_pos, ram, sizeof(ram), 0, 0, 0, &pos_l[i], &pos_r[i]);
     }
 
     /* Run fresh voice with negative volume: vol_l=-0x4000, vol_r=-0x4000 */
@@ -1135,13 +1136,13 @@ void test_negative_volume_phase_inversion(void) {
 
     /* Same warmup */
     for (int i = 0; i < 5; i++) {
-        spu94_voice_tick(&v_neg, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&v_neg, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
 
     /* Collect N ticks */
     int16_t neg_l[20], neg_r[20];
     for (int i = 0; i < N; i++) {
-        spu94_voice_tick(&v_neg, ram, sizeof(ram), 0, &neg_l[i], &neg_r[i]);
+        spu94_voice_tick(&v_neg, ram, sizeof(ram), 0, 0, 0, &neg_l[i], &neg_r[i]);
     }
 
     /* For every tick where the positive output is nonzero, the negative output
@@ -1223,8 +1224,8 @@ void test_outx_stored_post_adsr_pre_volume(void) {
     int16_t out_l, out_r;
     int found_nonzero_outx = 0;
     for (int i = 0; i < 20; i++) {
-        spu94_voice_tick(&va, ram, sizeof(ram), 0, &out_l, &out_r);
-        spu94_voice_tick(&vb, ram, sizeof(ram), 0, &out_l, &out_r);
+        spu94_voice_tick(&va, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&vb, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
         if (va.outx != 0) {
             found_nonzero_outx = 1;
             /* outx must be identical for both voices regardless of volume sign */
@@ -1848,6 +1849,228 @@ void test_pmon_adsr_shapes_modulation_depth(void) {
 }
 
 /* ---------------------------------------------------------------
+ * Phase 36: NON (Noise On) Tests (NON-04..NON-07)
+ *
+ * NON-enabled voices output the global noise level instead of ADPCM/Gauss
+ * interpolation output. ADSR still shapes the result. ADPCM decode still
+ * runs for side effects (loop flags, ENDX). All NON voices share the
+ * same noise level per tick (single global generator).
+ * --------------------------------------------------------------- */
+
+/* Test: NON-enabled voice outputs noise, not ADPCM/Gauss.
+ * Enable NON for voice 0, set noise_gen to a known level, tick mixer.
+ * Verify output derives from noise level, not decoded ADPCM. */
+void test_non_voice_outputs_noise(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Load a loud sample (produces large non-zero ADPCM output) */
+    uint8_t sample[64];
+    make_loud_sample(sample, 4);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+
+    /* Key on voice 0 with ADSR disabled (level stays 0x7FFF) */
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* First tick without NON to capture normal ADPCM output */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    int16_t normal_output = dry_l;
+
+    /* Re-initialize, enable NON, set noise to a small known value */
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* Enable NON for voice 0 */
+    spu94_voice_mixer_set_non(&s_test_mixer, 0, 1);
+    /* Set noise level to a known small value */
+    s_test_mixer.noise_gen.level = 100;
+
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+
+    /* With NON enabled, output should derive from noise level, not ADPCM.
+     * The ADPCM sample produces a large value (~28672 range), while
+     * noise level is set to 100. Output should be much smaller than
+     * the normal ADPCM output. */
+    TEST_ASSERT_TRUE_MESSAGE(dry_l != normal_output,
+        "NON-04: NON-enabled voice should produce different output than normal ADPCM");
+}
+
+/* Test: Two NON-enabled voices produce identical output samples.
+ * (NON-05: single global generator, same noise_level for all) */
+void test_non_two_voices_same_output(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Load the same sample for both voices */
+    uint8_t sample[64];
+    make_loud_sample(sample, 4);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 64, sample, 64);
+
+    /* Key on voices 0 and 1 with identical volume/pitch/ADSR */
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 64, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* Enable NON for both voices */
+    spu94_voice_mixer_set_non(&s_test_mixer, 0, 1);
+    spu94_voice_mixer_set_non(&s_test_mixer, 1, 1);
+
+    /* Set noise to a known value */
+    s_test_mixer.noise_gen.level = 500;
+
+    /* Tick once (applies KON) */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+
+    /* Read per-voice outx -- both should be identical since they get the same noise_level */
+    int16_t outx_0 = s_test_mixer.voices[0].outx;
+    int16_t outx_1 = s_test_mixer.voices[1].outx;
+
+    TEST_ASSERT_EQUAL_INT16_MESSAGE(outx_0, outx_1,
+        "NON-05: Two NON voices should produce identical outx (shared global noise)");
+}
+
+/* Test: ADPCM decode still runs for NON voices (ENDX fires on loop-end).
+ * (NON-06: loop flags are side effects of ADPCM decode, which runs regardless) */
+void test_non_adpcm_still_runs(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Build a 2-block looping sample with LOOP_END flag on block 1 */
+    uint8_t sample[32];
+    memset(sample, 0, sizeof(sample));
+    sample[0]  = 0x00;  /* shift=0, filter=0 */
+    sample[1]  = SPU94_VAG_FLAG_LOOP_START;  /* 0x04 */
+    for (int j = 2; j < 16; j++) sample[j] = 0x77;
+    sample[16] = 0x00;
+    sample[17] = SPU94_VAG_FLAG_END | SPU94_VAG_FLAG_LOOP_REPEAT;  /* 0x03 */
+    for (int j = 18; j < 32; j++) sample[j] = 0x77;
+
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 32);
+
+    /* Key on voice 0 with ADSR disabled */
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* Enable NON */
+    spu94_voice_mixer_set_non(&s_test_mixer, 0, 1);
+
+    /* Tick enough to decode both blocks (28 samples per block at pitch=0x1000) */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    for (int i = 0; i < 30; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    }
+
+    /* ENDX should be set -- ADPCM decode processed the LOOP_END flag even with NON */
+    TEST_ASSERT_EQUAL_UINT8_MESSAGE(1, spu94_voice_get_endx(&s_test_mixer.voices[0]),
+        "NON-06: ENDX should fire for NON voice (ADPCM decode runs for side effects)");
+
+    /* Voice should still be active (loop repeat keeps it alive) */
+    TEST_ASSERT_EQUAL_UINT8_MESSAGE(1, s_test_mixer.voices[0].active,
+        "NON-06: Voice should still be active (loop repeat)");
+}
+
+/* Test: ADSR envelope shapes noise output.
+ * (NON-07: gauss_out = noise_level, then adsr_level applied in Step 2.5)
+ * Key on with slow attack ADSR, verify output increases as ADSR ramps. */
+void test_non_adsr_shapes_noise(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Load a sample */
+    uint8_t sample[64];
+    make_loud_sample(sample, 4);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+
+    /* Configure ADSR with slow attack */
+    spu94_adsr_state_t adsr_cfg;
+    spu94_adsr_init(&adsr_cfg);
+    adsr_cfg.enabled = 1;
+    adsr_cfg.attack_shift = 3;   /* slow attack */
+    adsr_cfg.attack_step = 7;
+    adsr_cfg.sustain_level = 15;     /* max: target = (15+1)*0x800 */
+    adsr_cfg.decay_shift = 0;
+    adsr_cfg.sustain_shift = 31;
+    adsr_cfg.sustain_step = 0;
+    adsr_cfg.release_shift = 0;
+
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, &adsr_cfg);
+    spu94_voice_mixer_set_non(&s_test_mixer, 0, 1);
+
+    /* Set a constant noise level */
+    s_test_mixer.noise_gen.level = 1000;
+
+    /* Tick 1: ADSR just started, level is low */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    int16_t early_outx = s_test_mixer.voices[0].outx;
+
+    /* Keep noise level constant (disable ticking by setting timer high) */
+    s_test_mixer.noise_gen.level = 1000;
+
+    /* Run more ticks to let ADSR ramp up */
+    for (int i = 0; i < 50; i++) {
+        s_test_mixer.noise_gen.level = 1000;  /* hold noise constant */
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    }
+    int16_t late_outx = s_test_mixer.voices[0].outx;
+
+    /* Late outx should be larger than early outx (ADSR ramped up -> more noise through) */
+    TEST_ASSERT_TRUE_MESSAGE(late_outx > early_outx,
+        "NON-07: ADSR attack should increase noise output over time (noise * adsr_level)");
+}
+
+/* Test: Per-voice pitch has NO effect on noise output.
+ * (NON-03: noise frequency is from SPUCNT, not per-voice pitch register)
+ * Run two NON voices at different pitches, verify identical outx. */
+void test_non_pitch_no_effect(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Load the same sample at two addresses */
+    uint8_t sample[64];
+    make_loud_sample(sample, 4);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 64, sample, 64);
+
+    /* Key on voice 0 at pitch 0x0800, voice 1 at pitch 0x2000 (4x faster) */
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x0800, 0x7FFF, 0x7FFF, 0, NULL);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 64, 0x2000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* Enable NON for both */
+    spu94_voice_mixer_set_non(&s_test_mixer, 0, 1);
+    spu94_voice_mixer_set_non(&s_test_mixer, 1, 1);
+
+    /* Set noise to known value */
+    s_test_mixer.noise_gen.level = 2000;
+
+    /* Apply KON */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+
+    /* Both voices should have identical outx regardless of pitch */
+    int16_t outx_0 = s_test_mixer.voices[0].outx;
+    int16_t outx_1 = s_test_mixer.voices[1].outx;
+
+    TEST_ASSERT_EQUAL_INT16_MESSAGE(outx_0, outx_1,
+        "NON-03: Pitch should not affect NON output (noise frequency is global)");
+}
+
+/* ---------------------------------------------------------------
  * Main
  * --------------------------------------------------------------- */
 int main(void) {
@@ -1907,5 +2130,11 @@ int main(void) {
     RUN_TEST(test_pmon_clamp_0x4000);
     /* Phase 35 Plan 02: PMON integration test (PMON-02, PMON-07) */
     RUN_TEST(test_pmon_adsr_shapes_modulation_depth);
+    /* Phase 36: NON (Noise On) tests (NON-03..NON-07) */
+    RUN_TEST(test_non_voice_outputs_noise);
+    RUN_TEST(test_non_two_voices_same_output);
+    RUN_TEST(test_non_adpcm_still_runs);
+    RUN_TEST(test_non_adsr_shapes_noise);
+    RUN_TEST(test_non_pitch_no_effect);
     return UNITY_END();
 }
