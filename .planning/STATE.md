@@ -91,6 +91,7 @@ None.
 | License | MIT vs Apache-2.0 pick | Carried from M1 | 2026-04-25 |
 | Archive cleanup | `.planning/milestones/v1.6-phases/` currently contains the abandoned master-branch macro work, not the live v1.6 user-waypoint phases; live phases 10-20 (v1.3 through v1.6) sit in `.planning/phases/` rather than archived. Separate cleanup pass. | Flagged | 2026-05-10 |
 | UI gate | Hide preset Save/Load buttons in plugin formats -- wrap `addAndMakeVisible(savePresetButton/loadPresetButton)` in PluginEditor.cpp in the existing `wrapperType == wrapperType_Standalone` check (same pattern as PLUG-49 WAV-loader gate). | Flagged during phase 22 UAT | 2026-05-11 |
+| ADSR audit | Sustain-decrease step formula uses `-(7-step)` producing -7,-6,-5,-4 but spec says `-(8-step)` producing -8,-7,-6,-5. Release may also be off-by-one (uses 7, spec may require 8). Decay uses 8 (correct for step=0). Affects sustain decay rate — slightly slower than real hardware. Needs ADR + golden file comparison. | Flagged during v1.9 research | 2026-05-21 |
 
 ## Deferred Ideas
 
