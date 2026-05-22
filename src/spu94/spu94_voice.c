@@ -259,8 +259,10 @@ void spu94_voice_tick(spu94_voice_t *v,
      * --------------------------------------------------------------- */
     {
         uint16_t old_ctr = v->pitch_counter;
-        /* C7: re-clamp pitch in tick (defensive; key_on already clamps) */
-        uint16_t effective_pitch = (v->pitch > 0x3FFF) ? 0x3FFF : v->pitch;
+        /* C7: re-clamp pitch in tick (defensive; key_on already clamps to 0x3FFF).
+         * PMON (Phase 35) can set pitch to 0x4000 — this is spec-correct:
+         * "IF Step > 3FFFh THEN Step = 4000h". Accept 0x4000, clamp above it. */
+        uint16_t effective_pitch = (v->pitch > 0x4000) ? 0x4000 : v->pitch;
         uint16_t new_ctr = (uint16_t)(old_ctr + effective_pitch);
         uint16_t samples_consumed = (uint16_t)((new_ctr >> 12) - (old_ctr >> 12));
         if (new_ctr < old_ctr) samples_consumed = 1;  /* 16-bit wrap guard */
@@ -479,11 +481,42 @@ void spu94_voice_mixer_tick(spu94_voice_mixer_t *m,
     int32_t rev_sum_l = 0, rev_sum_r = 0;
     for (int v = 0; v < 24; v++) {
         if (!m->voices[v].active) continue;
+
+        /* ---------------------------------------------------------------
+         * PMON-01: Pitch Modulation (Phase 35)
+         *
+         * If PMON is enabled for this voice AND it has a predecessor (v > 0),
+         * modulate the pitch step using the previous voice's outx value.
+         *
+         * Formula (from nocash psx-spx, verified against DuckStation):
+         *   Factor = outx(v-1) + 0x8000        (range 0x0000..0xFFFF)
+         *   Step   = (base_pitch * Factor) >> 15
+         *   if Step > 0x3FFF: Step = 0x4000     (PMON can exceed normal max)
+         *   if Step < 0: Step = 0               (negative clamp)
+         *
+         * Save/restore pattern preserves the base pitch register for next tick.
+         * PMON bit 0 is silently ignored (voice 0 has no predecessor: m1 pitfall).
+         * --------------------------------------------------------------- */
+        uint16_t saved_pitch = m->voices[v].pitch;
+        if ((m->pmon_flags & (1u << v)) && v > 0) {
+            int16_t prev_outx = m->voices[v - 1].outx;
+            uint32_t factor = (uint32_t)((int32_t)prev_outx + 0x8000);
+            uint32_t base_step = (uint32_t)m->voices[v].pitch;
+            int32_t mod_step = (int32_t)((base_step * factor) >> 15);
+            if (mod_step > 0x3FFF) mod_step = 0x4000;  /* m2: PMON clamp (not 0x3FFF) */
+            if (mod_step < 0) mod_step = 0;
+            m->voices[v].pitch = (uint16_t)mod_step;
+        }
+
         int16_t vl = 0, vr = 0;
         spu94_voice_tick(&m->voices[v],
                          m->voice_ram, SPU94_SPU_RAM_BYTES,
                          m->gauss_bypass,
                          &vl, &vr);
+
+        /* Restore original pitch register (PMON is per-tick, not persistent) */
+        m->voices[v].pitch = saved_pitch;
+
         dry_sum_l += vl;
         dry_sum_r += vr;
         /* MIX-02: reverb send only for EON-flagged voices */
