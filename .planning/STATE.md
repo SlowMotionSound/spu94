@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Complete Voice
 status: executing
-stopped_at: v1.9 roadmap created -- 6 phases, 37 requirements mapped
-last_updated: "2026-05-22T16:26:43.675Z"
-last_activity: 2026-05-22 -- Phase 33 planning complete
+stopped_at: Phase 33 complete -- Phase 34 (Signed Volume) next
+last_updated: "2026-05-22T22:00:00.000Z"
+last_activity: 2026-05-22 -- Phase 33 ADSR Correction completed
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 1
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 17
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-21)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.9 Complete Voice -- Phase 33 ADSR Correction (ready to plan)
+**Current focus:** Phase 34 — Signed Volume
 
 ## Current Position
 
-Phase: 33 of 38 (ADSR Correction)
-Plan: 0 of TBD in current phase
-Status: Ready to execute
-Last activity: 2026-05-22 -- Phase 33 planning complete
+Phase: 34 (Signed Volume) — READY TO PLAN
+Plan: 0 of 0
+Status: Phase 33 complete, Phase 34 next
+Last activity: 2026-05-22 -- Phase 33 ADSR Correction completed (16min, 2 tasks, 5 commits)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] 17%
 
 ## v1.9 Phase Map
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
-| 33 | ADSR Correction | ADSR-FIX-01..04 | Not started |
+| 33 | ADSR Correction | ADSR-FIX-01..04 | **Complete** |
 | 34 | Signed Volume | SVOL-01..05 | Not started |
 | 35 | Pitch Modulation (PMON) | PMON-01..07 | Not started |
 | 36 | Noise Generator (NON) | NON-01..09 | Not started |
@@ -60,10 +60,8 @@ v1.9 research decisions (from FEATURES.md / PITFALLS.md):
 
 ### ADSR Bug Context
 
-The v1.8 ADSR code uses `-(7-step)` for sustain-decrease, producing steps -7,-6,-5,-4.
-The spec says `-(8-step)` producing -8,-7,-6,-5. This is an off-by-one making sustain
-decay slightly slower than real PS1 hardware. Phase 33 fixes this before Volume Sweep
-(Phase 37) reuses the same step formula for its own decrease path.
+RESOLVED in Phase 33. Sustain-decrease and release formulas corrected from base 7 to base 8
+per nocash spec (ADR-0056). Volume Sweep (Phase 37) can now reuse the corrected formula.
 
 ### Blockers/Concerns
 
@@ -98,20 +96,20 @@ None.
 
 **Velocity:**
 
-- Total plans completed: 0 (v1.9)
-- Average duration: --
-- Total execution time: 0 hours
+- Total plans completed: 1 (v1.9)
+- Average duration: 16min
+- Total execution time: 0.27 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 33 - ADSR Correction | 1 | 16min | 16min |
 
 *Updated after each plan completion*
 
 ## Session Continuity
 
 Last session: 2026-05-22
-Stopped at: v1.9 roadmap created -- 6 phases, 37 requirements mapped
+Stopped at: Phase 33 complete, Phase 34 (Signed Volume) ready to plan
 Resume file: None
