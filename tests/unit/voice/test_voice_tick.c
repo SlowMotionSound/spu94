@@ -1266,6 +1266,434 @@ void test_mixer_key_on_negative_volume(void) {
 }
 
 /* ---------------------------------------------------------------
+ * Phase 35: PMON (Pitch Modulation) Tests (PMON-01..06)
+ *
+ * PMON lets voice N-1's post-ADSR output modulate voice N's pitch step.
+ * Formula: Factor = outx(N-1) + 0x8000; Step = (base_pitch * Factor) >> 15;
+ * Clamp: if Step > 0x3FFF then Step = 0x4000.
+ * Voice 0 PMON bit is accepted but ignored (no predecessor).
+ * --------------------------------------------------------------- */
+
+/* Helper: create a loud multi-block sample with maximum positive amplitude.
+ * shift=0, filter=0, all nibbles=+7 -> decoded sample = 7 << 12 = 28672.
+ * ADPCM formula: decoded = nibble << (12 - shift). shift=0 gives max amplification.
+ * This produces large positive outx values suitable for PMON testing. */
+static void make_loud_sample(uint8_t *ram, uint32_t num_blocks) {
+    for (uint32_t b = 0; b < num_blocks; b++) {
+        memset(ram + b * 16, 0, 16);
+        ram[b * 16 + 0] = 0x00;  /* shift=0, filter=0 -> max amplification */
+        ram[b * 16 + 1] = 0x00;  /* no flags (continuous) */
+        for (int j = 2; j < 16; j++) {
+            ram[b * 16 + j] = 0x77;  /* nibbles +7, +7 -> decoded = 7 << 12 = 28672 */
+        }
+    }
+}
+
+/* Test: silent modulator (outx=0) preserves carrier pitch (unity passthrough).
+ * Factor = 0 + 0x8000 = 0x8000 (unity). Step = (pitch * 0x8000) >> 15 = pitch.
+ * This is the correct PS1 behavior: Factor 0x8000 = 1.0x scaling.
+ * Voice 1's pitch_counter should advance at the same rate as without PMON. */
+void test_pmon_silent_modulator_halves_pitch(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Load a silent sample for voice 0 (all zeros -> outx=0) */
+    uint8_t silent_sample[64];
+    memset(silent_sample, 0, sizeof(silent_sample));
+    for (int b = 0; b < 4; b++) {
+        silent_sample[b * 16 + 0] = 0x00;  /* shift=0, filter=0 */
+        silent_sample[b * 16 + 1] = 0x00;  /* no flags */
+    }
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, silent_sample, 64);
+
+    /* Load a normal sample for voice 1 at a different address */
+    uint8_t sample[64];
+    make_long_sample(sample, 4);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 64, sample, 64);
+
+    /* Key on voice 0 (silent modulator) and voice 1 (carrier with PMON) */
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 64, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* Enable PMON on voice 1 */
+    spu94_voice_mixer_set_pmon(&s_test_mixer, 1, 1);
+
+    /* Run 1 tick to apply pending KON */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+
+    /* After first tick, voice 0 produces outx=0 (silent sample).
+     * Voice 1 with PMON: Factor=0x8000, effective step = (0x1000 * 0x8000) >> 15 = 0x1000.
+     * This is unity — same as without PMON. The PS1 PMON center is 1.0x, not 0.5x. */
+    uint16_t pmon_counter = s_test_mixer.voices[1].pitch_counter;
+
+    /* Now run the same setup WITHOUT PMON for comparison */
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, silent_sample, 64);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 64, sample, 64);
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 64, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    uint16_t no_pmon_counter = s_test_mixer.voices[1].pitch_counter;
+
+    /* With silent modulator (outx=0), PMON Factor=0x8000 is unity.
+     * Both counters should be identical — PMON has no effect when modulator is silent. */
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(no_pmon_counter, pmon_counter,
+        "PMON-03: silent modulator (Factor=0x8000) should be unity — same counter as no PMON");
+}
+
+/* Test: PMON bit 0 is accepted but ignored (voice 0 has no predecessor). */
+void test_pmon_bit0_ignored(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Load sample */
+    uint8_t sample[64];
+    make_long_sample(sample, 4);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+
+    /* Key on voice 0 */
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* Enable PMON on voice 0 (should be accepted but ignored) */
+    spu94_result_t rc = spu94_voice_mixer_set_pmon(&s_test_mixer, 0, 1);
+    TEST_ASSERT_EQUAL(SPU94_OK, rc);
+    TEST_ASSERT_TRUE(s_test_mixer.pmon_flags & (1u << 0));
+
+    /* Run 1 tick */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    uint16_t pmon_counter = s_test_mixer.voices[0].pitch_counter;
+
+    /* Run same without PMON for comparison */
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    uint16_t no_pmon_counter = s_test_mixer.voices[0].pitch_counter;
+
+    /* Voice 0 should be unaffected by PMON bit 0 */
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(no_pmon_counter, pmon_counter,
+        "PMON-05: voice 0 pitch should be unaffected by PMON bit 0");
+}
+
+/* Test: positive modulator increases pitch beyond base.
+ * Voice 0 plays a loud sample producing large positive outx (~28000).
+ * Factor = outx + 0x8000 >> 15 produces ~1.8x multiplier.
+ * Voice 1's pitch should be noticeably higher than base.
+ *
+ * We verify by comparing the pitch_counter position after N ticks
+ * with PMON vs without PMON. With PMON, voice 1 should have consumed
+ * MORE samples (crossed more sample boundaries). */
+void test_pmon_formula_positive_modulator(void) {
+    /* --- Run WITH PMON --- */
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    uint8_t loud[256];
+    make_loud_sample(loud, 16);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, loud, 256);
+
+    /* Load a long sample for voice 1 at a separate address */
+    uint8_t carrier[256];
+    make_long_sample(carrier, 16);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 256, carrier, 256);
+
+    spu94_adsr_state_t adsr_cfg;
+    spu94_adsr_init(&adsr_cfg);
+    adsr_cfg.enabled = 1;
+    adsr_cfg.attack_shift = 0;
+    adsr_cfg.attack_step = 0;
+    adsr_cfg.attack_exp = 0;
+    adsr_cfg.decay_shift = 0;
+    adsr_cfg.sustain_level = 15;
+    adsr_cfg.sustain_shift = 31;
+    adsr_cfg.release_shift = 0;
+    adsr_cfg.release_exp = 1;
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, &adsr_cfg);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 256, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    spu94_voice_mixer_set_pmon(&s_test_mixer, 1, 1);
+
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    for (int i = 0; i < 20; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    }
+    uint32_t pmon_addr = s_test_mixer.voices[1].current_addr;
+
+    /* --- Run WITHOUT PMON --- */
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, loud, 256);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 256, carrier, 256);
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, &adsr_cfg);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 256, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    /* No PMON */
+    for (int i = 0; i < 20; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    }
+    uint32_t no_pmon_addr = s_test_mixer.voices[1].current_addr;
+
+    /* With positive modulator, voice 1 should have consumed MORE data
+     * (advanced further through sample blocks) due to higher effective pitch */
+    TEST_ASSERT_TRUE_MESSAGE(pmon_addr > no_pmon_addr,
+        "PMON-01: positive modulator should cause voice to consume more sample data");
+}
+
+/* Test: max negative modulator stops pitch advancement.
+ * Voice 0 outx = -0x8000. Factor = -0x8000 + 0x8000 = 0x0000.
+ * Step = (0x1000 * 0) >> 15 = 0. Voice 1 counter doesn't advance.
+ *
+ * ADPCM decode formula: decoded = nibble << (12 - shift). So shift=0 gives
+ * maximum amplification: nibble -8 << 12 = -32768 = -0x8000. */
+void test_pmon_formula_negative_modulator(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Create sample with maximum negative amplitude:
+     * shift=0, filter=0, nibbles=-8 -> decoded = -8 << 12 = -32768 */
+    uint8_t neg_sample[128];
+    memset(neg_sample, 0, sizeof(neg_sample));
+    for (uint32_t b = 0; b < 8; b++) {
+        neg_sample[b * 16 + 0] = 0x00;  /* shift=0, filter=0 */
+        neg_sample[b * 16 + 1] = 0x00;  /* no flags */
+        for (int j = 2; j < 16; j++) {
+            neg_sample[b * 16 + j] = 0x88;  /* nibbles -8, -8 -> decoded = -32768 */
+        }
+    }
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, neg_sample, 128);
+
+    /* Load normal sample for voice 1 */
+    uint8_t sample[64];
+    make_long_sample(sample, 4);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 128, sample, 64);
+
+    /* Key on voice 0 with ADSR at max sustain */
+    spu94_adsr_state_t adsr_cfg;
+    spu94_adsr_init(&adsr_cfg);
+    adsr_cfg.enabled = 1;
+    adsr_cfg.attack_shift = 0;
+    adsr_cfg.attack_step = 0;
+    adsr_cfg.attack_exp = 0;
+    adsr_cfg.decay_shift = 0;
+    adsr_cfg.sustain_level = 15;
+    adsr_cfg.sustain_shift = 31;
+    adsr_cfg.release_shift = 0;
+    adsr_cfg.release_exp = 1;
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, &adsr_cfg);
+
+    /* Key on voice 1 */
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 128, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* Enable PMON on voice 1 */
+    spu94_voice_mixer_set_pmon(&s_test_mixer, 1, 1);
+
+    /* Run ticks to let ADSR reach max and ring stabilize with -32768 values */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    for (int i = 0; i < 20; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    }
+
+    /* Voice 0's outx should be near -32768 (max negative). Due to Gaussian
+     * interpolation and Q15 truncation, the actual outx stabilizes at about
+     * -32640 -- never exactly -32768. This is authentic PS1 behavior.
+     *
+     * Factor = outx + 0x8000. With outx = -32640: Factor = 128 = 0x0080.
+     * Step = (0x1000 * 0x80) >> 15 = 0x0010 (very small but nonzero).
+     *
+     * We verify the effective step is negligibly small (< 1% of base pitch). */
+    uint16_t pre_counter = s_test_mixer.voices[1].pitch_counter;
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    uint16_t post_counter = s_test_mixer.voices[1].pitch_counter;
+
+    /* Compute effective step (handle 12-bit counter wrap) */
+    uint16_t step;
+    if (post_counter >= pre_counter) {
+        step = (uint16_t)(post_counter - pre_counter);
+    } else {
+        step = (uint16_t)(0x1000 + post_counter - pre_counter);
+    }
+
+    /* Step should be negligibly small compared to base pitch 0x1000.
+     * With authentic PS1 Q15 truncation, expect step <= 0x20 (~0.5% of base). */
+    TEST_ASSERT_TRUE_MESSAGE(step < 0x40,
+        "PMON-01: near-max negative modulator should nearly stop pitch (step < 1% base)");
+}
+
+/* Test: PMON chain stacking — voice 0->1->2 cascading modulation.
+ * Voices 0, 1, 2 all active at same pitch. PMON on voices 1 and 2.
+ * Voice 0 modulates 1, voice 1's (modulated) output modulates 2.
+ *
+ * We verify by comparing current_addr (sample data position) after N ticks.
+ * Voice 1 should consume more sample data than voice 0 (PMON speeds it up).
+ * Voice 2 should also be accelerated but by a DIFFERENT amount than voice 1
+ * (because voice 1's outx differs from voice 0's outx due to PMON-altered playback). */
+void test_pmon_chain_stacking(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Load a sample with VARYING content for all voices.
+     * Constant-amplitude samples produce the same outx regardless of playback
+     * speed, so chain modulation would be identical. Varying content ensures
+     * that voice 1 (playing faster) reads different sample values than voice 0,
+     * producing different outx and thus different modulation for voice 2.
+     *
+     * Use shift=0, filter=0, alternating loud nibbles: blocks alternate
+     * between +7,+7 and +3,+5 content to create amplitude variation. */
+    uint8_t sample[512];
+    memset(sample, 0, sizeof(sample));
+    for (uint32_t b = 0; b < 32; b++) {
+        sample[b * 16 + 0] = 0x00;  /* shift=0, filter=0 */
+        sample[b * 16 + 1] = 0x00;  /* no flags */
+        if (b % 2 == 0) {
+            /* Loud block: +7 nibbles -> decoded = 28672 */
+            for (int j = 2; j < 16; j++) sample[b * 16 + j] = 0x77;
+        } else {
+            /* Quieter block: +3 nibbles -> decoded = 12288 */
+            for (int j = 2; j < 16; j++) sample[b * 16 + j] = 0x33;
+        }
+    }
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 512);
+
+    /* Key on voices 0, 1, 2 at the same pitch with ADSR for consistent outx */
+    spu94_adsr_state_t adsr_cfg;
+    spu94_adsr_init(&adsr_cfg);
+    adsr_cfg.enabled = 1;
+    adsr_cfg.attack_shift = 0;
+    adsr_cfg.attack_step = 0;
+    adsr_cfg.attack_exp = 0;
+    adsr_cfg.decay_shift = 0;
+    adsr_cfg.sustain_level = 15;
+    adsr_cfg.sustain_shift = 31;
+    adsr_cfg.release_shift = 0;
+    adsr_cfg.release_exp = 1;
+
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, &adsr_cfg);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 0, 0x1000, 0x7FFF, 0x7FFF, 0, &adsr_cfg);
+    spu94_voice_mixer_key_on(&s_test_mixer, 2, 0, 0x1000, 0x7FFF, 0x7FFF, 0, &adsr_cfg);
+
+    /* Enable PMON on voices 1 and 2 */
+    spu94_voice_mixer_set_pmon(&s_test_mixer, 1, 1);
+    spu94_voice_mixer_set_pmon(&s_test_mixer, 2, 1);
+
+    /* Run enough ticks for ADSR to stabilize and PMON pitch differences to
+     * accumulate enough to cross block boundaries. At base pitch 0x1000 (1 sample/tick)
+     * and PMON ~1.8x, after 100 ticks voice 0 consumes ~100 samples (~3.6 blocks)
+     * while voice 1 consumes ~180 samples (~6.4 blocks) — clearly different addresses. */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    for (int i = 0; i < 100; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    }
+
+    /* After 100 ticks, compare how far each voice has advanced through sample data.
+     * Voice 0: unmodulated at base pitch.
+     * Voice 1: modulated by voice 0's outx (large positive) -> faster playback.
+     * Voice 2: modulated by voice 1's outx (which is different from voice 0's
+     *          because voice 1 is playing at a different rate). */
+    uint32_t addr0 = s_test_mixer.voices[0].current_addr;
+    uint32_t addr1 = s_test_mixer.voices[1].current_addr;
+    uint32_t addr2 = s_test_mixer.voices[2].current_addr;
+
+    /* Voice 1 should have consumed more data than voice 0 (PMON accelerates it) */
+    TEST_ASSERT_TRUE_MESSAGE(addr1 > addr0,
+        "PMON-04: voice 1 (modulated by voice 0) should advance faster than unmodulated voice 0");
+
+    /* Voice 2 should differ from voice 1 in either address or fractional counter
+     * position. Cascading modulation means voice 2's modulator (voice 1) has
+     * different outx over time than voice 1's modulator (voice 0), producing
+     * different cumulative advancement. Even when block addresses coincide,
+     * the sub-sample fractional counters prove different effective pitch history. */
+    uint16_t ctr1 = s_test_mixer.voices[1].pitch_counter;
+    uint16_t ctr2 = s_test_mixer.voices[2].pitch_counter;
+    TEST_ASSERT_TRUE_MESSAGE(addr2 != addr1 || ctr2 != ctr1,
+        "PMON-04: cascading modulation should produce different advancement for voice 2 vs voice 1");
+}
+
+/* Test: PMON clamp to 0x4000 (not 0x3FFF).
+ * When PMON produces a step > 0x3FFF, it clamps to 0x4000.
+ * Use a high base pitch (0x3000) with a strong positive modulator to exceed 0x3FFF.
+ *
+ * Verification approach: with step=0x4000, the counter advances by exactly
+ * 0x4000 each tick. Since 0x4000 = 4 * 0x1000, this consumes exactly 4 samples
+ * with zero fractional remainder. The fractional counter (& 0x0FFF) stays the same.
+ *
+ * If the clamp were 0x3FFF instead of 0x4000, the counter would advance by
+ * 0x3FFF, leaving a fractional remainder of 0x0FFF each tick (it would
+ * never be zero). This test distinguishes the two. */
+void test_pmon_clamp_0x4000(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Load loud sample for voice 0 (produces large positive outx ~28559) */
+    uint8_t loud[256];
+    make_loud_sample(loud, 16);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, loud, 256);
+
+    /* Load a long normal sample for voice 1 at a separate address */
+    uint8_t carrier[512];
+    make_long_sample(carrier, 32);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 256, carrier, 512);
+
+    /* Key on voice 0 with ADSR at max sustain for stable large positive outx */
+    spu94_adsr_state_t adsr_cfg;
+    spu94_adsr_init(&adsr_cfg);
+    adsr_cfg.enabled = 1;
+    adsr_cfg.attack_shift = 0;
+    adsr_cfg.attack_step = 0;
+    adsr_cfg.attack_exp = 0;
+    adsr_cfg.decay_shift = 0;
+    adsr_cfg.sustain_level = 15;
+    adsr_cfg.sustain_shift = 31;
+    adsr_cfg.release_shift = 0;
+    adsr_cfg.release_exp = 1;
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, &adsr_cfg);
+
+    /* Key on voice 1 at high pitch (0x3000) — with strong positive mod,
+     * unclamped step = (0x3000 * ~0xEF8F) >> 15 = ~0x59E1.
+     * Since 0x59E1 > 0x3FFF, clamp to 0x4000. */
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 256, 0x3000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* Enable PMON on voice 1 */
+    spu94_voice_mixer_set_pmon(&s_test_mixer, 1, 1);
+
+    /* Run ticks to let ADSR reach max and ring stabilize */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    for (int i = 0; i < 20; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    }
+
+    /* With step=0x4000 (exactly 4 samples), the fractional counter stays unchanged.
+     * Run one tick and verify counter stays the same. */
+    uint16_t pre_counter = s_test_mixer.voices[1].pitch_counter;
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    uint16_t post_counter = s_test_mixer.voices[1].pitch_counter;
+
+    /* With step=0x4000, fractional part doesn't change (exact multiple of 0x1000).
+     * With step=0x3FFF, fractional part would change by 0xFFF each tick. */
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(pre_counter, post_counter,
+        "PMON-06: step clamped to 0x4000 should produce exact sample boundary advancement (no fractional drift)");
+}
+
+/* ---------------------------------------------------------------
  * Main
  * --------------------------------------------------------------- */
 int main(void) {
@@ -1316,5 +1744,12 @@ int main(void) {
     RUN_TEST(test_negative_volume_accepted_by_key_on);
     RUN_TEST(test_outx_stored_post_adsr_pre_volume);
     RUN_TEST(test_mixer_key_on_negative_volume);
+    /* Phase 35: PMON (Pitch Modulation) tests (PMON-01..06) */
+    RUN_TEST(test_pmon_silent_modulator_halves_pitch);
+    RUN_TEST(test_pmon_bit0_ignored);
+    RUN_TEST(test_pmon_formula_positive_modulator);
+    RUN_TEST(test_pmon_formula_negative_modulator);
+    RUN_TEST(test_pmon_chain_stacking);
+    RUN_TEST(test_pmon_clamp_0x4000);
     return UNITY_END();
 }

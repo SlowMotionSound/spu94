@@ -123,6 +123,7 @@ typedef struct {
     uint32_t      pending_kon;         /* C8/MIX-04: bitmask, applied at next tick start */
     uint32_t      pending_koff;        /* C8/MIX-04: bitmask, applied at next tick start */
     uint32_t      eon_flags;           /* MIX-02: bit N set = voice N sends to reverb */
+    uint32_t      pmon_flags;          /* PMON-01: bit N set = voice N pitch modulated by voice N-1's outx. Bit 0 accepted but ignored (voice 0 has no predecessor). */
     int16_t       master_vol_l;        /* MIX-03: Q15, applied after voice sum */
     int16_t       master_vol_r;        /* MIX-03: Q15, applied after voice sum */
     uint8_t       enabled;             /* gate: 0 = voice engine bypassed entirely */
@@ -150,6 +151,13 @@ spu94_result_t spu94_voice_mixer_key_off(spu94_voice_mixer_t *m, int voice_idx);
  * This is a control-rate parameter; mid-tick changes are acceptable.
  * Returns SPU94_INVALID_ARG if voice_idx out of range. */
 spu94_result_t spu94_voice_mixer_set_eon(spu94_voice_mixer_t *m, int voice_idx,
+    int enabled);
+
+/* Set or clear the PMON (pitch modulation) bit for a given voice.
+ * When enabled, voice N's pitch step is modulated by voice N-1's outx.
+ * Bit 0 is accepted but ignored (voice 0 has no predecessor).
+ * Returns SPU94_INVALID_ARG if voice_idx out of range. */
+spu94_result_t spu94_voice_mixer_set_pmon(spu94_voice_mixer_t *m, int voice_idx,
     int enabled);
 
 /* Update the pitch register of a playing voice without re-triggering.

@@ -4,8 +4,8 @@ milestone: v1.9
 milestone_name: Complete Voice
 status: executing
 stopped_at: Phase 33 complete, Phase 34 (Signed Volume) ready to plan
-last_updated: "2026-05-22T18:32:35.122Z"
-last_activity: 2026-05-22 -- Phase 35 planning complete
+last_updated: "2026-05-22T18:50:05.184Z"
+last_activity: 2026-05-22 -- Phase 35 execution started
 progress:
   total_phases: 6
   completed_phases: 2
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-21)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 35 — pitch modulation (pmon)
+**Current focus:** Phase 35 — Pitch Modulation (PMON)
 
 ## Current Position
 
-Phase: 35
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-22 -- Phase 35 planning complete
+Phase: 35 (Pitch Modulation (PMON)) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 35
+Last activity: 2026-05-22 -- Phase 35 execution started
 
 Progress: [██░░░░░░░░] 17%
 
