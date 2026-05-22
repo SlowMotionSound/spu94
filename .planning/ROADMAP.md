@@ -128,7 +128,16 @@ Plans:
   4. KON resets sweep state to the initial value; KOFF does not affect sweep
   5. Exponential decrease near zero does not stall (anti-stall guard: if scaled_step == 0 and level > 0, step = -1)
 
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+**Wave 1**
+
+- [ ] 37-01-PLAN.md -- TDD: extract shared envelope step helper from ADSR, refactor ADSR to use it (SWEEP-03, SWEEP-04)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 37-02-PLAN.md -- TDD: sweep module, voice pipeline integration, all sweep mode tests (SWEEP-01, SWEEP-02, SWEEP-05..09)
+- [ ] 37-03-PLAN.md -- ADR-0059 negative-phase sweep uncertainty documentation (SWEEP-10)
 
 ### Phase 38: Integration & Cross-Feature Verification
 
@@ -155,7 +164,7 @@ Phases execute in numeric order: 33, 34, 35, 36, 37, 38
 | 34. Signed Volume | 2/2 | Complete    | 2026-05-22 |
 | 35. Pitch Modulation (PMON) | 2/2 | Complete    | 2026-05-22 |
 | 36. Noise Generator (NON) | 2/2 | Complete    | 2026-05-22 |
-| 37. Volume Sweep | 0/TBD | Not started | - |
+| 37. Volume Sweep | 0/3 | Not started | - |
 | 38. Integration & Cross-Feature Verification | 0/TBD | Not started | - |
 
 ## Previous Milestone Archives
@@ -275,4 +284,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-22 -- Phase 36 planned (2 plans)*
+*Last updated: 2026-05-22 -- Phase 37 planned (3 plans)*
