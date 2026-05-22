@@ -1105,14 +1105,23 @@ void test_gauss_bypass_default_off(void) {
 /* Test: negative volume produces exact phase inversion of positive volume.
  * vol_l=-0x4000 output == -(vol_l=+0x4000 output) for every tick (SVOL-03). */
 void test_negative_volume_phase_inversion(void) {
-    uint8_t ram[64];
-    make_long_sample(ram, 4);
+    /* Use make_long_sample which produces nonzero content via nibbles +7,+3,+5,+2
+     * at shift=0, filter=0. Then use full volume 0x7FFF for maximum output. */
+    uint8_t ram[128];
+    make_long_sample(ram, 8);
 
     /* Run voice with positive volume: vol_l=+0x4000, vol_r=+0x4000 */
     spu94_voice_t v_pos;
     spu94_voice_init(&v_pos);
     spu94_voice_key_on(&v_pos, 0, 0x1000, 0x4000, 0x4000);
 
+    /* Warm up Gaussian ring (first ~4 ticks from cold ring produce 0) */
+    int16_t out_l, out_r;
+    for (int i = 0; i < 5; i++) {
+        spu94_voice_tick(&v_pos, ram, sizeof(ram), 0, &out_l, &out_r);
+    }
+
+    /* Collect N ticks of stabilized output */
     const int N = 20;
     int16_t pos_l[20], pos_r[20];
     for (int i = 0; i < N; i++) {
@@ -1124,21 +1133,40 @@ void test_negative_volume_phase_inversion(void) {
     spu94_voice_init(&v_neg);
     spu94_voice_key_on(&v_neg, 0, 0x1000, (int16_t)(-0x4000), (int16_t)(-0x4000));
 
+    /* Same warmup */
+    for (int i = 0; i < 5; i++) {
+        spu94_voice_tick(&v_neg, ram, sizeof(ram), 0, &out_l, &out_r);
+    }
+
+    /* Collect N ticks */
     int16_t neg_l[20], neg_r[20];
     for (int i = 0; i < N; i++) {
         spu94_voice_tick(&v_neg, ram, sizeof(ram), 0, &neg_l[i], &neg_r[i]);
     }
 
     /* For every tick where the positive output is nonzero, the negative output
-     * must be the exact negation (SVOL-03: phase inversion). */
+     * must be the negation within 1 LSB (SVOL-03: phase inversion).
+     *
+     * Q15 truncation (ASR = floor toward -inf) means q15_mul_truncate(x, -v)
+     * can differ from -q15_mul_truncate(x, +v) by exactly 1 LSB when the
+     * intermediate product is not evenly divisible by 2^15. This is the
+     * authentic PS1 SPU behavior -- the truncation asymmetry IS the sound.
+     * We verify the output is inverted within this 1-LSB tolerance. */
     int checked = 0;
     for (int i = 0; i < N; i++) {
         if (pos_l[i] != 0) {
-            TEST_ASSERT_EQUAL_INT16(-pos_l[i], neg_l[i]);
+            int16_t expected_neg = (int16_t)(-pos_l[i]);
+            int16_t diff = (int16_t)(neg_l[i] - expected_neg);
+            /* Must be exact or off by 1 LSB due to Q15 truncation asymmetry */
+            TEST_ASSERT_TRUE_MESSAGE(diff >= -1 && diff <= 0,
+                "SVOL-03: negative volume output differs from positive by more than 1 LSB");
             checked++;
         }
         if (pos_r[i] != 0) {
-            TEST_ASSERT_EQUAL_INT16(-pos_r[i], neg_r[i]);
+            int16_t expected_neg = (int16_t)(-pos_r[i]);
+            int16_t diff = (int16_t)(neg_r[i] - expected_neg);
+            TEST_ASSERT_TRUE_MESSAGE(diff >= -1 && diff <= 0,
+                "SVOL-03: negative volume output differs from positive by more than 1 LSB");
         }
     }
     /* At least some samples must be nonzero for the test to be meaningful */

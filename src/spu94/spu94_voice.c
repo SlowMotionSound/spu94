@@ -241,6 +241,13 @@ void spu94_voice_tick(spu94_voice_t *v,
         }
 
         /* ---------------------------------------------------------------
+         * STEP 2.75 — Store VxOUTX (SVOL-04 / Phase 34)
+         * Post-ADSR, pre-volume value for PMON (Phase 35).
+         * Must be stored AFTER ADSR multiply, BEFORE volume multiply.
+         * --------------------------------------------------------------- */
+        v->outx = gauss_out;
+
+        /* ---------------------------------------------------------------
          * STEP 3 — Apply per-voice volume (VOICE-04)
          * --------------------------------------------------------------- */
         *out_l = q15_mul_truncate(gauss_out, v->vol_l);
