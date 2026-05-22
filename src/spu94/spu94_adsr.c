@@ -4,7 +4,8 @@
  * Algorithm per tick (nocash psx-spx reference):
  *
  *   CounterIncrement = 0x8000 >> max(0, ShiftValue - 11)
- *   AdsrStep = (7 - StepValue) << max(0, 11 - ShiftValue)
+ *   AdsrStep (increase) = +(7 - StepValue) << max(0, 11 - ShiftValue)
+ *   AdsrStep (decrease) = -(8 - StepValue) << max(0, 11 - ShiftValue)
  *
  *   Attack (ADSR-03 fake exponential):
  *     If attack_exp AND level > 0x6000: CounterIncrement /= 4
@@ -22,7 +23,7 @@
  *     Runs indefinitely until key_off.
  *
  *   Release:
- *     AdsrStep = -(7 - 0) << max(0, 11 - release_shift)
+ *     AdsrStep = -(8 - 0) << max(0, 11 - release_shift)
  *     If release_exp: AdsrStep = AdsrStep * level / 0x8000
  *     When level <= 0: set level = 0, transition to ADSR_OFF
  *
@@ -179,8 +180,8 @@ int16_t spu94_adsr_tick(spu94_adsr_state_t *a) {
                 counter_increment >>= 2;
             }
         } else {
-            /* Decrease */
-            step = -((int32_t)(7 - a->sustain_step) << step_shift);
+            /* Decrease: nocash spec uses base 8 for decrease formulas */
+            step = -((int32_t)(8 - a->sustain_step) << step_shift);
 
             /* Real exponential for decrease */
             if (a->sustain_exp) {
@@ -211,10 +212,10 @@ int16_t spu94_adsr_tick(spu94_adsr_state_t *a) {
     }
 
     case ADSR_RELEASE: {
-        /* Release: AdsrStep = -(7 - 0) << max(0, 11 - release_shift)
-         * nocash: release step value is always 0, so (7-0) = 7 */
+        /* Release: AdsrStep = -(8 - 0) << max(0, 11 - release_shift)
+         * nocash: release step value is always 0, so (8-0) = 8 */
         int step_shift = adsr_max(0, 11 - (int)a->release_shift);
-        step = -((int32_t)7 << step_shift);
+        step = -((int32_t)8 << step_shift);
 
         /* CounterIncrement */
         int shift_amt = adsr_max(0, (int)a->release_shift - 11);
