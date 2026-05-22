@@ -1,228 +1,259 @@
-# Feature Landscape: True 8x Oversampled DAC (v1.3)
+# Feature Landscape: v1.9 Complete Voice
 
-**Domain:** Replacing the 44.1kHz FIR approximation with genuine multirate 8x oversampling in SPU-94's AK4309 DAC model
-**Researched:** 2026-04-30
-**Confidence:** HIGH on DSP fundamentals of multirate vs single-rate. HIGH on what the current v1.2 code does (read from source). MEDIUM on audible magnitude of differences (theoretical + measurement-informed, no direct A/B test yet).
+**Domain:** PS1 SPU voice modulation features -- PMON, NON, Volume Sweep, Signed Volume
+**Researched:** 2026-05-21
+**Primary source:** nocash psx-spx (problemkaputt.de / psx-spx.consoledev.net)
+**Cross-checked:** DuckStation spu.cpp (pitch modulation factor source, noise LFSR, volume sweep)
+**Overall confidence:** HIGH -- register layouts and formulas explicit in spec; emulator consensus on gray areas
 
 ---
 
-## Context: What v1.2 Does and Why It Is an Approximation
+## How These Four Features Fit the Existing Voice Path
 
-The v1.2 DAC FIR (`spu94_dac_fir.c`) runs all three cascaded half-band stages at **44.1 kHz on every call**. The source comment (line 8-10) is explicit: "All three stages operate at 44.1 kHz on every call (Pitfall 5 -- NOT at increasing rates). The cascade reproduces the passband ripple character at the audio rate; the upsampling is already accounted for in the coefficient design (Phase 5)."
+The v1.8 voice tick processes each voice in this order:
 
-This means v1.2 applies the correct *frequency response envelope* (passband ripple, stopband attenuation) but does NOT perform the actual multirate signal processing that the AK4309 performs internally. The coefficients were designed for each stage's respective operating rate (88.2, 176.4, 352.8 kHz) using scipy.signal.remez, then the resulting frequency response is reproduced at 44.1 kHz via a single-rate cascade.
+1. Decode ADPCM block if needed
+2. Gaussian interpolation (or zero-order-hold bypass)
+3. ADSR envelope multiply (gauss_out * adsr_level)
+4. Per-voice L/R volume multiply
+5. Advance pitch counter
 
-### What the Approximation Gets Right
-- Passband ripple magnitude and distribution (the gentle wobble above 3 kHz)
-- Overall frequency response shape within the audio band (0-22 kHz)
-- Computational cost (22 multiplies per sample at 44.1 kHz)
+The four v1.9 features inject into specific points in this chain:
 
-### What the Approximation Gets Wrong
-- **No inter-sample behavior**: True oversampling generates 7 interpolated samples between each input sample. These intermediate values interact with the noise model and any downstream nonlinearity. The v1.2 approach skips this entirely.
-- **Noise model operates at the wrong rate**: The LFSR + HP-shaped noise in `spu94_dac_noise.c` runs at 44.1 kHz. In the real AK4309, the delta-sigma modulator and its noise shaping operate at 352.8 kHz (or higher). The spectral shape of the noise at 44.1 kHz after decimation differs from noise generated directly at 44.1 kHz.
-- **No image rejection characterization**: The real cascade produces and suppresses spectral images at multiples of 44.1 kHz during interpolation. These images interact with the noise shaping. In v1.2, no images exist because no upsampling happens.
-- **Decimation filter behavior absent**: After processing at 352.8 kHz, the signal must be decimated back to 44.1 kHz. The decimation anti-alias filter adds its own time-domain characteristics (settling behavior on transients).
+```
+                         +---------+
+  [ADPCM decode] ------->|  Gauss  |---+
+                         +---------+   |
+                                       |  <-- NON: noise output REPLACES this tap
+                                       v
+                                  [gauss_out]
+                                       |
+                                       v
+                                  [ADSR multiply]
+                                       |
+                                       v
+                                 [ADSR-scaled out]  <-- PMON reads THIS value
+                                       |                for voice N-1, feeds voice N
+                                       v
+                              [Volume L/R multiply] <-- Signed Volume: negative values
+                                       |                flip waveform polarity here
+                                       |            <-- Volume Sweep: auto-ramps
+                                       v                the volume value itself
+                              [to mixer accumulator]
+                                       |
+                                       v
+                              [pitch counter += step] <-- PMON modulates step HERE
+```
 
 ---
 
 ## Table Stakes
 
-Features that MUST be present for the "true oversampled DAC" claim to be honest. Missing any of these means the milestone is just a v1.2 filter rewrite.
+Features the PS1 hardware has that a faithful "complete voice" must include. Missing any means
+the voice is not spec-complete.
 
-| Feature | Why Expected | Complexity | Dependencies | Notes |
-|---------|--------------|------------|--------------|-------|
-| Zero-stuff to 352.8 kHz | This IS oversampling -- insert 7 zeros between each input sample. Without it, the milestone name is false. | LOW | New internal buffer at 8x rate in state struct | 7 zeros + 1 original sample per input. Creates spectral images that the interpolation filter must suppress. |
-| Three-stage interpolation at true operating rates | Stage 1 at 88.2 kHz, Stage 2 at 176.4 kHz, Stage 3 at 352.8 kHz. Each stage doubles the rate and removes the image from the previous upsample. | MEDIUM | Zero-stuff buffer; per-stage delay lines at correct dimensions | Same coefficients from v1.2 reused (they were designed for these rates). The change is running them at their designed rates instead of all at 44.1 kHz. |
-| Decimation back to 44.1 kHz | SPU-94's output contract is 44.1 kHz int16 stereo. The 352.8 kHz internal signal must be downsampled. | MEDIUM | Decimation anti-alias filter (or reuse of interpolation filters in reverse) | Correct approach: the interpolation filters already suppress all images above 22.05 kHz. Pick every 8th sample after the full cascade. No separate decimation filter needed if interpolation is done right. |
-| Noise model at 352.8 kHz | Delta-sigma noise shaping should run at the elevated rate so decimation produces the correct spectral shape in the audio band. | MEDIUM | Noise generator ticking 8x per output sample; same LFSR + HP shaping | Currently runs at 44.1 kHz. At 352.8 kHz, each output sample integrates 8 noise ticks through the decimation process. The spectral balance after decimation differs from single-rate noise. |
-| Identical frequency response to v1.2 in the audio band | Passband ripple, stopband rejection, response at 20 kHz must match v1.2 (same coefficients, same datasheet specs). True oversampling should not change what the filter does to audio-band content. | LOW (by design) | Same coefficient tables from `spu94_dac_fir_coef.c` | Regression test: v1.3 frequency response at 0-22 kHz matches v1.2 within 0.01 dB. |
-| DAC on/off toggle and sub-toggles unchanged | `spu94_set_dac_enabled()`, `spu94_set_dac_fir_enabled()`, `spu94_set_dac_noise_enabled()` work identically. | LOW | API compatibility -- no signature changes | Internal implementation changes only. |
-| Latency reporting updated | True oversampling changes the DAC stage's group delay. `spu94_get_total_latency_samples` must report the correct value. | LOW | Compute new group delay from multirate cascade | v1.2 single-rate group delay = (55-1)/2 + (11-1)/2 + (7-1)/2 = 35 samples at 44.1 kHz. True multirate: each stage's delay is measured at its own rate and converted to 44.1 kHz equivalent. The equivalent delay will be different. |
-| Golden file regression | New golden files for true-oversampled DAC output. v1.2 DAC goldens archived as reference. | LOW | Existing test infrastructure | Output WILL differ from v1.2. That is the point. New goldens needed. |
-| Real-time safety preserved | No heap, no locks, no syscalls. The 8x internal buffer must be stack or struct-embedded. | LOW (constraint) | State struct expansion | 8x buffer is tiny: 2 channels x 8 samples x 2 bytes = 32 bytes per call. Trivially struct-embedded. |
-| CLI/Python/JUCE surfaces unchanged | `--dac`, `set_dac_enabled()`, JUCE toggle all work identically from user's perspective. | LOW | No API change | The change is invisible to users. Output sounds different (more faithful), but controls are identical. |
+### 1. PMON -- Pitch Modulation
+
+| Aspect | Detail |
+|--------|--------|
+| **What it does** | Voice N-1's post-ADSR amplitude modulates voice N's pitch step, creating FM-style synthesis |
+| **Register** | `1F801D90h` -- 24-bit bitmask; bits 1..23 enable PMON for voices 1..23; bit 0 is unused (voice 0 cannot be modulated) |
+| **Spec formula** | `Factor = VxOUTX(x-1) + 0x8000` (range 0x0000..0xFFFF = 0.00..1.99x); `Step = (Step * Factor) >> 15`; if `Step > 0x3FFF` then `Step = 0x4000`; `Counter += Step` |
+| **VxOUTX source** | The Gauss-interpolated sample AFTER ADSR envelope multiply, BEFORE per-voice volume L/R. Verified in DuckStation: `voice.last_volume = ApplyVolume(sample, voice.regs.adsr_volume)` -- this is the PMON factor source. HIGH confidence. |
+| **Musical meaning** | When voice N-1 outputs silence (0), Factor = 0x8000, Step = Step * 0x8000 >> 15 = Step/2. When voice N-1 outputs max positive (+0x7FFF), Factor = 0xFFFF, Step is approximately 2x. When voice N-1 outputs max negative (-0x8000), Factor = 0x0000, Step = 0 (voice N stops). This means a modulator voice's ADSR directly controls the depth and character of the FM effect. |
+| **Edge case: silent modulator** | When voice N-1 is inactive (output = 0), Factor = 0x8000, which halves the pitch. The modulated voice plays at half its nominal pitch, not at full pitch. This is authentic hardware behavior -- no special-casing. |
+| **Edge case: pitch > 0x7FFF** | The formula includes `SignExpand16to32(Step)` before multiplication -- a "hardware glitch" for VxPitch values above 0x7FFF. In practice, pitch values > 0x3FFF are clamped post-modulation anyway. |
+| **Processing order** | Voices processed sequentially 0..23. Voice N reads voice N-1's last output. Already correct in current mixer loop order. |
+| **Complexity** | Low-Medium |
+| **Dependencies** | Needs a `last_volume` field per voice to store the post-ADSR output for the next voice to read. Existing tick loop already processes voices in order 0..23 -- no reordering needed. |
+
+### 2. NON -- Noise Generator
+
+| Aspect | Detail |
+|--------|--------|
+| **What it does** | Replaces ADPCM/Gauss output with LFSR pseudo-random noise for selected voices |
+| **Register** | `1F801D94h` -- 24-bit bitmask; bit N set = voice N outputs noise instead of ADPCM |
+| **Noise frequency** | Controlled by SPUCNT (`1F801DAAh`) bits 13..10 (NoiseShift, 0..15) and bits 9..8 (NoiseStep, maps to 4,5,6,7). Per-voice VxPitch is IGNORED for noise voices. |
+| **LFSR algorithm** | `ParityBit = NoiseLevel.Bit15 XOR Bit12 XOR Bit11 XOR Bit10 XOR 1`; when timer underflows: `NoiseLevel = NoiseLevel * 2 + ParityBit`; timer reloaded with `0x20000 >> NoiseShift`. Timer decrements by NoiseStep each 44.1kHz tick. Double-reload if still negative after first reload. |
+| **Output** | Signed 16-bit value (the entire NoiseLevel register). This replaces the Gaussian interpolation output for that voice. ADSR still applies on top. |
+| **Critical constraint** | ALL noise-enabled voices share the SAME noise output at the same frequency. There is exactly ONE noise generator in the SPU, not one per voice. Individual noise frequencies per voice are impossible -- the only workaround is to use ADPCM samples of pre-recorded noise. |
+| **Musical meaning** | Hi-hats, cymbals, snare noise layer, wind/breath textures, white noise pads. The shared-frequency constraint means layering noise voices gives volume but not timbral variety. |
+| **Edge case: ADPCM still fetches?** | Spec is ambiguous. DuckStation skips ADPCM entirely when NON is set (`if noise_enabled: sample = GetVoiceNoiseLevel()`). For SPU-94, skip ADPCM decode when NON is set -- saves cycles and matches emulator consensus. Needs an ADR. |
+| **Edge case: PMON + NON** | A noise voice's output goes through ADSR and can then serve as a PMON factor for the next voice. This is spec-orthogonal -- noise modulating pitch creates random pitch jitter, a valid creative effect. |
+| **Edge case: pitch = 0 + NON** | A zero-pitch ADPCM voice outputs DC (counter frozen). A zero-pitch noise voice still outputs noise at the global noise frequency -- VxPitch is irrelevant for NON voices. |
+| **Complexity** | Medium |
+| **Dependencies** | Needs a global noise generator state (NoiseLevel, NoiseTimer) on the mixer struct, NOT per voice. Needs NoiseShift and NoiseStep fields (from SPUCNT). Needs the NON bitmask as a mixer-level field. |
+
+### 3. Signed Volume / Phase Inversion
+
+| Aspect | Detail |
+|--------|--------|
+| **What it does** | Allows negative per-voice volume values that flip the waveform phase while maintaining amplitude |
+| **Register** | `1F801C00h + N*10h` (VxVolumeLeft), `1F801C02h + N*10h` (VxVolumeRight) -- in fixed mode (bit 15 = 0), bits 0..14 represent volume/2 in range -0x4000..+0x3FFF (effective -0x8000..+0x7FFE) |
+| **How it works** | `output = (sample * (int32_t)volume) >> 15`. When volume is negative, the product is negative, flipping the waveform polarity. Standard signed multiplication -- no special code path needed. |
+| **Musical meaning** | (a) Dolby Pro Logic surround -- flipping phase of one channel creates "rear speaker" placement. (b) Stereo widening -- inverting one channel relative to the other widens the perceived stereo image. (c) Cancellation effects -- two voices playing the same sample with opposite phase cancel. |
+| **Already partially built** | `spu94_voice_t` declares `vol_l` and `vol_r` as `int16_t` with a comment noting "S2: negative = polarity flip, which is correct SPU behavior." The `q15_mul_truncate` function already handles signed values correctly. |
+| **What needs to change** | The GUI/API currently documents "unsigned semantics (0-32767)" and the SamplerWindow knobs enforce positive-only range. The C core already works -- the change is exposing negative values through the API and GUI. |
+| **Complexity** | Low |
+| **Dependencies** | None beyond what exists. The Q15 multiply path is already signed-correct. |
+
+### 4. Volume Sweep
+
+| Aspect | Detail |
+|--------|--------|
+| **What it does** | Hardware-driven automatic per-voice volume ramp, independent of ADSR. When bit 15 of VxVolumeL or VxVolumeR is set, the volume register enters sweep mode and auto-increments/decrements. |
+| **Register layout (sweep mode, bit 15 = 1)** | Bit 14: mode (0=linear, 1=exponential). Bit 13: direction (0=increase toward +0x7FFF, 1=decrease toward 0). Bit 12: phase (0=positive, 1=negative/inverted). Bits 6..2: shift (0..31, fast..slow). Bits 1..0: step (0..3). |
+| **Sweep formula** | Identical step/shift/counter mechanism to ADSR: `AdsrCycles = 1 << max(0, Shift - 11)`; `AdsrStep = StepValue << max(0, 11 - Shift)`. Same fake-exponential-above-0x6000 for increase; same proportional-to-level for exponential decrease. |
+| **Step values** | Increase: +7, +6, +5, +4 (step 0..3, formula `7 - step`). Decrease: -8, -7, -6, -5 (step 0..3, formula `-(8 - step)`). NOTE: the increase/decrease step formulas are asymmetric. |
+| **Relationship to ADSR** | Sweep is "another Volume envelope, additionally to the ADSR volume envelope." Both are multiplicative in the signal chain. ADSR shapes the per-voice amplitude envelope (attack/decay/sustain/release). Sweep shapes the per-voice volume itself (fade-in, fade-out, pan automation). The final output = sample * adsr_level * sweep_volume (with Q15 scaling at each stage). |
+| **Independent L/R** | Left and right volume sweep are SEPARATE state machines. Left can be sweeping up while right sweeps down. This enables automatic stereo panning and cross-fade effects without CPU intervention. |
+| **Phase bit** | When phase = 1, sweep operates on negative volume values. Spec notes: "Phase invert causes the step to be positive in decreasing mode." Clamping range changes to -0x8000..0 instead of 0..+0x7FFF. The nocash spec describes this as "not yet tested." LOW confidence on negative-phase behavior. |
+| **Timing caution** | Setting fixed volume (bit 15=0) then immediately setting sweep mode (bit 15=1) requires a 1-tick delay -- the fixed volume write is not applied until the next 44.1kHz cycle. |
+| **Musical meaning** | Auto-fade-in/out per voice, stereo pan automation (left sweep up while right sweeps down), volume tremolo (with CPU re-triggering), stereo-field movement. |
+| **Complexity** | High |
+| **Dependencies** | Needs a `volume_sweep_t` state struct per voice per channel (2 per voice = 48 total). Reuses counter-accumulate pattern from ADSR (can share a helper). Needs mode-detect logic: when volume register is written, bit 15 decides fixed vs sweep. |
 
 ---
 
 ## Differentiators
 
-Features that make v1.3 more than a correctness fix -- things that add genuine value.
+Features that go beyond basic spec compliance to create unique creative value.
 
-| Feature | Value Proposition | Complexity | Dependencies | Notes |
-|---------|-------------------|------------|--------------|-------|
-| A/B comparison mode (v1.2 approx vs v1.3 true) | Lets Anthony hear the difference. Educational. Validates whether the engineering effort is audibly worthwhile. | MEDIUM | Keep v1.2 single-rate path as a selectable mode | Two modes: `SPU94_DAC_MODE_APPROX` (v1.2 behavior) and `SPU94_DAC_MODE_TRUE` (v1.3 oversampled). Default to TRUE. |
-| Characterization script (v1.2 vs v1.3) | Python script processing test signals through both modes. Produces frequency response, impulse response, noise floor, and time-domain comparison plots. Quantifies the actual difference. | LOW | Both DAC modes accessible from Python | Builds on existing `tools/dac_measure.py`. Produces evidence for the "does it matter?" ADR. |
-| ADR: "Does true oversampling matter?" | Honest assessment with measurements of whether v1.3 is audibly different from v1.2, and in what way. The intellectually honest capstone. | LOW | Characterization script results | If the answer is "no audible difference," that validates v1.2 and is a valuable documented finding. If "yes," it justifies v1.3. Either outcome is good. |
-| Noise spectrum verification at 352.8 kHz | Verify that noise at 352.8 kHz, after decimation, produces correct +12 dB/octave slope with correct level (~-90 dB RMS) in the audio band. | MEDIUM | Noise at elevated rate + decimation + spectral analysis | The noise spectrum after decimation may differ from v1.2's direct 44.1 kHz noise. This is the most audibly interesting part. |
-| Polyphase efficient implementation | Instead of literally zero-stuffing and running 8x, use polyphase decomposition to compute only needed output samples. Identical output at ~1x cost. | HIGH | Polyphase restructuring of all three stages | Defer unless naive 8x approach is too expensive for real-time. Measure first. |
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| **PMON as FM synth engine** | Allocating voice pairs (modulator+carrier) enables classic 2-op FM synthesis. The PS1 SPU is literally an FM synth when PMON is used -- the modulator voice's sample and ADSR shape the FM timbre. This is a headline creative feature for sound design. | N/A (comes free with PMON implementation) | Consider dedicated FM preset examples showing bell, brass, evolving-pad sounds. |
+| **PMON chain stacking** | Voices 0-1-2 can chain: voice 0 modulates 1, voice 1 modulates 2. This creates 3-operator FM. Up to 12 modulator+carrier pairs, or a 24-voice FM chain for maximum chaos. | N/A (comes free with sequential PMON) | Document this capability prominently -- it is unique to the PS1 architecture. |
+| **Noise + Reverb** | Noise voices sent through the existing reverb engine create atmospheric textures (wind through a PS1 cathedral). The reverb's characteristic PS1 coloration on noise is a distinctive sound no other plugin produces. | N/A (EON gating already built) | Marketing-worthy combination. |
+| **Noise + PMON (random pitch jitter)** | A noise voice feeding PMON into the next voice creates random pitch modulation -- a lo-fi vibrato/detuning effect that sounds unlike any traditional LFO. | N/A (spec-orthogonal) | Document as a creative recipe. |
+| **Signed Volume + Reverb cancellation** | Phase-inverted voices through reverb create unusual spatial artifacts. The reverb sums L+R at input -- phase-inverted voices partially cancel in the reverb while remaining present in the dry bus. | N/A (comes free with signed volume) | Document as an exploitable quirk. |
+| **Volume Sweep as auto-tremolo** | Fast sweep cycling between increase and decrease creates tremolo. Combined with PMON, this automates vibrato depth without CPU intervention. | Medium (requires CPU re-trigger via register write) | The PS1 sweep is one-shot -- oscillation requires re-triggering the sweep when it hits its limit. |
 
 ---
 
 ## Anti-Features
 
-Features to explicitly NOT build. These are scope traps.
+Features to explicitly NOT build.
 
-| Anti-Feature | Why It Seems Related | Why It Is Wrong for v1.3 | What to Do Instead |
-|--------------|---------------------|--------------------------|-------------------|
-| Analog post-filter modeling (SCF + CTF) | "While redoing the DAC, also add the analog filter" | v1.3 is about fixing the digital interpolation. The analog filter is a separate problem requiring hardware measurements. | Defer to a future milestone. Keep the boundary clean: digital interpolation only. |
-| Variable oversampling rate (2x/4x/8x) | Creative flexibility | The AK4309 is fixed at 8x. Variable rates turn SPU-94 into a generic resampler, not a PS1 model. | Fixed 8x. Period. |
-| Higher-quality interpolation (more taps) | "Better" oversampling | The point is to match the AK4309, not exceed it. Over-designing destroys the coloration character. | Reuse exact 55+11+7 coefficients from v1.2. |
-| Sigma-delta 1-bit modulator simulation | The AK4309 internally converts to 1-bit PDM at MCLK rate | Simulating the 1-bit modulator at 11.3 MHz is enormously complex with negligible audible benefit over the noise model approximation. | LFSR + HP shaping noise model at 352.8 kHz is the right abstraction level. |
-| Output at 352.8 kHz (skip decimation) | "Let the host DAC handle it" | SPU-94's contract is 44.1 kHz int16 stereo. Changing the output rate breaks every consumer. | Always decimate back to 44.1 kHz. |
-| Redesigning the filter coefficients | "New oversampling mode deserves new filters" | The v1.2 coefficients were designed FOR their correct operating rates. They are correct as-is. Redesigning wastes time and risks regressions. | Reuse v1.2 coefficients verbatim from `spu94_dac_fir_coef.c`. |
-| DAC sub-stage independent rate selection | "Run FIR at 8x but noise at 44.1 kHz" | Combinatorial testing surface with minimal user value. | Both FIR and noise run at 352.8 kHz when DAC is enabled. Unified rate. |
-| Coefficient redesign for "optimal decimation" | Separate decimation filter with different specs | The interpolation filter already suppresses images. A separate decimation filter adds complexity for no benefit when using pick-every-8th. | Use the interpolation filter's output directly. Pick every 8th sample. |
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| **Per-voice noise frequency** | The PS1 has exactly ONE noise generator shared by all 24 voices. Building per-voice noise frequency is unfaithful and musically misleading -- it implies the PS1 could do something it could not. | Single shared LFSR. For per-voice noise variety, load different ADPCM noise samples. |
+| **Smooth PMON interpolation** | PMON uses the raw per-sample output of voice N-1 as a pitch factor. Adding smoothing hides the characteristic FM aliasing that gives PS1 FM its distinctive character. | Use the raw value. The aliasing IS the sound. |
+| **Volume sweep auto-oscillation** | The PS1 sweep runs in one direction until it hits the limit and stops. It does NOT auto-reverse or oscillate like a DAW LFO. Building auto-oscillation is a non-PS1 feature. | One-directional sweep per spec. If LFO is desired later, build as a separate creative-mode feature clearly labeled as non-PS1. |
+| **ADSR bypass when sweep is active** | Sweep and ADSR are independent. Both run simultaneously and multiply together. Disabling ADSR when sweep controls volume would be wrong. | Apply both: sample * adsr_level * sweep_volume with Q15 scaling at each stage. |
+| **Configurable LFSR taps** | The PS1 LFSR polynomial (bits 15, 12, 11, 10 XOR 1) is fixed hardware. Changing taps changes the noise character away from authentic PS1. | Use the exact tap positions from spec. |
+| **PMON depth/mix parameter** | PS1 PMON is binary: on or off. No "modulation depth" knob exists in hardware. | Toggle only. Depth is controlled by the modulator voice's volume/ADSR, which naturally scales the modulation factor. |
+| **VxOUTX readable register API** | The real PS1 exposes per-voice output at `1F801E00h`. Building a register-mapped read API adds complexity for zero musical benefit in an instrument context. | Store `last_volume` internally for PMON. No need for external API. |
+| **Master volume sweep** | PS1 master volume registers are NOT sweep-capable. Only per-voice volumes have hardware sweep. | Master volume stays as a direct-set control. |
 
 ---
 
 ## Feature Dependencies
 
 ```
-[Zero-stuff to 352.8 kHz]
-    enables -> [Three-stage interpolation at true rates]
-    enables -> [Noise model at elevated rate]
+Signed Volume (independent -- existing Q15 path already handles it)
+  --> only needs API/GUI exposure of negative vol_l/vol_r values
 
-[Three-stage interpolation at true rates]
-    requires -> [Zero-stuff to 352.8 kHz]
-    reuses  -> [v1.2 FIR coefficients (spu94_dac_fir_coef.c)]
-    enables -> [Decimation back to 44.1 kHz]
+PMON:
+  --> needs: last_volume stored per voice after ADSR multiply
+  --> needs: sequential voice processing 0..23 (already the case)
+  --> needs: PMON bitmask on mixer struct
+  --> interacts with: pitch counter step calculation in voice tick
 
-[Noise model at elevated rate]
-    requires -> [8x processing loop]
-    reuses  -> [v1.2 noise model (spu94_dac_noise.c)]
-    produces -> [different noise spectrum after decimation]
+NON:
+  --> needs: global noise generator (NoiseLevel, NoiseTimer) on mixer
+  --> needs: NoiseShift/NoiseStep from SPUCNT on mixer struct
+  --> needs: NON bitmask on mixer struct
+  --> replaces: ADPCM decode + Gaussian interpolation output for flagged voices
+  --> interacts with: ADSR (still applies to noise output)
+  --> interacts with: PMON (noise voice output can feed PMON factor)
 
-[Decimation back to 44.1 kHz]
-    requires -> [Interpolation complete at 352.8 kHz]
-    requires -> [Noise added at 352.8 kHz]
-    produces -> [44.1 kHz output for downstream consumers]
-
-[Golden file regression]
-    requires -> [Decimation complete]
-    invalidates -> [v1.2 DAC golden files]
-
-[Frequency response regression]
-    requires -> [Decimation complete]
-    validates -> [Audio-band response matches v1.2]
-
-[A/B comparison mode]
-    requires -> [v1.2 single-rate path preserved]
-    requires -> [v1.3 multirate path complete]
-
-[Characterization script]
-    requires -> [A/B comparison mode]
-    produces -> [Evidence for "does it matter?" ADR]
-
-[Latency reporting]
-    requires -> [True multirate group delay computed]
-    updates -> [spu94_get_total_latency_samples]
+Volume Sweep:
+  --> needs: volume_sweep_t state per voice per channel (L and R separate)
+  --> needs: sweep tick function (reuses ADSR counter-accumulate mechanism)
+  --> needs: mode-detect on volume register write (bit 15 = fixed vs sweep)
+  --> needs: current_volume tracking per channel (sweep modifies this)
+  --> interacts with: ADSR (multiplicative, both apply)
+  --> interacts with: Signed Volume (sweep phase bit controls sign)
 ```
 
-### Critical Path
+No circular dependencies. Recommended build order driven by complexity and payoff:
 
-Zero-stuff -> interpolation at true rates -> noise at 352.8 kHz -> decimation -> golden files -> characterization -> ADR. This is a linear dependency chain with no parallelism in the core DSP work. The A/B mode is a branch off the main path that requires preserving the v1.2 code path.
+```
+1. Signed Volume (near-free -- expose what already works)
+     |
+2. PMON (low-medium complexity, highest musical payoff)
+     |
+3. NON (medium complexity, self-contained new module)
+     |
+4. Volume Sweep (high complexity, reuses ADSR mechanism)
+```
 
 ---
 
-## Expected Audible Differences
+## Interaction Matrix
 
-The central question of this milestone. Based on DSP theory, the v1.2 source code, and what the AK4309 actually does:
+How the four features interact with each other and existing systems:
 
-### Likely Audible (MEDIUM confidence)
+| | PMON | NON | Signed Vol | Vol Sweep | ADSR | Gauss | Reverb |
+|---|---|---|---|---|---|---|---|
+| **PMON** | -- | Noise output can be PMON factor | Signed vol does NOT affect PMON factor (reads pre-volume) | Sweep does NOT affect PMON factor (reads pre-volume) | ADSR output IS the PMON factor | PMON modifies pitch step which drives Gauss index | No direct interaction |
+| **NON** | See above | -- | Signed vol applies to noise output | Sweep applies to noise volume | ADSR applies to noise output | Noise REPLACES Gauss output | Noise sent to reverb via EON |
+| **Signed Vol** | No interaction | See above | -- | Sweep phase bit = sign of volume | Multiplicative with ADSR | No interaction | Phase-inverted voices partially cancel in reverb L+R sum |
+| **Vol Sweep** | No interaction | See above | See above | -- | Both apply multiplicatively | No interaction | Swept volume affects reverb send level |
 
-1. **Noise floor texture in reverb tails**: Noise at 352.8 kHz decimated to 44.1 kHz produces different spectral balance than noise generated at 44.1 kHz. The decimation filter low-passes the noise, changing its high-frequency content. For reverb tails decaying into the noise floor, this is the most likely audible difference. Magnitude: subtle, probably measurable, possibly inaudible in context.
+---
 
-2. **Transient response on sharp attacks**: True multirate interpolation generates intermediate sample values that settle differently through the cascade than the single-rate approximation. For impulsive signals (percussion, transient attacks), the interpolated path's settling behavior differs. Magnitude: likely only perceptible on isolated transients, not on mixed material.
+## Gray Areas Needing ADR Documentation
 
-### Likely Inaudible (HIGH confidence)
+1. **VxOUTX tap point for PMON**: nocash does not explicitly state whether VxOUTX is post-ADSR or post-volume. DuckStation uses post-ADSR, pre-volume. Document as ADR with DuckStation as behavioral witness. HIGH confidence in the DuckStation approach.
 
-3. **Steady-state frequency response**: Identical coefficients produce identical passband ripple and stopband rejection. A swept sine through both modes should be nearly indistinguishable in the 0-20 kHz band.
+2. **ADPCM fetch during NON**: Spec is ambiguous on whether ADPCM blocks are still read from RAM when NON is enabled. DuckStation skips ADPCM entirely. Document decision to skip. MEDIUM confidence.
 
-4. **Phase response in audio band**: Same linear-phase FIR coefficients, same phase. The multirate path does not alter the phase response within the audio band.
+3. **Noise initial state**: NoiseLevel initial value at power-on is undocumented. DuckStation initializes to 0. Document the choice. LOW confidence.
 
-### Unknown Until Measured
+4. **Volume sweep phase bit in exponential decrease**: nocash notes "no effect in Exponential Decrease mode." Document this edge case in the implementation. MEDIUM confidence.
 
-5. **Signal-noise interaction at different rates**: Noise added at 352.8 kHz to an interpolated signal, then decimated, may differ subtly from noise added at 44.1 kHz to a filtered signal. The interaction between signal-dependent content and noise at different rates is a second-order effect whose magnitude needs empirical measurement.
+5. **Volume sweep negative-phase clamping**: nocash says negative-phase sweep clamps to -0x8000..0 but notes "not yet tested." Document with LOW confidence; implement positive-phase path first.
 
-### The Honest Assessment
+6. **Step value asymmetry (increase vs decrease)**: Increase uses `7 - step` (+7,+6,+5,+4). Decrease uses `-(8 - step)` (-8,-7,-6,-5). The existing ADSR sustain-decrease code uses `-(7 - step)` which produces -7,-6,-5,-4 -- off by 1 from the spec's stated values. Volume Sweep must use the correct `-(8 - step)` formula. The ADSR discrepancy should be audited separately as a pre-existing concern. HIGH confidence in the spec's stated values.
 
-The primary value of v1.3 is **correctness of process**, not necessarily audible improvement. The v1.2 approximation produces the right frequency response but skips the actual multirate signal processing. Whether this matters audibly is an empirical question the characterization script will answer.
+---
 
-Either outcome is valuable:
-- "No audible difference" validates the v1.2 shortcut and documents why it was acceptable
-- "Audible difference" means v1.3 is the correct model going forward
+## Complexity Summary
 
-The milestone is worth doing regardless because it replaces a known approximation with a known-correct implementation, produces a documented ADR answering the question, and exercises the codebase's ability to handle internal rate changes.
+| Feature | Implementation Complexity | Test Complexity | Musical Impact |
+|---------|--------------------------|-----------------|----------------|
+| Signed Volume | Low (already works in C core) | Low (sign-flip golden test) | Medium (stereo/spatial tricks) |
+| PMON | Low-Medium (formula + last_vol storage) | Medium (FM accuracy verification) | High (FM synthesis, vibrato, frequency sweep) |
+| NON | Medium (LFSR + timer + global state) | Medium (noise spectral verification) | Medium (percussion, texture, atmospherics) |
+| Volume Sweep | High (second envelope per voice per channel) | High (sweep curve accuracy, mode interactions) | Low-Medium (auto-fade, pan automation) |
 
 ---
 
 ## MVP Recommendation
 
-### Must Ship (core milestone)
+All four features are table stakes for "complete PS1 voice." Prioritize by dependency and payoff:
 
-1. Zero-stuff + three-stage interpolation at true rates
-2. Noise model at 352.8 kHz
-3. Decimation to 44.1 kHz
-4. Golden file regression (new goldens)
-5. Frequency response regression (audio-band equivalence to v1.2)
-6. Latency reporting update
+1. **Signed Volume** -- near-zero cost; expose negative volume through API and GUI. Unlocks sweep's negative-phase capability and phase-inversion creative effects.
 
-### Should Ship (completes the story)
+2. **PMON** -- highest musical payoff; enables FM synthesis, vibrato, frequency sweeps. Add `last_volume` per voice, PMON bitmask, and pitch-step modulation formula in the counter-advance section.
 
-7. A/B comparison mode (v1.2 approx vs v1.3 true)
-8. Characterization script (quantifies the difference)
-9. ADR: "Does true oversampling matter?"
+3. **NON** -- enables percussion and texture voices. Add one global LFSR generator on the mixer, NON bitmask, and noise output substitution before the ADSR multiply in voice tick.
 
-### Defer
+4. **Volume Sweep** -- most complex; reuses the proven ADSR counter-accumulate mechanism. Independent L/R sweep state per voice. Build last because it has the lowest musical impact relative to its complexity.
 
-10. Polyphase efficient implementation -- optimize AFTER correctness is verified. The naive 8x approach costs 8x22 = 176 multiplies per output sample at 44.1 kHz. At Q15 int16 arithmetic, this is well under 1 microsecond on any modern CPU. Polyphase is unnecessary unless targeting MCU. Measure first, optimize only if needed.
-
----
-
-## Complexity Budget
-
-| Component | Estimated C LOC | Rationale |
-|-----------|----------------|-----------|
-| Oversampled DAC step (new function or refactor of `spu94_dac_fir_step`) | 60-100 | Zero-stuff + 3-stage cascade at true rates + pick-every-8th decimation. Reuses coefficient tables and delay line helpers. |
-| Noise at elevated rate (modify/wrap `spu94_dac_noise_step`) | 20-40 | Run existing noise step 8x per output sample, add to interpolated signal before decimation. |
-| State struct changes | 10-20 | Intermediate 8x buffer (8 samples per channel, 32 bytes total). Delay line dimensions unchanged (coefficients unchanged). |
-| Integration in `spu94_process.c` | 10-20 | Replace `spu94_dac_fir_step` + `spu94_dac_noise_step` with oversampled equivalent. |
-| A/B mode flag + API | 15-25 | `spu94_set_dac_oversampled()` or mode enum. Conditional dispatch in process loop. |
-| Unit + integration tests | 100-200 | Oversampled FIR correctness, noise at elevated rate, decimation, frequency response regression, new golden files. |
-| Characterization script (Python) | 80-150 | Extends `tools/dac_measure.py` with v1.2-vs-v1.3 comparison plots. |
-| **Total C** | **~215-400** | Modest. The hard work (coefficient design, noise model design) was done in v1.2. |
-| **Total Python** | **~80-150** | Characterization and measurement tooling. |
-
----
-
-## Key Technical Decisions the Milestone Must Make
-
-1. **Naive 8x vs polyphase**: Run the literal zero-stuff-and-filter at 352.8 kHz, or restructure as polyphase to compute only needed outputs? Recommendation: start naive, measure cost, optimize only if needed.
-
-2. **Noise injection point**: Add noise at 352.8 kHz before decimation (faithful to AK4309 signal flow), or keep at 44.1 kHz (simpler, less faithful)? Recommendation: at 352.8 kHz. This is the whole point.
-
-3. **Decimation strategy**: Pick-every-8th (relies on interpolation filter's image rejection) vs separate decimation filter? Recommendation: pick-every-8th. The interpolation filter already achieves 53.6 dB stopband attenuation, sufficient for alias-free decimation.
-
-4. **v1.2 compatibility path**: Keep the old single-rate code as a selectable mode, or delete it? Recommendation: keep it behind a mode flag for A/B comparison. Low maintenance cost (existing code, no changes needed).
-
-5. **State struct layout**: Expand existing `spu94_dac_fir_state` to hold 8x buffers, or create a new struct? Recommendation: new wrapper struct that contains the existing per-stage states plus a small intermediate buffer. Minimizes changes to existing code.
+Defer:
+- Volume sweep negative-phase mode: implement positive-phase first; add negative-phase as follow-up. The spec itself says negative phase is "not yet tested."
+- GUI multi-voice sweep editing (only matters when editing multiple voices simultaneously).
+- Volume sweep LFO re-trigger automation (the PS1 sweep is one-shot; oscillation requires CPU-driven re-triggering which is a host-level concern).
 
 ---
 
 ## Sources
 
-- `src/spu94/spu94_dac_fir.c` -- v1.2 single-rate implementation (lines 8-10 confirm 44.1 kHz operation). HIGH confidence.
-- `tools/dac_filter_design.py` -- confirms coefficients designed for 88.2/176.4/352.8 kHz. HIGH confidence.
-- `.planning/milestones/v1.2-phases/05-interpolation-filter-design/05-RESEARCH.md` -- design rationale, cascade exploration, D-01 through D-13. HIGH confidence.
-- `.planning/research/FEATURES-v1.2.md` -- prior DAC feature landscape. HIGH confidence.
-- [Analog Devices MT-017: Oversampling Interpolating DACs](https://www.analog.com/media/en/training-seminars/tutorials/mt-017.pdf) -- standard reference on oversampling DAC architecture. HIGH confidence for theory.
-- [Archimago PS1 SCPH-5501 measurements](http://archimago.blogspot.com/2013/03/measurements-sony-playstation-1-scph.html) -- measured PS1 DAC: ~15-bit dynamic range, passband deviation above 3 kHz. MEDIUM confidence.
-- [Rick Lyons: Optimizing Half-Band Filters in Multistage Decimation and Interpolation](https://www.dsprelated.com/showarticle/903.php) -- cascaded half-band architecture. HIGH confidence for theory.
-- [MathWorks: Oversampling Interpolating DAC](https://www.mathworks.com/help/msblks/ug/oversampling-interpolating-dac.html) -- multirate DAC signal flow. HIGH confidence.
-- [Oversampling - Wikipedia](https://en.wikipedia.org/wiki/Oversampling) -- general reference on zero-stuffing and image rejection. MEDIUM confidence.
-- [diyAudio: Interpolation in oversampling DACs](https://www.diyaudio.com/community/threads/what-type-of-interpolation-is-mostly-used-in-oversampling-upsampling-dacs.101349/) -- practical discussion of cascaded half-band stages. MEDIUM confidence.
-- [AK4309B datasheet via AllDatasheet](https://www.alldatasheet.com/datasheet-pdf/pdf/54932/AKM/AK4309B.html) -- "8 times FIR Interpolator", +/-0.05dB ripple, 41dB stopband. MEDIUM confidence (compatible family part).
-
----
-*Feature research for: SPU-94 v1.3 True Oversampled DAC milestone*
-*Researched: 2026-04-30*
+- [nocash psx-spx: SPU ADPCM Pitch](https://problemkaputt.de/psxspx-spu-adpcm-pitch.htm) -- PMON formula, pitch counter modulation, VxOUTX factor, 0x3FFF clamping, voice 0 exclusion. HIGH confidence.
+- [nocash psx-spx: SPU Volume and ADSR Generator](https://problemkaputt.de/psxspx-spu-volume-and-adsr-generator.htm) -- volume sweep register layout, step/shift formula, exponential fake, phase bit, signed volume, step value tables (+7..+4 / -8..-5). HIGH confidence.
+- [psx-spx.consoledev.net: Sound Processing Unit](https://psx-spx.consoledev.net/soundprocessingunitspu/) -- NON register, noise LFSR algorithm, SPUCNT noise frequency bits, voice register map, VxOUTX address, signal flow description. HIGH confidence.
+- [DuckStation spu.cpp](https://github.com/stenzek/duckstation/blob/master/src/core/spu.cpp) -- `voice.last_volume = ApplyVolume(sample, voice.regs.adsr_volume)` confirms PMON reads post-ADSR pre-volume; `GetVoiceNoiseLevel()` confirms noise substitution; `VolumeSweep::Tick()` confirms independent L/R sweep; `ApplyVolume()` confirms signed multiply. HIGH confidence (cross-verification).
+- [hitmen SPU docs](https://hitmen.c02.at/files/docs/psx/spu.txt) -- secondary reference; confirms sweep mode, noise mode, volume register layout. MEDIUM confidence.
+- Existing SPU-94 code: `spu94_voice.c` (voice tick processing order, signed vol_l/vol_r declaration), `spu94_adsr.c` (counter-accumulate mechanism to reuse for sweep), `spu94_voice.h` (data structures, mixer struct). HIGH confidence (internal).

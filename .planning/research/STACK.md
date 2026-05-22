@@ -1,295 +1,256 @@
-# Stack Research — SPU-94 v1.3 True 8x Oversampled DAC
+# Technology Stack
 
-**Domain:** True 8x oversampling of existing AK4309 interpolation filter model in a C99 fixed-point DSP library.
-**Researched:** 2026-04-30
-**Confidence:** HIGH -- this is internal restructuring of existing validated code, not new algorithm design.
+**Project:** SPU-94 v1.9 Complete Voice (PMON, NON, Volume Sweep, Signed Volume)
+**Researched:** 2026-05-21
 
-**Scope note:** This document covers only what changes for v1.3 true oversampling. The existing v1.2 stack (C11, CMake, pytest, ctypes, scipy, same filter coefficients) is validated and unchanged. See STACK.md commit history for prior decisions.
+## Executive Summary
 
----
+v1.9 adds four PS1 SPU voice features to the existing 24-voice sampler engine. All four are **pure fixed-point integer math** -- no new external libraries needed. The implementation lives entirely within the existing C99 core (`libspu94`), extending `spu94_voice_t` and `spu94_voice_mixer_t` with new per-voice state fields and a shared noise generator.
 
-## 1. What v1.2 Does vs. What v1.3 Must Do
+Zero new dependencies. Zero library additions. The "stack" for this milestone is structural changes to existing code, not new technology.
 
-### v1.2 (current, shipped)
+## Recommended Stack
 
-All three cascade stages run at 44.1kHz. One input sample produces one output sample through the cascade. The frequency response matches the AK4309 passband ripple character *as seen at 44.1kHz*, but does not actually perform interpolation -- it is a "passband-equivalent" coloration filter.
+### Core Framework -- No Changes
 
-```
-Input (44.1kHz) -> Stage1 (44.1kHz) -> Stage2 (44.1kHz) -> Stage3 (44.1kHz) -> Output (44.1kHz)
-```
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| C99/C11 | gcc 13+ / clang 17+ | DSP core | Already validated; all four features are integer math |
+| JUCE | 8.0.7 (pinned) | GUI + plugin host | Existing; new GUI controls only |
+| CMake | 3.24+ | Build system | Add new .c files to `spu94_obj` OBJECT library |
 
-22 multiplies per sample. Delay lines hold 44.1kHz samples.
+### New Source Files (C Core)
 
-### v1.3 (target)
+| File | Purpose | Rationale |
+|------|---------|-----------|
+| `src/spu94/spu94_noise_gen.c` | SPU noise LFSR generator | Separate from DAC noise -- different polynomial (Fibonacci XOR vs Galois), different stepping (timer-based countdown), global shared state across all voices |
+| `include/spu94/spu94_noise_gen.h` | Public header for noise generator | Matches existing module-per-header pattern (cf. `spu94_adsr.h`, `spu94_dac_noise.h`) |
+| `src/spu94/spu94_vol_sweep.c` | Volume sweep envelope tick | Same counter-accumulate mechanism as ADSR but applied to volume register, not envelope level |
+| `include/spu94/spu94_vol_sweep.h` | Public header for volume sweep | Keeps sweep logic testable in isolation like ADSR |
 
-Zero-stuff between each stage. Each stage runs at its true operating rate. The cascade performs genuine 8x interpolation to 352.8kHz, then decimates back to 44.1kHz.
+### No New Files Needed For
 
-```
-Input (44.1kHz)
-  -> zero-stuff -> Stage1 (88.2kHz, 2 evals)
-    -> zero-stuff -> Stage2 (176.4kHz, 4 evals)
-      -> zero-stuff -> Stage3 (352.8kHz, 8 evals)
-        -> decimate (pick 1 of 8) -> Output (44.1kHz)
-```
+| Feature | Why No New File |
+|---------|-----------------|
+| PMON (pitch modulation) | ~20 lines added to the voice iteration loop in `spu94_voice_mixer_tick()` |
+| Signed Volume / Phase Inversion | Already supported by `vol_l`/`vol_r` being declared `int16_t`; `q15_mul_truncate` handles negative values correctly; only needs API/GUI surface to expose negative volumes |
 
-70 multiplies per sample. Delay lines hold rate-appropriate samples (mix of real + zero-stuffed).
+### Supporting Libraries -- No Additions
 
----
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| Unity test framework | vendored | Unit tests for new modules | Test spu94_noise_gen, spu94_vol_sweep, PMON chain behavior |
+| dr_wav | vendored | Golden file I/O | Golden regression tests for voice-with-PMON/NON audio |
+| pytest + numpy | existing | Integration/fuzz tests | Noise frequency verification, sweep trajectory validation |
 
-## 2. Stack Delta: Nothing New
+## Structural Changes to Existing Code
 
-### No New Dependencies
-
-| Candidate | Why Not Needed |
-|-----------|----------------|
-| libsamplerate / libsoxr | We are modeling a specific DAC's fixed FIR cascade, not doing generic SRC |
-| FFTW / KissFFT | FIR lengths (55/11/7 taps) are too short for FFT convolution; direct form wins |
-| int64_t accumulators | Existing int32 overflow proofs still hold with zero-stuffed input (demonstrated below) |
-| New filter coefficients | Same AK4309 half-band coefficients from v1.2; the math is identical |
-| New scipy features | scipy 1.17.1's `remez` and `freqz` are sufficient; no new APIs needed |
-| Intermediate heap buffers | Sample-by-sample cascade uses only stack locals (28 bytes max) |
-
-### No Changed Dependencies
-
-| Component | Version | Status |
-|-----------|---------|--------|
-| C99/C11 (gcc 14+) | unchanged | Same compiler, same flags |
-| scipy | 1.17.1 | No new features needed |
-| numpy | 2.2.4 | No new features needed |
-| pytest | existing | New goldens use same harness |
-| Unity | existing | New overflow proofs use same framework |
-| matplotlib | existing | Comparison plots (v1.2 vs v1.3 response) |
-| CMake | existing | No new source files beyond modifying existing ones |
-
----
-
-## 3. Key Technical Decisions
-
-### 3.1 Processing Architecture: Explicit Zero-Stuff (Not Polyphase)
-
-**Use explicit zero-stuff-and-filter. Do not use polyphase decomposition.**
-
-Polyphase decomposition would reduce multiplies from 70 to 35 per input sample (50% savings) by exploiting the half-band zero structure. But:
-
-- The existing `dac_fir_stage_apply` folded-form function works unchanged with zero-stuffed input. Just push (sample, 0) pairs and call the same function twice per stage-transition.
-- 70 multiplies at 44.1kHz takes ~160ns on modern x86 (the per-sample budget is 22,676ns). Over 100x headroom.
-- Polyphase requires rewriting the filter evaluation into two separate branch functions per stage, doubling the code surface for no audible benefit.
-- The explicit zero-stuff form directly corresponds to what the AK4309 hardware does: it literally inserts zeros and filters.
-
-**State struct impact:** None. The delay lines (`stage1_delay[55]`, `stage2_delay[11]`, `stage3_delay[7]`) hold 88.2kHz / 176.4kHz / 352.8kHz samples respectively -- a mix of real values and zeros. Same array sizes, same circular buffer indices.
-
-### 3.2 Accumulator Width: int32 Remains Sufficient
-
-**No promotion to int64 needed.**
-
-The existing overflow proofs in `spu94_dac_fir.c` bound worst-case accumulator values:
-
-| Stage | v1.2 Worst Case | v1.3 Worst Case | INT32_MAX |
-|-------|-----------------|-----------------|-----------|
-| Stage 1 | 1,904,643,762 | Lower (half the delay entries are zero) | 2,147,483,647 |
-| Stage 2 | 1,336,455,240 | Lower | 2,147,483,647 |
-| Stage 3 | 1,221,048,126 | Lower | 2,147,483,647 |
-
-Zero-stuffing guarantees that every other delay-line entry is 0. The folded-form pairs where one partner is 0 contribute nothing to the accumulator. The worst case is strictly less than v1.2's proof, which already fits in int32 with >1dB headroom.
-
-**Validation plan:** Extend `test_dac_fir_overflow_proof.c` to exercise the alternating (INT16_MIN, 0) pattern in delay lines. This is a new test case, not a new test file.
-
-### 3.3 Decimation: Trivial, No Additional Filter
-
-**Decimate by retaining the last of 8 output samples. No decimation filter.**
-
-Why no filter:
-1. The input signal arrives at 44.1kHz -- it has no energy above 22.05kHz.
-2. The interpolation cascade suppresses interpolation images by >41dB (verified by `dac_filter_design.py --verify`).
-3. When decimating 8:1, the images that would alias back are already suppressed.
-4. The worst-case alias level is below -41dB, which is below the AK4309's own noise floor.
-
-Which of the 8 samples to keep: the last one (index 7). This corresponds to the "most recently computed" sample and maintains proper time alignment. The exact choice affects only the group delay by a fraction of a 352.8kHz sample period (2.8us), which is inaudible.
-
-### 3.4 API: New Function Alongside Existing
-
-**Add `spu94_dac_fir_step_8x` alongside the existing `spu94_dac_fir_step`.**
+### 1. `spu94_voice_t` -- New Fields
 
 ```c
-/* v1.2: runs cascade at 44.1kHz (passband-equivalent coloration) */
-int16_t spu94_dac_fir_step(spu94_dac_fir_state *state, int16_t input);
+/* v1.9 additions to spu94_voice_t (include/spu94/spu94_voice.h) */
 
-/* v1.3: true 8x zero-stuff + cascade + decimate */
-int16_t spu94_dac_fir_step_8x(spu94_dac_fir_state *state, int16_t input);
+/* Volume Sweep: per-voice automatic volume ramp (independent L/R) */
+spu94_vol_sweep_t sweep_l;    /* left channel volume sweep state */
+spu94_vol_sweep_t sweep_r;    /* right channel volume sweep state */
 ```
 
-Same return type, same state struct, same signature. The `_step_8x` function internally:
-1. Pushes `input` then `0` into stage 1 delay line, evaluates stage 1 twice -> 2 outputs
-2. For each stage 1 output: pushes it then `0` into stage 2, evaluates twice -> 4 outputs total
-3. For each stage 2 output: pushes it then `0` into stage 3, evaluates twice -> 8 outputs total
-4. Returns the 8th output (decimated)
-
-The v1.2 `_step` function is kept for A/B comparison and backward compatibility.
-
-### 3.5 Noise Model: Clock at 352.8kHz When Oversampled
-
-**The delta-sigma noise model must clock at 8x rate when true oversampling is active.**
-
-In the real AK4309, delta-sigma quantization noise is generated at the oversampled rate and shaped by the noise transfer function (1 - z^-1)^2. When the signal is reconstructed (analog filtering), the in-band noise is determined by the noise shaping at 352.8kHz, not at 44.1kHz.
-
-v1.3 approach:
-- Call `spu94_dac_noise_step` 8 times per 44.1kHz input sample (once per 352.8kHz output)
-- Add noise to each interpolated sample before decimation
-- The LFSR and HP shaping coefficients are unchanged
-- The in-band noise spectrum will be different from v1.2 because 8x more noise bandwidth folds into 0-22.05kHz during decimation
-
-**Recalibration needed:** The amplitude constant in `spu94_dac_noise_step` may need adjustment. At 8x rate, 8x more noise bandwidth aliases into the audio band during decimation, raising the in-band noise floor by approximately 9dB (10*log10(8)). The target is still the AK4309's rated 90dB dynamic range. This is a scipy prototyping task (simulate 352.8kHz noise, decimate, measure in-band RMS, adjust amplitude).
-
-**State struct impact on noise:** None. `spu94_dac_noise_state` (LFSR + two int16 history samples) is unchanged. It just gets called more often.
-
-### 3.6 State Struct: One New Toggle
-
-**Add `uint8_t dac_oversampled` to `spu94_state`.**
+The `spu94_vol_sweep_t` struct (defined in `spu94_vol_sweep.h`):
 
 ```c
-/* In spu94_state_internal.h, DAC section (after dac_noise_enabled) */
-uint8_t        dac_oversampled;    /* 0=v1.2 at-rate (default), 1=true 8x */
+typedef struct {
+    /* Register fields -- loaded before activation */
+    uint8_t  mode;       /* 0 = linear, 1 = exponential */
+    uint8_t  direction;  /* 0 = increase, 1 = decrease */
+    uint8_t  phase;      /* 0 = positive, 1 = negative (target polarity) */
+    uint8_t  shift;      /* 0..31 (same semantics as ADSR shift) */
+    uint8_t  step;       /* 0..3 (same semantics as ADSR step) */
+
+    /* Runtime state */
+    uint8_t  active;     /* 0 = sweep disabled (direct volume mode) */
+    uint32_t counter;    /* accumulator -- same counter-accumulate as ADSR */
+} spu94_vol_sweep_t;
 ```
 
-One byte. Current `sizeof(spu94_state)` is well under the 16,384-byte `SPU94_STATE_SIZE_MAX` ceiling. No bump needed.
+Size: ~12 bytes per sweep instance. Two per voice = ~24 bytes per voice.
+Total mixer growth: 24 voices * 2 config copies * ~24 bytes = ~1152 bytes. Negligible vs the 512 KB voice_ram.
 
-`spu94_process.c` dispatch:
+Note: `noise_on` does NOT live in the voice struct. NON is a mixer-level bitmask (like `eon_flags`), not per-voice state. This matches the PS1 where NON is a single 24-bit register, not part of the voice configuration.
+
+### 2. `spu94_voice_mixer_t` -- New Fields
+
 ```c
-if (state->dac_oversampled) {
-    // True 8x path: FIR + noise interleaved at 352.8kHz
-    out_l = spu94_dac_step_8x_with_noise(state, out_l, /*channel=*/0);
-    out_r = spu94_dac_step_8x_with_noise(state, out_r, /*channel=*/1);
-} else {
-    // v1.2 path: at-rate FIR then noise (existing code)
-    if (state->dac_fir_enabled) { ... }
-    if (state->dac_noise_enabled) { ... }
+/* v1.9 additions to spu94_voice_mixer_t */
+
+/* PMON: bitmask -- bit N set = voice N pitch is modulated by voice N-1 output */
+uint32_t  pmon_flags;         /* bits 1..23 valid; bit 0 always ignored (no voice -1) */
+
+/* NON: bitmask -- bit N set = voice N outputs noise instead of ADPCM */
+uint32_t  non_flags;          /* bits 0..23 valid */
+
+/* SPU noise generator: GLOBAL shared state (all NON voices read same output per tick) */
+spu94_noise_gen_t noise_gen;  /* LFSR + timer, stepped once per mixer tick */
+```
+
+### 3. `spu94_noise_gen_t` -- New Module
+
+```c
+/* include/spu94/spu94_noise_gen.h */
+typedef struct {
+    int16_t  level;       /* current output level, signed 16-bit */
+    int32_t  timer;       /* countdown timer; steps when < 0 */
+    uint8_t  shift;       /* 0..15: frequency control (SPUCNT bits 13-10) */
+    uint8_t  step;        /* 0..3: maps to actual step 4,5,6,7 (SPUCNT bits 9-8) */
+} spu94_noise_gen_t;
+```
+
+Algorithm per tick (directly from nocash psx-spx):
+```
+ParityBit = Level.Bit15 XOR Bit12 XOR Bit11 XOR Bit10 XOR 1
+Timer -= (Step + 4)
+IF Timer < 0:
+    Level = Level * 2 + ParityBit    (left-shift + inject parity)
+    Timer += (0x20000 >> Shift)
+    IF Timer < 0:
+        Timer += (0x20000 >> Shift)   (double-reload clamp)
+```
+
+This is DIFFERENT from the DAC noise generator in every respect:
+- DAC noise: Galois LFSR, x^32 polynomial, HP-shaped output, models analog noise floor
+- SPU noise: Fibonacci LFSR, XOR of bits 15/12/11/10, timer-gated stepping, raw digital noise for hi-hats/snares/effects
+
+### 4. `spu94_voice_mixer_tick()` -- Processing Order Change
+
+Current order:
+1. Apply pending KON/KOFF
+2. Iterate 24 voices independently (order preserved but not exploited)
+3. Accumulate dry + reverb sums
+
+New order (PS1-faithful):
+1. Apply pending KON/KOFF
+2. Step the global noise generator one tick
+3. Iterate voices 0..23 IN STRICT ORDER:
+   a. Step volume sweep for this voice (updates vol_l/vol_r if sweep active)
+   b. If `non_flags & bit`: output = noise_gen.level (skip ADPCM decode + Gaussian)
+   c. Else: existing ADPCM decode + Gaussian interpolation
+   d. Apply ADSR envelope (existing)
+   e. Apply current volume (may be sweep-updated, may be negative) (existing q15_mul_truncate)
+   f. Cache mono pre-volume output as `prev_voice_outx` for PMON
+   g. If NEXT voice has PMON bit set: compute modulated pitch for next voice
+   h. Accumulate dry + reverb sums (existing)
+
+Critical: PMON requires sequential voice evaluation (voice N-1 output feeds voice N pitch). The existing loop already runs 0..23 in order. The change is adding the output-tap cache and pitch modulation computation.
+
+### 5. PMON Pitch Modulation Formula
+
+Implemented as ~12 lines inside the mixer tick loop:
+
+```c
+/* After voice N produces its output: */
+int16_t prev_outx = gauss_out;  /* post-ADSR, pre-volume = VxOUTX */
+
+/* Before voice N+1 starts: apply PMON if flagged */
+if (pmon_flags & (1u << (v + 1))) {
+    int32_t factor = (int32_t)prev_outx + 0x8000;  /* normalize to 0..0xFFFF */
+    int32_t base_pitch = (int32_t)(int16_t)m->voices[v+1].pitch;  /* sign-extend */
+    int32_t modulated = (base_pitch * factor) >> 15;
+    modulated &= 0x0000FFFF;
+    if (modulated > 0x3FFF) modulated = 0x4000;  /* PS1 clamp behavior */
+    /* Use modulated pitch for voice v+1's counter advance this tick */
 }
 ```
 
----
+No new function needed. No new source file. This lives in the mixer tick body.
 
-## 4. Buffer and Memory Analysis
+### 6. Signed Volume / Phase Inversion
 
-### No Intermediate Buffers Needed
+**Already works at the math level.** `q15_mul_truncate(sample, -volume)` produces a phase-inverted output. The fields `vol_l` and `vol_r` in `spu94_voice_t` are already declared `int16_t`.
 
-The sample-by-sample cascade uses only stack-local variables:
+What needs to change:
+- `spu94_voice_mixer_key_on()`: remove any implicit clamp to positive (currently the GUI sends 0..32767 but the API accepts int16_t -- it already accepts negatives)
+- Volume sweep: direction=increase with phase=negative targets -0x8000 instead of +0x7FFF
+- GUI: allow volume knobs to go negative (or add a "phase invert" toggle that flips sign)
 
+### 7. GUI Changes (JUCE)
+
+| Component | Change | Scope |
+|-----------|--------|-------|
+| SamplerWindow / PluginEditor | NON toggle (per-voice or global) | Small -- toggle button |
+| SamplerWindow / PluginEditor | PMON toggle (per-voice-pair) | Small -- toggle button |
+| SamplerWindow / PluginEditor | Volume Sweep controls (mode, dir, shift) | Medium -- 3-4 controls |
+| SamplerWindow / PluginEditor | Noise frequency (global shift + step) | Small -- 2 controls |
+| SamplerWindow / PluginEditor | Phase inversion toggle (per-voice L/R) | Small -- 2 toggle buttons |
+
+### 8. `spu94_state` (Reverb Engine State) -- No Changes
+
+The reverb engine state struct does NOT need modification. All v1.9 features live in the voice mixer, which is file-scope static in `spu94_process.c`. The `SPU94_STATE_SIZE_MAX` limit (16384 bytes, currently ~2700 bytes used) is not affected.
+
+## What NOT to Add
+
+| Temptation | Why Not |
+|------------|---------|
+| Floating-point math for sweep curves | PS1 uses integer counter-accumulate; float would break bit-faithfulness |
+| Separate LFSR per voice for NON | PS1 has ONE global noise generator; all NON voices hear the same sample simultaneously |
+| Smoothing/interpolation on PMON factor | PS1 applies modulation raw at 44.1 kHz tick rate; smoothing is a modern-DSP departure |
+| New external noise library | The noise gen is ~15 lines of C; the existing DAC noise proves the project's LFSR pattern works |
+| Per-voice noise frequency | PS1 SPU has one global noise frequency (SPUCNT bits 8-13); all NON voices share it |
+| APVTS integration for new params | Existing architecture uses atomic scalar bridge (v1.7 precedent); keep consistent |
+| libsamplerate / resampling for PMON pitch changes | PMON modulates the pitch counter directly, not the audio; no resampling involved |
+| Anti-click/crossfade on NON switching | PS1 has no crossfade; switching noise on/off produces the hardware-authentic pop |
+| Volume smoothing on sweep changes | Sweep itself IS the smoothing; it ramps by design |
+
+## Integration Points
+
+### With Existing ADSR
+
+Volume Sweep runs IN ADDITION to ADSR. Signal chain per voice:
 ```
-Stack frame for spu94_dac_fir_step_8x:
-  2 stage-1 outputs:  int16_t s1[2]     =  4 bytes
-  4 stage-2 outputs:  int16_t s2[4]     =  8 bytes
-  8 stage-3 outputs:  int16_t s3[8]     = 16 bytes  (or just 1 if only keeping last)
-  Loop indices:       3 x uint8_t       =  3 bytes
-  Total:              ~31 bytes on stack (or ~7 bytes with scalar decimation)
+ADPCM decode (or noise) -> Gaussian interp -> ADSR envelope -> Volume (sweep-updated) -> L/R output
+                                                                         ^
+                                                                         |
+                                                              sweep ticks vol_l/vol_r each sample
+```
+The volume sweep modifies `vol_l`/`vol_r` every tick (when active); ADSR modifies the envelope level independently. Both are Q15 multiplies in series. This matches the PS1 where sweep and ADSR are independent hardware units.
+
+### With Existing Mixer
+
+The mixer tick loop runs voices sequentially (0..23). PMON requires this ordering to be preserved (it already is). The noise generator tick happens once before the voice loop. Volume sweep ticks happen per-voice before the volume multiply. No mixer architecture changes needed -- just additions within the existing loop body.
+
+### With DAW Plugin (v1.7)
+
+New parameters (PMON flags, NON flags, noise frequency, sweep controls) will need host-automatable parameter entries in `ParameterBridge`. This is the same pattern used for the existing 9 parameters -- atomic scalars read in the audio callback. Likely additions: NON frequency (1 param), possibly PMON/NON/sweep controls exposed per-voice for the active voice.
+
+### With Preset System (v1.4)
+
+The preset serializer (`spu94_preset_io.c`) handles 46 fields currently. New fields (noise_shift, noise_step, pmon_flags, non_flags) will need new key=value entries. The parser ignores unknown keys (existing D-09 contract), so old presets load safely in new code. New presets in old code skip the unknown fields -- graceful degradation by design.
+
+## Build System Changes
+
+```cmake
+# Add to src/spu94/CMakeLists.txt spu94_obj OBJECT library:
+    spu94_noise_gen.c
+    spu94_vol_sweep.c
 ```
 
-No heap allocation. No block-level intermediate buffers. The function processes one 44.1kHz input sample completely before returning.
+No new `find_package`. No new vendored code. No new link dependencies.
 
-### State Struct Size Impact
+## Estimated Code Size
 
-| Component | v1.2 Size | v1.3 Size | Delta |
-|-----------|-----------|-----------|-------|
-| `spu94_dac_fir_state` (x2 channels) | 2 x 149 bytes | 2 x 149 bytes | 0 |
-| `spu94_dac_noise_state` (x2 channels) | 2 x 8 bytes | 2 x 8 bytes | 0 |
-| `dac_oversampled` toggle | 0 | 1 byte | +1 byte |
-| **Total DAC section delta** | | | **+1 byte** |
-
-### Compute Budget
-
-| Metric | v1.2 | v1.3 (8x) | Budget (44.1kHz) |
-|--------|------|-----------|------------------|
-| FIR multiplies per sample | 22 | 70 | n/a |
-| FIR evaluations per sample | 3 | 14 | n/a |
-| Noise steps per sample | 1 | 8 | n/a |
-| Estimated time per sample | ~50ns | ~200ns | 22,676ns |
-| CPU headroom | ~450x | ~113x | real-time safe |
-
-Even on a Cortex-M4 at 168MHz (future MCU target), 70 Q15 MAC operations take ~2us -- well within the 22.7us per-sample budget.
-
----
-
-## 5. Design Tool Changes (tools/dac_filter_design.py)
-
-### Keep Everything, Add One Mode
-
-**Existing functionality (unchanged):**
-- `design_halfband_stage` -- same coefficients, same design
-- `quantize_to_q15` -- same quantization
-- `build_composite` -- already models the 8x composite response correctly
-- `verify_cascade` -- already verifies at 352.8kHz
-- `--export-c` -- same coefficient output
-- `--verify` -- same pass/fail checks
-
-**New functionality (add):**
-- `--verify-8x` mode: simulate the actual zero-stuff + cascade + decimate processing in Python (sample-by-sample, matching the C implementation), measure frequency response, compare against the analytical composite. This validates that zero-stuffing + existing FIR + decimation produces the expected response.
-- Noise recalibration helper: generate noise at 352.8kHz using the existing LFSR + HP shaping model, decimate to 44.1kHz, measure in-band RMS, report amplitude adjustment factor.
-
-**No scipy version upgrade needed.** scipy 1.17.1's `remez` and `freqz` handle everything. The `upfirdn` function could simplify the verification script but is not required.
-
----
-
-## 6. What NOT to Change
-
-| Component | Why Leave Alone |
-|-----------|-----------------|
-| Filter coefficient values | Same AK4309 half-band design; filters are correct |
-| `spu94_fir.c` (39-tap reverb FIR) | Unrelated to DAC; different filter at different point in signal chain |
-| `spu94_dac_fir_state` struct layout | Same delay lines, same indices, same sizeof |
-| `spu94_dac_noise_state` struct layout | Same LFSR, same HP shaping; called more often, not differently |
-| `spu94_dac_fir_coef.c` | Verbatim reuse of v1.2 coefficients |
-| `dac_fir_stage_apply` static function | Reused as-is for the zero-stuffed evaluation |
-| `dac_fir_push` / `dac_fir_read_tap` helpers | Reused as-is |
-| `SPU94_STATE_SIZE_MAX` | 1-byte addition is negligible |
-| `spu94_dac_fir_step` (v1.2 function) | Keep for A/B comparison; do not remove or modify |
-| Python ctypes binding structure | Add one toggle accessor; no structural change |
-| JUCE GUI layout | Add toggle/radio for oversampled mode; fits existing DAC control zone |
-
----
-
-## 7. Files That Change
-
-| File | Change | Scope |
-|------|--------|-------|
-| `src/spu94/spu94_dac_fir.c` | Add `spu94_dac_fir_step_8x` function | ~30-40 new LOC |
-| `include/spu94/spu94_dac_fir.h` | Declare `spu94_dac_fir_step_8x` | 3 lines |
-| `src/spu94/spu94_state_internal.h` | Add `dac_oversampled` field | 1 line |
-| `src/spu94/spu94_process.c` | Branch on `dac_oversampled` in DAC section | ~15 LOC |
-| `tools/dac_filter_design.py` | Add `--verify-8x` mode | ~60 LOC |
-| `tools/dac_measure.py` | Add 8x measurement path | ~40 LOC |
-| `tests/unit/dac_fir/test_dac_fir_overflow_proof.c` | Add zero-stuffed overflow proof cases | ~30 LOC |
-| `python/spu94/*.py` | Add `dac_oversampled` toggle accessor | ~5 LOC |
-| `src/standalone/*.cpp` | Add toggle in DAC GUI zone | ~10 LOC |
-| **Total estimated new/changed LOC** | | **~200 LOC** |
-
----
-
-## 8. Confidence Summary
-
-| Claim | Confidence | Basis |
-|-------|------------|-------|
-| No new dependencies | HIGH | All operations are existing Q15 MAC + existing LFSR |
-| int32 accumulator sufficient | HIGH | Zero-stuffing reduces worst case below existing proof bounds |
-| Same coefficients work at elevated rate | HIGH | `dac_filter_design.py --verify` already validates composite at 352.8kHz |
-| Naive zero-stuff over polyphase | HIGH | Correctness-equivalent; 70 muls is trivially fast; code reuse |
-| No decimation filter needed | HIGH | Input bandlimited; cascade provides >41dB image rejection |
-| Noise recalibration needed | MEDIUM | Math is straightforward but exact amplitude needs measurement |
-| ~200 LOC total delta | MEDIUM | Depends on test depth and how much A/B tooling is added |
-
----
+| Component | New LOC | Changed LOC |
+|-----------|---------|-------------|
+| `spu94_noise_gen.c` + header | ~60 | 0 |
+| `spu94_vol_sweep.c` + header | ~120 | 0 |
+| `spu94_voice.h` struct additions | 0 | ~10 |
+| `spu94_voice.c` tick body (NON path, sweep tick) | 0 | ~40 |
+| `spu94_voice_mixer_tick` (PMON, NON dispatch, sweep) | 0 | ~50 |
+| Mixer API additions (set_pmon, set_non, set_noise_freq) | ~40 | 0 |
+| Unit tests (noise gen, sweep, PMON) | ~300 | 0 |
+| GUI controls | ~80 | ~30 |
+| **Total** | **~600** | **~130** |
 
 ## Sources
 
-- `src/spu94/spu94_dac_fir.c` -- existing implementation, accumulator width proofs (lines 30-80)
-- `src/spu94/spu94_dac_fir_internal.h` -- stage dimensions, pair tables
-- `src/spu94/spu94_dac_fir_coef.c` -- Q15 coefficients, symmetric pair indices
-- `src/spu94/spu94_process.c` -- DAC section integration point (lines 115-128)
-- `src/spu94/spu94_state_internal.h` -- state struct layout, size ceiling
-- `tools/dac_filter_design.py` -- filter design, composite verification at 352.8kHz
-- `tools/dac_measure.py` -- frequency response characterization
-- `include/spu94/spu94_dac_noise.h` -- noise model state, API
-- AK4309B datasheet specs embedded in `dac_filter_design.py` (passband ripple, stopband rejection)
-
----
-
-*Stack research for: true 8x oversampling of AK4309 interpolation filter in libspu94.*
-*Researched: 2026-04-30*
+- nocash psx-spx SPU documentation: https://psx-spx.consoledev.net/soundprocessingunitspu/ -- PMON formula, noise polynomial, sweep mechanism, volume register layout, SPUCNT noise frequency bits -- HIGH confidence
+- Existing codebase: `include/spu94/spu94_voice.h`, `src/spu94/spu94_voice.c`, `src/spu94/spu94_process.c`, `src/spu94/spu94_adsr.c` -- direct code analysis -- HIGH confidence
+- Existing DAC noise implementation (`spu94_dac_noise.c`) -- architectural precedent for LFSR modules -- HIGH confidence
+- v1.8 mixer implementation in `spu94_voice.c` lines 410-482 -- integration point analysis -- HIGH confidence

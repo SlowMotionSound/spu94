@@ -1,538 +1,559 @@
-# Pitfalls Research — DAC Modeling for libspu94
+# Domain Pitfalls: v1.9 Complete Voice
 
-**Domain:** Adding DAC conversion modeling to an existing bit-faithful PS1 SPU reverb reimplementation (plain C99)
-**Researched:** 2026-04-28
-**Confidence:** MEDIUM (PS1 DAC chip identified as AKM AK4309AVM delta-sigma; datasheet unavailable; specific internal behavior inferred from topology class and measurements, not from manufacturer documentation; integration patterns are HIGH confidence based on shipped ADPCM precedent)
+**Domain:** Adding pitch modulation (PMON), noise generation (NON), volume sweep, and signed volume (phase inversion) to an existing 24-voice ADPCM sampler engine that already has Gaussian interpolation, counter-accumulate ADSR, loop mechanics, and a polyphonic mixer with reverb send.
+**Researched:** 2026-05-21
+**Confidence:** HIGH on PMON mechanics (nocash formula verified against DuckStation source; voice processing order confirmed as 0-23 sequential). HIGH on NON LFSR algorithm (polynomial taps verified across nocash and DuckStation; initial seed = 1 confirmed in DuckStation reset). MEDIUM on Volume Sweep edge cases (nocash spec has known "not yet tested" annotations on negative-phase behavior). MEDIUM on Signed Volume (multiplication semantics clear; interaction with existing unsigned-assumption volume path needs careful audit).
 
 ---
 
 ## Orientation
 
-This document covers pitfalls specific to **adding DAC conversion modeling as a toggleable coloration stage to the existing libspu94 pipeline** (v1.1 shipped, ~6,300 LOC C core). It replaces the previous M2 ADPCM pitfalls document. The focus is:
+The existing v1.8 codebase has:
+- 24 per-voice structs (`spu94_voice_t`) with pitch counter, ADPCM decode, Gaussian interpolation ring
+- Counter-accumulate ADSR envelope (`spu94_adsr_state_t`) using the same counter/bit-15 mechanism that Volume Sweep will reuse
+- Voice mixer (`spu94_voice_mixer_t`) processing voices in a `for (v = 0; v < 24; v++)` loop, accumulating int32 sums, saturating to int16
+- `vol_l`/`vol_r` declared as `int16_t` but documented as "unsigned semantics (0..32767)" in VOICE-04 -- the signed type was a deliberate forward-looking choice for phase inversion (S2 note in the header)
+- EON-gated reverb send per voice
+- Pending KON/KOFF bitmask semantics (C8)
 
-1. Correctly scoping what "DAC modeling" means for a digital emulation (vs. analog output stage modeling)
-2. Inserting the DAC stage at the correct point in the existing signal chain without breaking reverb or ADPCM
-3. Choosing the right artifacts to model based on the actual PS1 converter topology (AKM AK4309AVM, 1-bit delta-sigma)
-4. Avoiding performance regression in the per-sample hot path
-5. Honest verification strategy given that the AK4309AVM datasheet is unavailable
-
-Phase labels below reference the expected v1.2 DAC milestone structure:
-
-- **P-RESEARCH** — identify PS1 DAC chip, converter topology, relevant artifacts
-- **P-MODEL** — implement the digital DAC model (artifacts selection, fixed-point math)
-- **P-INTEGRATE** — wire DAC model into the existing signal chain as a toggleable stage
-- **P-VERIFY** — test infrastructure, golden files, witness comparison
-- **P-DECISIONS** — document gray-area resolutions in DECISIONS.md
+Phase labels for the v1.9 work:
+- **P-PMON** -- pitch modulation (voice chain dependency)
+- **P-NON** -- noise generator (LFSR + per-voice noise-enable)
+- **P-SWEEP** -- volume sweep envelope (per-voice, separate from ADSR)
+- **P-SIGNED** -- signed volume / phase inversion
+- **P-INTEGRATE** -- wiring new features into existing voice tick, mixer, and reverb-send pipeline
+- **P-VERIFY** -- test infrastructure, golden files, edge-case coverage
 
 ---
 
 ## Critical Pitfalls
 
-Mistakes that cause rewrites, break existing correctness, or produce fundamentally wrong models.
-
-### C1: Over-modeling — including analog output stage effects in the DAC model
-
-**What goes wrong:**
-The PS1 audio signal path after the SPU's digital domain is: DAC (AK4309AVM) -> analog reconstruction filter -> NJM2100 op-amp buffer -> coupling capacitors -> RCA output. A DAC model that includes op-amp coloring, output impedance, coupling-cap high-pass behavior, or power supply noise is modeling the analog output stage, not the DAC conversion.
-
-The temptation is enormous because the audiophile PS1 community (SCPH-1001 vs SCPH-5501 discussions, Stereophile measurements, diyAudio mods) conflates "the DAC" with "the entire analog output path." Archimago's SCPH-5501 measurements show ~15-bit effective dynamic range, but much of that shortfall comes from the analog output stage, not the converter itself. The AK4309AVM's rated dynamic range is 90dB (~15 bits), but that is the chip-level spec including its own analog output, not a measure of digital conversion artifacts alone.
-
-**Why it happens:**
-- Web search results about PS1 audio quality overwhelmingly discuss the analog output path (audiophile modders bypassing the NJM2100 op-amps, soldering directly to DAC output pins)
-- The AK4309AVM datasheet is unavailable, so there is no authoritative source separating digital-domain artifacts from analog-domain artifacts
-- "DAC modeling" is colloquially used to mean "everything after the digital domain," not just the conversion step
-
-**How to avoid:**
-1. Scope the v1.2 DAC model to **digital-domain conversion artifacts only**: zero-order hold (ZOH) staircase effect, sinc rolloff from the ZOH, and the chip's internal digital interpolation filter behavior. These are the artifacts that exist in the digital conversion process itself.
-2. Explicitly defer analog output stage modeling to a future milestone (already listed as out-of-scope in PROJECT.md: "DAC analog output stage (op-amps, coupling caps, output impedance) -- deferred; needs real hardware measurement").
-3. Document the boundary in an ADR: "The DAC model covers conversion artifacts. Analog coloring is a separate concern requiring hardware measurement."
-4. If the model "doesn't sound different enough," resist the temptation to smuggle in analog effects. The delta-sigma conversion artifacts of a well-designed 1990s DAC may genuinely be subtle at 16-bit/44.1kHz.
-
-**Warning signs:**
-- The model includes frequency-dependent gain curves that look like op-amp transfer functions
-- Parameters reference ohms, capacitance, or supply voltage
-- The model has more audible effect at low frequencies (coupling-cap behavior) than at high frequencies (ZOH rolloff)
-- Someone says "it should sound warmer" — warmth is analog coloring, not DAC conversion
-
-**Phase to address:** P-RESEARCH (scope definition), P-DECISIONS (boundary ADR)
+Mistakes that produce fundamentally wrong audio or require a rewrite.
 
 ---
 
-### C2: Under-modeling — treating DAC as simple bit-depth reduction ("bitcrusher")
+### C1: Processing voices in wrong order breaks PMON
 
 **What goes wrong:**
-The naive DAC model is a bitcrusher: truncate to N bits, add quantization noise. This is how NOS R2R DAC artifacts work (resistor mismatches, monotonicity errors). But the PS1 uses a **1-bit delta-sigma DAC** (AK4309AVM), which has a completely different artifact profile:
-
-- **Delta-sigma DACs do not produce R2R-style DNL/INL nonlinearity.** A 1-bit converter is inherently monotonic (there is only one resistor/current source). The "nonlinearities" of delta-sigma DACs come from noise shaping, idle tones, and the behavior of the internal modulator and analog reconstruction filter.
-- **The dominant artifact of a delta-sigma DAC is its noise-shaping profile.** Quantization noise is pushed to ultrasonic frequencies by the modulator's feedback loop. The in-band noise floor is determined by the modulator order and the oversampling ratio.
-- **Idle tones** (tonal artifacts near DC or at specific frequencies when the input is near zero or a simple fraction of full scale) are a real delta-sigma artifact, but they depend on the modulator order, dither implementation, and internal architecture — all unknown for the AK4309AVM.
-
-A bitcrusher model sounds nothing like a delta-sigma DAC. It produces in-band quantization noise evenly distributed across the spectrum, which is the signature of R2R or NOS conversion, not oversampled delta-sigma.
+PMON uses voice N-1's output amplitude to modulate voice N's pitch. The spec formula reads: `Factor = VxOUTX(x-1) + 8000h`. This requires that voice N-1's output has been computed and stored before voice N reads it. If voices are processed in parallel, out of order, or if VxOUTX is latched at the wrong moment, the modulation factor is stale or zero.
 
 **Why it happens:**
-- "DAC emulation" plugins (chipcrusher, HoRNet ADDA) typically model NOS/R2R behavior because it is audibly dramatic and easy to implement
-- Delta-sigma artifacts are subtle and hard to model without knowing the modulator architecture
-- The AK4309AVM datasheet is lost, so its oversampling ratio and modulator order are unknown
+The existing `spu94_voice_mixer_tick` processes voices in a `for (int v = 0; v < 24; v++)` loop, which is correct -- but only if VxOUTX is written immediately after each voice completes, not after the entire loop finishes. A common mistake: accumulate all voice outputs into a batch, then store VxOUTX at the end. This means voice 1 would read voice 0's VxOUTX from the *previous tick*, introducing a one-tick latency that changes the modulation frequency and character.
 
-**How to avoid:**
-1. Start with what IS known and modelable: the ZOH (zero-order hold) staircase effect and its sinc rolloff, which applies to ANY DAC topology. At 44.1kHz, the ZOH sinc rolloff attenuates 20kHz by about 3.9dB — this is a real, measurable, topology-independent effect.
-2. Do NOT implement bit-depth reduction, DNL/INL lookup tables, or R2R resistor mismatch simulation. These are wrong for a 1-bit delta-sigma converter.
-3. If modeling noise shaping is desired, use a conservative generic model (second-order noise shaper, which matches the era — Philips used second-order for their 1-bit DACs in the mid-1990s), with the caveat that the AK4309AVM's actual order is unknown. Flag this as LOW confidence.
-4. Document the topology mismatch risk in DECISIONS.md: "The AK4309AVM is a 1-bit delta-sigma converter. Bitcrusher-style modeling is incorrect for this topology."
+**Consequences:**
+- FM synthesis sounds are pitched wrong
+- Vibrato effects are phase-shifted by one sample
+- At high modulation depths, the one-tick delay produces audible beating/phasing not present on real hardware
 
-**Warning signs:**
-- The model has a "bit depth" parameter
-- Quantization noise is flat-spectrum (characteristic of NOS/R2R, not delta-sigma)
-- The model sounds like a bitcrusher plugin (harsh, obvious, evenly-noisy) instead of like a subtle high-frequency rolloff with possible idle tones near zero
+**Prevention:**
+1. Store VxOUTX for each voice immediately after computing its ADSR-scaled output, before processing the next voice
+2. VxOUTX must be stored *after* Gaussian interpolation and *after* ADSR envelope, but *before* per-voice volume left/right multiply. This is confirmed by DuckStation: `volume = ApplyVolume(sample, voice.regs.adsr_volume); voice.last_volume = volume;` -- then left/right volumes are applied afterward
+3. Add a `int16_t outx` field to `spu94_voice_t` for VxOUTX storage
+4. Voice 0's PMON bit must be ignored (spec: PMON applies to voices 1-23 only; voice 0 has no predecessor)
 
-**Phase to address:** P-RESEARCH (topology identification), P-MODEL (artifact selection), P-DECISIONS
+**Detection:**
+- Test: Enable PMON on voice 1, play a slow sine on voice 0 and a tone on voice 1. Verify the pitch sweep is sample-accurate against a reference. Any one-tick phase shift indicates wrong VxOUTX timing.
 
 ---
 
-### C3: Sample rate confusion — modeling DAC effects at the wrong point in the signal chain
+### C2: VxOUTX captured at wrong point in the voice pipeline
 
 **What goes wrong:**
-The existing libspu94 signal chain operates at two rates:
+VxOUTX must represent the sample after Gaussian interpolation and after ADSR envelope, but before per-voice left/right volume multiplication. If captured too early (after interpolation but before ADSR), the modulator amplitude ignores the envelope -- an attack phase that should produce increasing modulation depth would produce full-depth modulation immediately. If captured too late (after volume left/right), the modulator would include stereo panning, which the hardware does not do.
+
+**Why it happens:**
+The existing voice pipeline in `spu94_voice_tick` applies operations in this order:
+1. Decode ADPCM block
+2. Gaussian interpolation -> `gauss_out`
+3. ADSR envelope -> `gauss_out = q15_mul_truncate(gauss_out, adsr_level)`
+4. Per-voice volume -> `*out_l = q15_mul_truncate(gauss_out, v->vol_l)`
+
+VxOUTX must be captured between steps 3 and 4. The `gauss_out` value after step 3 is mono and ADSR-shaped. The temptation is to capture `out_l` or `out_r` (after step 4), which would inject stereo panning into the modulation chain.
+
+**Consequences:**
+- Incorrect modulation depth (too much or too little)
+- Stereo-dependent pitch modulation that doesn't exist on real hardware
+- Subtle frequency differences that compound through chains of modulated voices
+
+**Prevention:**
+1. Add `v->outx = gauss_out;` after the ADSR multiply (step 3) and before the volume multiply (step 4)
+2. The PMON formula reads `voices[x-1].outx`, not `voices[x-1].out_l` or `voices[x-1].out_r`
+3. Document this capture point in an ADR -- it's a gray area where the spec says "prev voice amplitude" without specifying which stage
+
+**Detection:**
+- Test: Set voice 0 with ADSR attack = slow ramp. Set voice 1 with PMON enabled. The modulation depth should increase as voice 0's ADSR ramps up. If modulation is full-depth from the start, VxOUTX is captured before ADSR.
+
+---
+
+### C3: LFSR polynomial or initial seed wrong for noise generator
+
+**What goes wrong:**
+The PS1 SPU noise generator uses a specific 16-bit LFSR with feedback polynomial taps at bits 15, 12, 11, and 10, plus a constant 1 XOR (making this technically an XNOR-based LFSR). The shift-and-feedback formula is:
 
 ```
-44.1kHz input -> [ADPCM coloration] -> FIR decimation -> 22.05kHz reverb -> FIR interpolation -> 44.1kHz output
+ParityBit = NoiseLevel.Bit15 XOR Bit12 XOR Bit11 XOR Bit10 XOR 1
+NoiseLevel = NoiseLevel * 2 + ParityBit
 ```
 
-The DAC on the real PS1 sees the **final 44.1kHz output** after interpolation. It does NOT see the 22.05kHz internal reverb signal. Placing the DAC model before the FIR interpolator (at 22.05kHz) would apply DAC artifacts at the wrong rate:
-- ZOH sinc rolloff at 22.05kHz has a different profile than at 44.1kHz
-- Any noise-shaping model would operate at the wrong base rate
-- The FIR interpolator would then filter some DAC artifacts, which doesn't happen in hardware
-
-Conversely, placing the DAC model after the FIR interpolator is correct but must be done carefully: the model runs on every 44.1kHz sample in the hot path, doubling the per-sample computation.
+Getting any tap position wrong, or omitting the constant `XOR 1`, produces a completely different noise sequence. The `XOR 1` is especially easy to miss -- it inverts the standard LFSR parity, and most LFSR implementations in textbooks don't include it.
 
 **Why it happens:**
-- The ADPCM stage was inserted BEFORE the FIR decimator (upstream), which is correct for ADPCM's place in the PS1 signal path (voice decode happens before reverb). A developer might pattern-match and insert DAC at the same point.
-- The 22.05kHz internal rate is "where the interesting DSP happens," and there is a cognitive pull toward placing new processing there
-- The io_chain.c structure invites adding stages inside chain_step_impl(), where the 22.05kHz reverb runs, rather than outside it
+- Textbook LFSRs use standard polynomials. The PS1's polynomial (taps at 15,12,11,10 + constant 1) is non-standard.
+- The constant `XOR 1` at the end is an XNOR gate, not an XOR gate. Implementations that copy a generic LFSR template and just change tap positions will miss this.
+- The initial seed must be 1 (confirmed by DuckStation's `Reset()`: `s_state.noise_level = 1`). Starting at 0 produces all-zeros forever (LFSR halting state). Starting at any other non-zero value produces a correct-length sequence but phase-shifted, meaning noise tails won't match hardware.
+- This is a left-shift (`*2`) with parity injection at bit 0 (`+ParityBit`), NOT a right-shift with feedback at the MSB. Implementing the shift direction wrong produces a mirrored sequence.
 
-**How to avoid:**
-1. The DAC model MUST be applied at the **44.1kHz output**, AFTER the FIR interpolator. In the current architecture, this means operating on the `lo`/`ro` output samples in `spu94_process()`, after the `spu94_fir_chain_step()` call returns.
-2. Follow the same integration pattern as ADPCM but at the opposite end:
-   ```
-   [ADPCM] -> FIR dec -> reverb -> FIR interp -> [DAC model]
-   ```
-3. The DAC model should be the LAST processing stage before output, because on real hardware the DAC is the last digital-to-analog conversion step.
-4. Document the signal chain position in an ADR with a clear diagram.
+**Consequences:**
+- Completely wrong noise spectrum (wrong taps change the sequence period and spectral content)
+- All-zero output (seed = 0)
+- Noise that sounds approximately right but fails bit-accurate golden-file comparison
 
-**Warning signs:**
-- The DAC model code is inside `chain_step_impl()` alongside the reverb tick
-- DAC-related state is updated on retained-phase (22.05kHz) ticks only
-- ZOH rolloff measurements show -3.9dB at 11kHz instead of at 20kHz (wrong Nyquist reference)
+**Prevention:**
+1. Implement feedback as `parity = ((level >> 15) ^ (level >> 12) ^ (level >> 11) ^ (level >> 10) ^ 1) & 1`
+2. Shift as `level = (int16_t)((level << 1) | parity)` -- the level is a signed 16-bit value used directly as sample output
+3. Initialize `noise_level = 1` on reset
+4. Write a golden-file test comparing the first 65536 noise values against a known-good reference
 
-**Phase to address:** P-INTEGRATE (chain position), P-DECISIONS (signal chain ADR)
+**Detection:**
+- Generate 65536 noise samples and verify the LFSR sequence matches DuckStation output for a known SPUCNT Shift/Step setting
 
 ---
 
-### C4: Breaking existing ADPCM/reverb behavior when inserting a new stage
+### C4: Noise timer mechanism wrong -- step/shift confusion
 
 **What goes wrong:**
-The existing `spu94_process()` loop is tight: ADPCM coloration (if enabled) -> `spu94_fir_chain_step()` -> output. Adding a DAC stage requires modifying this loop. Possible breakage modes:
+The noise generator doesn't shift the LFSR every tick. It uses a timer-subtraction mechanism:
 
-1. **Latency accounting error:** `spu94_get_total_latency_samples()` currently returns `SPU94_LATENCY_SAMPLES + (adpcm ? 28 : 0)`. Adding DAC latency (if the model has any, e.g., from a reconstruction filter) requires updating this function. If the DAC model adds latency but the function is not updated, golden-file regression tests will fail because audio is shifted.
+```
+Timer = Timer - NoiseStep           (step = 4,5,6,7 from SPUCNT bits 9-8)
+IF Timer < 0 THEN:
+    NoiseLevel = NoiseLevel * 2 + ParityBit
+    Timer = Timer + (0x20000 >> NoiseShift)
+IF Timer < 0 THEN:
+    Timer = Timer + (0x20000 >> NoiseShift)
+```
 
-2. **In-place buffer aliasing:** `spu94_process()` supports `L_out == L_in` (in-place). If the DAC model needs to read the current output and modify it in-place, the read-modify-write must not corrupt unprocessed samples. The current ADPCM stage avoids this because it reads from its internal buffer, not from L_in.
-
-3. **Flush path divergence:** `spu94_flush()` delegates to `spu94_process(NULL, NULL, ...)`. If the DAC model has state that needs draining (e.g., a filter delay line), the flush path must drain it too. The current architecture's "flush = process with silence" works only if all stages are memoryless or correctly drain when fed zeros.
-
-4. **Golden file invalidation:** If the DAC model is always-on (or if its default changes), ALL existing golden files will need regeneration. The existing `regenerate_goldens.py --check` gate will fail.
+The double-reload (two consecutive `if Timer < 0` checks with reload) handles the case where the reload value is smaller than the step, allowing the timer to be properly reloaded at high frequencies. Getting the reload formula wrong, or missing the double-reload, produces wrong noise frequency.
 
 **Why it happens:**
-- The process loop looks simple and modification-safe, but its simplicity is load-bearing — multiple contracts (in-place, flush, latency) depend on the loop structure
-- The ADPCM integration succeeded without breaking these contracts, creating false confidence that "any new stage is easy"
+- Confusing NoiseStep (the decrement, 4-7) with NoiseShift (the reload divisor, 0-15). The names are similar.
+- Implementing a single reload instead of the double-reload. The second `if Timer < 0` check is not a no-op -- at high shift values (small reload), the timer can still be negative after the first reload.
+- Forgetting that the timer persists across ticks -- it is not reset each tick.
+- Treating the timer as unsigned (it must go negative to trigger the LFSR shift)
 
-**How to avoid:**
-1. DAC model is **default-off**, exactly like ADPCM. Toggle with `spu94_set_dac_enabled()`. This preserves all existing golden files when DAC is disabled.
-2. DAC model is **zero-latency** (memoryless) if possible. ZOH and sinc rolloff compensation can be implemented as a per-sample transfer function with no state beyond the current sample. Avoid FIR filters in the DAC model unless they are essential.
-3. If the DAC model does have state (e.g., a short FIR), update `spu94_get_total_latency_samples()` and verify the flush path drains correctly.
-4. Run ALL existing tests (82+ ctest, golden files, witness diffs) with DAC disabled before attempting DAC-enabled tests.
-5. New golden files for DAC-enabled mode are a SEPARATE set, not replacements.
+**Consequences:**
+- Noise frequency is wrong -- hi-hats and cymbals play at incorrect pitch
+- At high noise frequencies, missing the double-reload cuts the maximum frequency in half
+- At low noise frequencies, the noise sounds correct but golden-file comparison fails
 
-**Warning signs:**
-- Existing ctest failures after DAC code is added (even before DAC is enabled)
-- `spu94_flush()` produces different-length tails with DAC enabled
-- Witness diff thresholds suddenly exceeded with DAC disabled
+**Prevention:**
+1. Use `int32_t` for the noise timer (must go negative)
+2. Implement the exact pseudocode from nocash, including both reload checks
+3. Verify that NoiseStep is `4 + ((SPUCNT >> 8) & 3)` and NoiseShift is `(SPUCNT >> 10) & 0xF`
+4. Note: the parity bit is computed BEFORE the timer check but the LFSR only shifts when the timer fires. This means the parity is always computed from the current level, not from a pre-shift level.
 
-**Phase to address:** P-INTEGRATE (primary), P-VERIFY (regression)
+**Detection:**
+- Test all 64 Shift/Step combinations (16 shifts x 4 steps) and verify the noise frequency matches expected values
 
 ---
 
-### C5: Historical accuracy trap — using modern AKM datasheets for a discontinued 1990s chip
+### C5: Sweep and ADSR are SEPARATE concurrent envelopes
 
 **What goes wrong:**
-The AK4309AVM datasheet is not publicly available (confirmed by dogbreath.de, the primary PS1 DAC documentation site: "the datasheet of the AK4309 AVM seems not to be available anymore"). The AK4309B datasheet IS available and describes a "1-bit stereo DAC for multimedia" with SCF (switched-capacitor filter) output and 256fs/384fs master clock options. But the AK4309B is a different chip:
+Volume Sweep uses the same counter-accumulate/bit-15-fires-step mechanism as ADSR (same `CounterIncrement`, step formulas, exponential scaling). This tempts developers to reuse the existing `spu94_adsr_state_t` struct or share counter state. But sweep and ADSR are separate, concurrent envelopes:
 
-- The AK4309B has 24 pins vs. the AK4309AVM's 24 pins (same count but different pinout)
-- dogbreath.de explicitly notes the AK4309B is "incompatible" with the AK4309AVM
-- Mid-1990s manufacturing tolerances, noise floors, and modulator designs differ from the "B" revision
+- **ADSR** controls the amplitude envelope (attack/decay/sustain/release), applied as a mono multiplier
+- **Sweep** controls the per-voice left/right volume registers independently, applied as a stereo volume multiplier
 
-Using the AK4309B datasheet as a proxy for the AK4309AVM is reasonable for high-level topology (both are 1-bit delta-sigma) but dangerous for specifics (oversampling ratio, noise-shaper order, SCF cutoff frequency, idle tone behavior).
-
-Modern AKM chips (AK4490, AK4499) are irrelevant — they use completely different multi-bit delta-sigma architectures with digital post-processing that did not exist in the 1990s.
+They run simultaneously. A voice can have ADSR ramping up while sweep ramps left volume down and right volume up (stereo panning). Merging them into one state machine produces fundamentally wrong behavior.
 
 **Why it happens:**
-- The AK4309AVM datasheet is genuinely lost
-- The AK4309B datasheet appears in search results for "AK4309 datasheet" and looks authoritative
-- Modern AKM datasheets are well-documented and tempting to extrapolate from
+- The formulas are identical except for the register fields they read
+- The `spu94_adsr_state_t` struct already has counter, level, phase, shift/step/exp/dir fields
+- The ADSR is well-tested and working; reusing it seems safe
 
-**How to avoid:**
-1. Use the AK4309B datasheet ONLY for topology-class identification (1-bit delta-sigma, SCF output, 256fs/384fs clock). Do NOT use it for performance specifications (SNR, THD, noise-shaper order).
-2. Use the Archimago SCPH-5501 measurements (real PS1 hardware) as the primary reference for actual performance: ~90dB dynamic range, "slight deviance from flat above 3kHz," jitter sidebands below -100dB.
-3. Flag ALL AK4309AVM-specific claims as LOW confidence in documentation.
-4. Design the model to be parameterizable so that hardware measurements (M5, Anthony's PS1) can calibrate it later.
-5. Document in DECISIONS.md: "AK4309AVM datasheet unavailable. Model is based on topology-class behavior (1-bit delta-sigma) calibrated against Archimago's SCPH-5501 measurements. Specific parameters are approximate and flagged for hardware validation."
+**Consequences:**
+- Sweep cannot run independently from ADSR
+- Stereo panning effects are impossible
+- Volume sweep direction changes fight with ADSR phase transitions
 
-**Warning signs:**
-- An ADR that says "per the AK4309 datasheet" without specifying which variant
-- A noise-shaper implementation tuned to specific dB targets from the B variant's datasheet
-- Anyone claiming to know the exact oversampling ratio of the AK4309AVM
+**Prevention:**
+1. Create a new `spu94_sweep_state_t` struct with its own counter, level, shift, step, exp, dir, and phase fields
+2. Each voice gets TWO sweep states -- one for left volume, one for right volume -- separate from the single ADSR state
+3. Both sweep states tick independently every 44.1 kHz tick
+4. The sweep step function can share the same *math helper* as ADSR (the counter-accumulate formula is identical), but must use its own *state storage*
+5. Final voice output: `mono_out = q15_mul(gauss_out, adsr_level)`, then `out_l = q15_mul(mono_out, sweep_vol_l)`, `out_r = q15_mul(mono_out, sweep_vol_r)`
 
-**Phase to address:** P-RESEARCH (data gathering), P-DECISIONS (confidence flagging)
+**Detection:**
+- Test: Configure a voice with ADSR attack = instant, sustain = full, and sweep_left = decrease, sweep_right = increase. The voice should pan from left to right while maintaining constant overall volume.
 
 ---
 
-### C6: Fixed-point arithmetic pitfalls when modeling DAC nonlinearities in integer math
+### C6: Signed volume breaks the existing unsigned volume path
 
 **What goes wrong:**
-The existing libspu94 core uses Q15 fixed-point (int16_t, multiply-then-shift-15, truncate). A DAC model that introduces new arithmetic — particularly division, non-power-of-two scaling, or small fractional corrections — can introduce subtle precision errors:
+The existing `spu94_voice_tick` applies per-voice volume as:
+```c
+*out_l = q15_mul_truncate(gauss_out, v->vol_l);
+*out_r = q15_mul_truncate(gauss_out, v->vol_r);
+```
 
-1. **ZOH sinc compensation in Q15:** The sinc function `sin(pi*f/fs) / (pi*f/fs)` requires either a lookup table or a polynomial approximation. In Q15, a polynomial approximation of `1/sinc(x)` for compensation needs careful range analysis to avoid overflow in intermediate products. Two Q15 values multiplied produce a Q30 intermediate before the shift-by-15; chaining three multiplications (as in a cubic polynomial) needs Q45, which overflows int32.
+The Q15 multiply `q15_mul_truncate(a, b) = (int32_t)a * (int32_t)b >> 15` works correctly for signed values -- a negative `vol_l` will invert the phase. The core math is fine. The danger is in the **surrounding code** that touches volume:
 
-2. **Noise-shaper feedback in fixed-point:** A delta-sigma noise-shaper model feeds back quantization error through a filter. The feedback coefficients determine the noise-shaping profile. In floating-point, this is straightforward. In fixed-point, coefficient quantization changes the noise-shaping curve, potentially introducing limit cycles (oscillations at DC or Nyquist that do not decay). This is a well-known problem in fixed-point delta-sigma implementations.
-
-3. **Division operations:** The existing codebase avoids division in the hot path (reverb uses shifts; ADPCM uses `>>6`). A DAC model that introduces divisions (e.g., for polynomial evaluation or normalization) breaks this pattern and may introduce rounding inconsistencies.
+1. **`spu94_voice_mixer_key_on`** -- if the GUI or MIDI layer clamps `vol_l`/`vol_r` to `0..0x7FFF` before passing them, negative values never arrive
+2. **Volume display** -- if the GUI shows volume as `0..100%`, it can't represent negative values
+3. **Sweep integration** -- when sweep modifies volume, the level value needs to be signed-aware. Sweep decrease toward zero is different from sweep increase toward `-7FFFh`
+4. **PS1 volume register format** -- fixed mode uses 15-bit magnitude + 1 sign bit: value range `-4000h..+3FFFh` which maps to `-8000h..+7FFEh` when doubled. This scaling must be documented.
 
 **Why it happens:**
-- DAC modeling literature is almost exclusively in floating-point (MATLAB, Python)
-- Converting a floating-point model to fixed-point is a separate engineering task that introduces its own error sources
-- The existing Q15 infrastructure handles simple multiply-and-shift well but does not provide higher-precision helpers
+- The v1.8 code was written with unsigned volume in mind. Tests assume `vol_l >= 0`.
+- `q15_mul_truncate` already handles signs correctly, so the core DSP works -- but call sites, validation, GUI, and preset serialization all assume unsigned.
 
-**How to avoid:**
-1. Keep the DAC model as simple as possible in the hot path. ZOH sinc rolloff can be modeled as a single-pole IIR filter (first-order approximation) or a short FIR, both of which are straightforward in Q15.
-2. If polynomial approximation is needed, use Q15 with int64_t intermediates for chained multiplications. The existing `q15_mul_truncate` returns int16_t; a new `q15_mul_wide` returning int32_t may be needed for intermediate precision.
-3. Do NOT attempt to model the full delta-sigma modulator in fixed-point. The modulator operates at a much higher internal rate (256fs = 11.29MHz for 44.1kHz audio) and simulating it sample-by-sample is both computationally prohibitive and unnecessary for the audible effect.
-4. Pre-compute any frequency-dependent coefficients at initialization time (when the model is enabled or parameters change), not in the per-sample path.
-5. Validate fixed-point model output against a floating-point reference implementation (Python/numpy) with a known tolerance budget (e.g., +/-1 LSB per sample).
+**Consequences:**
+- Phase inversion is silently impossible because upstream code clamps to positive
+- Volume sweep into negative territory is silently clamped to zero
+- Test infrastructure doesn't cover negative volume paths
 
-**Warning signs:**
-- int32_t overflow in intermediate products (ASAN/UBSAN will catch this)
-- Limit cycles: output oscillates at a fixed pattern when input is constant zero
-- Model output diverges from float reference by more than 1 LSB on average
+**Prevention:**
+1. Audit every call site that sets `vol_l`/`vol_r` -- remove positive-only clamping
+2. Document the PS1 fixed-mode volume register scaling: `-4000h..+3FFFh` maps to `-8000h..+7FFEh`
+3. Update `spu94_voice_mixer_key_on` to accept the full signed range
+4. Add negative-volume golden-file tests: a sine wave processed with `vol_l = -0x4000` should be bit-identical to the positive version but phase-inverted
+5. VxOUTX (for PMON) is captured post-ADSR, pre-volume -- it is already signed and unaffected by volume sign. No PMON changes needed for signed volume.
 
-**Phase to address:** P-MODEL (implementation), P-VERIFY (float-vs-fixed comparison)
+**Detection:**
+- Golden test: process identical audio with `vol_l = +0x4000` and `vol_l = -0x4000`. Outputs should be exact negatives of each other, sample by sample.
 
 ---
 
-## Significant Pitfalls
+## Moderate Pitfalls
 
-### S1: Performance regression — DAC model adding too much computation to the hot path
-
-**What goes wrong:**
-The DAC model runs at 44.1kHz on every output sample (not at the 22.05kHz half-rate where the reverb runs). If the model involves a multi-tap FIR, a polynomial evaluation, or — worst case — a full delta-sigma modulator simulation at 256x oversampling, the per-sample cost could dwarf the reverb computation.
-
-Current benchmark context: the existing `spu94_process` at the `rt_bench_latency` ctest target shows (p99-median)/median ratio of 0.741 against a threshold of 2.0. There is headroom, but not infinite.
-
-**Why it happens:**
-- "Just a few multiplies per sample" compounds: at 44.1kHz stereo, that is 88,200 extra operations per second per multiply
-- Modeling literature suggests complex filter structures that are overkill for the audible effect
-- The temptation to "get it right" leads to over-engineering the model
-
-**How to avoid:**
-1. Target a DAC model that adds NO MORE than 2-3 multiplications per sample per channel in the hot path. This is achievable with a first-order IIR or a 3-tap FIR for sinc compensation.
-2. Benchmark before and after with `pytest-benchmark` and the existing `rt_bench_latency` target.
-3. If a more complex model is needed, make it optional (a "quality" flag) with a fast default.
-4. The model must NOT simulate the delta-sigma modulator at its native oversampled rate. Model the EFFECT (noise shaping, sinc rolloff), not the MECHANISM.
-5. Profile with `perf` on the hot loop to catch unexpected costs (branch mispredictions from conditional DAC enable, cache misses from new state fields).
-
-**Warning signs:**
-- `rt_bench_latency` p99/median ratio increases above 1.5
-- Per-block processing time more than doubles with DAC enabled
-- The model has a loop inside the per-sample function
-
-**Phase to address:** P-MODEL (design constraint), P-VERIFY (benchmark regression)
+Mistakes that produce wrong behavior but are fixable without a rewrite.
 
 ---
 
-### S2: Verification traps — what can and cannot be verified without real hardware
+### M1: Noise replaces ADPCM output but ADPCM blocks must still be decoded
 
 **What goes wrong:**
-Unlike ADPCM (where the decode algorithm is fully specified by nocash and bit-exact verification is possible against multiple witnesses), DAC modeling has NO authoritative specification to verify against. The AK4309AVM datasheet is lost. Emulator witnesses (Mednafen, DuckStation) do NOT model the DAC at all — they output raw 16-bit PCM from the SPU and rely on the host audio system for D/A conversion. There is no "golden reference" for what the PS1 DAC does to the digital signal.
+When NON is enabled for a voice, the noise LFSR output replaces the Gaussian interpolation output. But the ADPCM block decode must still happen -- the voice still advances through SPU RAM, processes flag bytes (loop start/end), and updates filter state. If the decode is skipped when NON is active, loop flags are never processed, ENDX is never set, and the voice's address counter stalls.
 
-Available verification targets:
-- **Archimago's SCPH-5501 measurements:** Frequency response, THD, jitter — captured AFTER the entire analog output chain (DAC + op-amps + cables + measurement ADC). These measurements include analog output stage effects that are out of scope for the DAC model.
-- **Stereophile measurements:** Similar scope (full chain), similar limitations.
-- **Anthony's PS1 (future M5):** Can produce real hardware output, but capturing the DAC's digital-domain behavior requires isolating the DAC from the analog output stage, which is non-trivial.
-
-What CANNOT be verified without hardware:
-- The exact noise-shaping profile of the AK4309AVM
-- Idle tone frequencies and amplitudes
-- The internal digital filter's frequency response
-- Whether the chip has 8x or some other oversampling ratio
+DuckStation confirms this: "ADPCM data is still decoded" even for noise voices.
 
 **Why it happens:**
-- The ADPCM milestone's verification strategy (bit-exact witness comparison) creates expectations that DAC verification will be similarly rigorous
-- The audiophile measurement community provides data, but it measures the wrong thing (the complete analog chain, not the DAC alone)
+The obvious optimization: "if this voice outputs noise, skip the expensive ADPCM decode." But the decode has side effects beyond audio output -- it processes the flag byte which controls loop mechanics.
 
-**How to avoid:**
-1. Accept that DAC model verification is inherently **approximate**, not bit-exact. Document this honestly in the ADR.
-2. Verification targets for v1.2:
-   - **Topology correctness:** The model behaves like a delta-sigma converter, not an R2R converter (spectral analysis shows noise shaping, not flat quantization noise)
-   - **ZOH rolloff:** The model's frequency response shows the expected sinc rolloff (-3.9dB at 20kHz for 44.1kHz ZOH)
-   - **Transparency when bypassed:** DAC-disabled output is bit-identical to pre-v1.2 output
-   - **Regression safety:** All existing tests pass with DAC disabled
-3. Defer **calibration** to M5 (hardware validation). The v1.2 model is a structurally correct placeholder that hardware measurements will tune.
-4. Do NOT claim bit-accuracy for the DAC model. The project's bit-accuracy claim applies to the reverb algorithm and ADPCM codec, not to the DAC model.
+**Consequences:**
+- Loop-end flags never fire -> voice never loops or terminates
+- ENDX never gets set -> software polling for voice completion hangs
+- Address counter never advances -> voice consumes no SPU RAM addresses
 
-**Warning signs:**
-- ADR or documentation claims "bit-faithful DAC emulation"
-- Test infrastructure attempts sample-exact comparison against emulator witnesses (which do not model DAC)
-- Hardware validation is described as "confirming" rather than "calibrating" the model
+**Prevention:**
+1. When NON is active, still decode ADPCM blocks and process flag bytes
+2. Replace only the interpolation output: `sample = noise_level` instead of `sample = gauss_interpolate(...)`
+3. Pitch counter still advances, consuming decoded samples and triggering block boundaries
+4. Comment this explicitly -- it's counterintuitive
 
-**Phase to address:** P-VERIFY (strategy), P-DECISIONS (confidence documentation)
+**Detection:**
+- Test: Enable NON on a voice playing a looped sample. Verify ENDX is set when the loop-end block is reached.
 
 ---
 
-### S3: Scope creep via "while we're at it" effects
+### M2: Noise frequency is global, not per-voice
 
 **What goes wrong:**
-Once a DAC modeling stage exists in the pipeline, it becomes a magnet for adjacent effects:
-- "Add a gentle high-shelf to simulate the op-amp coloring"
-- "Add 1-bit dither to model the modulator's quantization"
-- "Add jitter simulation to model clock instability"
-- "Add a low-cut at 20Hz to model the coupling capacitor"
-
-Each of these is a separate analog-domain effect masquerading as part of "DAC modeling." Together, they turn the DAC stage into an unverifiable grab-bag of "sounds PS1-ish" processing.
+The noise LFSR is a single global generator. All NON-enabled voices read the same `NoiseLevel` value on every tick. The noise frequency is controlled by SPUCNT bits 8-13, not by per-voice pitch registers.
 
 **Why it happens:**
-- The DAC model's audible effect may be subtle (ZOH sinc rolloff is -3.9dB at 20kHz, which is gentle)
-- The desire to "hear a difference when I flip the toggle" drives feature addition
-- The analog output stage is where the PS1's distinctive character lives, and it is tempting to model it under the DAC umbrella
+- Every other voice feature (pitch, volume, ADSR) is per-voice -- the natural assumption is that noise is too
+- Having a single global generator feels architecturally wrong in a modern implementation
 
-**How to avoid:**
-1. The v1.2 milestone models the CONVERSION STEP ONLY. Analog output stage is a separate future milestone.
-2. Each proposed addition must answer: "Does this effect exist in the digital-to-analog conversion itself, or in the analog circuit after the DAC chip's output pins?" If the latter, defer.
-3. The toggle is `spu94_set_dac_enabled()`. It enables DAC conversion modeling. A future `spu94_set_analog_enabled()` (or similar) enables analog output stage modeling.
-4. If the v1.2 model is too subtle to hear, that is a CORRECT RESULT, not a failure. Document it.
+**Consequences:**
+- Per-voice noise produces different sequences on each voice, which doesn't match hardware
+- Per-voice noise frequency control allows effects that are impossible on real hardware
 
-**Warning signs:**
-- The DAC model has more than 3-4 parameters
-- Parameters include frequency values below 100Hz (coupling cap territory) or above 22kHz (analog filter territory)
-- The model "sounds great" but cannot be related back to a specific conversion artifact
+**Prevention:**
+1. Store `noise_level` and `noise_timer` in the mixer struct (`spu94_voice_mixer_t`), not in individual voice structs
+2. Tick the noise generator ONCE per tick (before the voice loop), not once per voice
+3. All NON-enabled voices read the same `noise_level` value for that tick
+4. Document that per-voice pitch has NO effect on noise frequency (nocash: "the ADPCM Sample Rate has absolutely no effect on noise")
 
-**Phase to address:** P-RESEARCH (scope boundary), P-DECISIONS (scope ADR)
+**Detection:**
+- Test: Enable NON on voices 0 and 12. Both voices should output identical noise samples on every tick.
 
 ---
 
-### S4: Revision-dependent behavior — which PS1 model is "the" reference?
+### M3: PMON cannot modulate noise frequency
 
 **What goes wrong:**
-Different PS1 hardware revisions use different DAC chips and output stages:
+The nocash spec states that pitch modulation can be applied over ADPCM but NOT over noise. Since PMON modulates the pitch counter step, and noise voices don't use the pitch counter for audio output (they read the global LFSR), PMON on a noise voice modulates the ADPCM decode rate (for flag processing) but not the audible noise.
 
-| Model | DAC | Notes |
-|-------|-----|-------|
-| SCPH-1001 | AK4309AVM | RCA jacks, NJM2100 op-amp buffer |
-| SCPH-5501 | AK4309AVM | Same DAC, different output path (A/V Multiport) |
-| SCPH-7001+ | AK4309B or integrated | Different chip, potentially different conversion |
-| SCPH-750x+ | DAC integrated in CD/DSP | Completely different architecture |
+**Prevention:**
+1. Apply PMON to the pitch step before Gaussian interpolation -- this is the natural pipeline position
+2. Document that PMON affects the ADPCM decode advancement rate even for NON voices, but the audible output is unaffected
+3. This is a documentation/expectation issue, not a code bug
 
-Anthony owns "an original PSX" but the specific model revision has not been established. The DAC model should target the AK4309AVM (SCPH-1001/5501 era), but if Anthony's unit is a later revision, hardware validation measurements will not match the model.
-
-**Why it happens:**
-- "PS1" is treated as a single target, but the audio path changed significantly across revisions
-- The audiophile community focuses on early models (SCPH-1001 specifically) because they sound "better"
-
-**How to avoid:**
-1. Target the AK4309AVM (SCPH-1001/5501) as the reference. This is the most documented, most measured, and most discussed PS1 DAC.
-2. Document the target revision in the ADR: "DAC model targets AK4309AVM as found in SCPH-1001 and SCPH-5501."
-3. Before M5 hardware validation, confirm which model Anthony has. If it is a later revision, the model cannot be validated against that specific unit for DAC behavior (though reverb and ADPCM can still be validated, since those are in the SPU, not the DAC).
-4. Consider making the model parameterizable enough that a second "profile" could represent the later integrated DAC, if measurements become available.
-
-**Warning signs:**
-- The model is described as "the PS1 DAC" without specifying revision
-- Hardware validation measurements do not match model predictions but the discrepancy is attributed to "the model needs tuning" rather than "this is a different DAC chip"
-
-**Phase to address:** P-RESEARCH (reference identification), P-DECISIONS (revision ADR)
+**Detection:**
+- Informational test: verify that enabling PMON on a noise voice doesn't change the noise output samples
 
 ---
 
-### S5: Confusing ZOH with sample-rate reduction
+### M4: Sweep Phase bit behavior is under-documented for negative volumes
 
 **What goes wrong:**
-The ZOH (zero-order hold) effect is the staircase waveform produced by holding each sample constant between clock edges. Its frequency-domain effect is multiplication by a sinc function: `H(f) = sinc(f / fs)`, which rolls off high frequencies. At 44.1kHz, 20kHz is attenuated by about -3.9dB.
+The nocash spec includes this note about the sweep Phase bit (bit 12 of the volume register in sweep mode): "Should be equal to the sign of the current volume (not yet tested, in the negative mode it does probably 'increase' to -7FFFh?)." This is explicitly marked as uncertain in the spec. The Phase bit also "seems to have no effect in Exponential Decrease mode."
 
-This is NOT the same as downsampling to a lower rate and then upsampling. The SPU already handles the 22.05kHz <-> 44.1kHz conversion with its half-band FIR. The ZOH effect operates on the 44.1kHz output signal as it is presented to the DAC chip.
-
-An implementation that "models ZOH" by inserting a sample-and-hold at a lower rate (e.g., holding every other sample to simulate 22.05kHz ZOH) is double-counting: the FIR decimator/interpolator already handles the half-rate processing.
+These are gray areas that need ADR treatment:
+1. What does "increase" mean when Phase=Negative? Does it increase toward `-7FFFh`?
+2. Does exponential decrease ignore Phase entirely?
+3. What happens if Phase disagrees with the sign of the current volume level?
 
 **Why it happens:**
-- ZOH, sample-and-hold, and sample-rate conversion are related concepts that are easy to conflate
-- "The PS1 reverb runs at 22.05kHz" leads to thinking the ZOH should operate at 22.05kHz
-- Bitcrusher plugins model ZOH as "hold every Nth sample," which is a sample-rate reduction, not a true ZOH at the DAC output rate
+- The spec author (nocash) annotated this as untested
+- Emulator consensus may not be reliable here
 
-**How to avoid:**
-1. The ZOH effect at 44.1kHz is a gentle high-frequency rolloff following the sinc envelope. It does NOT involve holding or repeating samples.
-2. Implement as a frequency-domain compensation: either apply the sinc rolloff directly (a mild low-pass curve) or model the ZOH's impulse response (a rectangular pulse of width 1/fs).
-3. In practice, a first-order IIR low-pass at approximately 20kHz cutoff provides a reasonable approximation of the ZOH's audible effect at 44.1kHz.
-4. Do NOT repeat or hold samples. That is sample-rate reduction, which is already handled by the FIR.
+**Consequences:**
+- Sweep direction may be inverted for negative-phase voices
+- Exponential decrease may behave differently than expected in negative phase
 
-**Warning signs:**
-- The model holds or duplicates samples in the output
-- The model has a "hold factor" or "decimation ratio" parameter
-- Frequency response shows a brick-wall notch (sample-rate aliasing) instead of a smooth sinc rolloff
+**Prevention:**
+1. Implement the formula exactly as nocash specifies: `IF Decreasing XOR PhaseNegative THEN AdsrStep = NOT AdsrStep`
+2. File an ADR for the Phase/negative-volume interaction, documenting what SPU-94 does and why
+3. Use DuckStation's behavior as the emulator-consensus baseline
+4. Test both sweep directions with both Phase polarities against DuckStation output
 
-**Phase to address:** P-MODEL
+**Detection:**
+- Compare sweep trajectories against DuckStation for all 4 combinations of Direction x Phase
+
+---
+
+### M5: Volume sweep initial-value timing hazard
+
+**What goes wrong:**
+The nocash spec warns: "the Bit15=0 setting isn't applied until the next 44.1kHz cycle; so setting the initial level with Bit15=0, followed by the sweep parameter with Bit15=1 works only if there's a suitable delay between the two operations." Writing a fixed volume immediately followed by a sweep command in the same tick may not apply the fixed volume as the sweep starting point.
+
+**Consequences:**
+- Sweep starts from the wrong level -- instead of sweeping from 0 to max, it sweeps from wherever the previous sweep ended
+
+**Prevention:**
+1. In SPU-94's API, key_on sets both the initial volume AND the sweep parameters simultaneously -- document that the initial volume is the sweep's starting point
+2. On key_on with sweep enabled: set vol_l/vol_r to the requested initial value, initialize sweep counter to 0, sweep begins from the initial value on the next tick
+3. File an ADR documenting SPU-94's chosen behavior for this timing edge case
+
+---
+
+### M6: Sweep IS the volume register, not a separate multiplier
+
+**What goes wrong:**
+Implementing sweep as a separate envelope that multiplies against a fixed volume setting, keeping the original vol_l/vol_r unchanged.
+
+**Why it happens:**
+ADSR works as a separate multiplier. Intuition says sweep should too.
+
+**Consequences:**
+- Double-applying volume (the fixed value AND the sweep value)
+- Extra attenuation making everything too quiet
+- Reading back vol_l/vol_r shows the fixed value instead of the swept value
+
+**Prevention:**
+1. Sweep tick directly modifies `voice->vol_l` and `voice->vol_r`. There is no separate "sweep level" -- the volume register IS the sweep's working state.
+2. Do NOT add a separate `* sweep_level` multiply after the existing `* vol_l` multiply
+3. Each tick, update `v->vol_l` and `v->vol_r` by running the sweep counter mechanism on them
+4. The multiply chain stays as two stages: `gauss_out * adsr_level`, then `result * vol_l/r`
+
+**Detection:**
+- A/B test: voice with sweep-to-max vs voice with fixed volume at max. Output amplitude should be identical when sweep reaches its target.
+
+---
+
+### M7: Pending KON/KOFF interaction with sweep state
+
+**What goes wrong:**
+The existing pending KON/KOFF system (C8 in v1.8) stages key-on/key-off events in bitmasks and applies them at the start of the next tick. When KON fires, it resets ADSR. It also needs to handle sweep state:
+- KON must reset sweep state (new note starts fresh)
+- KOFF does NOT affect sweep (sweep is independent of ADSR release)
+- The pending config mechanism (`pending_config[]`) needs to carry sweep parameters
+
+**Consequences:**
+- Sweep from a previous note bleeds into a new note
+- Residual sweep direction/rate persists after KON
+
+**Prevention:**
+1. Add sweep fields to `spu94_voice_t`
+2. `spu94_voice_key_on` resets sweep state (counter=0, level set to initial value)
+3. `spu94_voice_mixer_key_on` accepts sweep configuration in the pending config
+4. KOFF does NOT reset sweep
+
+**Detection:**
+- Test: Trigger voice with sweep-decrease. Before sweep completes, KON the same voice with sweep-increase. Verify the sweep starts from the KON-specified initial value.
 
 ---
 
 ## Minor Pitfalls
 
-### M1: Forgetting to update the Python binding and CLI for the new toggle
-
-**What goes wrong:** v1.1 added `spu94_set_adpcm_enabled()` with Python ctypes binding (`spu94.adpcm_enabled = True`) and CLI flag. v1.2 must add equivalent `spu94_set_dac_enabled()` with matching binding and CLI support. Forgetting the binding means Python test infrastructure cannot exercise the DAC model.
-
-**How to avoid:** Checklist item: for every new C API function, add ctypes wrapper + CLI flag + pytest coverage.
-
-**Phase to address:** P-INTEGRATE
+Issues that cause subtle incorrectness or maintenance problems.
 
 ---
 
-### M2: State struct bloat from DAC model fields
+### m1: PMON on voice 0 -- the ignored bit
 
-**What goes wrong:** The `spu94_state` struct currently contains ADPCM buffers (28-sample input + output per channel = 112 int16_t). If the DAC model adds filter delay lines, noise-shaper state, or lookup tables to the struct, it grows the per-instance memory footprint. On MCU targets (future Daisy/Cortex-M port), every byte of state matters.
+**What goes wrong:**
+PMON bit 0 has no useful function -- voice 0 has no predecessor. If SPU-94 processes PMON bit 0 and tries to read `voices[-1].outx`, it reads out-of-bounds memory.
 
-**How to avoid:**
-1. Keep DAC model state minimal. A memoryless sinc-rolloff model needs zero additional state. A first-order IIR needs 2 int16_t (one per channel).
-2. If lookup tables are needed (e.g., pre-computed sinc compensation coefficients), store them as `const` arrays outside the state struct.
-3. Document the state struct size delta in the ADR.
-
-**Phase to address:** P-MODEL, P-INTEGRATE
+**Prevention:**
+1. Skip PMON for voice index 0: `if (pmon_enabled && voice_idx > 0)`
+2. PMON bit 0 writes should be accepted but ignored
 
 ---
 
-### M3: JUCE toggle checkbox wiring (future dependency)
+### m2: PMON hardware glitch for VxPitch > 0x7FFF
 
-**What goes wrong:** v1.1 shipped with a JUCE toggle for ADPCM coloration (confirmed in PROJECT.md: "JUCE toggle confirmed by user"). The JUCE plugin (future milestone) will need a matching DAC toggle. If the C API toggle semantics differ from ADPCM's (e.g., DAC enable requires re-initialization while ADPCM enable is instant), the JUCE integration will need special handling.
+**What goes wrong:**
+The nocash spec documents hardware glitches when VxPitch exceeds 0x7FFF during PMON: sign-extension errors and sign-bit killing after multiplication. Since SPU-94 clamps pitch to 0x3FFF (C7 in v1.8), these glitches cannot be triggered through the normal API.
 
-**How to avoid:** Match ADPCM toggle semantics exactly: `spu94_set_dac_enabled(state, 1)` enables immediately, `spu94_set_dac_enabled(state, 0)` disables and clears any model state. No re-initialization required.
+BUT: the PMON formula includes `SignExpand16to32(Step)` before the multiply. For pitch values 0x0001-0x3FFF this is a no-op (positive values sign-extend with zeros). The spec also says PMON can produce a final step of 0x4000 (clamp: `IF Step > 3FFFh THEN Step = 4000h`), which is HIGHER than the normal maximum pitch. This is intentional -- FM modulation can exceed the base pitch range.
 
-**Phase to address:** P-INTEGRATE (API design)
-
----
-
-## Technical Debt Patterns
-
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Implement bitcrusher instead of delta-sigma model | Easy to code, audibly dramatic | Wrong artifact profile for the actual PS1 DAC; misleads users | Never for "DAC model" label; acceptable as separate "lo-fi" effect |
-| Use float in the DAC model hot path | Simpler math, no overflow risk | Breaks float-free CI gate; not RT-safe on all targets; inconsistent with core | Never in libspu94.so; acceptable in offline analysis tools |
-| Model full delta-sigma modulator at 256fs | Most faithful to hardware | ~256x computation increase; unknowable without datasheet | Never in real-time path; acceptable as offline reference |
-| Skip ZOH modeling ("too subtle to hear") | Less code | Misses the one topology-independent artifact that IS modelable | Acceptable for v1.2 MVP if documented as deferred |
-| Use AK4309B datasheet specs directly | Concrete numbers to implement | Wrong chip; different revision | Only as starting hypothesis, flagged as LOW confidence |
-| Include analog output stage in DAC model | More audible effect | Wrong scope boundary; unverifiable without hardware | Never in v1.2; separate future milestone |
+**Prevention:**
+1. The sign-extension is correct but harmless for the valid pitch range
+2. Use the exact clamp value from spec: `if (step > 0x3FFF) step = 0x4000`
+3. File an ADR documenting how the 0x4000 clamp is different from the 0x3FFF base-pitch clamp
 
 ---
 
-## Integration Gotchas (DAC + existing libspu94 pipeline)
+### m3: Noise LFSR tick happens once per tick, not once per voice
 
-| Integration Point | Common Mistake | Correct Approach |
-|-------------------|----------------|------------------|
-| Signal chain position | Insert inside chain_step_impl at 22.05kHz | Insert AFTER spu94_fir_chain_step at 44.1kHz in spu94_process |
-| Toggle API | Require re-init on enable/disable | Match ADPCM pattern: instant enable/disable with state cleanup |
-| Latency accounting | Forget to update spu94_get_total_latency_samples | Add DAC model latency (ideally 0) to the accumulator |
-| Flush path | DAC model state not drained during spu94_flush | Ensure flush feeds silence through DAC model too (automatic if model is in spu94_process loop) |
-| Golden files | Replace existing goldens with DAC-enabled versions | Keep existing goldens (DAC-off); add new DAC-on golden set |
-| RT safety gates | New state fields or operations violate rt_safety | Run all 4 rt_safety targets after integration; no heap, no locks, no syscalls |
-| In-place processing | DAC model reads output buffer that is aliased to input | Read from chain_step output before modifying; or use temp variable |
+**What goes wrong:**
+If the noise generator is advanced inside the voice loop (once per NON-enabled voice), the LFSR shifts multiple times per tick when multiple voices use noise. This makes the noise frequency depend on how many voices are noise-enabled.
+
+**Prevention:**
+1. Call the noise tick function ONCE before the voice processing loop
+2. All voices that read noise in this tick read the same `noise_level` value
 
 ---
 
-## Performance Traps
+### m4: Sweep exponential decrease stall near zero
 
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| Per-sample branching on dac_enabled flag | Branch predictor trains on one path; toggling mid-stream causes mispredictions | Place branch outside tight loop (process DAC-on block or DAC-off block, not per-sample decision) | Rapid toggle during automation |
-| Lookup table cache misses | Large coefficient tables evict hot cache lines from reverb work buffer | Keep tables under 64 bytes; prefer computed-on-init coefficients | Always, if tables are >L1 line |
-| Full modulator simulation | Per-sample cost 256x expected | Model the EFFECT not the MECHANISM; use IIR/FIR approximation | Immediately; 256x oversampling at 44.1kHz = 11.3M ops/sec |
-| Unnecessary per-sample division | Division is 10-40x slower than multiply on ARM | Pre-compute reciprocals at init; use shifts where possible | MCU targets (Cortex-M has no hardware divide) |
+**What goes wrong:**
+Exponential decrease multiplies the step by `level / 0x8000`. As level approaches zero, the step approaches zero, and the sweep stalls. This is the same issue as ADSR exponential decay stall, already handled in `spu94_adsr_tick` with `if (scaled_step == 0 && level > 0) scaled_step = -1`.
 
----
-
-## "Looks Done But Isn't" Checklist
-
-- [ ] **DAC model:** Often missing ZOH sinc rolloff (the one universal DAC artifact) while over-implementing topology-specific effects -- verify frequency response shows sinc shape
-- [ ] **Toggle:** Often missing state cleanup on disable -- verify toggling on/off/on produces same output as always-on for the second segment
-- [ ] **Latency:** Often missing from `spu94_get_total_latency_samples()` -- verify function returns correct value with DAC on and off
-- [ ] **Flush:** Often not tested with DAC enabled -- verify `spu94_flush()` drains DAC model state
-- [ ] **Python binding:** Often missing for new C API functions -- verify `spu94.dac_enabled = True` works from Python
-- [ ] **CLI flag:** Often missing for new features -- verify `spu94 process --dac input.wav output.wav` works
-- [ ] **ADR:** Often missing for scope boundary decisions -- verify DECISIONS.md has ADR for DAC model scope, topology choice, confidence level
+**Prevention:**
+1. Apply the same anti-stall guard: `if (scaled_step == 0 && level > 0) scaled_step = -1`
+2. This matches DuckStation's behavior
+3. Verify this is also needed for negative-phase exponential decrease (level approaching `-7FFFh`)
 
 ---
 
-## Recovery Strategies
+### m5: Sweep register bits are at different positions than ADSR register bits
 
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| Over-modeled (analog stage in DAC model) | MEDIUM | Extract analog effects to separate stage; may need new ADRs; no data loss |
-| Under-modeled (bitcrusher instead of delta-sigma) | MEDIUM | Replace model core; regenerate DAC-on goldens; existing DAC-off goldens unaffected |
-| Wrong chain position (22.05kHz instead of 44.1kHz) | HIGH | Restructure integration point; all DAC-on goldens invalid; reverb behavior may have been subtly affected |
-| Broke existing tests | LOW-MEDIUM | Revert DAC integration; fix; re-apply; existing goldens serve as regression gate |
-| Performance regression | LOW | Simplify model (fewer taps, lower-order filter); profile and optimize hot path |
-| Fixed-point overflow | LOW | Add int64_t intermediates; existing UBSAN/ASAN infrastructure catches these |
+**What goes wrong:**
+Both sweep and ADSR use the same counter-accumulate formula but the sweep register layout differs from the ADSR register layout. The sweep register (when Bit15=1) is:
+- `[15:sweep][14:mode][13:dir][12:phase][11-7:reserved][6-2:shift][1-0:step]`
+
+If the sweep register parser confuses this layout with the ADSR register layout, all sweep rates are wrong.
+
+**Prevention:**
+1. Parse the sweep register independently from ADSR registers
+2. Unit test the register parser with known bit patterns
 
 ---
 
-## Pitfall-to-Phase Mapping
+### m6: NON voices still consume ADSR envelope
 
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| C1: Over-modeling | P-RESEARCH, P-DECISIONS | ADR defines scope boundary; no analog parameters in model |
-| C2: Under-modeling | P-RESEARCH, P-MODEL | Spectral analysis shows noise shaping, not flat noise |
-| C3: Wrong chain position | P-INTEGRATE | ZOH rolloff at correct frequency; 44.1kHz output path |
-| C4: Breaking existing behavior | P-INTEGRATE, P-VERIFY | All pre-v1.2 tests pass with DAC disabled |
-| C5: Historical accuracy | P-RESEARCH, P-DECISIONS | ADR documents AK4309AVM datasheet unavailability; LOW confidence flags |
-| C6: Fixed-point pitfalls | P-MODEL, P-VERIFY | Float reference comparison; UBSAN clean |
-| S1: Performance regression | P-MODEL, P-VERIFY | rt_bench_latency still under threshold |
-| S2: Verification limits | P-VERIFY, P-DECISIONS | ADR documents what CAN and CANNOT be verified |
-| S3: Scope creep | P-RESEARCH, P-DECISIONS | Feature additions require "digital conversion or analog?" test |
-| S4: Revision-dependent | P-RESEARCH | ADR names target revision; Anthony's PS1 model identified |
-| S5: ZOH confusion | P-MODEL | Frequency response measured; no sample holding/repeating |
+**What goes wrong:**
+Skipping ADSR for NON-flagged voices because "they don't have a sample."
+
+**Why it happens:**
+NON replaces the SAMPLE source, not the entire voice processing chain.
+
+**Prevention:**
+1. NON replaces only the ADPCM decode + Gaussian interpolation output
+2. ADSR envelope, volume, and all downstream processing still apply
+3. A noise voice with a percussive ADSR envelope produces a hi-hat sound. Without ADSR, it's sustained white noise.
+
+---
+
+### m7: Sweep direction naming confusion with negative phase
+
+**What goes wrong:**
+Confusing "increase" to mean "volume gets louder" when phase is negative.
+
+**Prevention:**
+1. "Increase" means the register value increases toward +0x7FFF
+2. "Decrease" means the register value decreases toward 0 (positive phase) or toward -0x7FFF (negative phase)
+3. The terminology is about register value direction, not perceived loudness
+4. The formula includes: `IF Decreasing XOR PhaseNegative THEN AdsrStep = NOT AdsrStep` -- this conditionally inverts the step
+
+---
+
+## Phase-Specific Warnings
+
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| P-PMON | C1 (voice processing order), C2 (VxOUTX capture point) | Store VxOUTX immediately after ADSR apply, before volume. Test with slow modulator sine. |
+| P-PMON | m1 (voice 0 PMON bit), m2 (pitch clamp 0x4000 vs 0x3FFF) | Guard voice 0. Document pitch range ADR. |
+| P-NON | C3 (LFSR polynomial), C4 (timer mechanism) | Verify polynomial taps + seed against DuckStation. Test all 64 frequency settings. |
+| P-NON | M1 (ADPCM still decodes), M2 (global noise), m3 (tick once) | Decode but replace output. Single global LFSR in mixer struct. Tick before voice loop. |
+| P-SWEEP | C5 (separate from ADSR), M4 (Phase bit gray area), M5 (initial-value timing) | New struct, separate counters, ADR for Phase behavior. |
+| P-SWEEP | M6 (sweep IS volume), M7 (KON resets sweep), m4 (exp stall), m5 (register parsing) | Sweep modifies vol_l/r directly. KON resets sweep. Anti-stall guard. |
+| P-SIGNED | C6 (existing unsigned assumptions) | Audit all vol_l/vol_r call sites. Add negative-volume golden tests. |
+| P-INTEGRATE | M3 (PMON+noise non-interaction), M7 (KON+sweep) | Document PMON/noise non-interaction. Extend pending config for sweep. |
+| P-VERIFY | All | Golden files for PMON chain, noise sequence, sweep trajectories, phase inversion. |
+
+---
+
+## Integration: Voice Mixer Tick Must Be Restructured
+
+The current `spu94_voice_mixer_tick` structure:
+```
+1. Apply pending KON/KOFF
+2. Loop voices 0-23:
+   a. voice_tick (decode, interpolate, ADSR, volume)
+   b. accumulate dry sum
+   c. accumulate reverb sum (if EON)
+3. Saturate and apply master volume
+```
+
+Must become:
+```
+1. Apply pending KON/KOFF
+2. Tick noise generator (ONCE, globally)
+3. Loop voices 0-23:
+   a. Tick sweep for this voice (update vol_l/vol_r in-place)
+   b. If PMON enabled and voice > 0: modify pitch step using voices[v-1].outx
+   c. Advance pitch counter (with modified step)
+   d. Decode ADPCM block if needed (even for NON voices)
+   e. If NON: sample = noise_level; else: sample = gauss_interpolate
+   f. ADSR tick -> adsr_level
+   g. mono_out = q15_mul(sample, adsr_level)
+   h. Store voices[v].outx = mono_out  (for next voice's PMON)
+   i. out_l = q15_mul(mono_out, vol_l)  (vol_l is sweep-modified)
+   j. out_r = q15_mul(mono_out, vol_r)
+   k. accumulate dry and reverb sums
+4. Saturate and apply master volume
+```
+
+Key changes:
+- Step 2 ticks noise globally before any voice runs (m3 prevention)
+- Step 3a ticks sweep before computing audio so vol_l/vol_r are current (M6)
+- Step 3b reads the *previous* voice's outx (C1 prevention)
+- Step 3e branches between noise and interpolation (M1)
+- Step 3h stores outx after ADSR but before volume (C2 prevention)
+
+### Reverb send is unaffected
+
+PMON, NON, sweep, and signed volume all affect the per-voice output signal. The EON-gated reverb send reads `out_l`/`out_r` which include all these effects. No changes needed to the reverb send path.
+
+### Preset serialization
+
+Sweep adds per-voice sweep register values. These should be serialized only if the voice engine is extended with user-facing sweep controls. For the C core, sweep parameters are set programmatically.
 
 ---
 
 ## Sources
 
-### Primary (HIGH confidence)
-- [psx-spx SPU documentation](https://psx-spx.consoledev.net/soundprocessingunitspu/) -- PS1 SPU signal path, 44.1kHz output rate
-- [dogbreath.de PS1 DAC page](https://dogbreath.de/PS1/DAC/DAC.html) -- AK4309AVM identification, pin configuration, revision history
-- Existing libspu94 codebase: `spu94_process.c`, `spu94_io_chain.c` -- current signal chain architecture
-
-### PS1 DAC measurements (MEDIUM confidence — measure full analog chain, not DAC alone)
-- [Archimago SCPH-5501 measurements](http://archimago.blogspot.com/2013/03/measurements-sony-playstation-1-scph.html) -- ~90dB dynamic range, frequency response, jitter
-- [Stereophile PS1 measurements](https://www.stereophile.com/content/sony-playstation-1-cd-player-measurements) -- THD, dynamic range (measured through full output chain)
-
-### AK4309 datasheet fragments (LOW-MEDIUM confidence — AK4309B, not AK4309AVM)
-- [AK4309 datasheet on AllDatasheet](https://www.alldatasheet.com/datasheet-pdf/pdf/54935/AKM/AK4309.html) -- 1-bit delta-sigma, SCF output, 256fs/384fs clock
-- [AK4309B description on datasheetq](https://www.datasheetq.com/en/AK4309-AKM) -- "16BIT SCF DAC FOR MULTIMEDIA"
-
-### PS1 hardware revision info (MEDIUM-HIGH confidence)
-- [ConsoleMods PS1 Model Differences](https://consolemods.org/wiki/PS1:PS1_Model_Differences) -- DAC chip per revision
-- [RetroGameTalk PS1 audio](https://retrogametalk.com/threads/why-early-playstation-1-models-are-valued-in-the-audio-world.3598/) -- SCPH-1001 vs later models
-
-### DAC modeling theory (HIGH confidence for theory, LOW for PS1-specific application)
-- [DSP Related: DAC Zero-Order Hold Models](https://www.dsprelated.com/showarticle/1627.php) -- ZOH theory, sinc rolloff, MATLAB models
-- [All About Circuits: DNL and INL](https://www.allaboutcircuits.com/technical-articles/understanding-dnl-and-inl-specifications-of-a-digital-to-analog-converter/) -- DAC nonlinearity (applies to R2R, NOT to 1-bit delta-sigma)
-- [Analog Devices AN-283: Sigma-Delta ADCs and DACs](https://www.analog.com/media/en/technical-documentation/application-notes/292524291525717245054923680458171an283.pdf) -- Delta-sigma noise shaping theory
-
-### Retro audio emulation plugins (MEDIUM confidence — commercial references)
-- [Plogue Chipcrusher](https://www.plogue.com/products/chipcrusher.html) -- retro DAC emulation approach (ZOH, PWM, filtering)
-- [TAL-Sampler](https://gearspace.com/board/electronic-music-instruments-and-electronic-music-production/1016253-new-tal-sampler-emulator-ii-am6070-sample-hold-dac-emulation.html) -- DAC emulation in signal chain context
-
----
-
-*Pitfalls research for: DAC modeling milestone (v1.2) for libspu94*
-*Researched: 2026-04-28*
+- [nocash psx-spx SPU documentation](https://psx-spx.consoledev.net/soundprocessingunitspu/) -- PRIMARY: polynomial, formulas, register layouts, noise timer
+- [nocash SPU ADPCM Pitch](https://problemkaputt.de/psxspx-spu-adpcm-pitch.htm) -- PMON formula, VxOUTX reference, hardware glitches, clamp behavior
+- [nocash SPU Volume and ADSR Generator](https://problemkaputt.de/psxspx-spu-volume-and-adsr-generator.htm) -- sweep register format, counter mechanism, phase bit, signed volume
+- [DuckStation SPU source](https://github.com/stenzek/duckstation) -- VxOUTX capture point confirmed (after ADSR, before volume), noise seed = 1, voice processing order 0-23 sequential, volume sweep as register modification
+- [hitmen SPU documentation](https://hitmen.c02.at/files/docs/psx/spu.txt) -- sweep description, volume phase inversion, general SPU architecture
+- [PCSX2 noise algorithm PR #4134](https://github.com/PCSX2/pcsx2/pull/4134) -- noise algorithm accuracy discussion, Dr. Hell's research reference
+- Existing SPU-94 source: `spu94_voice.c` (current processing order), `spu94_adsr.c` (counter-accumulate reference), `spu94_voice.h` (struct layout, S2 forward-looking note)
