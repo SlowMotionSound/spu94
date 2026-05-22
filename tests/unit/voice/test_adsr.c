@@ -20,6 +20,7 @@
 #include "unity.h"
 #include <spu94/spu94_adsr.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 void setUp(void) {}
@@ -423,6 +424,71 @@ void test_bypass_always_returns_7FFF(void) {
 }
 
 /* ---------------------------------------------------------------
+ * Test: sustain-decrease step magnitudes match nocash spec (base 8)
+ * nocash psx-spx: decrease AdsrStep = -(8 - StepValue)
+ *   step=0: -(8-0) = -8   -> shifted: -(8 << 11) = -16384
+ *   step=1: -(8-1) = -7   -> shifted: -(7 << 11) = -14336
+ *   step=2: -(8-2) = -6   -> shifted: -(6 << 11) = -12288
+ *   step=3: -(8-3) = -5   -> shifted: -(5 << 11) = -10240
+ * --------------------------------------------------------------- */
+void test_sustain_decrease_step_magnitudes(void) {
+    /* Expected deltas for step values 0..3 at shift=0 (fires every tick) */
+    const int32_t expected_delta[4] = {
+        -(8 << 11),   /* step=0: -16384 */
+        -(7 << 11),   /* step=1: -14336 */
+        -(6 << 11),   /* step=2: -12288 */
+        -(5 << 11)    /* step=3: -10240 */
+    };
+
+    for (uint8_t step = 0; step < 4; step++) {
+        spu94_adsr_state_t a;
+        spu94_adsr_init(&a);
+        a.enabled = 1;
+        a.sustain_shift = 0;   /* fires every tick */
+        a.sustain_step = step;
+        a.sustain_exp = 0;     /* linear -- no level scaling */
+        a.sustain_dir = 1;     /* decrease */
+        a.phase = ADSR_SUSTAIN;
+        a.level = 0x4000;      /* known starting level */
+        a.counter = 0;
+
+        int16_t level_before = a.level;
+        spu94_adsr_tick(&a);
+        int32_t actual_delta = (int32_t)a.level - (int32_t)level_before;
+
+        char msg[128];
+        snprintf(msg, sizeof(msg),
+                 "sustain_step=%u: expected delta %d, got %d",
+                 step, (int)expected_delta[step], (int)actual_delta);
+        TEST_ASSERT_EQUAL_INT32_MESSAGE(expected_delta[step], actual_delta, msg);
+    }
+}
+
+/* ---------------------------------------------------------------
+ * Test: release step base magnitude is 8 (not 7) per nocash spec
+ * nocash psx-spx: release step value is always 0,
+ *   AdsrStep = -(8 - 0) = -8
+ *   At shift=0: step = -(8 << 11) = -16384
+ *   linear mode (release_exp=0): level decreases by exactly 16384
+ * --------------------------------------------------------------- */
+void test_release_step_base_is_8(void) {
+    spu94_adsr_state_t a;
+    spu94_adsr_init(&a);
+    a.enabled = 1;
+    a.release_shift = 0;   /* fires every tick */
+    a.release_exp = 0;     /* linear -- no level scaling */
+    a.phase = ADSR_RELEASE;
+    a.level = 0x7FFF;      /* 32767 */
+    a.counter = 0;
+
+    spu94_adsr_tick(&a);
+
+    /* Expected: 0x7FFF - (8 << 11) = 32767 - 16384 = 16383 */
+    TEST_ASSERT_EQUAL_INT16_MESSAGE(16383, a.level,
+        "Release base magnitude should be 8, producing delta -16384");
+}
+
+/* ---------------------------------------------------------------
  * Main
  * --------------------------------------------------------------- */
 int main(void) {
@@ -437,5 +503,7 @@ int main(void) {
     RUN_TEST(test_key_off_from_decay_enters_release);
     RUN_TEST(test_release_reaches_off);
     RUN_TEST(test_bypass_always_returns_7FFF);
+    RUN_TEST(test_sustain_decrease_step_magnitudes);
+    RUN_TEST(test_release_step_base_is_8);
     return UNITY_END();
 }
