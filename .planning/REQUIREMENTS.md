@@ -32,15 +32,15 @@
 
 ### Noise Generator (NON)
 
-- [ ] **NON-01**: Single global LFSR noise generator with polynomial taps at bits 15, 12, 11, 10 XOR 1 (XNOR), initial seed = 1, left-shift
-- [ ] **NON-02**: Noise timer mechanism: decrement by NoiseStep (4-7) per tick, shift LFSR on underflow, double-reload if still negative
-- [ ] **NON-03**: Noise frequency controlled by SPUCNT bits 13..10 (NoiseShift) and bits 9..8 (NoiseStep) -- per-voice pitch register has no effect on noise
-- [ ] **NON-04**: NON 24-bit bitmask register selects which voices output noise instead of ADPCM/Gaussian interpolation
-- [ ] **NON-05**: All NON-enabled voices read the same NoiseLevel value per tick (one generator, not per-voice)
-- [ ] **NON-06**: ADPCM decode still runs for NON voices (flag byte side effects: loop mechanics, ENDX status)
-- [ ] **NON-07**: ADSR envelope still applies to noise output (noise * adsr_level)
-- [ ] **NON-08**: Noise generator ticks once globally before the voice loop, not once per voice
-- [ ] **NON-09**: ADR documenting noise initial state, ADPCM-fetch-during-NON decision, and LFSR polynomial source
+- [x] **NON-01**: Single global LFSR noise generator with polynomial taps at bits 15, 12, 11, 10 XOR 1 (XNOR), initial seed = 1, left-shift
+- [x] **NON-02**: Noise timer mechanism: decrement by NoiseStep (4-7) per tick, shift LFSR on underflow, double-reload if still negative
+- [x] **NON-03**: Noise frequency controlled by SPUCNT bits 13..10 (NoiseShift) and bits 9..8 (NoiseStep) -- per-voice pitch register has no effect on noise
+- [x] **NON-04**: NON 24-bit bitmask register selects which voices output noise instead of ADPCM/Gaussian interpolation
+- [x] **NON-05**: All NON-enabled voices read the same NoiseLevel value per tick (one generator, not per-voice)
+- [x] **NON-06**: ADPCM decode still runs for NON voices (flag byte side effects: loop mechanics, ENDX status)
+- [x] **NON-07**: ADSR envelope still applies to noise output (noise * adsr_level)
+- [x] **NON-08**: Noise generator ticks once globally before the voice loop, not once per voice
+- [x] **NON-09**: ADR documenting noise initial state, ADPCM-fetch-during-NON decision, and LFSR polynomial source
 
 ### Volume Sweep
 
@@ -110,15 +110,15 @@
 | PMON-05 | Phase 35 | Complete |
 | PMON-06 | Phase 35 | Complete |
 | PMON-07 | Phase 35 | Complete |
-| NON-01 | Phase 36 | Pending |
-| NON-02 | Phase 36 | Pending |
-| NON-03 | Phase 36 | Pending |
-| NON-04 | Phase 36 | Pending |
-| NON-05 | Phase 36 | Pending |
-| NON-06 | Phase 36 | Pending |
-| NON-07 | Phase 36 | Pending |
-| NON-08 | Phase 36 | Pending |
-| NON-09 | Phase 36 | Pending |
+| NON-01 | Phase 36 | Complete |
+| NON-02 | Phase 36 | Complete |
+| NON-03 | Phase 36 | Complete |
+| NON-04 | Phase 36 | Complete |
+| NON-05 | Phase 36 | Complete |
+| NON-06 | Phase 36 | Complete |
+| NON-07 | Phase 36 | Complete |
+| NON-08 | Phase 36 | Complete |
+| NON-09 | Phase 36 | Complete |
 | SWEEP-01 | Phase 37 | Pending |
 | SWEEP-02 | Phase 37 | Pending |
 | SWEEP-03 | Phase 37 | Pending |

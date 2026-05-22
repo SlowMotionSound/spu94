@@ -154,7 +154,7 @@ Phases execute in numeric order: 33, 34, 35, 36, 37, 38
 | 33. ADSR Correction | 1/1 | Complete | 2026-05-22 |
 | 34. Signed Volume | 2/2 | Complete    | 2026-05-22 |
 | 35. Pitch Modulation (PMON) | 2/2 | Complete    | 2026-05-22 |
-| 36. Noise Generator (NON) | 2/2 | Complete   | 2026-05-22 |
+| 36. Noise Generator (NON) | 2/2 | Complete    | 2026-05-22 |
 | 37. Volume Sweep | 0/TBD | Not started | - |
 | 38. Integration & Cross-Feature Verification | 0/TBD | Not started | - |
 
