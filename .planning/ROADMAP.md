@@ -31,77 +31,101 @@
 ## Phase Details
 
 ### Phase 33: ADSR Correction
+
 **Goal**: ADSR envelope produces correct step magnitudes matching the PS1 spec
 **Depends on**: Nothing (first phase -- standalone bug fix)
 **Requirements**: ADSR-FIX-01, ADSR-FIX-02, ADSR-FIX-03, ADSR-FIX-04
 **Success Criteria** (what must be TRUE):
+
   1. Sustain-decrease produces steps of -8, -7, -6, -5 (not -7, -6, -5, -4) for step values 0..3
   2. Release step formula audited and corrected if off-by-one (matching decay's proven `-(8-step)` pattern)
   3. ADSR golden files reflect the corrected behavior and regression suite passes
   4. ADR documents the correction with spec source citation
+
 **Plans**: 1 plan
 Plans:
+
 - [ ] 33-01-PLAN.md -- Fix sustain-decrease and release step formulas, write ADR-0056
 
 ### Phase 34: Signed Volume
+
 **Goal**: Voices can produce phase-inverted output through negative volume values
 **Depends on**: Phase 33
 **Requirements**: SVOL-01, SVOL-02, SVOL-03, SVOL-04, SVOL-05
 **Success Criteria** (what must be TRUE):
+
   1. A voice with vol_l = -0x4000 produces sample-by-sample exact negation compared to vol_l = +0x4000
   2. All call sites that previously clamped volume to positive-only accept the full -0x4000..+0x3FFF range
   3. VxOUTX (post-ADSR, pre-volume) is unchanged by volume sign -- PMON reads are unaffected
   4. Sampler GUI exposes the signed volume range with a visible phase-flip indicator
+
 **Plans**: 2 plans
 Plans:
+**Wave 1**
+
 - [ ] 34-01-PLAN.md -- C core signed volume API, outx field, TDD regression tests
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 34-02-PLAN.md -- GUI Volume L/R knobs with phase-flip indicator
 
 ### Phase 35: Pitch Modulation (PMON)
+
 **Goal**: Voice N-1 output modulates voice N pitch, enabling FM synthesis and vibrato
 **Depends on**: Phase 34
 **Requirements**: PMON-01, PMON-02, PMON-03, PMON-04, PMON-05, PMON-06, PMON-07
 **Success Criteria** (what must be TRUE):
+
   1. A modulator voice playing a slow sine sweeps the carrier voice's pitch audibly, with depth controlled by the modulator's ADSR
   2. Silent modulator (output = 0) halves the carrier pitch (Factor = 0x8000) without special-casing
   3. PMON chain stacking works: voice 0 modulates voice 1, voice 1 modulates voice 2, producing cascading pitch modulation
   4. PMON bit 0 is accepted but ignored (voice 0 has no predecessor)
   5. ADR documents VxOUTX capture point (post-ADSR, pre-volume) with DuckStation as behavioral witness
+
 **Plans**: TBD
 
 ### Phase 36: Noise Generator (NON)
+
 **Goal**: Voices can output LFSR pseudo-random noise instead of ADPCM, enabling percussion and texture
 **Depends on**: Phase 35
 **Requirements**: NON-01, NON-02, NON-03, NON-04, NON-05, NON-06, NON-07, NON-08, NON-09
 **Success Criteria** (what must be TRUE):
+
   1. NON-enabled voice produces noise from the global LFSR at the frequency set by SPUCNT NoiseShift/NoiseStep -- per-voice pitch has no effect
   2. Two NON-enabled voices output identical noise samples on every tick (one global generator, not per-voice)
   3. ADSR envelope still shapes noise output (noise * adsr_level), producing percussive noise when ADSR has a fast decay
   4. ADPCM decode still runs for NON voices (loop flags fire, ENDX status updates)
   5. ADR documents noise initial seed, LFSR polynomial, and ADPCM-fetch-during-NON decision
+
 **Plans**: TBD
 
 ### Phase 37: Volume Sweep
+
 **Goal**: Per-voice volume ramps automatically via hardware-driven sweep, independent of ADSR
 **Depends on**: Phase 36
 **Requirements**: SWEEP-01, SWEEP-02, SWEEP-03, SWEEP-04, SWEEP-05, SWEEP-06, SWEEP-07, SWEEP-08, SWEEP-09, SWEEP-10
 **Success Criteria** (what must be TRUE):
+
   1. Left volume can sweep up while right sweeps down simultaneously on the same voice, creating automatic stereo panning
   2. Sweep and ADSR run concurrently as independent envelopes -- a voice with sweep-decrease and ADSR-sustain produces a volume fade without affecting the envelope shape
   3. Sweep modifies vol_l/vol_r directly (the volume register IS the sweep's working state, not a separate multiplier)
   4. KON resets sweep state to the initial value; KOFF does not affect sweep
   5. Exponential decrease near zero does not stall (anti-stall guard: if scaled_step == 0 and level > 0, step = -1)
+
 **Plans**: TBD
 
 ### Phase 38: Integration & Cross-Feature Verification
+
 **Goal**: All four new features work together correctly in the restructured voice mixer tick
 **Depends on**: Phase 37
 **Requirements**: INT-01, INT-02, INT-03, INT-04
 **Success Criteria** (what must be TRUE):
+
   1. Voice mixer tick processes in the correct order: noise tick globally, then per-voice sweep, PMON pitch modify, ADPCM decode, noise/Gauss branch, ADSR, store VxOUTX, volume multiply, accumulate
   2. A noise voice's output feeds PMON factor for the next voice, producing random pitch jitter (spec-orthogonal behavior verified, not blocked)
   3. All existing voice features unbroken: ADSR, loop mechanics, EON reverb send, Gaussian interpolation, anti-aliasing toggle, MIDI dispatch
   4. rt_safety gates pass with all new features enabled (no heap, no locks, no syscalls, bounded latency)
+
 **Plans**: TBD
 
 ## Progress
