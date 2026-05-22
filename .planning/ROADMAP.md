@@ -63,11 +63,11 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 34-01-PLAN.md -- C core signed volume API, outx field, TDD regression tests
+- [x] 34-01-PLAN.md -- C core signed volume API, outx field, TDD regression tests
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 34-02-PLAN.md -- GUI Volume L/R knobs with phase-flip indicator
+- [x] 34-02-PLAN.md -- GUI Volume L/R knobs with phase-flip indicator
 
 ### Phase 35: Pitch Modulation (PMON)
 
@@ -136,7 +136,7 @@ Phases execute in numeric order: 33, 34, 35, 36, 37, 38
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 33. ADSR Correction | 1/1 | Complete | 2026-05-22 |
-| 34. Signed Volume | 0/2 | Planned | - |
+| 34. Signed Volume | 2/2 | Complete    | 2026-05-22 |
 | 35. Pitch Modulation (PMON) | 0/TBD | Not started | - |
 | 36. Noise Generator (NON) | 0/TBD | Not started | - |
 | 37. Volume Sweep | 0/TBD | Not started | - |

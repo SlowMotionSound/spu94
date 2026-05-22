@@ -14,11 +14,11 @@
 
 ### Signed Volume
 
-- [ ] **SVOL-01**: Per-voice volume L/R accepts the full signed range (-0x4000..+0x3FFF, effective -0x8000..+0x7FFE) through the C API
-- [ ] **SVOL-02**: All call sites that set vol_l/vol_r audited -- positive-only clamping removed
-- [ ] **SVOL-03**: Negative volume produces phase-inverted output (sample-by-sample exact negation vs positive volume)
-- [ ] **SVOL-04**: VxOUTX (for PMON) is unaffected by volume sign (captured pre-volume)
-- [ ] **SVOL-05**: GUI updated to expose the signed volume range on sampler voice controls
+- [x] **SVOL-01**: Per-voice volume L/R accepts the full signed range (-0x4000..+0x3FFF, effective -0x8000..+0x7FFE) through the C API
+- [x] **SVOL-02**: All call sites that set vol_l/vol_r audited -- positive-only clamping removed
+- [x] **SVOL-03**: Negative volume produces phase-inverted output (sample-by-sample exact negation vs positive volume)
+- [x] **SVOL-04**: VxOUTX (for PMON) is unaffected by volume sign (captured pre-volume)
+- [x] **SVOL-05**: GUI updated to expose the signed volume range on sampler voice controls
 
 ### Pitch Modulation (PMON)
 
@@ -98,11 +98,11 @@
 | ADSR-FIX-02 | Phase 33 | Pending |
 | ADSR-FIX-03 | Phase 33 | Pending |
 | ADSR-FIX-04 | Phase 33 | Pending |
-| SVOL-01 | Phase 34 | Pending |
-| SVOL-02 | Phase 34 | Pending |
-| SVOL-03 | Phase 34 | Pending |
-| SVOL-04 | Phase 34 | Pending |
-| SVOL-05 | Phase 34 | Pending |
+| SVOL-01 | Phase 34 | Complete |
+| SVOL-02 | Phase 34 | Complete |
+| SVOL-03 | Phase 34 | Complete |
+| SVOL-04 | Phase 34 | Complete |
+| SVOL-05 | Phase 34 | Complete |
 | PMON-01 | Phase 35 | Pending |
 | PMON-02 | Phase 35 | Pending |
 | PMON-03 | Phase 35 | Pending |
