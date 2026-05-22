@@ -1998,8 +1998,8 @@ void test_non_adsr_shapes_noise(void) {
     spu94_adsr_state_t adsr_cfg;
     spu94_adsr_init(&adsr_cfg);
     adsr_cfg.enabled = 1;
-    adsr_cfg.attack_shift = 3;   /* slow attack */
-    adsr_cfg.attack_step = 7;
+    adsr_cfg.attack_shift = 5;   /* moderate attack speed */
+    adsr_cfg.attack_step = 4;    /* step = (7-4) << max(0, 11-5) = 3 << 6 = 192 per trigger */
     adsr_cfg.sustain_level = 15;     /* max: target = (15+1)*0x800 */
     adsr_cfg.decay_shift = 0;
     adsr_cfg.sustain_shift = 31;
@@ -2009,20 +2009,23 @@ void test_non_adsr_shapes_noise(void) {
     spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, &adsr_cfg);
     spu94_voice_mixer_set_non(&s_test_mixer, 0, 1);
 
-    /* Set a constant noise level */
+    /* Hold noise level constant: set level=1000 AND timer very high so
+     * spu94_noise_gen_tick() decrements timer but never underflows (no LFSR shift).
+     * shift=0, step=4 -> reload=131072. Set timer to 131072 so first tick
+     * decrements to 131068, second to 131064, etc. — never goes negative. */
     s_test_mixer.noise_gen.level = 1000;
+    s_test_mixer.noise_gen.timer = 131072;
+    s_test_mixer.noise_gen.shift = 0;
+    s_test_mixer.noise_gen.step  = 4;
 
     /* Tick 1: ADSR just started, level is low */
     int16_t dry_l, dry_r, rev_l, rev_r;
     spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
     int16_t early_outx = s_test_mixer.voices[0].outx;
 
-    /* Keep noise level constant (disable ticking by setting timer high) */
-    s_test_mixer.noise_gen.level = 1000;
-
-    /* Run more ticks to let ADSR ramp up */
+    /* Run more ticks to let ADSR ramp up (noise_gen.level stays 1000 because
+     * timer never underflows) */
     for (int i = 0; i < 50; i++) {
-        s_test_mixer.noise_gen.level = 1000;  /* hold noise constant */
         spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
     }
     int16_t late_outx = s_test_mixer.voices[0].outx;
