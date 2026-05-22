@@ -19,6 +19,7 @@
  */
 
 #include <spu94/spu94_voice.h>
+#include <spu94/spu94_noise.h>
 #include <spu94/spu94_gauss.h>
 #include <spu94/spu94_q15.h>
 #include <spu94/spu94_adpcm.h>
@@ -90,6 +91,8 @@ void spu94_voice_key_off(spu94_voice_t *v) {
 void spu94_voice_tick(spu94_voice_t *v,
                       const uint8_t *voice_ram, uint32_t voice_ram_size,
                       uint8_t gauss_bypass,
+                      int16_t noise_level,
+                      uint8_t non_enabled,
                       int16_t *out_l, int16_t *out_r) {
     if (v == NULL || out_l == NULL || out_r == NULL) return;
 
@@ -196,31 +199,39 @@ void spu94_voice_tick(spu94_voice_t *v,
     }
 
     /* ---------------------------------------------------------------
-     * STEP 2 — Gaussian interpolation (or zero-order hold if bypassed)
-     * Exact formula from spu94_process.c lines 121-141.
+     * STEP 2 — Gaussian interpolation, zero-order hold, or NON substitution
+     * NON-04/NON-05: if NON enabled, substitute global noise level for Gauss
+     * output. ADPCM decode (STEP 1) already ran — loop flags, ENDX are side
+     * effects preserved even for NON voices (NON-06).
      * AA-01: gauss_bypass=1 skips the 4-tap table lookup and outputs
      *        the newest decoded sample (s3) directly — zero-order hold.
      * --------------------------------------------------------------- */
     {
-        const uint8_t gi = (uint8_t)((v->pitch_counter >> 4) & 0xFF);
-        const uint8_t wp = v->gauss_ring_pos;
-        const int16_t s0 = v->gauss_ring[(wp + 0) & 3];
-        const int16_t s1 = v->gauss_ring[(wp + 1) & 3];
-        const int16_t s2 = v->gauss_ring[(wp + 2) & 3];
-        const int16_t s3 = v->gauss_ring[(wp + 3) & 3];
         int16_t gauss_out;
-        if (gauss_bypass) {
-            /* AA-01: Zero-order hold — output newest sample without interpolation.
-             * At pitch-up this produces sample-skipping aliasing; at pitch-down
-             * this produces sample-repeating staircase artifacts. */
-            gauss_out = s3;
+        if (non_enabled) {
+            /* NON-04/NON-05: substitute global noise level.
+             * All NON voices receive the same noise_level per tick. */
+            gauss_out = noise_level;
         } else {
-            int32_t interpolated =
-                  (int32_t)spu94_gauss_table[0x0FF - gi] * (int32_t)s0
-                + (int32_t)spu94_gauss_table[0x1FF - gi] * (int32_t)s1
-                + (int32_t)spu94_gauss_table[0x100 + gi] * (int32_t)s2
-                + (int32_t)spu94_gauss_table[0x000 + gi] * (int32_t)s3;
-            gauss_out = sat_s16(interpolated >> 15);
+            const uint8_t gi = (uint8_t)((v->pitch_counter >> 4) & 0xFF);
+            const uint8_t wp = v->gauss_ring_pos;
+            const int16_t s0 = v->gauss_ring[(wp + 0) & 3];
+            const int16_t s1 = v->gauss_ring[(wp + 1) & 3];
+            const int16_t s2 = v->gauss_ring[(wp + 2) & 3];
+            const int16_t s3 = v->gauss_ring[(wp + 3) & 3];
+            if (gauss_bypass) {
+                /* AA-01: Zero-order hold — output newest sample without interpolation.
+                 * At pitch-up this produces sample-skipping aliasing; at pitch-down
+                 * this produces sample-repeating staircase artifacts. */
+                gauss_out = s3;
+            } else {
+                int32_t interpolated =
+                      (int32_t)spu94_gauss_table[0x0FF - gi] * (int32_t)s0
+                    + (int32_t)spu94_gauss_table[0x1FF - gi] * (int32_t)s1
+                    + (int32_t)spu94_gauss_table[0x100 + gi] * (int32_t)s2
+                    + (int32_t)spu94_gauss_table[0x000 + gi] * (int32_t)s3;
+                gauss_out = sat_s16(interpolated >> 15);
+            }
         }
 
         /* ---------------------------------------------------------------
@@ -320,6 +331,9 @@ void spu94_voice_mixer_init(spu94_voice_mixer_t *m) {
     /* pending_kon, pending_koff, eon_flags, master_vol_l/r, enabled,
      * gauss_bypass are all zero from memset — correct defaults.
      * gauss_bypass=0 means Gaussian interpolation ON (PS1 faithful). */
+
+    /* NON-08: initialize the global noise generator (seed=1, not 0) */
+    spu94_noise_gen_init(&m->noise_gen);
 }
 
 spu94_result_t spu94_voice_mixer_key_on(spu94_voice_mixer_t *m, int voice_idx,
@@ -406,6 +420,37 @@ spu94_result_t spu94_voice_mixer_set_pmon(spu94_voice_mixer_t *m, int voice_idx,
     return SPU94_OK;
 }
 
+spu94_result_t spu94_voice_mixer_set_non(spu94_voice_mixer_t *m, int voice_idx,
+    int enabled)
+{
+    /* T-36-01: validate voice_idx 0..23 */
+    if (m == NULL || voice_idx < 0 || voice_idx >= 24)
+        return SPU94_INVALID_ARG;
+
+    /* NON-04: set or clear non_flags bit. All 24 voices can be NON. */
+    if (enabled) {
+        m->non_flags |= (1u << voice_idx);
+    } else {
+        m->non_flags &= ~(1u << voice_idx);
+    }
+
+    return SPU94_OK;
+}
+
+spu94_result_t spu94_voice_mixer_set_noise_freq(spu94_voice_mixer_t *m,
+    uint8_t shift, uint8_t step_raw)
+{
+    /* T-36-02: validate shift (0-15) and step_raw (0-3) */
+    if (m == NULL || shift > 15 || step_raw > 3)
+        return SPU94_INVALID_ARG;
+
+    /* NON-03: noise frequency from SPUCNT register fields */
+    m->noise_gen.shift = shift;
+    m->noise_gen.step = step_raw + 4;  /* SPUCNT[9:8] + 4 = 4..7 */
+
+    return SPU94_OK;
+}
+
 spu94_result_t spu94_voice_mixer_set_pitch(spu94_voice_mixer_t *m, int voice_idx,
     uint16_t pitch)
 {
@@ -476,6 +521,9 @@ void spu94_voice_mixer_tick(spu94_voice_mixer_t *m,
     m->pending_kon  = 0;
     m->pending_koff = 0;
 
+    /* NON-08: tick noise generator ONCE before voice loop */
+    spu94_noise_gen_tick(&m->noise_gen);
+
     /* S1 / MIX-01: accumulate 24 voices in int32 to prevent overflow */
     int32_t dry_sum_l = 0, dry_sum_r = 0;
     int32_t rev_sum_l = 0, rev_sum_r = 0;
@@ -508,10 +556,15 @@ void spu94_voice_mixer_tick(spu94_voice_mixer_t *m,
             m->voices[v].pitch = (uint16_t)mod_step;
         }
 
+        /* NON-04: determine if this voice uses noise */
+        uint8_t non_enabled = (m->non_flags & (1u << v)) ? 1 : 0;
+
         int16_t vl = 0, vr = 0;
         spu94_voice_tick(&m->voices[v],
                          m->voice_ram, SPU94_SPU_RAM_BYTES,
                          m->gauss_bypass,
+                         m->noise_gen.level,  /* NON-05: same value for all voices */
+                         non_enabled,
                          &vl, &vr);
 
         /* Restore original pitch register (PMON is per-tick, not persistent) */

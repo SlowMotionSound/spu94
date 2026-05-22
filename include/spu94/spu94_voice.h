@@ -19,6 +19,7 @@
 #include <spu94/spu94.h>
 #include <spu94/spu94_adpcm.h>
 #include <spu94/spu94_adsr.h>
+#include <spu94/spu94_noise.h>
 #include <spu94/spu94_spu_ram.h>
 #include <stdint.h>
 
@@ -92,11 +93,15 @@ uint8_t spu94_voice_get_endx(const spu94_voice_t *v);
  * voice_ram_size: size in bytes (for bounds checking, T-27-01).
  * gauss_bypass: AA-01: 0 = 4-tap Gaussian interpolation (PS1 faithful),
  *               1 = zero-order hold (output newest sample, raw aliasing).
+ * noise_level: NON-05: global noise value from spu94_noise_gen_t.level.
+ * non_enabled: NON-04: 1 = output noise instead of ADPCM/Gauss, 0 = normal.
  *
  * RT-safe: no heap, no locks, no syscalls. */
 void spu94_voice_tick(spu94_voice_t *v,
                       const uint8_t *voice_ram, uint32_t voice_ram_size,
                       uint8_t gauss_bypass,
+                      int16_t noise_level,
+                      uint8_t non_enabled,
                       int16_t *out_l, int16_t *out_r);
 
 /* -----------------------------------------------------------------------
@@ -124,6 +129,8 @@ typedef struct {
     uint32_t      pending_koff;        /* C8/MIX-04: bitmask, applied at next tick start */
     uint32_t      eon_flags;           /* MIX-02: bit N set = voice N sends to reverb */
     uint32_t      pmon_flags;          /* PMON-01: bit N set = voice N pitch modulated by voice N-1's outx. Bit 0 accepted but ignored (voice 0 has no predecessor). */
+    uint32_t      non_flags;           /* NON-04: bit N set = voice N outputs noise instead of ADPCM/Gauss */
+    spu94_noise_gen_t noise_gen;       /* NON-08: single global noise generator, ticked once before voice loop */
     int16_t       master_vol_l;        /* MIX-03: Q15, applied after voice sum */
     int16_t       master_vol_r;        /* MIX-03: Q15, applied after voice sum */
     uint8_t       enabled;             /* gate: 0 = voice engine bypassed entirely */
@@ -159,6 +166,20 @@ spu94_result_t spu94_voice_mixer_set_eon(spu94_voice_mixer_t *m, int voice_idx,
  * Returns SPU94_INVALID_ARG if voice_idx out of range. */
 spu94_result_t spu94_voice_mixer_set_pmon(spu94_voice_mixer_t *m, int voice_idx,
     int enabled);
+
+/* Set or clear the NON (noise on) bit for a given voice.
+ * When enabled, voice outputs the global noise level instead of ADPCM/Gauss.
+ * ADPCM decode still runs for side effects (loop flags, ENDX).
+ * Returns SPU94_INVALID_ARG if voice_idx out of range. */
+spu94_result_t spu94_voice_mixer_set_non(spu94_voice_mixer_t *m, int voice_idx,
+    int enabled);
+
+/* Set the noise generator frequency parameters.
+ * shift: 0..15 (SPUCNT[13:10], NoiseShift). Higher = more frequent LFSR shifts.
+ * step_raw: 0..3 (SPUCNT[9:8], NoiseStep raw). Actual step = step_raw + 4.
+ * Returns SPU94_INVALID_ARG if shift > 15 or step_raw > 3. */
+spu94_result_t spu94_voice_mixer_set_noise_freq(spu94_voice_mixer_t *m,
+    uint8_t shift, uint8_t step_raw);
 
 /* Update the pitch register of a playing voice without re-triggering.
  * Takes effect on the next tick. Clamped to 0x3FFF.
