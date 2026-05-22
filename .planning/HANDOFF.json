@@ -1,36 +1,36 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-22T00:59:30Z",
+  "timestamp": "2026-05-22T19:14:59Z",
   "phase": null,
-  "phase_name": "v1.9 planning complete",
+  "phase_name": "Phase 35 complete, Phase 36 next",
   "phase_dir": null,
   "plan": 0,
   "task": 0,
   "total_tasks": 0,
   "status": "paused",
   "completed_tasks": [
-    {"id": "milestone-init", "name": "v1.9 Complete Voice milestone created, PROJECT.md updated, STATE.md reset", "status": "done", "commit": "e89819d"},
-    {"id": "research", "name": "4 parallel research agents: STACK, FEATURES, ARCHITECTURE, PITFALLS", "status": "done"},
-    {"id": "requirements", "name": "37 requirements defined across 6 categories (ADSR-FIX, SVOL, PMON, NON, SWEEP, INT)", "status": "done", "commit": "ab633d6"},
-    {"id": "roadmap", "name": "6-phase roadmap created (Phases 33-38) in dependency order", "status": "done", "commit": "81f3643"}
+    {"id": "phase-33", "name": "ADSR Correction — sustain-decrease and release step formulas fixed (base 7 to base 8)", "status": "done", "commit": "7ed7bb9"},
+    {"id": "phase-34-01", "name": "Signed Volume C core — outx field, signed vol range, phase inversion tests", "status": "done", "commit": "2528d2c"},
+    {"id": "phase-34-02", "name": "Signed Volume GUI — Volume L/R knobs with teal INV indicator", "status": "done", "commit": "65b4686"},
+    {"id": "phase-35-01", "name": "PMON formula — pmon_flags bitmask, pitch modulation in mixer tick, 6 TDD tests", "status": "done", "commit": "5e5e16c"},
+    {"id": "phase-35-02", "name": "ADR-0057 + integration test proving ADSR shapes FM depth", "status": "done", "commit": "b39548e"}
   ],
   "remaining_tasks": [
-    {"id": "phase-33", "name": "ADSR Correction — fix sustain-decrease step formula off-by-one", "status": "not_started"},
-    {"id": "phase-34", "name": "Signed Volume — expose negative vol_l/vol_r through API and GUI", "status": "not_started"},
-    {"id": "phase-35", "name": "Pitch Modulation (PMON) — voice N-1 modulates voice N pitch", "status": "not_started"},
-    {"id": "phase-36", "name": "Noise Generator (NON) — global LFSR noise replacing ADPCM per voice", "status": "not_started"},
-    {"id": "phase-37", "name": "Volume Sweep — hardware-driven per-voice volume ramp, independent L/R", "status": "not_started"},
-    {"id": "phase-38", "name": "Integration — mixer tick restructuring, cross-feature validation", "status": "not_started"}
+    {"id": "phase-36", "name": "Noise Generator (NON) — global LFSR noise replacing ADPCM per voice (9 requirements)", "status": "not_started"},
+    {"id": "phase-37", "name": "Volume Sweep — hardware-driven automatic per-voice volume ramp (10 requirements)", "status": "not_started"},
+    {"id": "phase-38", "name": "Integration — mixer tick restructuring, cross-feature verification (4 requirements)", "status": "not_started"}
   ],
   "blockers": [],
-  "human_actions_pending": [],
+  "human_actions_pending": [
+    {"action": "Visual verification of Phase 34 GUI (Volume L/R knobs, teal INV indicator)", "context": "Deferred to end of milestone per user request — not blocking further phases", "blocking": false}
+  ],
   "decisions": [
-    {"decision": "v1.9 scope: PMON + NON + Volume Sweep + Signed Volume + ADSR fix", "rationale": "User wants every PS1 voice feature complete before multi-timbral control. ADSR fix included because research surfaced potential off-by-one.", "phase": "milestone"},
-    {"decision": "Negative-phase sweep included with low-confidence ADR", "rationale": "User: 'we can make an admiral stab at it' — spec says 'not yet tested' but the math is a sign flip and different clamp bounds, correctable later against hardware.", "phase": "milestone"},
-    {"decision": "Three-module ecosystem: SPU-94R, SPU-94S, SPU-94XA", "rationale": "Maps to real PS1 silicon — reverb chip, voice engine, CD controller ADPCM codec. Each produces distinct coloration.", "phase": "milestone"},
-    {"decision": "Build order: ADSR fix → Signed Volume → PMON → NON → Volume Sweep → Integration", "rationale": "ADSR fix validates step formula before sweep reuses it. Signed volume is near-free and unblocks sweep's negative-phase. PMON introduces VxOUTX. NON is self-contained. Sweep is most complex.", "phase": "milestone"}
+    {"decision": "Defer all GUI visual checks to end of milestone", "rationale": "C core dependencies are satisfied; GUI checkpoints are independent presentation work", "phase": "34"},
+    {"decision": "Auto-approve GUI checkpoints, keep automated verification", "rationale": "User wants to batch visual testing at milestone end", "phase": "milestone"},
+    {"decision": "PMON Factor 0x8000 is unity (not half)", "rationale": "Executor corrected plan test expectations to match actual PS1 spec math", "phase": "35"},
+    {"decision": "Swap expanded from 4GB to 16GB", "rationale": "OOM killer was terminating Claude Code sessions; 16GB swap prevents this", "phase": "system"}
   ],
   "uncommitted_files": [],
-  "next_action": "/gsd-discuss-phase 33 or /gsd-plan-phase 33 to begin the ADSR Correction phase",
-  "context_notes": "Session started with resume, then PS1 audio architecture discussion (CD-DA vs CD-XA streaming). User established SPU-94R/S/XA product vision. Deep discussion of PMON mechanics (fixed chain, FM synthesis). Research spawned 4 parallel agents. Key finding: ADSR sustain-decrease step formula may be off-by-one (code uses 7-step, spec says 8-step). User insisted on fixing it this milestone. Negative-phase sweep included despite spec uncertainty. All planning artifacts committed."
+  "next_action": "/gsd:plan-phase 36 then /gsd:execute-phase 36",
+  "context_notes": "Session started with OOM recovery. Expanded swap to 16GB. Resumed v1.9 milestone from Phase 33 complete. Executed Phases 34 (Signed Volume) and 35 (PMON) end-to-end. 46 voice tests passing. User deferred visual GUI checks to milestone end. Drive distortion discussion: current input gain is hard clipping (symmetrical, Zener-style, odd harmonics only) — user may want optional soft saturation flavors in future."
 }
