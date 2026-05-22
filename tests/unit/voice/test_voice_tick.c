@@ -1694,6 +1694,160 @@ void test_pmon_clamp_0x4000(void) {
 }
 
 /* ---------------------------------------------------------------
+ * Phase 35 Plan 02: PMON Integration Tests (PMON-02, PMON-07)
+ * --------------------------------------------------------------- */
+
+/* Test: modulator voice ADSR shapes FM modulation depth over time.
+ *
+ * Phase 35 success criterion 1: "A modulator voice playing a slow sine
+ * sweeps the carrier voice's pitch audibly, with depth controlled by the
+ * modulator's ADSR."
+ *
+ * Setup:
+ *   Voice 0 (modulator): plays a loud ADPCM sample with a SLOW ADSR attack
+ *     (attack_shift=10 for slow linear ramp). ADSR starts at level 0 and
+ *     ramps up gradually, so outx starts near zero and increases over ticks.
+ *   Voice 1 (carrier): plays a sample with ADSR at instant max sustain.
+ *     PMON enabled -- voice 1's pitch is modulated by voice 0's outx.
+ *     Both voices have the same base pitch (0x1000).
+ *
+ * Proof:
+ *   Early ticks (voice 0's ADSR near zero): outx ~ 0, Factor ~ 0x8000 (unity),
+ *     voice 1's effective pitch ~ base pitch 0x1000.
+ *   Later ticks (voice 0's ADSR ramped up): outx > 0, Factor > 0x8000,
+ *     voice 1's effective pitch > base pitch.
+ *   The late-tick pitch_counter delta exceeds the early-tick delta, proving
+ *   that the modulator's ADSR ramp increased the FM modulation depth. */
+void test_pmon_adsr_shapes_modulation_depth(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Load a loud sample for voice 0 (modulator) -- large positive amplitude.
+     * shift=0, filter=0, all nibbles=+7 -> decoded = 7 << 12 = 28672.
+     * With ADSR scaling, outx = q15_mul(28672, adsr_level). */
+    uint8_t mod_sample[512];
+    make_loud_sample(mod_sample, 32);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, mod_sample, 512);
+
+    /* Load a normal sample for voice 1 (carrier) at a separate address */
+    uint8_t car_sample[512];
+    make_long_sample(car_sample, 32);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 512, car_sample, 512);
+
+    /* Voice 0 (modulator): SLOW ADSR attack.
+     * attack_shift=10: counter fires when bit 15 of (counter + (1 << max(0,10-11))) rolls.
+     * With shift=10: AdsrCycles = 1 << max(0, 10-11) = 1 (fires every tick).
+     * AdsrStep = (7 - step) << max(0, 11-10) = 7 << 1 = 14 per tick.
+     * So adsr_level increases by 14 per tick (out of 0x7FFF = 32767).
+     * Takes ~2340 ticks to reach max. Very slow ramp. */
+    spu94_adsr_state_t mod_adsr;
+    spu94_adsr_init(&mod_adsr);
+    mod_adsr.enabled = 1;
+    mod_adsr.attack_shift = 10;   /* slow attack */
+    mod_adsr.attack_step = 0;     /* largest step within shift: (7-0) = 7 */
+    mod_adsr.attack_exp = 0;      /* linear */
+    mod_adsr.decay_shift = 0;     /* fast decay */
+    mod_adsr.sustain_level = 15;  /* max sustain target */
+    mod_adsr.sustain_shift = 31;  /* sustain forever */
+    mod_adsr.sustain_step = 0;
+    mod_adsr.sustain_exp = 0;
+    mod_adsr.sustain_dir = 0;
+    mod_adsr.release_shift = 0;
+    mod_adsr.release_exp = 1;
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, &mod_adsr);
+
+    /* Voice 1 (carrier): instant ADSR (shift=0, step=0 -> fires every tick,
+     * step value = 14336 per tick, reaches max in ~3 ticks). No ADSR effect. */
+    spu94_adsr_state_t car_adsr;
+    spu94_adsr_init(&car_adsr);
+    car_adsr.enabled = 1;
+    car_adsr.attack_shift = 0;    /* instant attack */
+    car_adsr.attack_step = 0;
+    car_adsr.attack_exp = 0;
+    car_adsr.decay_shift = 0;
+    car_adsr.sustain_level = 15;
+    car_adsr.sustain_shift = 31;
+    car_adsr.release_shift = 0;
+    car_adsr.release_exp = 1;
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 512, 0x1000, 0x7FFF, 0x7FFF, 0, &car_adsr);
+
+    /* Enable PMON on voice 1 */
+    spu94_voice_mixer_set_pmon(&s_test_mixer, 1, 1);
+
+    /* Run ticks and measure effective pitch at early and late points.
+     *
+     * Measurement method: record voice 1's pitch_counter before and after a
+     * single tick. The delta is the effective pitch step for that tick.
+     * Early ticks: modulator ADSR near zero -> outx near zero -> Factor near
+     * 0x8000 (unity) -> step near base pitch.
+     * Late ticks: modulator ADSR ramped up -> outx > 0 -> Factor > 0x8000
+     * -> step > base pitch. */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+
+    /* Run 5 ticks to apply pending KON and warm up Gaussian rings */
+    for (int i = 0; i < 5; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    }
+
+    /* Measure effective pitch at tick 6 (early -- modulator ADSR still very low).
+     * After 5 ticks with attack_shift=10 step=0: ADSR level ~ 5 * 14 = 70.
+     * outx = q15_mul(~28672, 70) ~ 61. Factor ~ 0x8000 + 61 = 0x803D.
+     * Step ~ (0x1000 * 0x803D) >> 15 ~ 0x1007. Nearly unity. */
+    uint16_t pre_counter_early = s_test_mixer.voices[1].pitch_counter;
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    uint16_t post_counter_early = s_test_mixer.voices[1].pitch_counter;
+
+    /* Compute early-tick effective step (handle 12-bit fractional wrap) */
+    uint16_t early_step;
+    if (post_counter_early >= pre_counter_early) {
+        early_step = (uint16_t)(post_counter_early - pre_counter_early);
+    } else {
+        /* Counter wrapped past 0x0FFF -- add the consumed whole-sample part */
+        early_step = (uint16_t)(0x1000 + post_counter_early - pre_counter_early);
+    }
+
+    /* Now run many more ticks to let modulator ADSR ramp up significantly.
+     * After 80 more ticks (total ~86): ADSR level ~ 86 * 14 = 1204.
+     * outx = q15_mul(~28559, 1204) ~ 1050. Factor ~ 0x8000 + 1050 = 0x841A.
+     * Step ~ (0x1000 * 0x841A) >> 15 ~ 0x1083. Noticeably above unity. */
+    for (int i = 0; i < 80; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    }
+
+    /* Measure effective pitch at tick ~87 (late -- modulator ADSR ramped up) */
+    uint16_t pre_counter_late = s_test_mixer.voices[1].pitch_counter;
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    uint16_t post_counter_late = s_test_mixer.voices[1].pitch_counter;
+
+    uint16_t late_step;
+    if (post_counter_late >= pre_counter_late) {
+        late_step = (uint16_t)(post_counter_late - pre_counter_late);
+    } else {
+        late_step = (uint16_t)(0x1000 + post_counter_late - pre_counter_late);
+    }
+
+    /* The late-tick effective step MUST be greater than the early-tick step.
+     * This proves that the modulator's ADSR ramp increased the FM depth. */
+    TEST_ASSERT_TRUE_MESSAGE(late_step > early_step,
+        "PMON-02: modulator ADSR ramp must increase carrier effective pitch over time");
+
+    /* Sanity: both voices must still be active */
+    TEST_ASSERT_EQUAL_UINT8_MESSAGE(1, s_test_mixer.voices[0].active,
+        "modulator voice should still be active (slow attack not finished)");
+    TEST_ASSERT_EQUAL_UINT8_MESSAGE(1, s_test_mixer.voices[1].active,
+        "carrier voice should still be active");
+
+    /* Sanity: modulator's ADSR level should be notably above zero but below max.
+     * This confirms the slow attack is actually ramping (not stuck at 0 or at max). */
+    TEST_ASSERT_TRUE_MESSAGE(s_test_mixer.voices[0].adsr.level > 100,
+        "modulator ADSR should have ramped above zero by tick 87");
+    TEST_ASSERT_TRUE_MESSAGE(s_test_mixer.voices[0].adsr.level < 0x7FFF,
+        "modulator ADSR should not have reached max yet (slow attack)");
+}
+
+/* ---------------------------------------------------------------
  * Main
  * --------------------------------------------------------------- */
 int main(void) {
@@ -1751,5 +1905,7 @@ int main(void) {
     RUN_TEST(test_pmon_formula_negative_modulator);
     RUN_TEST(test_pmon_chain_stacking);
     RUN_TEST(test_pmon_clamp_0x4000);
+    /* Phase 35 Plan 02: PMON integration test (PMON-02, PMON-07) */
+    RUN_TEST(test_pmon_adsr_shapes_modulation_depth);
     return UNITY_END();
 }

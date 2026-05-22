@@ -30,6 +30,89 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-0057: VxOUTX capture point for PMON pitch modulation
+
+**Status:** Accepted
+**Date:** 2026-05-22
+**Phase:** 35 (Pitch Modulation PMON)
+**Requirement:** PMON-02, PMON-07
+
+**Context:**
+
+The nocash psx-spx spec states that PMON reads "the previous voice's amplitude"
+(VxOUTX) as the pitch modulation factor, but does not explicitly define which stage
+in the voice pipeline this amplitude is captured from. There are three possible tap
+points in the per-voice processing chain, each producing different modulation behavior:
+
+1. **Post-Gauss, pre-ADSR:** The raw Gaussian interpolation output before the ADSR
+   envelope is applied. This would make the modulation factor independent of the
+   modulator voice's envelope -- a modulator with a slow ADSR attack would produce
+   full-depth FM from tick one, which contradicts observed hardware behavior.
+
+2. **Post-ADSR, pre-volume:** The mono sample after ADSR scaling but before the
+   per-voice left/right volume multiply. This makes the modulator's ADSR directly
+   control the FM modulation depth: an attack ramp produces increasing modulation
+   depth, a release ramp produces fading modulation. The value is mono (no stereo
+   panning injected into the modulation chain).
+
+3. **Post-volume:** The stereo output after left/right volume multiplication. This
+   would inject stereo panning into the modulation factor, causing the FM depth to
+   depend on the modulator's pan position -- behavior not observed on real hardware.
+
+**Decision:**
+
+SPU-94 captures VxOUTX at **post-ADSR, pre-volume** (Step 2.75 in voice_tick). The
+stored value is `v->outx = gauss_out` after the ADSR multiply and before the vol_l/vol_r
+multiply.
+
+This matches DuckStation's implementation: `voice.last_volume = ApplyVolume(sample,
+voice.regs.adsr_volume)` -- this value is then used as the PMON factor for the next
+voice in the sequential 0..23 voice processing loop. The volume multiply happens
+afterward and is not captured into the PMON factor.
+
+Confidence: **HIGH** (nocash + DuckStation consensus; Phase 34 implementation
+confirmed via regression tests that outx is identical regardless of volume sign).
+
+Additionally, the PMON post-modulation pitch clamp uses **0x4000**, not the base pitch
+maximum of 0x3FFF. The nocash spec states: "if Step > 3FFFh then Step = 4000h". This
+means FM modulation can push the effective pitch step one increment beyond the maximum
+base pitch register value. This is intentional hardware behavior -- the clamp at 0x4000
+is a distinct value from the 0x3FFF maximum that key_on enforces on the base pitch
+register. To accommodate this, the voice_tick Step 4 pitch re-clamp was relaxed from
+0x3FFF to 0x4000 in Phase 35 Plan 01.
+
+**Consequences:**
+
+- **ADSR shapes FM depth:** A modulator voice's ADSR envelope directly controls the
+  FM modulation depth over time. An attack phase produces increasing modulation depth;
+  a sustain phase produces stable modulation; a release phase fades the modulation.
+  This is the musically expected behavior and the foundation of PS1 FM synthesis.
+
+- **Volume does NOT affect PMON factor:** Per-voice volume (including negative/phase-
+  inverted volumes per SVOL-04, confirmed in Phase 34) does not alter the PMON factor.
+  The modulation depth is determined solely by the modulator's ADPCM content and ADSR
+  envelope, not by its stereo positioning or volume level.
+
+- **PMON chain stacking reads post-ADSR output:** When voices are chained (e.g.,
+  voice 0 -> 1 -> 2), each voice's outx is its own post-ADSR output, not the final
+  stereo output. This keeps the modulation chain mono and ADSR-controlled at every link.
+
+- **PMON pitch clamp 0x4000:** A PMON-modulated voice can play at a step rate of 0x4000,
+  which is one increment above the normal 0x3FFF maximum. This produces a playback rate
+  approximately 0.006% above the maximum base pitch -- negligible musically but
+  architecturally significant for spec compliance.
+
+**Sources:**
+
+- nocash psx-spx "SPU ADPCM Pitch" page: PMON formula `Factor = VxOUTX(x-1) + 8000h`,
+  pitch clamp `if Step > 3FFFh then Step = 4000h`
+- DuckStation spu.cpp: `voice.last_volume = ApplyVolume(sample, voice.regs.adsr_volume)`
+  confirms post-ADSR, pre-volume capture point for PMON factor
+- Phase 34 implementation (commit 2528d2c): `v->outx = gauss_out` at Step 2.75, with
+  regression test proving outx is independent of volume sign (SVOL-04)
+
+---
+
 ## ADR-0056: ADSR sustain-decrease and release off-by-one correction
 
 **Status:** Accepted  
