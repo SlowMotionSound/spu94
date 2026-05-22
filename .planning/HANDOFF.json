@@ -1,34 +1,36 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-21T19:00:00Z",
+  "timestamp": "2026-05-22T00:59:30Z",
   "phase": null,
-  "phase_name": "v1.8 polish (no milestone)",
+  "phase_name": "v1.9 planning complete",
   "phase_dir": null,
   "plan": 0,
   "task": 0,
   "total_tasks": 0,
-  "status": "polishing",
+  "status": "paused",
   "completed_tasks": [
-    {"id": "patina-rename", "name": "Renamed all patina_* to adpcm_* codebase-wide (22 files)", "status": "done", "commit": "1ebbed2"},
-    {"id": "sampler-gauss-rename", "name": "Sampler 'Anti-Alias' toggle renamed to 'Gauss' (accurate label)", "status": "done", "commit": "1ebbed2"},
-    {"id": "toolbar-regroup", "name": "Toolbar input controls regrouped: Input Gain > AA > Input Rate > Gauss > Input Send, centered", "status": "done", "commit": "1ebbed2"},
-    {"id": "wav-buttons-stack", "name": "WAV buttons stacked vertically (Load WAV / Play / Stop)", "status": "done", "commit": "1ebbed2"},
-    {"id": "preset-relocate", "name": "Preset section moved below User Slot in MorphPanel zone", "status": "done", "commit": "1ebbed2"},
-    {"id": "slot-button-style", "name": "User Slot buttons match Preset button style when active (default LookAndFeel)", "status": "done", "commit": "1ebbed2"},
-    {"id": "defaults-update", "name": "Defaults: AA filter ON, Sampler Send max, Reverb max (was already)", "status": "done", "commit": "1ebbed2"},
-    {"id": "encode-rate-selector", "name": "Encode rate dropdown on sampler (44100/22050/11025/5512 Hz), resamples before ADPCM encode", "status": "done", "commit": "0267c5b"},
-    {"id": "ram-meter", "name": "RAM usage meter on sampler window (bytes used / 512 KB)", "status": "done", "commit": "0267c5b"}
+    {"id": "milestone-init", "name": "v1.9 Complete Voice milestone created, PROJECT.md updated, STATE.md reset", "status": "done", "commit": "e89819d"},
+    {"id": "research", "name": "4 parallel research agents: STACK, FEATURES, ARCHITECTURE, PITFALLS", "status": "done"},
+    {"id": "requirements", "name": "37 requirements defined across 6 categories (ADSR-FIX, SVOL, PMON, NON, SWEEP, INT)", "status": "done", "commit": "ab633d6"},
+    {"id": "roadmap", "name": "6-phase roadmap created (Phases 33-38) in dependency order", "status": "done", "commit": "81f3643"}
   ],
-  "remaining_tasks": [],
+  "remaining_tasks": [
+    {"id": "phase-33", "name": "ADSR Correction — fix sustain-decrease step formula off-by-one", "status": "not_started"},
+    {"id": "phase-34", "name": "Signed Volume — expose negative vol_l/vol_r through API and GUI", "status": "not_started"},
+    {"id": "phase-35", "name": "Pitch Modulation (PMON) — voice N-1 modulates voice N pitch", "status": "not_started"},
+    {"id": "phase-36", "name": "Noise Generator (NON) — global LFSR noise replacing ADPCM per voice", "status": "not_started"},
+    {"id": "phase-37", "name": "Volume Sweep — hardware-driven per-voice volume ramp, independent L/R", "status": "not_started"},
+    {"id": "phase-38", "name": "Integration — mixer tick restructuring, cross-feature validation", "status": "not_started"}
+  ],
   "blockers": [],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "patina naming eliminated everywhere", "rationale": "User never liked the name; ADPCM is what it is. Code fields, API, CLI flags, preset keys, comments all renamed.", "phase": "polish"},
-    {"decision": "Encode rate default is 22050 Hz", "rationale": "The PS1 workhorse rate — best tradeoff between RAM savings and fidelity. Most PS1 music samples lived here.", "phase": "polish"},
-    {"decision": "No preset back-compat needed for patina_fader/patina_send", "rationale": "No existing preset files use old names — clean cutover.", "phase": "polish"},
-    {"decision": "JUCE saved state file can override defaults", "rationale": "~/.config/SPU-94.settings persists session state. Delete to get fresh defaults after changing them.", "phase": "polish"}
+    {"decision": "v1.9 scope: PMON + NON + Volume Sweep + Signed Volume + ADSR fix", "rationale": "User wants every PS1 voice feature complete before multi-timbral control. ADSR fix included because research surfaced potential off-by-one.", "phase": "milestone"},
+    {"decision": "Negative-phase sweep included with low-confidence ADR", "rationale": "User: 'we can make an admiral stab at it' — spec says 'not yet tested' but the math is a sign flip and different clamp bounds, correctable later against hardware.", "phase": "milestone"},
+    {"decision": "Three-module ecosystem: SPU-94R, SPU-94S, SPU-94XA", "rationale": "Maps to real PS1 silicon — reverb chip, voice engine, CD controller ADPCM codec. Each produces distinct coloration.", "phase": "milestone"},
+    {"decision": "Build order: ADSR fix → Signed Volume → PMON → NON → Volume Sweep → Integration", "rationale": "ADSR fix validates step formula before sweep reuses it. Signed volume is near-free and unblocks sweep's negative-phase. PMON introduces VxOUTX. NON is self-contained. Sweep is most complex.", "phase": "milestone"}
   ],
   "uncommitted_files": [],
-  "next_action": "Continue sampler polish — see reference notes below",
-  "context_notes": "Session was v1.8 polish pass, no new milestone. User wants to continue refining sampler before starting v1.9.\n\n## Signal Flow (Reverb Window)\n\nLive Input > Input Gain > AA Filter > Pitch Counter decimation > ADPCM Encode > ADPCM Decode > Gauss Interpolation > Reverb Core\n\n- AA Filter and Gauss are toggleable. ADPCM path is always-on (no toggle).\n- Input Rate (pitch register) drives three stages: AA cutoff, decimation rate, and Gauss interpolation index.\n- Sampler voice mixer output goes DIRECTLY to reverb send — does NOT pass through the ADPCM path again. Authentic to PS1.\n\n## Missing PS1 SPU Sampler Features\n\n### High Priority (v1.9 candidates, already in deferred list)\n1. PMON (Pitch Modulation) — voice N output modulates voice N+1 pitch. Vibrato, FM synthesis.\n2. NON (Noise Generator) — LFSR noise replaces ADPCM output for a voice. Hi-hats, cymbals, wind.\n3. Volume Sweep — automatic per-voice volume ramp (linear/exponential). Tremolo, fades.\n4. Signed Volume / Phase Inversion — negative volume values flip phase. Stereo widening, cancellation.\n\n### Lower Priority (completeness)\n5. ENDX (Voice Status) — flags showing which voices hit loop-end. CPU polls for one-shot completion.\n6. SPU IRQ — interrupt on voice reading specific RAM address. Music sync trigger.\n7. CD/External Input Mixing — stereo line-in with own volume, mixes at master output, optional reverb send.\n8. Master Volume Sweep — global L/R volume registers support hardware-driven sweep.\n\n## PS1 Audio Paths (Reference)\n\n### Path 1: SPU RAM (what we've built)\n- Samples in 512 KB buffer. 24 voices with pitch, ADSR, reverb.\n- Instant trigger, full real-time control.\n- ~15-20 sec total audio at 22050 Hz if entire buffer used.\n\n### Path 2: CD-DA (Red Book Audio)\n- Standard audio CD tracks on game disc. CD drive's own DAC plays independently.\n- Zero RAM cost, perfect CD quality. Early PS1 games (Ridge Racer, WipEout).\n- Downside: disc space, seek gaps on loop, music skips if drive busy loading.\n\n### Path 3: CD-XA (Streaming ADPCM)\n- Interleaved compressed audio woven between game data sectors on disc.\n- Different codec than SPU ADPCM — own block format, decoded by CD drive DSP in hardware.\n- Decoded audio routes into SPU's CD input, mixes with 24 voices, can feed reverb.\n- Stereo 37.8 kHz or mono 18.9 kHz. 8 interleave channels for multiplexing.\n- Zero SPU RAM consumed. Minutes of continuous audio.\n- No pitch/envelope control (it's a stream, not a sample).\n- 100-300ms seek to start new stream. Only one XA stream at a time.\n\n### How Studios Split It\n- Music: XA streaming (long, no RAM cost) — FF7, MGS, most later PS1 titles\n- SFX: SPU RAM (instant, pitch control, short) — universal\n- Dialogue: XA streaming (long, sequential) — MGS codec, FF7 battle quotes\n- FMV: XA audio interleaved with MDEC video — all PS1 cutscenes\n- Exception: Crash Bandicoot — Naughty Dog fit everything in SPU RAM\n\n## Pre-existing Issues (carried forward)\n- CLI tests failing: 'init' preset not in test expectations (pre-existing)\n- JUCE UMP MIDI 2.0 issue on Linux (Legacy devices blocked)\n- Roland J-6 USB MIDI kernel driver issue (not our bug)\n- 5 deferred verification items from phases 16/17/22/24"
+  "next_action": "/gsd-discuss-phase 33 or /gsd-plan-phase 33 to begin the ADSR Correction phase",
+  "context_notes": "Session started with resume, then PS1 audio architecture discussion (CD-DA vs CD-XA streaming). User established SPU-94R/S/XA product vision. Deep discussion of PMON mechanics (fixed chain, FM synthesis). Research spawned 4 parallel agents. Key finding: ADSR sustain-decrease step formula may be off-by-one (code uses 7-step, spec says 8-step). User insisted on fixing it this milestone. Negative-phase sweep included despite spec uncertainty. All planning artifacts committed."
 }
