@@ -30,6 +30,119 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-0058: SPU noise generator LFSR polynomial, seed, and ADPCM-fetch-during-NON
+
+**Status:** Accepted
+**Date:** 2026-05-22
+**Phase:** 36 (Noise Generator NON)
+**Requirement:** NON-01, NON-06, NON-09
+
+**Context:**
+
+The PS1 SPU noise generator is a single global 16-bit LFSR that produces pseudo-random
+noise shared by all NON-enabled voices. Implementing it required resolving three areas
+where the primary spec (nocash psx-spx) is either ambiguous or silent:
+
+1. **LFSR polynomial formulation:** The nocash spec documents the feedback formula as
+   "ParityBit = Bit15 XOR Bit12 XOR Bit11 XOR Bit10 XOR 1". The final "XOR 1" inverts
+   the overall parity, making this an XNOR (exclusive-NOR) of the four tap bits. This
+   produces a different bit sequence than a plain XOR of the same taps. DuckStation
+   implements this equivalently using a 64-entry precomputed lookup table indexed by
+   bits [15:10] of the noise level. SPU-94 verified mathematical equivalence of both
+   approaches: for all 64 possible combinations of the indexed bits, the nocash XNOR
+   formula and the DuckStation table produce identical results. The parity bit is
+   computed from the CURRENT level (before any shift), matching the nocash pseudocode
+   where line 3 (parity computation) precedes line 4 (conditional shift).
+
+2. **Initial LFSR seed:** The nocash spec does not document the power-on value of the
+   noise level register. DuckStation's SPU Reset() initializes it to 1. Seed = 0 is
+   absorbing for any LFSR (an all-zero register produces zero feedback forever, and
+   the XNOR formulation with "XOR 1" cannot rescue it because the shift inserts only
+   one bit per tick -- the register would fill with 1s but never recover the full-period
+   sequence). Seed = 1 is the simplest nonzero value and produces a maximal-length
+   period of 32767 states before repeating. PCSX2's SPU2 noise implementation (PR #4134)
+   also uses the same algorithm and nonzero initialization, confirming emulator consensus.
+
+3. **ADPCM decode during NON mode:** The nocash spec does not explicitly state whether
+   the ADPCM decode pipeline continues running for NON-enabled voices. Since NON
+   replaces the Gaussian interpolation output with the global noise level, a reasonable
+   optimization would be to skip ADPCM decode entirely. However, ADPCM decode has
+   critical side effects: loop flag dispatch (LOOP-01 through LOOP-05), ENDX status
+   register updates, current_addr advancement, and filter state maintenance. DuckStation's
+   SampleVoice() always runs ADPCM fetch and decode regardless of NON -- the noise
+   substitution happens downstream, after decode, at the point where the Gaussian
+   interpolation output would normally be used. This preserves all ADPCM-related side
+   effects and ensures a voice can switch between NON and normal modes mid-playback
+   without encountering stale decode state.
+
+**Decision:**
+
+SPU-94 resolves all three areas as follows:
+
+1. **LFSR polynomial:** SPU-94 uses the direct XNOR computation from the nocash
+   pseudocode (`(bit15 ^ bit12 ^ bit11 ^ bit10 ^ 1) & 1`) rather than a lookup table.
+   This maps one-to-one to the primary spec reference, is self-documenting (tap
+   positions are visible in the source), and costs only 4 XOR + 1 AND operations per
+   44.1 kHz tick. The parity bit is always computed from the pre-shift level, even
+   when the timer has not underflowed and no shift occurs.
+
+2. **Initial seed:** SPU-94 initializes the noise level to 1 on reset, matching
+   DuckStation and the emulator consensus. This is logged as an assumption (A1 in
+   36-RESEARCH.md) with LOW risk: any nonzero seed produces valid noise with the
+   correct spectral characteristics; the only consequence of a wrong seed is a
+   different starting position in the same 32767-state cycle.
+
+3. **ADPCM-fetch-during-NON:** SPU-94 always runs the full ADPCM decode pipeline for
+   NON voices. The voice_tick function executes STEP 1 (ADPCM block fetch and decode)
+   unconditionally. The NON branch point is at STEP 2: `if (non_enabled) gauss_out =
+   noise_level` replaces the Gaussian interpolation output, but the decoded ADPCM
+   samples remain in the ring buffer and all flag side effects have already fired.
+   This matches DuckStation's behavior and ensures loop mechanics are unaffected by
+   NON mode.
+
+**Consequences:**
+
+- **Deterministic noise sequence:** The LFSR produces a fixed, reproducible pseudo-
+  random sequence from seed = 1. This is testable: the first four LFSR outputs at
+  shift=15 (one-tick-per-shift) are 3, 6, 0xC, 0x19, verified against the nocash
+  formula by unit test.
+
+- **Maximal-length LFSR period:** With the XNOR polynomial and nonzero seed, the LFSR
+  cycles through all 32767 nonzero 15-bit states (the 16th bit is the sign/MSB which
+  participates as tap but extends the effective range to int16_t). The period is
+  deterministic and repeating, not truly random.
+
+- **Loop mechanics unaffected by NON toggle:** Because ADPCM decode runs for all active
+  voices, a NON-enabled voice with a looping sample will continue to fire loop-start
+  latches, loop-end jumps, and ENDX status updates. Software monitoring ENDX to detect
+  sample completion will work correctly regardless of NON state.
+
+- **Voice can switch between NON and normal mid-playback:** Since ADPCM decode state
+  (filter coefficients, ring buffer, current address) is maintained even during NON
+  mode, disabling NON on a voice resumes normal ADPCM+Gaussian output from the current
+  decode position without glitches from stale state. This enables creative use cases
+  like toggling noise on/off rhythmically.
+
+- **Two distinct noise sources coexist:** SPU-94 now has two independent noise generators:
+  the SPU voice noise (`spu94_noise_gen_t`, 16-bit Fibonacci LFSR, flat-spectrum
+  percussion source) and the DAC quantization noise (`spu94_dac_noise_state`, 32-bit
+  Galois LFSR, +12 dB/octave shaped). They have different polynomials, different bit
+  widths, different spectral characteristics, and serve entirely different purposes.
+  Naming and type separation prevents accidental cross-contamination.
+
+**Sources:**
+
+- nocash psx-spx: SPU Noise Generator (problemkaputt.de/psxspx-spu-noise-generator.htm)
+  -- complete LFSR algorithm pseudocode, timer mechanism, frequency control via SPUCNT
+  bits [13:8]
+- DuckStation spu.cpp Reset() and SampleVoice() (github.com/stenzek/duckstation) --
+  seed = 1 initialization, noise_wave_add[64] lookup table equivalence, ADPCM decode
+  always runs regardless of NON
+- PCSX2 SPU2 noise PR #4134 (github.com/PCSX2/pcsx2/pull/4134) -- confirms Dr. Hell's
+  LFSR research as emulator consensus; SPU2 uses the same algorithm
+
+---
+
 ## ADR-0057: VxOUTX capture point for PMON pitch modulation
 
 **Status:** Accepted
