@@ -1,7 +1,7 @@
 # Requirements: SPU-94 v1.9 Complete Voice
 
 **Defined:** 2026-05-21
-**Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
+**Core Value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
 
 ## v1.9 Requirements
 
@@ -15,7 +15,7 @@
 ### Signed Volume
 
 - [ ] **SVOL-01**: Per-voice volume L/R accepts the full signed range (-0x4000..+0x3FFF, effective -0x8000..+0x7FFE) through the C API
-- [ ] **SVOL-02**: All call sites that set vol_l/vol_r audited — positive-only clamping removed
+- [ ] **SVOL-02**: All call sites that set vol_l/vol_r audited -- positive-only clamping removed
 - [ ] **SVOL-03**: Negative volume produces phase-inverted output (sample-by-sample exact negation vs positive volume)
 - [ ] **SVOL-04**: VxOUTX (for PMON) is unaffected by volume sign (captured pre-volume)
 - [ ] **SVOL-05**: GUI updated to expose the signed volume range on sampler voice controls
@@ -23,18 +23,18 @@
 ### Pitch Modulation (PMON)
 
 - [ ] **PMON-01**: PMON 24-bit bitmask register enables pitch modulation per voice (bits 1..23; bit 0 ignored)
-- [ ] **PMON-02**: VxOUTX stored per voice after ADSR multiply, before volume multiply — used as PMON factor for the next voice
+- [ ] **PMON-02**: VxOUTX stored per voice after ADSR multiply, before volume multiply -- used as PMON factor for the next voice
 - [ ] **PMON-03**: PMON formula: Factor = VxOUTX(N-1) + 0x8000; Step = (Step * Factor) >> 15; clamp to 0x4000 if Step > 0x3FFF
 - [ ] **PMON-04**: Silent modulator (output = 0) produces Factor = 0x8000, halving the carrier pitch (authentic behavior, no special-casing)
 - [ ] **PMON-05**: Voice processing order 0..23 sequential with VxOUTX written immediately after each voice (no batch delay)
-- [ ] **PMON-06**: PMON chain stacking works (voice 0→1→2 produces cascading modulation)
+- [ ] **PMON-06**: PMON chain stacking works (voice 0->1->2 produces cascading modulation)
 - [ ] **PMON-07**: ADR documenting VxOUTX capture point (post-ADSR, pre-volume) with DuckStation as behavioral witness
 
 ### Noise Generator (NON)
 
 - [ ] **NON-01**: Single global LFSR noise generator with polynomial taps at bits 15, 12, 11, 10 XOR 1 (XNOR), initial seed = 1, left-shift
 - [ ] **NON-02**: Noise timer mechanism: decrement by NoiseStep (4-7) per tick, shift LFSR on underflow, double-reload if still negative
-- [ ] **NON-03**: Noise frequency controlled by SPUCNT bits 13..10 (NoiseShift) and bits 9..8 (NoiseStep) — per-voice pitch register has no effect on noise
+- [ ] **NON-03**: Noise frequency controlled by SPUCNT bits 13..10 (NoiseShift) and bits 9..8 (NoiseStep) -- per-voice pitch register has no effect on noise
 - [ ] **NON-04**: NON 24-bit bitmask register selects which voices output noise instead of ADPCM/Gaussian interpolation
 - [ ] **NON-05**: All NON-enabled voices read the same NoiseLevel value per tick (one generator, not per-voice)
 - [ ] **NON-06**: ADPCM decode still runs for NON voices (flag byte side effects: loop mechanics, ENDX status)
@@ -48,7 +48,7 @@
 - [ ] **SWEEP-02**: Sweep modes: linear increase, linear decrease, exponential increase (fake exp above 0x6000), exponential decrease (proportional to level)
 - [ ] **SWEEP-03**: Sweep step values: increase +7,+6,+5,+4 via (7-step); decrease -8,-7,-6,-5 via -(8-step)
 - [ ] **SWEEP-04**: Sweep uses counter-accumulate mechanism identical to ADSR (shared math helper, separate state storage)
-- [ ] **SWEEP-05**: Sweep modifies vol_l/vol_r directly — not a separate multiplier (the volume register IS the sweep's working state)
+- [ ] **SWEEP-05**: Sweep modifies vol_l/vol_r directly -- not a separate multiplier (the volume register IS the sweep's working state)
 - [ ] **SWEEP-06**: Sweep and ADSR run concurrently as independent envelopes (both multiply into the signal chain)
 - [ ] **SWEEP-07**: KON resets sweep state (counter = 0, level set to initial value); KOFF does not affect sweep
 - [ ] **SWEEP-08**: Anti-stall guard for exponential decrease near zero (if scaled_step == 0 && level > 0, step = -1)
@@ -57,8 +57,8 @@
 
 ### Integration
 
-- [ ] **INT-01**: Voice mixer tick restructured: noise tick globally → sweep per voice → PMON pitch modify → ADPCM decode → noise/Gauss branch → ADSR → store VxOUTX → volume multiply → accumulate
-- [ ] **INT-02**: PMON + NON interaction: noise voice output feeds PMON factor for next voice (random pitch jitter — spec-orthogonal)
+- [ ] **INT-01**: Voice mixer tick restructured: noise tick globally -> sweep per voice -> PMON pitch modify -> ADPCM decode -> noise/Gauss branch -> ADSR -> store VxOUTX -> volume multiply -> accumulate
+- [ ] **INT-02**: PMON + NON interaction: noise voice output feeds PMON factor for next voice (random pitch jitter -- spec-orthogonal)
 - [ ] **INT-03**: All existing voice features unbroken (ADSR, loop mechanics, EON reverb send, Gaussian interpolation, anti-aliasing toggle, MIDI dispatch)
 - [ ] **INT-04**: rt_safety gates pass with all new features enabled (no heap, no locks, no syscalls, bounded latency)
 
@@ -94,13 +94,51 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated during roadmap creation) | | |
+| ADSR-FIX-01 | Phase 33 | Pending |
+| ADSR-FIX-02 | Phase 33 | Pending |
+| ADSR-FIX-03 | Phase 33 | Pending |
+| ADSR-FIX-04 | Phase 33 | Pending |
+| SVOL-01 | Phase 34 | Pending |
+| SVOL-02 | Phase 34 | Pending |
+| SVOL-03 | Phase 34 | Pending |
+| SVOL-04 | Phase 34 | Pending |
+| SVOL-05 | Phase 34 | Pending |
+| PMON-01 | Phase 35 | Pending |
+| PMON-02 | Phase 35 | Pending |
+| PMON-03 | Phase 35 | Pending |
+| PMON-04 | Phase 35 | Pending |
+| PMON-05 | Phase 35 | Pending |
+| PMON-06 | Phase 35 | Pending |
+| PMON-07 | Phase 35 | Pending |
+| NON-01 | Phase 36 | Pending |
+| NON-02 | Phase 36 | Pending |
+| NON-03 | Phase 36 | Pending |
+| NON-04 | Phase 36 | Pending |
+| NON-05 | Phase 36 | Pending |
+| NON-06 | Phase 36 | Pending |
+| NON-07 | Phase 36 | Pending |
+| NON-08 | Phase 36 | Pending |
+| NON-09 | Phase 36 | Pending |
+| SWEEP-01 | Phase 37 | Pending |
+| SWEEP-02 | Phase 37 | Pending |
+| SWEEP-03 | Phase 37 | Pending |
+| SWEEP-04 | Phase 37 | Pending |
+| SWEEP-05 | Phase 37 | Pending |
+| SWEEP-06 | Phase 37 | Pending |
+| SWEEP-07 | Phase 37 | Pending |
+| SWEEP-08 | Phase 37 | Pending |
+| SWEEP-09 | Phase 37 | Pending |
+| SWEEP-10 | Phase 37 | Pending |
+| INT-01 | Phase 38 | Pending |
+| INT-02 | Phase 38 | Pending |
+| INT-03 | Phase 38 | Pending |
+| INT-04 | Phase 38 | Pending |
 
 **Coverage:**
 - v1.9 requirements: 37 total
-- Mapped to phases: 0
-- Unmapped: 37 (pending roadmap)
+- Mapped to phases: 37
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-21*
-*Last updated: 2026-05-21 after initial definition*
+*Last updated: 2026-05-22 -- traceability populated during roadmap creation*
