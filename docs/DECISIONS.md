@@ -30,6 +30,66 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-0056: ADSR sustain-decrease and release off-by-one correction
+
+**Status:** Accepted  
+**Date:** 2026-05-22  
+**Phase:** 33 (ADSR Correction)  
+**Requirement:** ADSR-FIX-01, ADSR-FIX-02
+
+**Context:**
+
+The v1.8 ADSR implementation (Phase 28) used base 7 for both decrease formulas:
+sustain-decrease computed `-(7 - step)` producing steps -7, -6, -5, -4 for step
+values 0..3, and release computed `-(7 - 0) = -7`. The nocash psx-spx specification
+states the decrease formula uses base 8, not 7. The decay phase already used -8
+correctly (matching the spec), making the sustain-decrease and release formulas
+inconsistent with both the spec and with decay.
+
+The error made sustain decay approximately 12.5% slower and release approximately
+14% slower than real PS1 hardware. The distinction is that increase formulas
+(attack, sustain-increase) correctly use base 7 per spec: `+(7 - step)`, while
+decrease formulas (decay, sustain-decrease, release) use base 8: `-(8 - step)`.
+
+This correction was prioritized before Phase 37 (Volume Sweep), which reuses the
+same decrease formula for its own step calculation. Fixing now prevents the
+off-by-one from propagating into sweep.
+
+**Decision:**
+
+Changed both decrease formulas to use base 8:
+- Sustain-decrease step = `-(8 - step)` producing -8, -7, -6, -5 for step values 0..3
+- Release step = `-(8 - 0) = -8`
+
+This aligns sustain-decrease and release with the decay phase (which already used -8)
+and with the nocash spec. Attack and sustain-increase continue to use base 7, as the
+increase formula is correctly `+(7 - step)` per spec.
+
+The two affected lines in `spu94_adsr.c`:
+- ADSR_SUSTAIN decrease branch: `(7 - a->sustain_step)` changed to `(8 - a->sustain_step)`
+- ADSR_RELEASE branch: `(int32_t)7` changed to `(int32_t)8`
+
+**Consequences:**
+
+- Sustain decay is approximately 12.5% faster, matching hardware behavior.
+- Release is approximately 14% faster, matching hardware behavior.
+- Two new regression tests (`test_sustain_decrease_step_magnitudes`,
+  `test_release_step_base_is_8`) assert the corrected magnitudes at all 4 step values.
+- All 10 pre-existing ADSR tests continue to pass unchanged.
+- Volume Sweep (Phase 37) will reuse the same `-(8 - step)` pattern for its decrease path,
+  inheriting the corrected formula.
+- No golden file changes required (no ADSR-specific golden files exist; reverb pipeline
+  goldens exercise the reverb network only, not the voice engine).
+
+**Sources:**
+
+- nocash psx-spx "SPU ADSR Generator" section, specifically the AdsrStep table for
+  decrease modes (base value 8 for decrease, 7 for increase)
+- Phase 28 implementation review (identified the inconsistency with the decay branch
+  which already used -8 correctly)
+
+---
+
 ## ADR-0055: True oversampled DAC (v1.3) -- audible difference characterization
 
 **Status:** Accepted  
