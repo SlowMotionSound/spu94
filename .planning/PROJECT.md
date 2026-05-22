@@ -22,6 +22,16 @@
 
 **Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`, `v1.5`, `v1.6`, `v1.7`, `v1.8`.
 
+## Current Milestone: v1.9 Complete Voice
+
+**Goal:** Make each SPU-94S voice feature-complete to the PS1 SPU spec — pitch modulation, noise generation, volume sweep, and signed volume — so every voice is a fully capable PS1 voice before multi-timbral control is layered on.
+
+**Target features:**
+- PMON — voice N output modulates voice N+1 pitch (fixed chain, FM synthesis, vibrato)
+- NON — per-voice LFSR noise generator replacing ADPCM output (hi-hats, cymbals, white noise)
+- Volume Sweep — hardware-driven automatic per-voice volume ramp (linear/exponential)
+- Signed Volume / Phase Inversion — negative volume values flip waveform phase (stereo widening, cancellation)
+
 ## What This Is
 
 SPU-94 is a bit-faithful software reimplementation of the Sony PlayStation 1 SPU, built from the spec (nocash psx-spx) rather than ported from any existing emulator. It includes the complete reverb network, a 24-voice ADPCM sampler engine with PS1-faithful ADSR envelopes and loop mechanics, ADPCM codec coloration, AK4309 DAC modeling, and a preset interpolation engine. It ships as a plain C library with Python bindings, a native CLI, a DAW plugin (VST3/AU/LV2/CLAP), and a standalone application with a sampler GUI. SPU-94 is designed as a *living instrument*, not a static bank of presets — every parameter that moves in the original algorithm is designed to be controllable at runtime, smoothly and glitch-free, in service of performance, modulation, and CV control. The immediate audience is the author and a small circle of musicians who want the recognizable character of the PS1 sound available as a modern, playable tool.
@@ -101,7 +111,7 @@ See `.planning/milestones/v1.8-REQUIREMENTS.md` for full 34-requirement traceabi
 - **FPGA implementation** — future direction; C core chosen specifically to keep FPGA HLS path open
 - **MCU firmware port (Daisy, Cortex-M)** — Phase 8 (cross-compile smoke test) was scoped for v1.0 but parked per Anthony's 2026-04-24 decision; moves to between M4 and M5 as a portability gate. The portability claim is upheld by the M1 design discipline (no heap, no locks, no syscalls, no STL) and the existing `arm-none-eabi-gcc` build infrastructure that the v1.0 codebase already supports — the smoke test landing is a paper formality, not a discovery.
 - **SPU voice engine, envelope generation, ADSR** — SHIPPED as v1.8 (2026-05-21); 24-voice sampler with ADSR and loop mechanics
-- **Pitch modulation (PMON), noise generator (NON)** — deferred to v1.9+; advanced SPU features beyond basic voice playback
+- **Pitch modulation (PMON), noise generator (NON), volume sweep, signed volume** — ACTIVE as v1.9 (Complete Voice)
 - **Windows and macOS builds** — ACTIVE as v1.7; brought in alongside the DAW plugin port so beta testers on those OSes can participate
 - **Reading Mednafen / lv2-psx-reverb / DuckStation / MiSTer source as a primary development activity** — excluded by licensing posture (see Constraints)
 
@@ -187,4 +197,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-21 — v1.8 PSX Voice Engine shipped*
+*Last updated: 2026-05-21 — v1.9 Complete Voice milestone started*
