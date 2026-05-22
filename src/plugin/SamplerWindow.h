@@ -15,10 +15,10 @@ public:
         setResizable(false, false);
 
         contentPanel.addAndMakeVisible(waveformDisplay);
-        contentPanel.setSize(400, 510);
+        contentPanel.setSize(400, 560);
         setContentNonOwned(&contentPanel, true);
 
-        centreWithSize(400, 510);
+        centreWithSize(400, 560);
         setVisible(true);
     }
 
@@ -38,10 +38,10 @@ public:
 
     void ensureMinimumSize()
     {
-        if (getWidth() < 400 || getHeight() < 500)
+        if (getWidth() < 400 || getHeight() < 550)
         {
-            centreWithSize(401, 511);
-            centreWithSize(400, 510);
+            centreWithSize(401, 561);
+            centreWithSize(400, 560);
         }
     }
 

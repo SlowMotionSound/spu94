@@ -341,6 +341,56 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
 
         refreshAdsrDisplay();
 
+        // Volume L/R knobs — full signed PS1 range (Phase 34: signed volume).
+        // -16384..+16383 maps to the SPU's -0x4000..+0x3FFF volume register.
+        voiceVolLKnob.setSliderStyle(juce::Slider::Rotary);
+        voiceVolLKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 18);
+        voiceVolLKnob.setRange(-16384.0, 16383.0, 1.0);
+        voiceVolLKnob.setValue(16383.0, juce::dontSendNotification);
+        voiceVolLKnob.setTextValueSuffix(" L");
+        voiceVolLKnob.onValueChange = [this] {
+            int16_t v = static_cast<int16_t>(voiceVolLKnob.getValue());
+            processorRef.setGuiVoiceVolL(v);
+            // Phase-flip indicator: teal "INV" when negative
+            phaseFlipLIndicator.setVisible(v < 0);
+        };
+        panel.addAndMakeVisible(voiceVolLKnob);
+        voiceVolLLabel.setText("Vol L", juce::dontSendNotification);
+        voiceVolLLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(voiceVolLLabel);
+
+        voiceVolRKnob.setSliderStyle(juce::Slider::Rotary);
+        voiceVolRKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 18);
+        voiceVolRKnob.setRange(-16384.0, 16383.0, 1.0);
+        voiceVolRKnob.setValue(16383.0, juce::dontSendNotification);
+        voiceVolRKnob.setTextValueSuffix(" R");
+        voiceVolRKnob.onValueChange = [this] {
+            int16_t v = static_cast<int16_t>(voiceVolRKnob.getValue());
+            processorRef.setGuiVoiceVolR(v);
+            // Phase-flip indicator: teal "INV" when negative
+            phaseFlipRIndicator.setVisible(v < 0);
+        };
+        panel.addAndMakeVisible(voiceVolRKnob);
+        voiceVolRLabel.setText("Vol R", juce::dontSendNotification);
+        voiceVolRLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(voiceVolRLabel);
+
+        // Phase-flip indicators — teal "INV" text next to each volume knob
+        auto tealColour = juce::Colour(0xFF5B9279);
+        phaseFlipLIndicator.setText("INV", juce::dontSendNotification);
+        phaseFlipLIndicator.setJustificationType(juce::Justification::centred);
+        phaseFlipLIndicator.setColour(juce::Label::textColourId, tealColour);
+        phaseFlipLIndicator.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
+        phaseFlipLIndicator.setVisible(false);
+        panel.addAndMakeVisible(phaseFlipLIndicator);
+
+        phaseFlipRIndicator.setText("INV", juce::dontSendNotification);
+        phaseFlipRIndicator.setJustificationType(juce::Justification::centred);
+        phaseFlipRIndicator.setColour(juce::Label::textColourId, tealColour);
+        phaseFlipRIndicator.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
+        phaseFlipRIndicator.setVisible(false);
+        panel.addAndMakeVisible(phaseFlipRIndicator);
+
         // Sampler mixer knobs -- own bus in the master mixer.
         samplerLevelKnob.setSliderStyle(juce::Slider::Rotary);
         samplerLevelKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
@@ -933,10 +983,20 @@ void SPU94AudioProcessorEditor::resized()
             endPosLabel.setBounds(320, 252, 70, 14);
             endPosKnob.setBounds(320, 264, 70, 54);
 
-            // ADSR section
-            adsrDisplay.setBounds(10, 343, 380, 55);
+            // Volume L/R section (Phase 34: signed volume)
+            constexpr int voly = 322;
+            voiceVolLLabel.setBounds(60, voly, 80, 14);
+            voiceVolLKnob.setBounds(60, voly + 14, 80, 54);
+            phaseFlipLIndicator.setBounds(60, voly + 68, 80, 14);
+            voiceVolRLabel.setBounds(250, voly, 80, 14);
+            voiceVolRKnob.setBounds(250, voly + 14, 80, 54);
+            phaseFlipRIndicator.setBounds(250, voly + 68, 80, 14);
 
-            constexpr int aky = 403, akw = 65, akh = 54;
+            // ADSR section (shifted down 50px for volume knobs)
+            constexpr int adsrDispY = 393;
+            adsrDisplay.setBounds(10, adsrDispY, 380, 55);
+
+            constexpr int aky = 453, akw = 65, akh = 54;
             adsrAttackLabel.setBounds(15, aky, akw, 12);
             adsrAttackKnob.setBounds(15, aky + 12, akw, akh);
             adsrDecayLabel.setBounds(91, aky, akw, 12);

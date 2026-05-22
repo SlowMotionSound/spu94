@@ -125,6 +125,15 @@ private:
     juce::ToggleButton adsrReleaseExpToggle{"Exp"};
     void refreshAdsrDisplay();
 
+    // Voice volume knobs (standalone-only, Phase 34: signed volume)
+    juce::Slider voiceVolLKnob;
+    juce::Label voiceVolLLabel;
+    juce::Slider voiceVolRKnob;
+    juce::Label voiceVolRLabel;
+    // Phase-flip indicators — teal "INV" labels shown when volume is negative
+    juce::Label phaseFlipLIndicator;
+    juce::Label phaseFlipRIndicator;
+
     // Sampler mixer knobs (standalone-only)
     juce::Slider samplerLevelKnob;
     juce::Label samplerLevelLabel;
