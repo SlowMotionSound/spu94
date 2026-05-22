@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Complete Voice
-status: executing
-stopped_at: Phase 33 complete, Phase 34 (Signed Volume) ready to plan
-last_updated: "2026-05-22T18:50:05.184Z"
+status: ready_to_plan
+stopped_at: Phase 35 complete (2/2) — ready to discuss Phase 36
+last_updated: 2026-05-22T19:14:04.437Z
 last_activity: 2026-05-22 -- Phase 35 execution started
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 5
   percent: 33
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-21)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 35 — Pitch Modulation (PMON)
+**Current focus:** Phase 36 — noise generator (non)
 
 ## Current Position
 
-Phase: 35 (Pitch Modulation (PMON)) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 35
-Last activity: 2026-05-22 -- Phase 35 execution started
+Phase: 36
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-22
 
 Progress: [██░░░░░░░░] 17%
 
@@ -96,7 +96,7 @@ None.
 
 **Velocity:**
 
-- Total plans completed: 3 (v1.9)
+- Total plans completed: 5 (v1.9)
 - Average duration: 16min
 - Total execution time: 0.27 hours
 
@@ -106,6 +106,7 @@ None.
 |-------|-------|-------|----------|
 | 33 - ADSR Correction | 1 | 16min | 16min |
 | 34 | 2 | - | - |
+| 35 | 2 | - | - |
 
 *Updated after each plan completion*
 

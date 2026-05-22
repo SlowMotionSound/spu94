@@ -90,7 +90,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 35-02-PLAN.md -- ADR-0057 VxOUTX capture point, ADSR-shaped FM integration test (PMON-02, PMON-07)
+- [x] 35-02-PLAN.md -- ADR-0057 VxOUTX capture point, ADSR-shaped FM integration test (PMON-02, PMON-07)
 
 ### Phase 36: Noise Generator (NON)
 
@@ -145,7 +145,7 @@ Phases execute in numeric order: 33, 34, 35, 36, 37, 38
 |-------|----------------|--------|-----------|
 | 33. ADSR Correction | 1/1 | Complete | 2026-05-22 |
 | 34. Signed Volume | 2/2 | Complete    | 2026-05-22 |
-| 35. Pitch Modulation (PMON) | 1/2 | In Progress|  |
+| 35. Pitch Modulation (PMON) | 2/2 | Complete    | 2026-05-22 |
 | 36. Noise Generator (NON) | 0/TBD | Not started | - |
 | 37. Volume Sweep | 0/TBD | Not started | - |
 | 38. Integration & Cross-Feature Verification | 0/TBD | Not started | - |

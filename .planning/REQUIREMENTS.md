@@ -22,13 +22,13 @@
 
 ### Pitch Modulation (PMON)
 
-- [ ] **PMON-01**: PMON 24-bit bitmask register enables pitch modulation per voice (bits 1..23; bit 0 ignored)
-- [ ] **PMON-02**: VxOUTX stored per voice after ADSR multiply, before volume multiply -- used as PMON factor for the next voice
-- [ ] **PMON-03**: PMON formula: Factor = VxOUTX(N-1) + 0x8000; Step = (Step * Factor) >> 15; clamp to 0x4000 if Step > 0x3FFF
-- [ ] **PMON-04**: Silent modulator (output = 0) produces Factor = 0x8000, halving the carrier pitch (authentic behavior, no special-casing)
-- [ ] **PMON-05**: Voice processing order 0..23 sequential with VxOUTX written immediately after each voice (no batch delay)
-- [ ] **PMON-06**: PMON chain stacking works (voice 0->1->2 produces cascading modulation)
-- [ ] **PMON-07**: ADR documenting VxOUTX capture point (post-ADSR, pre-volume) with DuckStation as behavioral witness
+- [x] **PMON-01**: PMON 24-bit bitmask register enables pitch modulation per voice (bits 1..23; bit 0 ignored)
+- [x] **PMON-02**: VxOUTX stored per voice after ADSR multiply, before volume multiply -- used as PMON factor for the next voice
+- [x] **PMON-03**: PMON formula: Factor = VxOUTX(N-1) + 0x8000; Step = (Step * Factor) >> 15; clamp to 0x4000 if Step > 0x3FFF
+- [x] **PMON-04**: Silent modulator (output = 0) produces Factor = 0x8000, halving the carrier pitch (authentic behavior, no special-casing)
+- [x] **PMON-05**: Voice processing order 0..23 sequential with VxOUTX written immediately after each voice (no batch delay)
+- [x] **PMON-06**: PMON chain stacking works (voice 0->1->2 produces cascading modulation)
+- [x] **PMON-07**: ADR documenting VxOUTX capture point (post-ADSR, pre-volume) with DuckStation as behavioral witness
 
 ### Noise Generator (NON)
 
@@ -103,13 +103,13 @@
 | SVOL-03 | Phase 34 | Complete |
 | SVOL-04 | Phase 34 | Complete |
 | SVOL-05 | Phase 34 | Complete |
-| PMON-01 | Phase 35 | Pending |
-| PMON-02 | Phase 35 | Pending |
-| PMON-03 | Phase 35 | Pending |
-| PMON-04 | Phase 35 | Pending |
-| PMON-05 | Phase 35 | Pending |
-| PMON-06 | Phase 35 | Pending |
-| PMON-07 | Phase 35 | Pending |
+| PMON-01 | Phase 35 | Complete |
+| PMON-02 | Phase 35 | Complete |
+| PMON-03 | Phase 35 | Complete |
+| PMON-04 | Phase 35 | Complete |
+| PMON-05 | Phase 35 | Complete |
+| PMON-06 | Phase 35 | Complete |
+| PMON-07 | Phase 35 | Complete |
 | NON-01 | Phase 36 | Pending |
 | NON-02 | Phase 36 | Pending |
 | NON-03 | Phase 36 | Pending |
