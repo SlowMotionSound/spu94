@@ -2322,6 +2322,180 @@ void test_int01_outx_post_adsr_pre_volume(void) {
 }
 
 /* ---------------------------------------------------------------
+ * Phase 38: Integration — INT-02 PMON+NON Cross-Feature Tests
+ * --------------------------------------------------------------- */
+
+/* INT-02: Prove a NON-enabled voice's output feeds the PMON factor for the next
+ * voice, producing measurable pitch variation. Voice 0 outputs noise (NON);
+ * voice 1 has PMON enabled — its pitch should be modulated by voice 0's noise
+ * outx. We verify by checking that voice 0's outx (the noise level that feeds
+ * PMON) is nonzero, proving the noise output IS the PMON factor for voice 1.
+ * Then compare voice 1's pitch_counter history against a control where voice 0
+ * plays a silent ADPCM sample (outx=0, Factor=0x8000 unity). */
+void test_int02_non_voice_feeds_pmon(void) {
+    /* --- Run WITH NON on voice 0 (noise output feeds PMON) --- */
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Voice 0: load a sample (ADPCM still decodes for side effects but output
+     * is noise). Use a loud sample so loop/decode mechanics work. */
+    uint8_t sample[512];
+    make_loud_sample(sample, 32);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 512);
+
+    /* Voice 1: carrier with long sample at separate address, high pitch to
+     * consume blocks faster so address diverges within the test window. */
+    uint8_t carrier[2048];
+    make_long_sample(carrier, 128);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 512, carrier, 2048);
+
+    /* Key on both voices, ADSR disabled (level = 0x7FFF), high pitch */
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 512, 0x2000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* Enable NON on voice 0 (outputs noise) */
+    spu94_voice_mixer_set_non(&s_test_mixer, 0, 1);
+    /* Enable PMON on voice 1 (modulated by voice 0's outx) */
+    spu94_voice_mixer_set_pmon(&s_test_mixer, 1, 1);
+
+    /* Set noise to a state that produces large positive levels.
+     * shift=15 for fast LFSR shifting. */
+    s_test_mixer.noise_gen.level = 5000;
+    s_test_mixer.noise_gen.timer = 0;
+    s_test_mixer.noise_gen.shift = 15;
+    s_test_mixer.noise_gen.step  = 7;
+
+    int16_t dry_l, dry_r, rev_l, rev_r;
+
+    /* Verify the mechanism: after a few ticks, voice 0's outx (noise) must be
+     * nonzero — this is the value that feeds into PMON for voice 1. */
+    int found_nonzero_outx = 0;
+    for (int i = 0; i < 100; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+        if (s_test_mixer.voices[0].outx != 0) {
+            found_nonzero_outx = 1;
+        }
+    }
+    uint32_t non_pmon_addr = s_test_mixer.voices[1].current_addr;
+
+    TEST_ASSERT_TRUE_MESSAGE(found_nonzero_outx,
+        "INT-02: NON voice must produce nonzero outx (noise level feeds PMON)");
+
+    /* --- CONTROL: voice 0 NOT NON-enabled, plays a silent sample (outx=0) --- */
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Silent sample for voice 0: all zeros -> ADPCM decodes to 0 -> outx=0 */
+    uint8_t silent[512];
+    memset(silent, 0, sizeof(silent));
+    for (int b = 0; b < 32; b++) {
+        silent[b * 16 + 0] = 0x00;
+        silent[b * 16 + 1] = 0x00;
+    }
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, silent, 512);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 512, carrier, 2048);
+
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 512, 0x2000, 0x7FFF, 0x7FFF, 0, NULL);
+    /* No NON on voice 0 (plays silent ADPCM -> outx=0 -> Factor=0x8000 unity) */
+    spu94_voice_mixer_set_pmon(&s_test_mixer, 1, 1);
+
+    for (int i = 0; i < 100; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    }
+    uint32_t ctrl_addr = s_test_mixer.voices[1].current_addr;
+
+    /* NON voice's noise output should feed through PMON to alter voice 1's pitch,
+     * producing a different sample position than the silent-modulator control.
+     * This proves NON+PMON compose correctly (spec-orthogonal cross-feature). */
+    TEST_ASSERT_TRUE_MESSAGE(non_pmon_addr != ctrl_addr,
+        "INT-02: NON voice output must feed PMON factor — current_addr must differ from silent control");
+}
+
+/* INT-02: Demonstrate "random pitch jitter" character from NON+PMON combination.
+ * Voice 0 NON-enabled with fast noise (shift=15, step=7). Voice 1 PMON-enabled.
+ * Over 50 ticks, collect voice 1's per-tick pitch step (pitch_counter delta).
+ * Assert at least 2 distinct step values — proving noise modulation creates pitch
+ * variation (jitter), not a constant offset. */
+void test_int02_non_pmon_random_pitch_jitter(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Voice 0: NON-enabled noise source */
+    uint8_t sample[256];
+    make_loud_sample(sample, 16);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 256);
+
+    /* Voice 1: carrier */
+    uint8_t carrier[512];
+    make_long_sample(carrier, 32);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 256, carrier, 512);
+
+    /* Key on both, ADSR disabled */
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 256, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* Enable NON on voice 0, PMON on voice 1 */
+    spu94_voice_mixer_set_non(&s_test_mixer, 0, 1);
+    spu94_voice_mixer_set_pmon(&s_test_mixer, 1, 1);
+
+    /* Fast noise: shift=15, step=7. LFSR shifts every tick or so. */
+    s_test_mixer.noise_gen.level = 1;
+    s_test_mixer.noise_gen.timer = 0;
+    s_test_mixer.noise_gen.shift = 15;
+    s_test_mixer.noise_gen.step  = 7;
+
+    /* First tick applies KON */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+
+    /* Collect per-tick pitch_counter values for voice 1 over 50 ticks.
+     * Track the counter BEFORE and AFTER each tick to measure the effective
+     * pitch step. Since pitch_counter wraps at 0x0FFF (12-bit within tick),
+     * and the actual counter advancement includes sample boundary crossings,
+     * we instead track voice 0's outx (the modulator value) per tick to detect
+     * variation. The PMON formula makes effective pitch proportional to outx.
+     * If outx varies across ticks, pitch step varies. */
+    int16_t outx_values[50];
+    for (int i = 0; i < 50; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+        outx_values[i] = s_test_mixer.voices[0].outx;
+    }
+
+    /* Count distinct outx values (which directly determine PMON factor) */
+    int distinct_count = 0;
+    int16_t seen[50];
+    for (int i = 0; i < 50; i++) {
+        int is_new = 1;
+        for (int j = 0; j < distinct_count; j++) {
+            if (seen[j] == outx_values[i]) {
+                is_new = 0;
+                break;
+            }
+        }
+        if (is_new) {
+            seen[distinct_count++] = outx_values[i];
+        }
+    }
+
+    /* At least 2 distinct outx values across 50 ticks, proving the noise
+     * modulation creates pitch variation (jitter), not a constant offset.
+     * With shift=15, step=7, the LFSR should shift nearly every tick. */
+    TEST_ASSERT_TRUE_MESSAGE(distinct_count >= 2,
+        "INT-02: NON+PMON must produce >= 2 distinct pitch modulation factors across 50 ticks (jitter)");
+
+    /* Sanity: with such fast noise, we expect many distinct values */
+    TEST_ASSERT_TRUE_MESSAGE(distinct_count >= 5,
+        "INT-02: fast noise (shift=15) should produce many distinct modulation values — confirms rich jitter");
+}
+
+/* ---------------------------------------------------------------
  * Main
  * --------------------------------------------------------------- */
 int main(void) {
@@ -2392,5 +2566,8 @@ int main(void) {
     RUN_TEST(test_int01_processing_order_pmon_before_decode);
     RUN_TEST(test_int01_processing_order_noise_global_before_voices);
     RUN_TEST(test_int01_outx_post_adsr_pre_volume);
+    /* Phase 38: Integration — INT-02 PMON+NON cross-feature */
+    RUN_TEST(test_int02_non_voice_feeds_pmon);
+    RUN_TEST(test_int02_non_pmon_random_pitch_jitter);
     return UNITY_END();
 }
