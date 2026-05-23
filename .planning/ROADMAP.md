@@ -177,7 +177,10 @@ Plans:
   3. Teal INV indicator from Phase 34 still visible and functional when volume is negative (phase inversion)
   4. Pan+Level produce identical vol_l/vol_r register values as the old raw knobs for equivalent settings
 
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+
+- [ ] 39-01-PLAN.md -- Replace Vol L/R with Pan + Level + INV controls
 
 ### Phase 40: Voice Feature Toggles
 
@@ -191,7 +194,10 @@ Plans:
   3. Toggling NON replaces the voice's ADPCM output with the global noise generator (ADPCM still decodes for flag side effects)
   4. Toggling PMON on voice N modulates its pitch by voice N-1's outx value (voice 0 PMON has no effect)
 
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+
+- [ ] 39-01-PLAN.md -- Replace Vol L/R with Pan + Level + INV controls
 
 ### Phase 41: VCA Ramp Controls
 
@@ -206,7 +212,10 @@ Plans:
   4. Activating a ramp produces audible volume change matching the configured direction, speed, and curve
   5. Ramp state resets on KON (new note starts fresh)
 
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+
+- [ ] 39-01-PLAN.md -- Replace Vol L/R with Pan + Level + INV controls
 
 ### Phase 42: Voice GUI Integration
 
@@ -219,7 +228,10 @@ Plans:
   2. Existing sampler features unbroken: waveform display, ADSR controls, pitch, latch/lock, drive, MIDI dispatch
   3. rt_safety gates pass with all GUI-driven features enabled
 
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+
+- [ ] 39-01-PLAN.md -- Replace Vol L/R with Pan + Level + INV controls
 
 ## Progress
 
@@ -234,7 +246,7 @@ Phases execute in numeric order: 33, 34, 35, 36, 37, 38, 39, 40, 41, 42
 | 36. Noise Generator (NON) | 2/2 | Complete    | 2026-05-22 |
 | 37. Volume Sweep | 0/3 | Not started | - |
 | 38. Integration & Cross-Feature Verification | 2/2 | Complete | 2026-05-23 |
-| 39. Pan & Level Controls | 0/TBD | Not started | - |
+| 39. Pan & Level Controls | 0/1 | Not started | - |
 | 40. Voice Feature Toggles | 0/TBD | Not started | - |
 | 41. VCA Ramp Controls | 0/TBD | Not started | - |
 | 42. Voice GUI Integration | 0/TBD | Not started | - |
