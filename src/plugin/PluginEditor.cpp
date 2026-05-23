@@ -342,23 +342,25 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         refreshAdsrDisplay();
 
         // Pan + Level + INV controls (Phase 39: replaces raw Vol L/R).
-        // Pan: -100 (hard left) to +100 (hard right), 0 = center.
+        // Pan: rotary encoder with center detent at 0.
         voicePanKnob.setSliderStyle(juce::Slider::Rotary);
         voicePanKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 18);
         voicePanKnob.setRange(-100.0, 100.0, 1.0);
         voicePanKnob.setValue(0.0, juce::dontSendNotification);
+        voicePanKnob.setDoubleClickReturnValue(true, 0.0);
         voicePanKnob.onValueChange = [this] { updateVoiceVolumes(); };
         panel.addAndMakeVisible(voicePanKnob);
         voicePanLabel.setText("Pan", juce::dontSendNotification);
         voicePanLabel.setJustificationType(juce::Justification::centred);
         panel.addAndMakeVisible(voicePanLabel);
 
-        // Level: 0% (silent) to 100% (max = 0x3FFF).
-        voiceLevelKnob.setSliderStyle(juce::Slider::Rotary);
-        voiceLevelKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 18);
+        // Level: vertical fader, like a channel fader on a mixer.
+        voiceLevelKnob.setSliderStyle(juce::Slider::LinearVertical);
+        voiceLevelKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
         voiceLevelKnob.setRange(0.0, 100.0, 1.0);
         voiceLevelKnob.setValue(100.0, juce::dontSendNotification);
         voiceLevelKnob.setTextValueSuffix("%");
+        voiceLevelKnob.setDoubleClickReturnValue(true, 100.0);
         voiceLevelKnob.onValueChange = [this] { updateVoiceVolumes(); };
         panel.addAndMakeVisible(voiceLevelKnob);
         voiceLevelLabel.setText("Level", juce::dontSendNotification);
@@ -1011,20 +1013,11 @@ void SPU94AudioProcessorEditor::resized()
             endPosLabel.setBounds(320, 252, 70, 14);
             endPosKnob.setBounds(320, 264, 70, 54);
 
-            // Pan + Level + INV section (Phase 39)
-            constexpr int voly = 322;
-            voicePanLabel.setBounds(30, voly, 80, 14);
-            voicePanKnob.setBounds(30, voly + 14, 80, 54);
-            voiceLevelLabel.setBounds(160, voly, 80, 14);
-            voiceLevelKnob.setBounds(160, voly + 14, 80, 54);
-            voiceInvToggle.setBounds(280, voly + 14, 55, 26);
-            voiceInvIndicator.setBounds(280, voly + 40, 55, 14);
-
-            // ADSR section (shifted down 50px for volume knobs)
-            constexpr int adsrDispY = 393;
+            // ADSR section — directly below marker knobs
+            constexpr int adsrDispY = 322;
             adsrDisplay.setBounds(10, adsrDispY, 380, 55);
 
-            constexpr int aky = 453, akw = 65, akh = 54;
+            constexpr int aky = 382, akw = 65, akh = 54;
             adsrAttackLabel.setBounds(15, aky, akw, 12);
             adsrAttackKnob.setBounds(15, aky + 12, akw, akh);
             adsrDecayLabel.setBounds(91, aky, akw, 12);
@@ -1040,6 +1033,18 @@ void SPU94AudioProcessorEditor::resized()
             adsrAttackExpToggle.setBounds(15, tgy, akw, 18);
             adsrSustainExpToggle.setBounds(243, tgy, akw, 18);
             adsrReleaseExpToggle.setBounds(319, tgy, akw, 18);
+
+            // Pan + Level + INV section — below ADSR
+            constexpr int voly = tgy + 28;
+            // Pan rotary on top
+            voicePanLabel.setBounds(20, voly, 100, 16);
+            voicePanKnob.setBounds(20, voly + 16, 100, 70);
+            // Level vertical fader below pan
+            voiceLevelLabel.setBounds(20, voly + 90, 100, 16);
+            voiceLevelKnob.setBounds(35, voly + 106, 70, 100);
+            // INV toggle + indicator to the right of pan
+            voiceInvToggle.setBounds(160, voly + 20, 70, 30);
+            voiceInvIndicator.setBounds(160, voly + 52, 70, 16);
         }
     }
 
