@@ -75,6 +75,8 @@ public:
     void setSampleLoopPos(double pos) { sampleLoopPos.store(pos, std::memory_order_relaxed); }
     std::atomic<bool>& getLoopModeEnabled() { return loopModeEnabled; }
     std::atomic<bool>& getSamplerAAEnabled() { return samplerAAEnabled; }
+    std::atomic<bool>& getGuiVoiceNon() { return guiVoiceNon; }
+    std::atomic<bool>& getGuiVoicePmon() { return guiVoicePmon; }
 
     // ADSR parameter accessors (standalone sampler voice)
     std::atomic<bool>&  getAdsrEnabled()     { return adsrEnabled; }
@@ -385,6 +387,9 @@ private:
     std::atomic<double> sampleLoopPos{0.0};
     std::atomic<bool> loopModeEnabled{false};
     std::atomic<bool> samplerAAEnabled{true};  // AA-03: true = Gauss interp ON (PS1 faithful)
+    // Per-voice NON/PMON toggles (Phase 40: voice feature toggles)
+    std::atomic<bool> guiVoiceNon{false};   // NON: replace ADPCM output with noise generator
+    std::atomic<bool> guiVoicePmon{false};  // PMON: pitch modulation from previous voice
 
     // ADSR parameters (standalone sampler voice)
     std::atomic<bool>  adsrEnabled{true};

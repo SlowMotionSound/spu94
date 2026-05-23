@@ -385,6 +385,31 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         // Set initial volumes (pan center, level 100%, INV off → 0x3FFF both channels).
         updateVoiceVolumes();
 
+        // NON toggle — replaces ADPCM output with noise generator (Phase 40).
+        voiceNonToggle.setClickingTogglesState(true);
+        voiceNonToggle.setToggleState(false, juce::dontSendNotification);
+        voiceNonToggle.onClick = [this] {
+            processorRef.getGuiVoiceNon().store(
+                voiceNonToggle.getToggleState(), std::memory_order_relaxed);
+        };
+        panel.addAndMakeVisible(voiceNonToggle);
+
+        // PMON toggle — pitch modulation from previous voice (Phase 40).
+        voicePmonToggle.setClickingTogglesState(true);
+        voicePmonToggle.setToggleState(false, juce::dontSendNotification);
+        voicePmonToggle.onClick = [this] {
+            processorRef.getGuiVoicePmon().store(
+                voicePmonToggle.getToggleState(), std::memory_order_relaxed);
+        };
+        panel.addAndMakeVisible(voicePmonToggle);
+
+        // Voice Mode group label
+        voiceModeLabel.setText("Voice Mode", juce::dontSendNotification);
+        voiceModeLabel.setJustificationType(juce::Justification::centredLeft);
+        voiceModeLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
+        voiceModeLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
+        panel.addAndMakeVisible(voiceModeLabel);
+
         // Sampler mixer knobs -- own bus in the master mixer.
         samplerLevelKnob.setSliderStyle(juce::Slider::Rotary);
         samplerLevelKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
@@ -1045,6 +1070,11 @@ void SPU94AudioProcessorEditor::resized()
             // INV toggle + indicator to the right of pan
             voiceInvToggle.setBounds(160, voly + 20, 70, 30);
             voiceInvIndicator.setBounds(160, voly + 52, 70, 16);
+
+            // Voice Mode section — NON and PMON toggles below INV (Phase 40)
+            voiceModeLabel.setBounds(160, voly + 80, 100, 16);
+            voiceNonToggle.setBounds(160, voly + 98, 70, 30);
+            voicePmonToggle.setBounds(160, voly + 132, 70, 30);
         }
     }
 

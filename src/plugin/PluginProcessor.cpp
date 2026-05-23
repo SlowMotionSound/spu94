@@ -580,6 +580,12 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         spu94_voice_mixer_set_pitch(spu94_get_voice_mixer(), 0,
             guiVoicePitch.load(std::memory_order_relaxed));
 
+        // Apply NON/PMON toggles on voice 0 (Phase 40: voice feature toggles)
+        spu94_voice_mixer_set_non(spu94_get_voice_mixer(), 0,
+            guiVoiceNon.load(std::memory_order_relaxed) ? 1 : 0);
+        spu94_voice_mixer_set_pmon(spu94_get_voice_mixer(), 0,
+            guiVoicePmon.load(std::memory_order_relaxed) ? 1 : 0);
+
         // Update all marker positions on voice 0 in real time
         {
             auto* mx = spu94_get_voice_mixer();

@@ -132,6 +132,10 @@ private:
     juce::Label voiceLevelLabel;
     juce::ToggleButton voiceInvToggle{"INV"};
     juce::Label voiceInvIndicator;
+    // NON/PMON toggles (Phase 40: voice feature toggles)
+    juce::ToggleButton voiceNonToggle{"NON"};
+    juce::ToggleButton voicePmonToggle{"PMON"};
+    juce::Label voiceModeLabel;
     void updateVoiceVolumes();
 
     // Sampler mixer knobs (standalone-only)
