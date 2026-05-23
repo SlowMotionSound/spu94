@@ -8,6 +8,47 @@
 #include <cstring>
 #include <memory>
 
+// Phase 41: Speed-to-shift mapping for VCA ramp controls.
+// Maps a user-facing seconds value to the nearest SPU sweep shift parameter.
+// Step is always 0 (step=0 gives the cleanest musical ramps).
+namespace {
+    struct SweepShiftResult { uint8_t shift; uint8_t step; };
+
+    static const struct { uint8_t shift; float seconds; } kSweepTable[] = {
+        {  9, 0.03f },
+        { 10, 0.05f },
+        { 11, 0.1f  },
+        { 12, 0.2f  },
+        { 13, 0.4f  },
+        { 14, 0.85f },
+        { 15, 1.7f  },
+        { 16, 3.4f  },
+        { 17, 6.8f  },
+    };
+    static constexpr int kSweepTableSize = 9;
+
+    SweepShiftResult speedToShift(float seconds)
+    {
+        if (seconds <= kSweepTable[0].seconds)
+            return { kSweepTable[0].shift, 0 };
+        if (seconds >= kSweepTable[kSweepTableSize - 1].seconds)
+            return { kSweepTable[kSweepTableSize - 1].shift, 0 };
+
+        int bestIdx = 0;
+        float bestDist = std::fabs(seconds - kSweepTable[0].seconds);
+        for (int i = 1; i < kSweepTableSize; ++i)
+        {
+            float dist = std::fabs(seconds - kSweepTable[i].seconds);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestIdx = i;
+            }
+        }
+        return { kSweepTable[bestIdx].shift, 0 };
+    }
+} // anonymous namespace
+
 SPU94AudioProcessor::SPU94AudioProcessor()
     : AudioProcessor(BusesProperties()
                          .withInput("Input", juce::AudioChannelSet::stereo(), true)
@@ -585,6 +626,27 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             guiVoiceNon.load(std::memory_order_relaxed) ? 1 : 0);
         spu94_voice_mixer_set_pmon(spu94_get_voice_mixer(), 0,
             guiVoicePmon.load(std::memory_order_relaxed) ? 1 : 0);
+
+        // VCA ramp activation (Phase 41: volume sweep GUI surface)
+        // One-shot: GUI sets rampArm=true, audio thread reads and resets to false.
+        if (rampArm.exchange(false, std::memory_order_acquire))
+        {
+            int dir   = rampDirection.load(std::memory_order_relaxed);
+            int curve = rampCurve.load(std::memory_order_relaxed);
+            float spd = rampSpeed.load(std::memory_order_relaxed);
+            auto ss   = speedToShift(spd);
+
+            // mode: 0=linear, 1=exponential; direction: 0=increase, 1=decrease
+            // phase: 0=positive; both L and R get matched parameters (RAMP-02)
+            spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
+                static_cast<uint8_t>(curve),
+                static_cast<uint8_t>(dir),
+                0, ss.shift, ss.step);
+            spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
+                static_cast<uint8_t>(curve),
+                static_cast<uint8_t>(dir),
+                0, ss.shift, ss.step);
+        }
 
         // Update all marker positions on voice 0 in real time
         {

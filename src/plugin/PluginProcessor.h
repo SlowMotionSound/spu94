@@ -78,6 +78,12 @@ public:
     std::atomic<bool>& getGuiVoiceNon() { return guiVoiceNon; }
     std::atomic<bool>& getGuiVoicePmon() { return guiVoicePmon; }
 
+    // VCA ramp controls (Phase 41: volume sweep GUI surface)
+    std::atomic<int>&   getRampDirection() { return rampDirection; }
+    std::atomic<int>&   getRampCurve()     { return rampCurve; }
+    std::atomic<float>& getRampSpeed()     { return rampSpeed; }
+    std::atomic<bool>&  getRampArm()       { return rampArm; }
+
     // ADSR parameter accessors (standalone sampler voice)
     std::atomic<bool>&  getAdsrEnabled()     { return adsrEnabled; }
     std::atomic<float>& getAdsrAttack()      { return adsrAttack; }
@@ -390,6 +396,12 @@ private:
     // Per-voice NON/PMON toggles (Phase 40: voice feature toggles)
     std::atomic<bool> guiVoiceNon{false};   // NON: replace ADPCM output with noise generator
     std::atomic<bool> guiVoicePmon{false};  // PMON: pitch modulation from previous voice
+
+    // VCA ramp controls (Phase 41: volume sweep GUI surface)
+    std::atomic<int>   rampDirection{0};    // 0 = Up (fade in / increase), 1 = Down (fade out / decrease)
+    std::atomic<int>   rampCurve{0};        // 0 = Linear, 1 = Natural (exponential)
+    std::atomic<float> rampSpeed{1.7f};     // Speed in seconds, default ~1.7s (shift 15, mid-range)
+    std::atomic<bool>  rampArm{false};      // One-shot: audio thread activates sweep and resets to false
 
     // ADSR parameters (standalone sampler voice)
     std::atomic<bool>  adsrEnabled{true};

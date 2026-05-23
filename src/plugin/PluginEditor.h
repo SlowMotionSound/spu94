@@ -138,6 +138,14 @@ private:
     juce::Label voiceModeLabel;
     void updateVoiceVolumes();
 
+    // VCA ramp controls (Phase 41: volume sweep GUI surface)
+    juce::Label rampSectionLabel;
+    juce::TextButton rampDirButton{"Up"};
+    juce::Slider rampSpeedKnob;
+    juce::Label rampSpeedLabel;
+    juce::TextButton rampCurveButton{"Linear"};
+    juce::TextButton rampArmButton{"ARM"};
+
     // Sampler mixer knobs (standalone-only)
     juce::Slider samplerLevelKnob;
     juce::Label samplerLevelLabel;
