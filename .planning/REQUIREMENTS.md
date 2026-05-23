@@ -57,8 +57,8 @@
 
 ### Integration
 
-- [ ] **INT-01**: Voice mixer tick restructured: noise tick globally -> sweep per voice -> PMON pitch modify -> ADPCM decode -> noise/Gauss branch -> ADSR -> store VxOUTX -> volume multiply -> accumulate
-- [ ] **INT-02**: PMON + NON interaction: noise voice output feeds PMON factor for next voice (random pitch jitter -- spec-orthogonal)
+- [x] **INT-01**: Voice mixer tick restructured: noise tick globally -> sweep per voice -> PMON pitch modify -> ADPCM decode -> noise/Gauss branch -> ADSR -> store VxOUTX -> volume multiply -> accumulate
+- [x] **INT-02**: PMON + NON interaction: noise voice output feeds PMON factor for next voice (random pitch jitter -- spec-orthogonal)
 - [ ] **INT-03**: All existing voice features unbroken (ADSR, loop mechanics, EON reverb send, Gaussian interpolation, anti-aliasing toggle, MIDI dispatch)
 - [ ] **INT-04**: rt_safety gates pass with all new features enabled (no heap, no locks, no syscalls, bounded latency)
 
@@ -129,8 +129,8 @@
 | SWEEP-08 | Phase 37 | Pending |
 | SWEEP-09 | Phase 37 | Pending |
 | SWEEP-10 | Phase 37 | Pending |
-| INT-01 | Phase 38 | Pending |
-| INT-02 | Phase 38 | Pending |
+| INT-01 | Phase 38 | **Complete** (38-01) |
+| INT-02 | Phase 38 | **Complete** (38-01) |
 | INT-03 | Phase 38 | Pending |
 | INT-04 | Phase 38 | Pending |
 

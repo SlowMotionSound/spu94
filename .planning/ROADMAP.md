@@ -155,7 +155,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 38-01-PLAN.md -- Integration tests: processing order proof + PMON+NON cross-feature (INT-01, INT-02)
+- [x] 38-01-PLAN.md -- Integration tests: processing order proof + PMON+NON cross-feature (INT-01, INT-02)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -173,7 +173,7 @@ Phases execute in numeric order: 33, 34, 35, 36, 37, 38
 | 35. Pitch Modulation (PMON) | 2/2 | Complete    | 2026-05-22 |
 | 36. Noise Generator (NON) | 2/2 | Complete    | 2026-05-22 |
 | 37. Volume Sweep | 0/3 | Not started | - |
-| 38. Integration & Cross-Feature Verification | 0/2 | Not started | - |
+| 38. Integration & Cross-Feature Verification | 1/2 | In progress | - |
 
 ## Previous Milestone Archives
 
@@ -292,4 +292,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-23 -- Phase 38 planned (2 plans)*
+*Last updated: 2026-05-23 -- Phase 38 Plan 01 complete (INT-01, INT-02 verified)*
