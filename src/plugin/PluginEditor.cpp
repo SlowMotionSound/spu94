@@ -406,6 +406,20 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         };
         panel.addAndMakeVisible(voicePmonToggle);
 
+        // Noise Color knob — controls noise generator shift (0-15)
+        noiseColorKnob.setSliderStyle(juce::Slider::Rotary);
+        noiseColorKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        noiseColorKnob.setRange(0.0, 15.0, 1.0);
+        noiseColorKnob.setValue(10.0, juce::dontSendNotification);
+        noiseColorKnob.onValueChange = [this] {
+            processorRef.getNoiseShift().store(
+                static_cast<int>(noiseColorKnob.getValue()), std::memory_order_relaxed);
+        };
+        panel.addAndMakeVisible(noiseColorKnob);
+        noiseColorLabel.setText("Noise Color", juce::dontSendNotification);
+        noiseColorLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(noiseColorLabel);
+
         // Voice Mode group label
         voiceModeLabel.setText("Voice Mode", juce::dontSendNotification);
         voiceModeLabel.setJustificationType(juce::Justification::centredLeft);
@@ -1139,6 +1153,8 @@ void SPU94AudioProcessorEditor::resized()
             voiceModeLabel.setBounds(160, voly + 80, 100, 16);
             voiceNonToggle.setBounds(160, voly + 98, 70, 30);
             voicePmonToggle.setBounds(160, voly + 132, 70, 30);
+            noiseColorLabel.setBounds(260, voly + 80, 100, 16);
+            noiseColorKnob.setBounds(270, voly + 96, 80, 70);
 
             // VCA Ramp section — below Pan/Level area (Phase 41)
             constexpr int rampy = voly + 218;

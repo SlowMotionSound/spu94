@@ -77,6 +77,7 @@ public:
     std::atomic<bool>& getSamplerAAEnabled() { return samplerAAEnabled; }
     std::atomic<bool>& getGuiVoiceNon() { return guiVoiceNon; }
     std::atomic<bool>& getGuiVoicePmon() { return guiVoicePmon; }
+    std::atomic<int>& getNoiseShift() { return noiseShift; }
 
     // VCA ramp controls (Phase 41: volume sweep GUI surface)
     std::atomic<int>&   getRampDirection() { return rampDirection; }
@@ -396,6 +397,7 @@ private:
     // Per-voice NON/PMON toggles (Phase 40: voice feature toggles)
     std::atomic<bool> guiVoiceNon{false};   // NON: replace ADPCM output with noise generator
     std::atomic<bool> guiVoicePmon{false};  // PMON: pitch modulation from previous voice
+    std::atomic<int> noiseShift{10};        // noise generator shift (0-15), controls noise color/frequency
 
     // VCA ramp controls (Phase 41: volume sweep GUI surface)
     std::atomic<int>   rampDirection{0};    // 0 = Up (fade in / increase), 1 = Down (fade out / decrease)

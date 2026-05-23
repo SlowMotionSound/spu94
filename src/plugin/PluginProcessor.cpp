@@ -632,13 +632,12 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         {
             bool nonOn = guiVoiceNon.load(std::memory_order_relaxed);
             spu94_voice_mixer_set_non(spu94_get_voice_mixer(), 0, nonOn ? 1 : 0);
-            if (nonOn) {
-                auto* mx = spu94_get_voice_mixer();
-                if (mx->noise_gen.shift == 0) {
-                    mx->noise_gen.shift = 10;
-                    mx->noise_gen.step  = 5;
-                }
-            }
+            auto* mx = spu94_get_voice_mixer();
+            int shift = noiseShift.load(std::memory_order_relaxed);
+            if (shift < 0) shift = 0;
+            if (shift > 15) shift = 15;
+            mx->noise_gen.shift = (uint8_t)shift;
+            mx->noise_gen.step = (uint8_t)(4 + (shift > 7 ? 3 : shift / 3));
         }
         spu94_voice_mixer_set_pmon(spu94_get_voice_mixer(), 0,
             guiVoicePmon.load(std::memory_order_relaxed) ? 1 : 0);

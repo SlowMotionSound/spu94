@@ -136,6 +136,8 @@ private:
     juce::ToggleButton voiceNonToggle{"NON"};
     juce::ToggleButton voicePmonToggle{"PMON"};
     juce::Label voiceModeLabel;
+    juce::Slider noiseColorKnob;
+    juce::Label noiseColorLabel;
     void updateVoiceVolumes();
 
     // VCA ramp controls (Phase 41: volume sweep GUI surface)
