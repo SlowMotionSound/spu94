@@ -19,6 +19,7 @@
 #include <spu94/spu94.h>
 #include <spu94/spu94_adpcm.h>
 #include <spu94/spu94_adsr.h>
+#include <spu94/spu94_sweep.h>
 #include <spu94/spu94_noise.h>
 #include <spu94/spu94_spu_ram.h>
 #include <stdint.h>
@@ -55,6 +56,8 @@ typedef struct {
     int16_t   vol_r;              /* per-voice right volume (-0x4000..+0x3FFF, signed; negative = phase inversion per SVOL-01) */
     int16_t   outx;              /* Phase 34/SVOL-04: post-ADSR, pre-volume output for PMON (Phase 35). Stored every tick. */
     spu94_adsr_state_t adsr;     /* Phase 28: per-voice ADSR envelope state */
+    spu94_sweep_t sweep_l;       /* Phase 37: per-voice left volume sweep */
+    spu94_sweep_t sweep_r;       /* Phase 37: per-voice right volume sweep */
     /* Phase 29: Loop mechanics fields (LOOP-01..05; C4, C5 pitfall prevention) */
     uint32_t  loop_addr;          /* byte offset latched on Loop-Start flag (LOOP-02) */
     int16_t   loop_adpcm_old;     /* ADPCM filter history snapshot at loop start (LOOP-03 / C5) */
@@ -180,6 +183,20 @@ spu94_result_t spu94_voice_mixer_set_non(spu94_voice_mixer_t *m, int voice_idx,
  * Returns SPU94_INVALID_ARG if shift > 15 or step_raw > 3. */
 spu94_result_t spu94_voice_mixer_set_noise_freq(spu94_voice_mixer_t *m,
     uint8_t shift, uint8_t step_raw);
+
+/* Configure left volume sweep for a voice. Sets sweep_l parameters and
+ * initializes sweep_l.level to the voice's current vol_l. Sets active=1.
+ * Returns SPU94_INVALID_ARG if voice_idx out of range. */
+spu94_result_t spu94_voice_mixer_set_sweep_l(spu94_voice_mixer_t *m, int voice_idx,
+    uint8_t mode, uint8_t direction, uint8_t phase,
+    uint8_t shift, uint8_t step);
+
+/* Configure right volume sweep for a voice. Sets sweep_r parameters and
+ * initializes sweep_r.level to the voice's current vol_r. Sets active=1.
+ * Returns SPU94_INVALID_ARG if voice_idx out of range. */
+spu94_result_t spu94_voice_mixer_set_sweep_r(spu94_voice_mixer_t *m, int voice_idx,
+    uint8_t mode, uint8_t direction, uint8_t phase,
+    uint8_t shift, uint8_t step);
 
 /* Update the pitch register of a playing voice without re-triggering.
  * Takes effect on the next tick. Clamped to 0x3FFF.

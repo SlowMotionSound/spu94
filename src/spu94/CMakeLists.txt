@@ -28,6 +28,7 @@ add_library(spu94_obj OBJECT
     spu94_dac_noise.c
     spu94_noise.c
     spu94_envelope_step.c
+    spu94_sweep.c
     spu94_adsr.c
     spu94_voice.c
     spu94_sample_loader.c

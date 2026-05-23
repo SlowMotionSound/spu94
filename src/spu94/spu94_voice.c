@@ -19,6 +19,7 @@
  */
 
 #include <spu94/spu94_voice.h>
+#include <spu94/spu94_sweep.h>
 #include <spu94/spu94_noise.h>
 #include <spu94/spu94_gauss.h>
 #include <spu94/spu94_q15.h>
@@ -34,6 +35,8 @@ void spu94_voice_init(spu94_voice_t *v) {
     /* Phase 29: loop_addr=0, loop_adpcm_old=0, loop_adpcm_older=0, endx=0
      * are intentionally zero-init by memset (LOOP-02, LOOP-05). */
     spu94_adsr_init(&v->adsr);
+    spu94_sweep_init(&v->sweep_l);
+    spu94_sweep_init(&v->sweep_r);
 }
 
 void spu94_voice_key_on(spu94_voice_t *v, uint32_t start_addr,
@@ -69,6 +72,10 @@ void spu94_voice_key_on(spu94_voice_t *v, uint32_t start_addr,
 
     /* Phase 28: reset ADSR to attack (level=0, counter=0) */
     spu94_adsr_key_on(&v->adsr);
+
+    /* SWEEP-07: KON deactivates sweep */
+    v->sweep_l.active = 0;
+    v->sweep_r.active = 0;
 
     /* M3: ENDX cleared on KON, not KOFF */
     v->endx = 0;
@@ -106,6 +113,19 @@ void spu94_voice_tick(spu94_voice_t *v,
         *out_l = 0;
         *out_r = 0;
         return;
+    }
+
+    /* ---------------------------------------------------------------
+     * STEP 0 — Volume sweep (SWEEP-05: sweep IS the volume register)
+     * Tick L/R sweep; if active, write back to vol_l/vol_r.
+     * --------------------------------------------------------------- */
+    if (v->sweep_l.active) {
+        spu94_sweep_tick(&v->sweep_l);
+        v->vol_l = v->sweep_l.level;
+    }
+    if (v->sweep_r.active) {
+        spu94_sweep_tick(&v->sweep_r);
+        v->vol_r = v->sweep_r.level;
     }
 
     /* ---------------------------------------------------------------
@@ -448,6 +468,36 @@ spu94_result_t spu94_voice_mixer_set_noise_freq(spu94_voice_mixer_t *m,
     m->noise_gen.shift = shift;
     m->noise_gen.step = step_raw + 4;  /* SPUCNT[9:8] + 4 = 4..7 */
 
+    return SPU94_OK;
+}
+
+spu94_result_t spu94_voice_mixer_set_sweep_l(spu94_voice_mixer_t *m, int voice_idx,
+    uint8_t mode, uint8_t direction, uint8_t phase,
+    uint8_t shift, uint8_t step)
+{
+    if (m == NULL || voice_idx < 0 || voice_idx >= 24)
+        return SPU94_INVALID_ARG;
+    if (shift > 31 || step > 3)
+        return SPU94_INVALID_ARG;
+
+    spu94_sweep_configure(&m->voices[voice_idx].sweep_l,
+                          mode, direction, phase, shift, step);
+    m->voices[voice_idx].sweep_l.level = m->voices[voice_idx].vol_l;
+    return SPU94_OK;
+}
+
+spu94_result_t spu94_voice_mixer_set_sweep_r(spu94_voice_mixer_t *m, int voice_idx,
+    uint8_t mode, uint8_t direction, uint8_t phase,
+    uint8_t shift, uint8_t step)
+{
+    if (m == NULL || voice_idx < 0 || voice_idx >= 24)
+        return SPU94_INVALID_ARG;
+    if (shift > 31 || step > 3)
+        return SPU94_INVALID_ARG;
+
+    spu94_sweep_configure(&m->voices[voice_idx].sweep_r,
+                          mode, direction, phase, shift, step);
+    m->voices[voice_idx].sweep_r.level = m->voices[voice_idx].vol_r;
     return SPU94_OK;
 }
 
