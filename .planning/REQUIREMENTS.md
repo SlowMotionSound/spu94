@@ -62,6 +62,34 @@
 - [x] **INT-03**: All existing voice features unbroken (ADSR, loop mechanics, EON reverb send, Gaussian interpolation, anti-aliasing toggle, MIDI dispatch)
 - [x] **INT-04**: rt_safety gates pass with all new features enabled (no heap, no locks, no syscalls, bounded latency)
 
+### Pan & Level Controls
+
+- [ ] **PAN-01**: Pan knob controls L/R balance — center = equal vol_l/vol_r, hard left = L only, hard right = R only
+- [ ] **PAN-02**: Level fader controls overall voice volume — maps to both vol_l and vol_r scaled by pan position
+- [ ] **PAN-03**: Teal INV indicator (from Phase 34) remains visible and functional with negative volume (phase inversion)
+- [ ] **PAN-04**: Pan+Level produce identical vol_l/vol_r register values as old raw knobs for equivalent settings
+
+### Voice Feature Toggles
+
+- [ ] **TOG-01**: Per-voice NON toggle in sampler GUI enables/disables noise generator output
+- [ ] **TOG-02**: Per-voice PMON toggle in sampler GUI enables/disables pitch modulation from previous voice
+- [ ] **TOG-03**: NON toggle replaces voice ADPCM output with global noise generator (ADPCM still decodes for flag side effects)
+- [ ] **TOG-04**: PMON toggle on voice N modulates pitch by voice N-1's outx (voice 0 PMON has no effect)
+
+### VCA Ramp Controls
+
+- [ ] **RAMP-01**: Per-voice VCA ramp section in sampler GUI with direction (up/down), speed, and curve (linear/natural) controls
+- [ ] **RAMP-02**: Ramp controls configure both sweep_l and sweep_r in C core with matched parameters
+- [ ] **RAMP-03**: Speed control labeled in seconds (not raw shift values), covering ~0.1s to ~7s
+- [ ] **RAMP-04**: Activating a ramp produces audible volume change matching configured direction, speed, and curve
+- [ ] **RAMP-05**: Ramp state resets on KON (new note starts fresh)
+
+### Voice GUI Integration
+
+- [ ] **VGUI-01**: All new controls function correctly when multiple features are active simultaneously
+- [ ] **VGUI-02**: Existing sampler features unbroken: waveform display, ADSR controls, pitch, latch/lock, drive, MIDI dispatch
+- [ ] **VGUI-03**: rt_safety gates pass with all GUI-driven features enabled
+
 ## Future Requirements
 
 ### Multi-Timbral Voice Control (v2.0 candidate)

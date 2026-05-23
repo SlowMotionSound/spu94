@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Complete Voice
 status: executing
-stopped_at: Phase 38 complete, all v1.9 phases done
+stopped_at: Phase 38 complete, Phases 39-42 added for GUI controls
 last_updated: "2026-05-23T16:16:39Z"
 last_activity: 2026-05-23 -- Phase 38 Plan 02 (INT-03/INT-04 regression + rt_safety gates) complete
 progress:
-  total_phases: 6
-  completed_phases: 5
+  total_phases: 10
+  completed_phases: 6
   total_plans: 12
-  completed_plans: 9
-  percent: 75
+  completed_plans: 12
+  percent: 60
 ---
 
 # Project State
@@ -21,27 +21,30 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-21)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 38 — Integration & Cross-Feature Verification (complete)
+**Current focus:** Phase 39 — Pan & Level Controls
 
 ## Current Position
 
-Phase: 38 (Integration & Cross-Feature Verification) — COMPLETE
-Plan: 2 of 2 (done)
-Status: Phase 38 complete, all v1.9 phases done
-Last activity: 2026-05-23 -- Phase 38 Plan 02 (INT-03/INT-04 regression + rt_safety gates) complete
+Phase: 39 (Pan & Level Controls) — Not started
+Status: Phase 38 complete, Phases 39-42 added for GUI controls
+Last activity: 2026-05-23 -- Phase 38 complete, v1.9 scope expanded
 
-Progress: [████████░░] 75%
+Progress: [██████░░░░] 60%
 
 ## v1.9 Phase Map
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
 | 33 | ADSR Correction | ADSR-FIX-01..04 | **Complete** |
-| 34 | Signed Volume | SVOL-01..05 | Not started |
-| 35 | Pitch Modulation (PMON) | PMON-01..07 | Not started |
-| 36 | Noise Generator (NON) | NON-01..09 | Not started |
+| 34 | Signed Volume | SVOL-01..05 | **Complete** |
+| 35 | Pitch Modulation (PMON) | PMON-01..07 | **Complete** |
+| 36 | Noise Generator (NON) | NON-01..09 | **Complete** |
 | 37 | Volume Sweep | SWEEP-01..10 | **Complete** |
-| 38 | Integration & Cross-Feature Verification | INT-01..04 | **Complete** (INT-01..04 verified) |
+| 38 | Integration & Cross-Feature Verification | INT-01..04 | **Complete** |
+| 39 | Pan & Level Controls | PAN-01..04 | Not started |
+| 40 | Voice Feature Toggles | TOG-01..04 | Not started |
+| 41 | VCA Ramp Controls | RAMP-01..05 | Not started |
+| 42 | Voice GUI Integration | VGUI-01..03 | Not started |
 
 ## Accumulated Context
 

@@ -5,7 +5,7 @@
 
 ## Milestones
 
-- 🚧 **v1.9 Complete Voice** -- Phases 33-38 (in progress)
+- 🚧 **v1.9 Complete Voice** -- Phases 33-42 (in progress)
 - ✅ **v1.8 PSX Voice Engine** -- Phases 27-32 (shipped 2026-05-21, tag `v1.8`)
 - ✅ **v1.7 DAW Plugin Port** -- Phases 21-26 (shipped 2026-05-16, tag `v1.7`)
 - ✅ **v1.6 User Programmable Waypoints** -- Phases 18-20 (shipped 2026-05-10, tag `v1.6`)
@@ -27,6 +27,10 @@
 - [ ] **Phase 36: Noise Generator (NON)** - Global LFSR noise source replacing ADPCM output per voice
 - [ ] **Phase 37: Volume Sweep** - Hardware-driven per-voice volume ramp with independent L/R
 - [x] **Phase 38: Integration & Cross-Feature Verification** - Mixer tick restructuring and cross-feature validation
+- [ ] **Phase 39: Pan & Level Controls** - Replace raw Volume L/R knobs with pan knob + level fader
+- [ ] **Phase 40: Voice Feature Toggles** - NON and PMON enable controls in sampler GUI
+- [ ] **Phase 41: VCA Ramp Controls** - Basic per-voice volume ramp exposure (fade in/out, speed, curve)
+- [ ] **Phase 42: Voice GUI Integration** - Final verification of all new sampler controls
 
 ## Phase Details
 
@@ -161,10 +165,66 @@ Plans:
 
 - [x] 38-02-PLAN.md -- Full regression suite + rt_safety gates verification (INT-03, INT-04)
 
+### Phase 39: Pan & Level Controls
+
+**Goal**: Replace raw Volume L/R knobs with a musician-intuitive pan knob + level fader that map down to the same vol_l/vol_r registers
+**Depends on**: Phase 38
+**Requirements**: PAN-01, PAN-02, PAN-03, PAN-04
+**Success Criteria** (what must be TRUE):
+
+  1. Single pan knob controls the L/R balance (center = equal, hard left = L only, hard right = R only)
+  2. Single level fader controls overall voice volume (maps to both vol_l and vol_r scaled by pan position)
+  3. Teal INV indicator from Phase 34 still visible and functional when volume is negative (phase inversion)
+  4. Pan+Level produce identical vol_l/vol_r register values as the old raw knobs for equivalent settings
+
+**Plans**: TBD
+
+### Phase 40: Voice Feature Toggles
+
+**Goal**: Expose NON (noise) and PMON (pitch modulation) as per-voice controls in the sampler GUI
+**Depends on**: Phase 39
+**Requirements**: TOG-01, TOG-02, TOG-03, TOG-04
+**Success Criteria** (what must be TRUE):
+
+  1. Per-voice NON toggle in sampler GUI enables/disables noise generator output for that voice
+  2. Per-voice PMON toggle in sampler GUI enables/disables pitch modulation from the previous voice
+  3. Toggling NON replaces the voice's ADPCM output with the global noise generator (ADPCM still decodes for flag side effects)
+  4. Toggling PMON on voice N modulates its pitch by voice N-1's outx value (voice 0 PMON has no effect)
+
+**Plans**: TBD
+
+### Phase 41: VCA Ramp Controls
+
+**Goal**: Expose basic per-voice volume ramp controls in the sampler GUI (fade in, fade out, speed, curve)
+**Depends on**: Phase 40
+**Requirements**: RAMP-01, RAMP-02, RAMP-03, RAMP-04, RAMP-05
+**Success Criteria** (what must be TRUE):
+
+  1. Per-voice VCA ramp section visible in sampler GUI with direction (up/down), speed, and curve (linear/natural) controls
+  2. Ramp controls configure both sweep_l and sweep_r in the C core with matched parameters
+  3. Speed control labeled in seconds (not raw shift values), covering musically useful range (~0.1s to ~7s)
+  4. Activating a ramp produces audible volume change matching the configured direction, speed, and curve
+  5. Ramp state resets on KON (new note starts fresh)
+
+**Plans**: TBD
+
+### Phase 42: Voice GUI Integration
+
+**Goal**: Final verification that all new sampler controls (pan, level, NON, PMON, VCA ramp) work together correctly
+**Depends on**: Phase 41
+**Requirements**: VGUI-01, VGUI-02, VGUI-03
+**Success Criteria** (what must be TRUE):
+
+  1. All new controls function correctly when multiple features are active simultaneously (e.g., NON voice with VCA ramp fade-out and pan hard left)
+  2. Existing sampler features unbroken: waveform display, ADSR controls, pitch, latch/lock, drive, MIDI dispatch
+  3. rt_safety gates pass with all GUI-driven features enabled
+
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 33, 34, 35, 36, 37, 38
+Phases execute in numeric order: 33, 34, 35, 36, 37, 38, 39, 40, 41, 42
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -174,6 +234,10 @@ Phases execute in numeric order: 33, 34, 35, 36, 37, 38
 | 36. Noise Generator (NON) | 2/2 | Complete    | 2026-05-22 |
 | 37. Volume Sweep | 0/3 | Not started | - |
 | 38. Integration & Cross-Feature Verification | 2/2 | Complete | 2026-05-23 |
+| 39. Pan & Level Controls | 0/TBD | Not started | - |
+| 40. Voice Feature Toggles | 0/TBD | Not started | - |
+| 41. VCA Ramp Controls | 0/TBD | Not started | - |
+| 42. Voice GUI Integration | 0/TBD | Not started | - |
 
 ## Previous Milestone Archives
 
