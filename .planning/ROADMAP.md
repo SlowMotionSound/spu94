@@ -1,6 +1,6 @@
 # Roadmap: SPU-94
 
-**Updated:** 2026-05-22
+**Updated:** 2026-05-23
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
 
 ## Milestones
@@ -151,7 +151,15 @@ Plans:
   3. All existing voice features unbroken: ADSR, loop mechanics, EON reverb send, Gaussian interpolation, anti-aliasing toggle, MIDI dispatch
   4. rt_safety gates pass with all new features enabled (no heap, no locks, no syscalls, bounded latency)
 
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+**Wave 1**
+
+- [ ] 38-01-PLAN.md -- Integration tests: processing order proof + PMON+NON cross-feature (INT-01, INT-02)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 38-02-PLAN.md -- Full regression suite + rt_safety gates verification (INT-03, INT-04)
 
 ## Progress
 
@@ -165,7 +173,7 @@ Phases execute in numeric order: 33, 34, 35, 36, 37, 38
 | 35. Pitch Modulation (PMON) | 2/2 | Complete    | 2026-05-22 |
 | 36. Noise Generator (NON) | 2/2 | Complete    | 2026-05-22 |
 | 37. Volume Sweep | 0/3 | Not started | - |
-| 38. Integration & Cross-Feature Verification | 0/TBD | Not started | - |
+| 38. Integration & Cross-Feature Verification | 0/2 | Not started | - |
 
 ## Previous Milestone Archives
 
@@ -284,4 +292,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-22 -- Phase 37 planned (3 plans)*
+*Last updated: 2026-05-23 -- Phase 38 planned (2 plans)*
