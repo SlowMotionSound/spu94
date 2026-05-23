@@ -253,6 +253,14 @@ void SPU94AudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     spu94_set_dac_enabled(engines[0], 1);
     spu94_set_latency_comp(engines[0], 1);
 
+    // Enable voice mixer at startup so noise generator runs without a loaded sample
+    {
+        auto* mx = spu94_get_voice_mixer();
+        mx->enabled = 1;
+        mx->master_vol_l = 0x7FFF;
+        mx->master_vol_r = 0x7FFF;
+    }
+
     // Phase 22: bidirectional libsamplerate SRC sandwich. All allocation
     // and the impulse-based group-delay measurement happen here in
     // prepareToPlay -- processBlock is allocation-free (PLUG-12).
