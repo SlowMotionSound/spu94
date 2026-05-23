@@ -30,6 +30,101 @@ Each entry is an ADR in the Michael Nygard style, with an added **Sources** sect
 
 ---
 
+## ADR-0059: Negative-phase volume sweep behavior and spec uncertainty
+
+**Status:** Accepted
+**Date:** 2026-05-22
+**Phase:** 37 (Volume Sweep)
+**Requirement:** SWEEP-09, SWEEP-10
+
+**Context:**
+
+The PS1 SPU volume sweep register (1F801D88h+N*10h / 1F801D8Ah+N*10h) contains a
+"phase" bit (bit 12) that, when set, inverts the direction of the volume step. The
+primary spec (nocash psx-spx) describes this bit with hedged language indicating it
+has not been hardware-tested, and the reference emulator (DuckStation) marks the
+behavior with TODO comments. Implementing volume sweep for SPU-94 required resolving
+three areas of uncertainty:
+
+1. **Negative-phase clamping boundaries:** The nocash spec states that sweep with
+   phase=1 "does probably increase to -7FFFh" -- hedged with "probably" and annotated
+   "not yet tested." No hardware capture confirms the exact clamping boundaries for
+   negative-phase increase or negative-phase decrease. Getting these wrong causes
+   either wrap-around (volume jumps from large negative to large positive) or stall
+   (volume stops moving before reaching the intended boundary).
+
+2. **Phase bit in exponential decrease mode:** The nocash spec says the phase bit
+   "seems to have no effect" when direction=decrease and mode=exponential. DuckStation
+   implements this exception -- `phase_invert = phase_invert_ && !(decreasing_ &&
+   exponential_)` -- but marks it with "TODO: needs hardware test." The concern is
+   that applying phase inversion in exponential decrease would invert the proportional
+   step (which is negative), producing a positive step that drives volume upward instead
+   of toward zero.
+
+3. **Step sign inversion mechanism:** The nocash spec implies that the phase bit inverts
+   the step direction: negative-phase increase adds steps in the negative direction
+   (toward -0x7FFF), and negative-phase decrease adds steps toward zero from the
+   negative side. DuckStation uses this interpretation in its VolumeSweep::Tick
+   implementation but has not hardware-tested it. The alternative -- that phase only
+   affects the initial level, not the step direction -- would produce fundamentally
+   different behavior.
+
+**Decision:**
+
+SPU-94 implements negative-phase volume sweep using the DuckStation interpretation as
+the best available reference, resolving each uncertainty as follows:
+
+1. **Clamping boundaries by quadrant:**
+   - Positive-phase increase (phase=0, dir=0): step is positive, clamp at +0x7FFF.
+   - Positive-phase decrease (phase=0, dir=1): step is negative, clamp at 0x0000.
+   - Negative-phase increase (phase=1, dir=0): step is inverted (toward -0x7FFF),
+     clamp at -0x7FFF.
+   - Negative-phase decrease (phase=1, dir=1): step is inverted (toward 0x0000 from
+     negative side), clamp at 0x0000.
+
+2. **Exponential decrease exception:** The phase bit is ignored when direction=decrease
+   AND mode=exponential. This matches DuckStation's `VolumeEnvelope::Reset` logic and
+   avoids the double-negation problem where inverting an already-negative proportional
+   step would push volume in the wrong direction.
+
+3. **Step sign inversion:** The phase bit inverts the sign of the computed step value.
+   This is applied after the base step calculation and after any exponential scaling,
+   but before the level accumulate. Source: DuckStation `spu.cpp` `VolumeSweep::Tick`.
+
+**Consequences:**
+
+- **LOW confidence rating.** This decision is based on emulator interpretation, not
+  hardware validation. The nocash spec explicitly hedges with "not yet tested" and
+  "does probably." DuckStation marks the implementation with TODO comments requesting
+  hardware tests that have not been performed as of this writing.
+
+- **Risk of wrong clamping:** If the real hardware clamps at different boundaries than
+  -0x7FFF and 0x0000, negative-phase sweeps will either wrap around (volume discontinuity)
+  or stall (volume freezes before reaching the target). Both would be audible artifacts.
+
+- **Risk of wrong exponential-decrease exception:** If the real hardware DOES apply
+  phase inversion in exponential decrease mode, SPU-94 will produce a different envelope
+  shape for that specific combination. The fix would be removing a single conditional
+  check.
+
+- **Revision path:** When hardware test captures become available (from PSX development
+  community testing rigs or logic analyzer captures of the SPU's internal registers),
+  this ADR should be superseded with hardware-validated clamping values. The affected
+  code is localized to `spu94_envelope_step()` and `spu94_sweep.c`.
+
+**Sources:**
+
+- nocash psx-spx: SPU Volume and ADSR Generator
+  (problemkaputt.de/psxspx-spu-volume-and-adsr-generator.htm) -- sweep register bit 12
+  (phase), hedged descriptions "does probably increase to -7FFFh" and "seems to have
+  no effect" for exponential decrease
+- DuckStation spu.cpp VolumeEnvelope::Reset (github.com/stenzek/duckstation) -- phase
+  bit exception for exponential decrease: `phase_invert_ && !(decreasing_ && exponential_)`
+- DuckStation spu.cpp VolumeSweep::Tick (github.com/stenzek/duckstation) -- step sign
+  inversion implementation, TODO comment "This needs to be tested on hardware"
+
+---
+
 ## ADR-0058: SPU noise generator LFSR polynomial, seed, and ADPCM-fetch-during-NON
 
 **Status:** Accepted
