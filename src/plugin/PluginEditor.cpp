@@ -92,7 +92,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         voiceEnginePitchKnob.setSliderStyle(juce::Slider::Rotary);
         voiceEnginePitchKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
         voiceEnginePitchKnob.setRange(1.0, 16383.0, 1.0);
-        voiceEnginePitchKnob.setValue(4096.0, juce::dontSendNotification);
+        voiceEnginePitchKnob.setValue(2048.0, juce::dontSendNotification);
         voiceEnginePitchKnob.setTextValueSuffix(" pitch");
         voiceEnginePitchKnob.onValueChange = [this] {
             processorRef.setGuiVoicePitch(
@@ -118,8 +118,11 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         encodeRateBox.onChange = [this] {
             static const int rates[] = { 44100, 22050, 11025, 5512 };
             int idx = encodeRateBox.getSelectedId() - 1;
-            if (idx >= 0 && idx < 4)
+            if (idx >= 0 && idx < 4) {
                 processorRef.setEncodeRate(rates[idx]);
+                int pitch = static_cast<int>(0x1000 * (rates[idx] / 44100.0) + 0.5);
+                voiceEnginePitchKnob.setValue(pitch, juce::sendNotification);
+            }
         };
         panel.addAndMakeVisible(encodeRateBox);
         encodeRateLabel.setText("Encode Rate", juce::dontSendNotification);
