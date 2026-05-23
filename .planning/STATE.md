@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Complete Voice
 status: executing
-stopped_at: Phase 39-01 Task 2 checkpoint — awaiting human visual verification
-last_updated: "2026-05-23T21:48:23.787Z"
-last_activity: 2026-05-23 -- Phase 40 planning complete
+stopped_at: Phase 40-01 Task 2 checkpoint — awaiting human visual verification of NON/PMON toggles
+last_updated: "2026-05-23T21:50:00Z"
+last_activity: 2026-05-23 -- Phase 40-01 Task 1 committed (6816ed9), checkpoint at Task 2
 progress:
   total_phases: 10
   completed_phases: 6
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-21)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 40 — voice feature toggles
+**Current focus:** Phase 40-01 — Voice Feature Toggles (NON/PMON), checkpoint at Task 2
 
 ## Current Position
 
-Phase: 40
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-23 -- Phase 40 planning complete
+Phase: 40 (Voice Feature Toggles) — EXECUTING
+Plan: 1 of 1
+Status: Executing Phase 40
+Last activity: 2026-05-23 -- Phase 40 execution started
 
 Progress: [██████░░░░] 60%
 
@@ -43,7 +43,7 @@ Progress: [██████░░░░] 60%
 | 37 | Volume Sweep | SWEEP-01..10 | **Complete** |
 | 38 | Integration & Cross-Feature Verification | INT-01..04 | **Complete** |
 | 39 | Pan & Level Controls | PAN-01..04 | **Task 1 done, checkpoint** |
-| 40 | Voice Feature Toggles | TOG-01..04 | Not started |
+| 40 | Voice Feature Toggles | TOG-01..04 | **Task 1 done, checkpoint** |
 | 41 | VCA Ramp Controls | RAMP-01..05 | Not started |
 | 42 | Voice GUI Integration | VGUI-01..03 | Not started |
 
@@ -120,5 +120,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-05-23
-Stopped at: Phase 39-01 Task 2 checkpoint — awaiting human visual verification
-Resume file: .planning/phases/39-pan-level-controls/39-01-PLAN.md
+Stopped at: Phase 40-01 Task 2 checkpoint — awaiting human visual verification of NON/PMON toggles
+Resume file: .planning/phases/40-voice-feature-toggles/40-01-PLAN.md
