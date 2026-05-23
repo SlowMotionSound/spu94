@@ -64,10 +64,10 @@
 
 ### Pan & Level Controls
 
-- [ ] **PAN-01**: Pan knob controls L/R balance — center = equal vol_l/vol_r, hard left = L only, hard right = R only
-- [ ] **PAN-02**: Level fader controls overall voice volume — maps to both vol_l and vol_r scaled by pan position
-- [ ] **PAN-03**: Teal INV indicator (from Phase 34) remains visible and functional with negative volume (phase inversion)
-- [ ] **PAN-04**: Pan+Level produce identical vol_l/vol_r register values as old raw knobs for equivalent settings
+- [x] **PAN-01**: Pan knob controls L/R balance — center = equal vol_l/vol_r, hard left = L only, hard right = R only
+- [x] **PAN-02**: Level fader controls overall voice volume — maps to both vol_l and vol_r scaled by pan position
+- [x] **PAN-03**: Teal INV indicator (from Phase 34) remains visible and functional with negative volume (phase inversion)
+- [x] **PAN-04**: Pan+Level produce identical vol_l/vol_r register values as old raw knobs for equivalent settings
 
 ### Voice Feature Toggles
 
