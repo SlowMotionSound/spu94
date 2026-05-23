@@ -215,7 +215,7 @@ Plans:
 **Plans**: 1 plan
 Plans:
 
-- [ ] 39-01-PLAN.md -- Replace Vol L/R with Pan + Level + INV controls
+- [ ] 41-01-PLAN.md -- VCA ramp controls: direction, speed, curve, ARM button with sweep API wiring
 
 ### Phase 42: Voice GUI Integration
 
@@ -231,7 +231,7 @@ Plans:
 **Plans**: 1 plan
 Plans:
 
-- [ ] 39-01-PLAN.md -- Replace Vol L/R with Pan + Level + INV controls
+- [ ] 42-01-PLAN.md -- Final verification of all sampler controls
 
 ## Progress
 
