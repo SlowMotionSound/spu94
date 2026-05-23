@@ -1,24 +1,27 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-22T19:14:59Z",
-  "phase": null,
-  "phase_name": "Phase 35 complete, Phase 36 next",
-  "phase_dir": null,
-  "plan": 0,
-  "task": 0,
-  "total_tasks": 0,
-  "status": "paused",
+  "timestamp": "2026-05-23T02:15:10Z",
+  "phase": "37",
+  "phase_name": "volume-sweep",
+  "phase_dir": ".planning/phases/37-volume-sweep",
+  "plan": 3,
+  "task": 1,
+  "total_tasks": 1,
+  "status": "complete",
   "completed_tasks": [
-    {"id": "phase-33", "name": "ADSR Correction — sustain-decrease and release step formulas fixed (base 7 to base 8)", "status": "done", "commit": "7ed7bb9"},
+    {"id": "phase-33", "name": "ADSR Correction — sustain-decrease and release formulas fixed (base 7 to base 8)", "status": "done", "commit": "7ed7bb9"},
     {"id": "phase-34-01", "name": "Signed Volume C core — outx field, signed vol range, phase inversion tests", "status": "done", "commit": "2528d2c"},
     {"id": "phase-34-02", "name": "Signed Volume GUI — Volume L/R knobs with teal INV indicator", "status": "done", "commit": "65b4686"},
     {"id": "phase-35-01", "name": "PMON formula — pmon_flags bitmask, pitch modulation in mixer tick, 6 TDD tests", "status": "done", "commit": "5e5e16c"},
-    {"id": "phase-35-02", "name": "ADR-0057 + integration test proving ADSR shapes FM depth", "status": "done", "commit": "b39548e"}
+    {"id": "phase-35-02", "name": "ADR-0057 + integration test proving ADSR shapes FM depth", "status": "done", "commit": "b39548e"},
+    {"id": "phase-36-01", "name": "Noise generator LFSR and NON voice branch", "status": "done", "commit": "b5143c3"},
+    {"id": "phase-36-02", "name": "ADR-0058 for noise generator LFSR, seed, and ADPCM-during-NON", "status": "done", "commit": "a4782cc"},
+    {"id": "phase-37-01", "name": "Extract shared envelope step helper from ADSR", "status": "done", "commit": "ad57375"},
+    {"id": "phase-37-02", "name": "Volume sweep module + voice pipeline integration (12 tests)", "status": "done", "commit": "c248910"},
+    {"id": "phase-37-03", "name": "ADR-0059 for negative-phase sweep uncertainty", "status": "done", "commit": "193d45b"}
   ],
   "remaining_tasks": [
-    {"id": "phase-36", "name": "Noise Generator (NON) — global LFSR noise replacing ADPCM per voice (9 requirements)", "status": "not_started"},
-    {"id": "phase-37", "name": "Volume Sweep — hardware-driven automatic per-voice volume ramp (10 requirements)", "status": "not_started"},
-    {"id": "phase-38", "name": "Integration — mixer tick restructuring, cross-feature verification (4 requirements)", "status": "not_started"}
+    {"id": "phase-38", "name": "Integration & Cross-Feature Verification — final v1.9 phase (4 requirements)", "status": "not_started"}
   ],
   "blockers": [],
   "human_actions_pending": [
@@ -28,9 +31,11 @@
     {"decision": "Defer all GUI visual checks to end of milestone", "rationale": "C core dependencies are satisfied; GUI checkpoints are independent presentation work", "phase": "34"},
     {"decision": "Auto-approve GUI checkpoints, keep automated verification", "rationale": "User wants to batch visual testing at milestone end", "phase": "milestone"},
     {"decision": "PMON Factor 0x8000 is unity (not half)", "rationale": "Executor corrected plan test expectations to match actual PS1 spec math", "phase": "35"},
-    {"decision": "Swap expanded from 4GB to 16GB", "rationale": "OOM killer was terminating Claude Code sessions; 16GB swap prevents this", "phase": "system"}
+    {"decision": "Swap expanded from 4GB to 16GB", "rationale": "OOM killer was terminating Claude Code sessions; 16GB swap prevents this", "phase": "system"},
+    {"decision": "Envelope state level is int32_t not int16_t", "rationale": "Unclamped intermediates overflow int16_t during attack (e.g. 43008); callers clamp after reading back", "phase": "37"},
+    {"decision": "Phase bit ignored in exponential decrease mode", "rationale": "DuckStation interpretation; nocash says 'seems to have no effect'; documented in ADR-0059 as LOW confidence", "phase": "37"}
   ],
   "uncommitted_files": [],
-  "next_action": "/gsd:plan-phase 36 then /gsd:execute-phase 36",
-  "context_notes": "Session started with OOM recovery. Expanded swap to 16GB. Resumed v1.9 milestone from Phase 33 complete. Executed Phases 34 (Signed Volume) and 35 (PMON) end-to-end. 46 voice tests passing. User deferred visual GUI checks to milestone end. Drive distortion discussion: current input gain is hard clipping (symmetrical, Zener-style, odd harmonics only) — user may want optional soft saturation flavors in future."
+  "next_action": "Plan and execute Phase 38 (Integration & Cross-Feature Verification) -- the final v1.9 phase",
+  "context_notes": "Phase 37 fully complete. All 3 plans executed across 2 waves. Zombie packaging test processes from prior session were eating ~5GB RAM and likely caused the earlier OOM crash -- killed them. Two pre-existing CLI test failures (init preset in list) are unrelated to this work. v1.9 is at 83% -- one phase remaining."
 }
