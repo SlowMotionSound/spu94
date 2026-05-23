@@ -197,7 +197,7 @@ Plans:
 **Plans**: 1 plan
 Plans:
 
-- [x] 39-01-PLAN.md -- Replace Vol L/R with Pan + Level + INV controls
+- [ ] 40-01-PLAN.md -- NON and PMON toggle controls in sampler GUI
 
 ### Phase 41: VCA Ramp Controls
 
@@ -247,7 +247,7 @@ Phases execute in numeric order: 33, 34, 35, 36, 37, 38, 39, 40, 41, 42
 | 37. Volume Sweep | 0/3 | Not started | - |
 | 38. Integration & Cross-Feature Verification | 2/2 | Complete | 2026-05-23 |
 | 39. Pan & Level Controls | 1/1 | Complete    | 2026-05-23 |
-| 40. Voice Feature Toggles | 0/TBD | Not started | - |
+| 40. Voice Feature Toggles | 0/1 | Not started | - |
 | 41. VCA Ramp Controls | 0/TBD | Not started | - |
 | 42. Voice GUI Integration | 0/TBD | Not started | - |
 
