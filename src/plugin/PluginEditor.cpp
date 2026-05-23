@@ -454,11 +454,11 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         rampSpeedLabel.setJustificationType(juce::Justification::centred);
         panel.addAndMakeVisible(rampSpeedLabel);
 
-        // Curve button: toggles between "Linear" and "Natural" (exponential)
+        // Curve button: toggles between "Linear" and "Exponential"
         rampCurveButton.onClick = [this] {
             bool isLinear = (rampCurveButton.getButtonText() == "Linear");
             if (isLinear) {
-                rampCurveButton.setButtonText("Natural");
+                rampCurveButton.setButtonText("Exponential");
                 processorRef.getRampCurve().store(1, std::memory_order_relaxed);
             } else {
                 rampCurveButton.setButtonText("Linear");
