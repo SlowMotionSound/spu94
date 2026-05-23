@@ -382,7 +382,7 @@ private:
     std::atomic<uint16_t> pendingGuiTriggerPitch{0}; // 0 = no pending trigger
     std::atomic<bool> pendingGuiStop{false};
     // Live pitch for GUI-triggered voice 0 — updated every audio callback
-    std::atomic<uint16_t> guiVoicePitch{0x1000};
+    std::atomic<uint16_t> guiVoicePitch{0x800};
     // Per-voice signed volume for GUI trigger path (Phase 34: signed volume).
     // Full PS1 range: -0x4000..+0x3FFF (-16384..+16383). Default = max positive.
     std::atomic<int16_t> guiVoiceVolL{0x3FFF};
