@@ -341,55 +341,47 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
 
         refreshAdsrDisplay();
 
-        // Volume L/R knobs — full signed PS1 range (Phase 34: signed volume).
-        // -16384..+16383 maps to the SPU's -0x4000..+0x3FFF volume register.
-        voiceVolLKnob.setSliderStyle(juce::Slider::Rotary);
-        voiceVolLKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 18);
-        voiceVolLKnob.setRange(-16384.0, 16383.0, 1.0);
-        voiceVolLKnob.setValue(16383.0, juce::dontSendNotification);
-        voiceVolLKnob.setTextValueSuffix(" L");
-        voiceVolLKnob.onValueChange = [this] {
-            int16_t v = static_cast<int16_t>(voiceVolLKnob.getValue());
-            processorRef.setGuiVoiceVolL(v);
-            // Phase-flip indicator: teal "INV" when negative
-            phaseFlipLIndicator.setVisible(v < 0);
-        };
-        panel.addAndMakeVisible(voiceVolLKnob);
-        voiceVolLLabel.setText("Vol L", juce::dontSendNotification);
-        voiceVolLLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(voiceVolLLabel);
+        // Pan + Level + INV controls (Phase 39: replaces raw Vol L/R).
+        // Pan: -100 (hard left) to +100 (hard right), 0 = center.
+        voicePanKnob.setSliderStyle(juce::Slider::Rotary);
+        voicePanKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 18);
+        voicePanKnob.setRange(-100.0, 100.0, 1.0);
+        voicePanKnob.setValue(0.0, juce::dontSendNotification);
+        voicePanKnob.onValueChange = [this] { updateVoiceVolumes(); };
+        panel.addAndMakeVisible(voicePanKnob);
+        voicePanLabel.setText("Pan", juce::dontSendNotification);
+        voicePanLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(voicePanLabel);
 
-        voiceVolRKnob.setSliderStyle(juce::Slider::Rotary);
-        voiceVolRKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 18);
-        voiceVolRKnob.setRange(-16384.0, 16383.0, 1.0);
-        voiceVolRKnob.setValue(16383.0, juce::dontSendNotification);
-        voiceVolRKnob.setTextValueSuffix(" R");
-        voiceVolRKnob.onValueChange = [this] {
-            int16_t v = static_cast<int16_t>(voiceVolRKnob.getValue());
-            processorRef.setGuiVoiceVolR(v);
-            // Phase-flip indicator: teal "INV" when negative
-            phaseFlipRIndicator.setVisible(v < 0);
-        };
-        panel.addAndMakeVisible(voiceVolRKnob);
-        voiceVolRLabel.setText("Vol R", juce::dontSendNotification);
-        voiceVolRLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(voiceVolRLabel);
+        // Level: 0% (silent) to 100% (max = 0x3FFF).
+        voiceLevelKnob.setSliderStyle(juce::Slider::Rotary);
+        voiceLevelKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 18);
+        voiceLevelKnob.setRange(0.0, 100.0, 1.0);
+        voiceLevelKnob.setValue(100.0, juce::dontSendNotification);
+        voiceLevelKnob.setTextValueSuffix("%");
+        voiceLevelKnob.onValueChange = [this] { updateVoiceVolumes(); };
+        panel.addAndMakeVisible(voiceLevelKnob);
+        voiceLevelLabel.setText("Level", juce::dontSendNotification);
+        voiceLevelLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(voiceLevelLabel);
 
-        // Phase-flip indicators — teal "INV" text next to each volume knob
+        // INV toggle — flips sign on both vol_l and vol_r.
+        voiceInvToggle.setClickingTogglesState(true);
+        voiceInvToggle.setToggleState(false, juce::dontSendNotification);
+        voiceInvToggle.onClick = [this] { updateVoiceVolumes(); };
+        panel.addAndMakeVisible(voiceInvToggle);
+
+        // INV indicator — teal "INV" text visible when inverted.
         auto tealColour = juce::Colour(0xFF5B9279);
-        phaseFlipLIndicator.setText("INV", juce::dontSendNotification);
-        phaseFlipLIndicator.setJustificationType(juce::Justification::centred);
-        phaseFlipLIndicator.setColour(juce::Label::textColourId, tealColour);
-        phaseFlipLIndicator.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
-        phaseFlipLIndicator.setVisible(false);
-        panel.addAndMakeVisible(phaseFlipLIndicator);
+        voiceInvIndicator.setText("INV", juce::dontSendNotification);
+        voiceInvIndicator.setJustificationType(juce::Justification::centred);
+        voiceInvIndicator.setColour(juce::Label::textColourId, tealColour);
+        voiceInvIndicator.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
+        voiceInvIndicator.setVisible(false);
+        panel.addAndMakeVisible(voiceInvIndicator);
 
-        phaseFlipRIndicator.setText("INV", juce::dontSendNotification);
-        phaseFlipRIndicator.setJustificationType(juce::Justification::centred);
-        phaseFlipRIndicator.setColour(juce::Label::textColourId, tealColour);
-        phaseFlipRIndicator.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
-        phaseFlipRIndicator.setVisible(false);
-        panel.addAndMakeVisible(phaseFlipRIndicator);
+        // Set initial volumes (pan center, level 100%, INV off → 0x3FFF both channels).
+        updateVoiceVolumes();
 
         // Sampler mixer knobs -- own bus in the master mixer.
         samplerLevelKnob.setSliderStyle(juce::Slider::Rotary);
@@ -906,6 +898,42 @@ void SPU94AudioProcessorEditor::refreshAdsrDisplay()
                        atk, dec, rel);
 }
 
+void SPU94AudioProcessorEditor::updateVoiceVolumes()
+{
+    // Pan-to-register math: linear pan law.
+    // Pan: -100..+100 → normalized -1.0..+1.0
+    // Level: 0..100 → normalized 0.0..1.0
+    double pan   = voicePanKnob.getValue() / 100.0;
+    double level = voiceLevelKnob.getValue() / 100.0;
+
+    // Linear pan law: center gives equal gain on both channels.
+    double gain_l = std::min(1.0, 1.0 - pan);
+    double gain_r = std::min(1.0, 1.0 + pan);
+
+    // Scale to SPU register range (0..0x3FFF), with rounding.
+    int16_t vol_l = static_cast<int16_t>(level * gain_l * 0x3FFF + 0.5);
+    int16_t vol_r = static_cast<int16_t>(level * gain_r * 0x3FFF + 0.5);
+
+    // Clamp to valid positive range before sign flip.
+    if (vol_l < 0) vol_l = 0;
+    if (vol_l > 0x3FFF) vol_l = 0x3FFF;
+    if (vol_r < 0) vol_r = 0;
+    if (vol_r > 0x3FFF) vol_r = 0x3FFF;
+
+    // INV toggle: negate both channels for phase inversion.
+    if (voiceInvToggle.getToggleState())
+    {
+        vol_l = static_cast<int16_t>(-vol_l);
+        vol_r = static_cast<int16_t>(-vol_r);
+    }
+
+    processorRef.setGuiVoiceVolL(vol_l);
+    processorRef.setGuiVoiceVolR(vol_r);
+
+    // Show/hide teal INV indicator.
+    voiceInvIndicator.setVisible(voiceInvToggle.getToggleState());
+}
+
 void SPU94AudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
 {
     if (e.eventComponent == &triggerVoiceButton)
@@ -983,14 +1011,14 @@ void SPU94AudioProcessorEditor::resized()
             endPosLabel.setBounds(320, 252, 70, 14);
             endPosKnob.setBounds(320, 264, 70, 54);
 
-            // Volume L/R section (Phase 34: signed volume)
+            // Pan + Level + INV section (Phase 39)
             constexpr int voly = 322;
-            voiceVolLLabel.setBounds(60, voly, 80, 14);
-            voiceVolLKnob.setBounds(60, voly + 14, 80, 54);
-            phaseFlipLIndicator.setBounds(60, voly + 68, 80, 14);
-            voiceVolRLabel.setBounds(250, voly, 80, 14);
-            voiceVolRKnob.setBounds(250, voly + 14, 80, 54);
-            phaseFlipRIndicator.setBounds(250, voly + 68, 80, 14);
+            voicePanLabel.setBounds(30, voly, 80, 14);
+            voicePanKnob.setBounds(30, voly + 14, 80, 54);
+            voiceLevelLabel.setBounds(160, voly, 80, 14);
+            voiceLevelKnob.setBounds(160, voly + 14, 80, 54);
+            voiceInvToggle.setBounds(280, voly + 14, 55, 26);
+            voiceInvIndicator.setBounds(280, voly + 40, 55, 14);
 
             // ADSR section (shifted down 50px for volume knobs)
             constexpr int adsrDispY = 393;
