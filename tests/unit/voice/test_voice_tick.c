@@ -2074,6 +2074,254 @@ void test_non_pitch_no_effect(void) {
 }
 
 /* ---------------------------------------------------------------
+ * Phase 38: Integration — INT-01 Processing Order Proof Tests
+ * --------------------------------------------------------------- */
+
+/* INT-01: Prove sweep modifies vol_l BEFORE the volume multiply step uses it.
+ * Setup: voice with sweep_l active (linear increase, shift=0, step=0 for max rate),
+ * initial vol_l=0x100. One mixer tick. Swept output differs from unswerpt control. */
+void test_int01_processing_order_sweep_before_decode(void) {
+    /* --- Run WITH sweep active --- */
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Load a loud sample */
+    uint8_t sample[256];
+    make_loud_sample(sample, 16);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 256);
+
+    /* Key on voice 0 with vol_l=0x100, ADSR disabled (level stays 0x7FFF) */
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x0100, 0x0100, 0, NULL);
+
+    /* Apply KON first */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+
+    /* Now configure sweep on the live voice (linear increase, shift=0, step=0 = max rate) */
+    spu94_voice_mixer_set_sweep_l(&s_test_mixer, 0, 0, 0, 0, 0, 0);
+
+    /* Run a few ticks to let sweep advance vol_l above 0x100 */
+    for (int i = 0; i < 5; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    }
+    int16_t swept_vol_l = s_test_mixer.voices[0].vol_l;
+    int16_t swept_output = dry_l;
+
+    /* vol_l must have increased above 0x100 due to sweep */
+    TEST_ASSERT_TRUE_MESSAGE(swept_vol_l > 0x0100,
+        "INT-01: sweep should have increased vol_l above initial 0x100");
+
+    /* --- Run WITHOUT sweep (static vol_l=0x100) --- */
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 256);
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x0100, 0x0100, 0, NULL);
+
+    /* Run same number of ticks (1 for KON + 5 additional) */
+    for (int i = 0; i < 6; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    }
+    int16_t unswerpt_output = dry_l;
+
+    /* vol_l should still be 0x100 (no sweep) */
+    TEST_ASSERT_EQUAL_HEX16_MESSAGE(0x0100, s_test_mixer.voices[0].vol_l,
+        "INT-01: control voice vol_l should remain 0x100 without sweep");
+
+    /* The swept output must differ from the unswept output, proving sweep
+     * modified vol_l BEFORE the volume multiply used it */
+    TEST_ASSERT_TRUE_MESSAGE(swept_output != unswerpt_output,
+        "INT-01: swept output must differ from unswerpt — proves sweep runs before volume multiply");
+}
+
+/* INT-01: Prove PMON pitch modification happens BEFORE voice_tick (and thus before
+ * ADPCM decode uses the pitch). Voice 1's current_addr differs from a control run
+ * without PMON, proving PMON altered the pitch before the counter advanced. */
+void test_int01_processing_order_pmon_before_decode(void) {
+    /* --- Run WITH PMON --- */
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Voice 0: loud modulator with ADSR at max sustain */
+    uint8_t loud[256];
+    make_loud_sample(loud, 16);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, loud, 256);
+
+    /* Voice 1: carrier at a separate address */
+    uint8_t carrier[256];
+    make_long_sample(carrier, 16);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 256, carrier, 256);
+
+    spu94_adsr_state_t adsr_cfg;
+    spu94_adsr_init(&adsr_cfg);
+    adsr_cfg.enabled = 1;
+    adsr_cfg.attack_shift = 0;
+    adsr_cfg.attack_step = 0;
+    adsr_cfg.attack_exp = 0;
+    adsr_cfg.decay_shift = 0;
+    adsr_cfg.sustain_level = 15;
+    adsr_cfg.sustain_shift = 31;
+    adsr_cfg.release_shift = 0;
+    adsr_cfg.release_exp = 1;
+
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, &adsr_cfg);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 256, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    spu94_voice_mixer_set_pmon(&s_test_mixer, 1, 1);
+
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    for (int i = 0; i < 20; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    }
+    uint32_t pmon_addr = s_test_mixer.voices[1].current_addr;
+
+    /* --- Run WITHOUT PMON --- */
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, loud, 256);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 256, carrier, 256);
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, &adsr_cfg);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 256, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    /* No PMON */
+    for (int i = 0; i < 20; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+    }
+    uint32_t no_pmon_addr = s_test_mixer.voices[1].current_addr;
+
+    /* PMON with a positive modulator increases effective pitch, so the carrier
+     * should have consumed more sample data (higher current_addr). This proves
+     * PMON altered the pitch BEFORE voice_tick used it for counter advancement. */
+    TEST_ASSERT_TRUE_MESSAGE(pmon_addr != no_pmon_addr,
+        "INT-01: PMON must modify pitch before voice_tick — current_addr must differ");
+    TEST_ASSERT_TRUE_MESSAGE(pmon_addr > no_pmon_addr,
+        "INT-01: positive modulator should advance carrier further (PMON applied before decode)");
+}
+
+/* INT-01: Prove noise generator ticks exactly once before any voice processes.
+ * Two NON-enabled voices must have identical outx — proving both received the
+ * same noise_gen.level (from a single tick at top of mixer_tick, not per-voice). */
+void test_int01_processing_order_noise_global_before_voices(void) {
+    spu94_voice_mixer_init(&s_test_mixer);
+    s_test_mixer.enabled = 1;
+    s_test_mixer.master_vol_l = 0x7FFF;
+    s_test_mixer.master_vol_r = 0x7FFF;
+
+    /* Load samples at two addresses */
+    uint8_t sample[64];
+    make_loud_sample(sample, 4);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 64);
+    spu94_voice_mixer_load_sample(&s_test_mixer, 64, sample, 64);
+
+    /* Key on voices 0 and 1 with identical volume/pitch, ADSR disabled */
+    spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+    spu94_voice_mixer_key_on(&s_test_mixer, 1, 64, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* Enable NON for both voices */
+    spu94_voice_mixer_set_non(&s_test_mixer, 0, 1);
+    spu94_voice_mixer_set_non(&s_test_mixer, 1, 1);
+
+    /* Set noise to a fast-shifting state: shift=15, step=7.
+     * At shift=15: timer reload = 0x20000 >> 15 = 4. step=7 decrements by 7.
+     * The LFSR shifts rapidly, producing changing level values. */
+    s_test_mixer.noise_gen.shift = 15;
+    s_test_mixer.noise_gen.step  = 7;
+    s_test_mixer.noise_gen.level = 1;  /* seed */
+    s_test_mixer.noise_gen.timer = 0;
+
+    /* First tick applies KON */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+
+    /* After the tick, both NON voices should have received the SAME noise level.
+     * If noise ticked per-voice (incorrectly), they would get different values.
+     * Use outx to compare — outx = gauss_out * adsr_level, and gauss_out = noise_level
+     * for NON voices. With ADSR disabled, adsr_level = 0x7FFF (nearly unity). */
+    int16_t outx_0 = s_test_mixer.voices[0].outx;
+    int16_t outx_1 = s_test_mixer.voices[1].outx;
+
+    TEST_ASSERT_EQUAL_INT16_MESSAGE(outx_0, outx_1,
+        "INT-01: both NON voices must get the same noise level — proves noise ticks once globally before voice loop");
+
+    /* Run several more ticks to confirm this holds consistently */
+    for (int i = 0; i < 10; i++) {
+        spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+        outx_0 = s_test_mixer.voices[0].outx;
+        outx_1 = s_test_mixer.voices[1].outx;
+        TEST_ASSERT_EQUAL_INT16_MESSAGE(outx_0, outx_1,
+            "INT-01: NON voices must produce identical outx on every tick (global noise)");
+    }
+}
+
+/* INT-01: Prove VxOUTX captures the signal after ADSR but before volume scaling.
+ * Two runs with different vol_l but same ADSR must produce identical outx. */
+void test_int01_outx_post_adsr_pre_volume(void) {
+    uint8_t ram[128];
+    make_long_sample(ram, 8);
+
+    /* Voice A: vol_l=0x2000, ADSR enabled with fast attack to known sustain */
+    spu94_voice_t va;
+    spu94_voice_init(&va);
+    va.adsr.enabled = 1;
+    va.adsr.attack_shift = 0;
+    va.adsr.attack_step = 0;
+    va.adsr.attack_exp = 0;
+    va.adsr.decay_shift = 0;
+    va.adsr.sustain_level = 15;
+    va.adsr.sustain_shift = 31;
+    va.adsr.release_shift = 0;
+    va.adsr.release_exp = 1;
+    spu94_voice_key_on(&va, 0, 0x1000, 0x2000, 0x2000);
+
+    /* Voice B: vol_l=0x7FFF (max), same ADSR */
+    spu94_voice_t vb;
+    spu94_voice_init(&vb);
+    vb.adsr.enabled = 1;
+    vb.adsr.attack_shift = 0;
+    vb.adsr.attack_step = 0;
+    vb.adsr.attack_exp = 0;
+    vb.adsr.decay_shift = 0;
+    vb.adsr.sustain_level = 15;
+    vb.adsr.sustain_shift = 31;
+    vb.adsr.release_shift = 0;
+    vb.adsr.release_exp = 1;
+    spu94_voice_key_on(&vb, 0, 0x1000, 0x7FFF, 0x7FFF);
+
+    /* Run enough ticks for ADSR to reach sustain and outx to be nonzero */
+    int16_t out_l, out_r;
+    int found_nonzero = 0;
+    for (int i = 0; i < 20; i++) {
+        spu94_voice_tick(&va, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&vb, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
+        if (va.outx != 0) {
+            found_nonzero = 1;
+            /* The key assertion: outx must be identical for both voices,
+             * because outx = gauss_out * adsr_level, independent of vol_l/vol_r.
+             * If outx were post-volume, they would differ. */
+            TEST_ASSERT_EQUAL_INT16_MESSAGE(va.outx, vb.outx,
+                "INT-01: outx must be identical regardless of vol_l — proves post-ADSR, pre-volume");
+        }
+    }
+    TEST_ASSERT_TRUE_MESSAGE(found_nonzero,
+        "INT-01: outx should be nonzero after ADSR reaches sustain");
+
+    /* Additional check: the actual outputs must DIFFER (volume does affect final output) */
+    int16_t out_a_l, out_a_r, out_b_l, out_b_r;
+    spu94_voice_tick(&va, ram, sizeof(ram), 0, 0, 0, &out_a_l, &out_a_r);
+    spu94_voice_tick(&vb, ram, sizeof(ram), 0, 0, 0, &out_b_l, &out_b_r);
+    /* With different volumes, final outputs should differ (outx same, but volume applied after) */
+    if (va.outx != 0) {
+        TEST_ASSERT_TRUE_MESSAGE(out_a_l != out_b_l,
+            "INT-01: final output must differ with different vol_l — volume applied after outx capture");
+    }
+}
+
+/* ---------------------------------------------------------------
  * Main
  * --------------------------------------------------------------- */
 int main(void) {
@@ -2139,5 +2387,10 @@ int main(void) {
     RUN_TEST(test_non_adpcm_still_runs);
     RUN_TEST(test_non_adsr_shapes_noise);
     RUN_TEST(test_non_pitch_no_effect);
+    /* Phase 38: Integration — INT-01 processing order proof */
+    RUN_TEST(test_int01_processing_order_sweep_before_decode);
+    RUN_TEST(test_int01_processing_order_pmon_before_decode);
+    RUN_TEST(test_int01_processing_order_noise_global_before_voices);
+    RUN_TEST(test_int01_outx_post_adsr_pre_volume);
     return UNITY_END();
 }
