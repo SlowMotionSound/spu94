@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Complete Voice
 status: executing
-stopped_at: Phase 38 Plan 01 complete, Plan 02 next
-last_updated: "2026-05-23T15:56:49Z"
-last_activity: 2026-05-23 -- Phase 38 Plan 01 (INT-01/INT-02 integration tests) complete
+stopped_at: Phase 38 complete, all v1.9 phases done
+last_updated: "2026-05-23T16:16:39Z"
+last_activity: 2026-05-23 -- Phase 38 Plan 02 (INT-03/INT-04 regression + rt_safety gates) complete
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 12
-  completed_plans: 8
-  percent: 67
+  completed_plans: 9
+  percent: 75
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-21)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 38 — Integration & Cross-Feature Verification
+**Current focus:** Phase 38 — Integration & Cross-Feature Verification (complete)
 
 ## Current Position
 
-Phase: 38 (Integration & Cross-Feature Verification) — EXECUTING
-Plan: 2 of 2
-Status: Plan 01 complete, Plan 02 next
-Last activity: 2026-05-23 -- Phase 38 Plan 01 (INT-01/INT-02 integration tests) complete
+Phase: 38 (Integration & Cross-Feature Verification) — COMPLETE
+Plan: 2 of 2 (done)
+Status: Phase 38 complete, all v1.9 phases done
+Last activity: 2026-05-23 -- Phase 38 Plan 02 (INT-03/INT-04 regression + rt_safety gates) complete
 
-Progress: [████████░░] 67%
+Progress: [████████░░] 75%
 
 ## v1.9 Phase Map
 
@@ -41,7 +41,7 @@ Progress: [████████░░] 67%
 | 35 | Pitch Modulation (PMON) | PMON-01..07 | Not started |
 | 36 | Noise Generator (NON) | NON-01..09 | Not started |
 | 37 | Volume Sweep | SWEEP-01..10 | **Complete** |
-| 38 | Integration & Cross-Feature Verification | INT-01..04 | **Plan 01 complete** (INT-01, INT-02 verified) |
+| 38 | Integration & Cross-Feature Verification | INT-01..04 | **Complete** (INT-01..04 verified) |
 
 ## Accumulated Context
 
@@ -96,9 +96,9 @@ None.
 
 **Velocity:**
 
-- Total plans completed: 8 (v1.9)
-- Average duration: 15min
-- Total execution time: 0.30 hours
+- Total plans completed: 9 (v1.9)
+- Average duration: 14min
+- Total execution time: 0.35 hours
 
 **By Phase:**
 
@@ -108,12 +108,12 @@ None.
 | 34 | 2 | - | - |
 | 35 | 2 | - | - |
 | 36 | 2 | - | - |
-| 38 - Integration | 1/2 | 5min | 5min |
+| 38 - Integration | 2/2 | 11min | 5.5min |
 
 *Updated after each plan completion*
 
 ## Session Continuity
 
 Last session: 2026-05-23
-Stopped at: Phase 38 Plan 01 complete, Plan 02 next
+Stopped at: Phase 38 complete, all v1.9 phases done
 Resume file: None

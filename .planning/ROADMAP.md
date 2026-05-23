@@ -26,7 +26,7 @@
 - [ ] **Phase 35: Pitch Modulation (PMON)** - Voice-to-voice pitch FM synthesis via VxOUTX
 - [ ] **Phase 36: Noise Generator (NON)** - Global LFSR noise source replacing ADPCM output per voice
 - [ ] **Phase 37: Volume Sweep** - Hardware-driven per-voice volume ramp with independent L/R
-- [ ] **Phase 38: Integration & Cross-Feature Verification** - Mixer tick restructuring and cross-feature validation
+- [x] **Phase 38: Integration & Cross-Feature Verification** - Mixer tick restructuring and cross-feature validation
 
 ## Phase Details
 
@@ -159,7 +159,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 38-02-PLAN.md -- Full regression suite + rt_safety gates verification (INT-03, INT-04)
+- [x] 38-02-PLAN.md -- Full regression suite + rt_safety gates verification (INT-03, INT-04)
 
 ## Progress
 
@@ -173,7 +173,7 @@ Phases execute in numeric order: 33, 34, 35, 36, 37, 38
 | 35. Pitch Modulation (PMON) | 2/2 | Complete    | 2026-05-22 |
 | 36. Noise Generator (NON) | 2/2 | Complete    | 2026-05-22 |
 | 37. Volume Sweep | 0/3 | Not started | - |
-| 38. Integration & Cross-Feature Verification | 1/2 | In progress | - |
+| 38. Integration & Cross-Feature Verification | 2/2 | Complete | 2026-05-23 |
 
 ## Previous Milestone Archives
 
@@ -292,4 +292,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-23 -- Phase 38 Plan 01 complete (INT-01, INT-02 verified)*
+*Last updated: 2026-05-23 -- Phase 38 complete (INT-01..04 verified, all v1.9 integration gates passed)*
