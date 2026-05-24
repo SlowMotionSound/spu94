@@ -98,6 +98,12 @@ public:
     std::atomic<float>& getAutoPanDepth()    { return autoPanDepth; }
     std::atomic<float>& getAutoPanRatio()    { return autoPanRatio; }
 
+    // AM synthesis controls (Phase 48: audio-rate retrigger for metallic sidebands)
+    std::atomic<bool>&  getAmEnabled()  { return amEnabled; }
+    std::atomic<float>& getAmRateHz()   { return amRateHz; }
+    std::atomic<float>& getAmDepth()    { return amDepth; }
+    std::atomic<int>&   getAmCurve()    { return amCurve; }
+
     // Sidechain duck controls (Phase 46: event-triggered VCA duck via KON detection)
     std::atomic<int>&   getDuckSource(int voice) { return duckSource[voice]; }
     std::atomic<float>& getDuckRelease(int voice) { return duckRelease[voice]; }
@@ -449,6 +455,17 @@ private:
     bool  autoPanWasActive{false};
     float lastAutoPanHz{-1.0f};
     float lastAutoPanRatio{-1.0f};
+
+    // AM synthesis controls (Phase 48: audio-rate retrigger for metallic sidebands)
+    std::atomic<bool>  amEnabled{false};       // true = sweep configured for audio-rate AM
+    std::atomic<float> amRateHz{440.0f};       // modulation rate in Hz (37..9647, default musical A)
+    std::atomic<float> amDepth{1.0f};          // modulation depth (0.0 = no mod, 1.0 = full metallic)
+    std::atomic<int>   amCurve{0};             // 0 = linear (symmetric), 1 = exponential (asymmetric)
+
+    // Audio-thread-only AM state (not atomic -- only accessed from processBlock)
+    bool  amWasActive{false};
+    float lastAmHz{-1.0f};
+    int   lastAmCurve{-1};
 
     // Sidechain duck controls (Phase 46: event-triggered VCA duck via KON detection)
     // Per-voice: which voice's KON triggers duck (-1 = none, 0-23 = source voice)

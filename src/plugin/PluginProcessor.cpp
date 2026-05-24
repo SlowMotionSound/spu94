@@ -113,6 +113,82 @@ namespace {
         }
         return { kTremoloHzTable[bestIdx].shift, kTremoloHzTable[bestIdx].step };
     }
+
+    // Phase 48: Hz-to-shift mapping for AM synthesis rate control.
+    // Audio-rate range (shifts 0-8) produces audible sidebands when the sweep
+    // oscillates fast enough to create new frequency content rather than perceivable
+    // volume pulsing. Same counter-accumulate math as tremolo but at lower shifts.
+    //
+    // Math (identical to tremolo derivation, different shift range):
+    //   For shift <= 11: counter_increment = 0x8000 (fires every tick)
+    //   step_magnitude = (7 - step_index) << (11 - shift)
+    //   fires_per_half_cycle = 0x7FFF / step_magnitude
+    //   full_cycle_hz = 44100.0 / (2 * fires_per_half_cycle)
+    struct AmHzEntry { uint8_t shift; uint8_t step; float hz; };
+
+    static const AmHzEntry kAmHzTable[] = {
+        // shift  step   Hz (computed from counter-accumulate math at 44100 Hz)
+        {  8, 3,   21.5339f },
+        {  8, 2,   26.9173f },
+        {  8, 1,   32.3008f },
+        {  8, 0,   37.6843f },
+        {  7, 3,   43.0677f },
+        {  7, 2,   53.8347f },
+        {  7, 1,   64.6016f },
+        {  7, 0,   75.3685f },
+        {  6, 3,   86.1354f },
+        {  6, 2,  107.6693f },
+        {  6, 1,  129.2032f },
+        {  6, 0,  150.7370f },
+        {  5, 3,  172.2709f },
+        {  5, 2,  215.3386f },
+        {  5, 1,  258.4063f },
+        {  5, 0,  301.4740f },
+        {  4, 3,  344.5418f },
+        {  4, 2,  430.6772f },
+        {  4, 1,  516.8126f },
+        {  4, 0,  602.9481f },
+        {  3, 3,  689.0835f },
+        {  3, 2,  861.3544f },
+        {  3, 1, 1033.6253f },
+        {  3, 0, 1205.8962f },
+        {  2, 3, 1378.1671f },
+        {  2, 2, 1722.7088f },
+        {  2, 1, 2067.2506f },
+        {  2, 0, 2411.7924f },
+        {  1, 3, 2756.3341f },
+        {  1, 2, 3445.4176f },
+        {  1, 1, 4134.5012f },
+        {  1, 0, 4823.5847f },
+        {  0, 3, 5512.6682f },
+        {  0, 2, 6890.8353f },
+        {  0, 1, 8269.0023f },
+        {  0, 0, 9647.1694f },
+    };
+    static constexpr int kAmHzTableSize = 36;
+
+    // Find the shift/step pair closest to the requested Hz (log-distance).
+    // Clamps to table boundaries for out-of-range inputs (T-48-01 mitigation).
+    SweepShiftResult hzToShiftAm(float hz)
+    {
+        if (hz <= kAmHzTable[0].hz)
+            return { kAmHzTable[0].shift, kAmHzTable[0].step };
+        if (hz >= kAmHzTable[kAmHzTableSize - 1].hz)
+            return { kAmHzTable[kAmHzTableSize - 1].shift, kAmHzTable[kAmHzTableSize - 1].step };
+
+        int bestIdx = 0;
+        float bestDist = std::fabs(std::log(hz) - std::log(kAmHzTable[0].hz));
+        for (int i = 1; i < kAmHzTableSize; ++i)
+        {
+            float dist = std::fabs(std::log(hz) - std::log(kAmHzTable[i].hz));
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestIdx = i;
+            }
+        }
+        return { kAmHzTable[bestIdx].shift, kAmHzTable[bestIdx].step };
+    }
 } // anonymous namespace
 
 SPU94AudioProcessor::SPU94AudioProcessor()
@@ -726,9 +802,10 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
         // VCA ramp activation (Phase 41: volume sweep GUI surface)
         // One-shot: GUI sets rampArm=true, audio thread reads and resets to false.
-        // TREM-05/PAN-05: Tremolo, auto-pan, and VCA ramp are mutually exclusive.
+        // TREM-05/PAN-05/AM-04: Tremolo, auto-pan, AM, and VCA ramp are mutually exclusive.
         if (!tremoloEnabled.load(std::memory_order_relaxed) &&
-            !autoPanEnabled.load(std::memory_order_relaxed))
+            !autoPanEnabled.load(std::memory_order_relaxed) &&
+            !amEnabled.load(std::memory_order_relaxed))
         {
             if (rampArm.exchange(false, std::memory_order_acquire))
             {
@@ -795,6 +872,9 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 lastTremoloCurve = curve;
                 lastTremoloRatio = ratio;
                 tremoloWasActive = true;
+
+                // AM-04: Tremolo takes priority -- force-deactivate AM if it was active
+                if (amWasActive) amWasActive = false;
             }
             else if (tremEn && tremoloWasActive)
             {
@@ -919,6 +999,9 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 lastAutoPanHz = hz;
                 lastAutoPanRatio = ratio;
                 autoPanWasActive = true;
+
+                // AM-04: Auto-pan takes priority -- force-deactivate AM if it was active
+                if (amWasActive) amWasActive = false;
             }
             else if (panEn && autoPanWasActive)
             {
@@ -971,6 +1054,101 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             {
                 auto* mx = spu94_get_voice_mixer();
                 float depth = autoPanDepth.load(std::memory_order_relaxed);
+                if (depth < 0.0f) depth = 0.0f;
+                if (depth > 1.0f) depth = 1.0f;
+
+                if (mx->voices[0].sweep_l.active) {
+                    int16_t sweep_lvl = mx->voices[0].sweep_l.level;
+                    mx->voices[0].vol_l = static_cast<int16_t>(
+                        0x7FFF - static_cast<int16_t>(
+                            static_cast<float>(0x7FFF - sweep_lvl) * depth));
+                }
+                if (mx->voices[0].sweep_r.active) {
+                    int16_t sweep_lvl = mx->voices[0].sweep_r.level;
+                    mx->voices[0].vol_r = static_cast<int16_t>(
+                        0x7FFF - static_cast<int16_t>(
+                            static_cast<float>(0x7FFF - sweep_lvl) * depth));
+                }
+            }
+        }
+
+        // AM synthesis activation (Phase 48: audio-rate retrigger for metallic sidebands)
+        // AM-04: Mutual exclusion -- AM has LOWEST priority (tremolo and auto-pan both win).
+        // Both L and R run at the same rate (no ratio) -- AM produces sidebands, not stereo movement.
+        {
+            bool tremEn = tremoloEnabled.load(std::memory_order_relaxed);
+            bool panEn  = autoPanEnabled.load(std::memory_order_relaxed);
+            bool amEn   = amEnabled.load(std::memory_order_relaxed);
+            // Mutual exclusion: tremolo and auto-pan have priority over AM
+            if (tremEn || panEn) amEn = false;
+
+            if (amEn && !amWasActive)
+            {
+                // AM just enabled: configure sweeps for audio-rate oscillation
+                float hz   = amRateHz.load(std::memory_order_relaxed);
+                int   curve = amCurve.load(std::memory_order_relaxed);
+
+                // T-48-01: clamp Hz to table range
+                if (hz < kAmHzTable[0].hz) hz = kAmHzTable[0].hz;
+                if (hz > kAmHzTable[kAmHzTableSize - 1].hz) hz = kAmHzTable[kAmHzTableSize - 1].hz;
+
+                auto ss = hzToShiftAm(hz);
+
+                // Both L and R: same direction=1 (decrease from current vol), same rate
+                spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
+                    static_cast<uint8_t>(curve & 1),  // mode: 0=linear, 1=exponential
+                    1,  // direction=decrease (start from current vol going down)
+                    0,  // phase=positive
+                    ss.shift, ss.step, 1);  // retrigger_enable=1
+
+                spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
+                    static_cast<uint8_t>(curve & 1),
+                    1, 0, ss.shift, ss.step, 1);  // retrigger_enable=1
+
+                lastAmHz = hz;
+                lastAmCurve = curve;
+                amWasActive = true;
+            }
+            else if (amEn && amWasActive)
+            {
+                // AM already active: check if parameters changed
+                float hz   = amRateHz.load(std::memory_order_relaxed);
+                int   curve = amCurve.load(std::memory_order_relaxed);
+
+                if (hz < kAmHzTable[0].hz) hz = kAmHzTable[0].hz;
+                if (hz > kAmHzTable[kAmHzTableSize - 1].hz) hz = kAmHzTable[kAmHzTableSize - 1].hz;
+
+                if (hz != lastAmHz || curve != lastAmCurve)
+                {
+                    auto ss = hzToShiftAm(hz);
+
+                    spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
+                        static_cast<uint8_t>(curve & 1), 1, 0,
+                        ss.shift, ss.step, 1);
+
+                    spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
+                        static_cast<uint8_t>(curve & 1), 1, 0,
+                        ss.shift, ss.step, 1);
+
+                    lastAmHz = hz;
+                    lastAmCurve = curve;
+                }
+            }
+            else if (!amEn && amWasActive)
+            {
+                // AM just disabled (either explicitly or by mutual exclusion): deactivate sweeps
+                auto* mx = spu94_get_voice_mixer();
+                mx->voices[0].sweep_l.active = 0;
+                mx->voices[0].sweep_r.active = 0;
+                amWasActive = false;
+            }
+
+            // AM depth scaling: same formula as tremolo.
+            // T-48-02: clamp depth 0.0-1.0 at point of use.
+            if (amEn)
+            {
+                auto* mx = spu94_get_voice_mixer();
+                float depth = amDepth.load(std::memory_order_relaxed);
                 if (depth < 0.0f) depth = 0.0f;
                 if (depth > 1.0f) depth = 1.0f;
 
@@ -1080,6 +1258,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             {
                 bool tremEn = tremoloEnabled.load(std::memory_order_relaxed);
                 bool panEn  = autoPanEnabled.load(std::memory_order_relaxed);
+                bool amEn   = amEnabled.load(std::memory_order_relaxed);
 
                 for (int v = 0; v < 24; ++v)
                 {
@@ -1090,8 +1269,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     if (src < 0 || src > 23) continue;
                     // T-46-02: self-duck blocked
                     if (src == v) continue;
-                    // Mutual exclusion: duck disabled on voice 0 when tremolo/auto-pan active
-                    if (v == 0 && (tremEn || panEn)) continue;
+                    // Mutual exclusion: duck disabled on voice 0 when tremolo/auto-pan/AM active
+                    if (v == 0 && (tremEn || panEn || amEn)) continue;
 
                     // Check if the source voice is triggering KON this block
                     if (!(konSnapshot & (1u << src))) continue;
