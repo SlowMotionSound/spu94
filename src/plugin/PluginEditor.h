@@ -193,6 +193,14 @@ private:
     juce::Label amDepthLabel;
     juce::TextButton amCurveButton{"Linear"};
 
+    // Phase Mod controls (Phase 49: polarity-cycling sweep for hollow/phaser character)
+    juce::Label phaseModSectionLabel;
+    juce::ToggleButton phaseModEnableToggle{"Enable"};
+    juce::Slider phaseModRateKnob;
+    juce::Label phaseModRateLabel;
+    juce::Slider phaseModDepthKnob;
+    juce::Label phaseModDepthLabel;
+
     // Sampler mixer knobs (standalone-only)
     juce::Slider samplerLevelKnob;
     juce::Label samplerLevelLabel;
