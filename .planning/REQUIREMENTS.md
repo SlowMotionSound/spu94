@@ -90,7 +90,7 @@
 ### Additional Mod Sources (v1.11+ candidate)
 
 - **MODSRC-01**: LFO as mod source (sine, triangle, square, S&H) in addition to noise
-- **MODSRC-02**: Mod matrix expansion — multiple sources × multiple destinations
+- **MODSRC-02**: Mod matrix expansion — multiple sources x multiple destinations
 
 ## Out of Scope
 
@@ -100,27 +100,67 @@
 | Equal-power auto-pan crossfade | PS1 linear crossfade dip at center IS the character; faithful-only per North Star |
 | True phaser (all-pass filters) | Not present in PS1 hardware; departure from spec |
 | Per-voice noise frequency for mod bus | PS1 has one global noise generator; per-voice freq is unfaithful |
-| Mod matrix UI | Overkill for 1 source × 3 destinations; fixed knobs are simpler |
+| Mod matrix UI | Overkill for 1 source x 3 destinations; fixed knobs are simpler |
 | BPM sync | Host-layer concern; build effects first, add sync later |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RTR-01..05 | TBD | Pending |
-| TREM-01..06 | TBD | Pending |
-| PAN-01..06 | TBD | Pending |
-| DUCK-01..06 | TBD | Pending |
-| WIDE-01..04 | TBD | Pending |
-| AM-01..05 | TBD | Pending |
-| PMOD-01..05 | TBD | Pending |
-| MOD-01..06 | TBD | Pending |
-| GUI-01..05 | TBD | Pending |
+| RTR-01 | Phase 43 | Pending |
+| RTR-02 | Phase 43 | Pending |
+| RTR-03 | Phase 43 | Pending |
+| RTR-04 | Phase 43 | Pending |
+| RTR-05 | Phase 43 | Pending |
+| TREM-01 | Phase 44 | Pending |
+| TREM-02 | Phase 44 | Pending |
+| TREM-03 | Phase 44 | Pending |
+| TREM-04 | Phase 44 | Pending |
+| TREM-05 | Phase 44 | Pending |
+| TREM-06 | Phase 44 | Pending |
+| PAN-01 | Phase 45 | Pending |
+| PAN-02 | Phase 45 | Pending |
+| PAN-03 | Phase 45 | Pending |
+| PAN-04 | Phase 45 | Pending |
+| PAN-05 | Phase 45 | Pending |
+| PAN-06 | Phase 45 | Pending |
+| DUCK-01 | Phase 46 | Pending |
+| DUCK-02 | Phase 46 | Pending |
+| DUCK-03 | Phase 46 | Pending |
+| DUCK-04 | Phase 46 | Pending |
+| DUCK-05 | Phase 46 | Pending |
+| DUCK-06 | Phase 46 | Pending |
+| WIDE-01 | Phase 47 | Pending |
+| WIDE-02 | Phase 47 | Pending |
+| WIDE-03 | Phase 47 | Pending |
+| WIDE-04 | Phase 47 | Pending |
+| AM-01 | Phase 48 | Pending |
+| AM-02 | Phase 48 | Pending |
+| AM-03 | Phase 48 | Pending |
+| AM-04 | Phase 48 | Pending |
+| AM-05 | Phase 48 | Pending |
+| PMOD-01 | Phase 49 | Pending |
+| PMOD-02 | Phase 49 | Pending |
+| PMOD-03 | Phase 49 | Pending |
+| PMOD-04 | Phase 49 | Pending |
+| PMOD-05 | Phase 49 | Pending |
+| MOD-01 | Phase 50 | Pending |
+| MOD-02 | Phase 50 | Pending |
+| MOD-03 | Phase 50 | Pending |
+| MOD-04 | Phase 50 | Pending |
+| MOD-05 | Phase 50 | Pending |
+| MOD-06 | Phase 50 | Pending |
+| GUI-01 | Phase 51 | Pending |
+| GUI-02 | Phase 51 | Pending |
+| GUI-03 | Phase 51 | Pending |
+| GUI-04 | Phase 51 | Pending |
+| GUI-05 | Phase 51 | Pending |
 
 **Coverage:**
 - v1.10.0 requirements: 44 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 44
+- Mapped to phases: 44/44
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-24*
+*Traceability updated: 2026-05-24*

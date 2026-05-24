@@ -5,21 +5,161 @@
 
 ## Milestones
 
-- ✅ **v1.9 Complete Voice** -- Phases 33-42 (shipped 2026-05-24, tag `v1.9`)
-- ✅ **v1.8 PSX Voice Engine** -- Phases 27-32 (shipped 2026-05-21, tag `v1.8`)
-- ✅ **v1.7 DAW Plugin Port** -- Phases 21-26 (shipped 2026-05-16, tag `v1.7`)
-- ✅ **v1.6 User Programmable Waypoints** -- Phases 18-20 (shipped 2026-05-10, tag `v1.6`)
-- ✅ **v1.5 Preset Interpolation Engine** -- Phases 16-17 (shipped 2026-05-06, tag `v1.5`)
-- ✅ **v1.4 Preset System** -- Phases 13-15 (shipped 2026-05-02, tag `v1.4`)
-- ✅ **v1.3 True Oversampled DAC** -- Phases 10-12 (shipped 2026-05-01, tag `v1.3`)
-- ✅ **v1.2 DAC Modeling** -- Phases 5-9 (shipped 2026-04-30, tag `v1.2`)
-- ✅ **v1.1 ADPCM** -- Phases 1-4 (shipped 2026-04-27, tag `v1.1`)
-- ✅ **v1.0 Product** -- 8 phases (shipped 2026-04-26, standalone GUI)
-- ✅ **M1 Reverb Core** -- 7 phases (shipped 2026-04-25, tag `m1-reverb-core`)
+- **v1.10.0 Voice Dynamics & Stereo Effects** -- Phases 43-51 (in progress)
+- v1.9 Complete Voice -- Phases 33-42 (shipped 2026-05-24, tag `v1.9`)
+- v1.8 PSX Voice Engine -- Phases 27-32 (shipped 2026-05-21, tag `v1.8`)
+- v1.7 DAW Plugin Port -- Phases 21-26 (shipped 2026-05-16, tag `v1.7`)
+- v1.6 User Programmable Waypoints -- Phases 18-20 (shipped 2026-05-10, tag `v1.6`)
+- v1.5 Preset Interpolation Engine -- Phases 16-17 (shipped 2026-05-06, tag `v1.5`)
+- v1.4 Preset System -- Phases 13-15 (shipped 2026-05-02, tag `v1.4`)
+- v1.3 True Oversampled DAC -- Phases 10-12 (shipped 2026-05-01, tag `v1.3`)
+- v1.2 DAC Modeling -- Phases 5-9 (shipped 2026-04-30, tag `v1.2`)
+- v1.1 ADPCM -- Phases 1-4 (shipped 2026-04-27, tag `v1.1`)
+- v1.0 Product -- 8 phases (shipped 2026-04-26, standalone GUI)
+- M1 Reverb Core -- 7 phases (shipped 2026-04-25, tag `m1-reverb-core`)
 
 ## Phases
 
-(No active phases — next milestone not yet started)
+### v1.10.0 Voice Dynamics & Stereo Effects
+
+- [ ] **Phase 43: Retrigger Engine** - Auto-reversing VCA ramp foundation with independent L/R rates
+- [ ] **Phase 44: Tremolo** - Synchronized L/R retriggered volume oscillation with speed/depth/curve
+- [ ] **Phase 45: Auto-Pan** - Opposition-phase L/R retrigger creating stereo movement
+- [ ] **Phase 46: Sidechain Duck** - Voice-to-voice KON-triggered volume drop with exponential recovery
+- [ ] **Phase 47: Stereo Widener** - L/R divergence with mono-safety cap
+- [ ] **Phase 48: AM Synthesis** - Audio-rate retrigger producing metallic sidebands
+- [ ] **Phase 49: Phase Modulator** - Polarity oscillation cycling through zero crossing
+- [ ] **Phase 50: Internal Mod Bus** - Per-voice noise-to-pitch/volume/pan routing
+- [ ] **Phase 51: GUI Integration & Verification** - Effect section layout, coexistence verification, RT-safety
+
+## Phase Details
+
+### Phase 43: Retrigger Engine
+**Goal**: VCA ramp can automatically reverse direction at its limits, enabling continuous oscillation for all downstream modulation effects
+**Depends on**: v1.9 Volume Sweep (Phase 37) -- uses existing sweep shift/step infrastructure
+**Requirements**: RTR-01, RTR-02, RTR-03, RTR-04, RTR-05
+**Success Criteria** (what must be TRUE):
+  1. A voice with retrigger enabled produces continuous oscillating volume (ramp reverses at 0 and max without manual re-arm)
+  2. L and R channels can retrigger at independently configured rates, producing polyrhythmic modulation
+  3. Retrigger rates cover the full range from sub-Hz (~0.5 Hz) through audio-rate (~7350 Hz)
+  4. Disabling retrigger restores one-shot behavior identical to v1.9
+  5. A new KON resets retrigger phase to zero (no stale phase from previous note)
+**Plans**: TBD
+
+### Phase 44: Tremolo
+**Goal**: Users hear periodic volume pulsing on a voice, with musical control over speed, depth, and character
+**Depends on**: Phase 43 (retrigger engine)
+**Requirements**: TREM-01, TREM-02, TREM-03, TREM-04, TREM-05, TREM-06
+**Success Criteria** (what must be TRUE):
+  1. A voice with tremolo enabled audibly pulses in volume at the configured speed (both channels move together)
+  2. Depth at 0% produces no audible modulation; depth at 100% produces full-range pulsing
+  3. Linear curve produces symmetric triangle-wave tremolo; exponential curve produces asymmetric Uni-Vibe character
+  4. Setting L/R rate ratio away from 1:1 produces audible stereo drift (polyrhythmic)
+  5. Tremolo controls are visible and labeled in the sampler GUI
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 45: Auto-Pan
+**Goal**: Users hear stereo movement as the sound sweeps between left and right channels
+**Depends on**: Phase 43 (retrigger engine)
+**Requirements**: PAN-01, PAN-02, PAN-03, PAN-04, PAN-05, PAN-06
+**Success Criteria** (what must be TRUE):
+  1. A voice with auto-pan enabled audibly moves between left and right speakers in a repeating pattern
+  2. At 100% depth the sound reaches full left and full right; at lower depths it stays closer to center
+  3. The PS1-faithful linear crossfade creates an audible volume dip at center (no equal-power smoothing)
+  4. Asymmetric L/R rates produce evolving non-repeating stereo patterns
+  5. Auto-pan controls are visible and labeled in the sampler GUI alongside tremolo
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 46: Sidechain Duck
+**Goal**: One voice's note-on automatically ducks another voice's volume, creating rhythmic pumping without manual automation
+**Depends on**: v1.9 Volume Sweep (Phase 37) -- uses existing one-shot ramp; independent of retrigger engine
+**Requirements**: DUCK-01, DUCK-02, DUCK-03, DUCK-04, DUCK-05, DUCK-06
+**Success Criteria** (what must be TRUE):
+  1. Triggering a note on the source voice causes audible volume drop on the target voice
+  2. The duck attack is fast (exponential decrease) and release is controllable (slow to fast recovery)
+  3. Partial depth settings produce subtle pumping; full depth produces momentary silence on the target
+  4. After the duck completes, the target voice automatically recovers to its original level without manual intervention
+  5. Duck source picker is visible per-voice in the sampler GUI
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 47: Stereo Widener
+**Goal**: Users can widen the stereo image of a voice beyond its natural position while maintaining mono compatibility
+**Depends on**: v1.9 Volume Sweep (Phase 37) -- uses existing L/R volume divergence; independent of retrigger
+**Requirements**: WIDE-01, WIDE-02, WIDE-03, WIDE-04
+**Success Criteria** (what must be TRUE):
+  1. Increasing the width control makes the voice sound wider in headphones/speakers
+  2. At maximum width, summing to mono loses no more than ~3 dB (mono-safety cap prevents full cancellation)
+  3. Width at 0% produces no change from the voice's natural stereo position
+  4. Stereo widener control is visible in the sampler GUI with a mono-safety indicator
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 48: AM Synthesis
+**Goal**: Users can create metallic, bell-like timbres by modulating a voice's amplitude at audio rates
+**Depends on**: Phase 43 (retrigger engine -- audio-rate range)
+**Requirements**: AM-01, AM-02, AM-03, AM-04, AM-05
+**Success Criteria** (what must be TRUE):
+  1. Setting AM rate in the audio range (~37-7350 Hz) produces audible sidebands (metallic/bell-like tones above and below the fundamental)
+  2. Depth at low values produces subtle ring; depth at 100% produces full metallic character
+  3. Linear and exponential curve settings produce audibly different harmonic series
+  4. AM synthesis controls (rate/depth/curve) are visible and labeled in the sampler GUI
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 49: Phase Modulator
+**Goal**: Users can create hollow, phaser-like timbral effects by oscillating a voice's volume through zero into negative polarity
+**Depends on**: Phase 43 (retrigger engine + polarity cycling)
+**Requirements**: PMOD-01, PMOD-02, PMOD-03, PMOD-04, PMOD-05
+**Success Criteria** (what must be TRUE):
+  1. At slow rates (~0.5 Hz), the stereo image audibly breathes/widens rhythmically
+  2. At medium rates (4-15 Hz), repeated cancellation creates a hollow, phase-like timbral character
+  3. Zero-crossing behavior is documented (ADR) with findings on whether it clicks, pops, or transitions smoothly
+  4. Depth control limits how far into negative volume the oscillation reaches
+  5. Phase modulator controls are visible in the sampler GUI (labeled experimental if zero-crossing is problematic)
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 50: Internal Mod Bus
+**Goal**: Each voice is a self-contained sound design instrument -- noise can modulate pitch, volume, and pan without dedicating a separate NON voice
+**Depends on**: v1.9 NON (Phase 36) -- uses existing global LFSR noise output
+**Requirements**: MOD-01, MOD-02, MOD-03, MOD-04, MOD-05, MOD-06
+**Success Criteria** (what must be TRUE):
+  1. Turning up noise-to-pitch depth produces audible random pitch wobble proportional to the knob position
+  2. Turning up noise-to-volume depth produces audible random amplitude variation (noise gate / broken speaker character)
+  3. Turning up noise-to-pan depth produces audible random stereo jitter
+  4. All three mod destinations can be active simultaneously on the same voice without interference
+  5. Internal mod bus controls (three depth knobs) are visible as a dedicated section in the sampler GUI
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 51: GUI Integration & Verification
+**Goal**: All v1.10.0 effects coexist cleanly with existing voice features, the sampler window is properly sized, and the system passes all safety gates
+**Depends on**: Phases 44-50 (all effect phases)
+**Requirements**: GUI-01, GUI-02, GUI-03, GUI-04, GUI-05
+**Success Criteria** (what must be TRUE):
+  1. Sampler window displays all effect sections (tremolo, auto-pan, sidechain, widener, AM, phase mod, mod bus) without cramming or overlap
+  2. Existing v1.9 VCA ramp controls (direction/speed/curve/ARM) remain accessible as raw register access
+  3. All existing voice features (ADSR, PMON, NON, pan/level) work without regression when new effects are enabled
+  4. rt_safety gates pass with all effects simultaneously enabled (no heap, no locks, no syscalls, bounded latency)
+**Plans**: TBD
+**UI hint**: yes
+
+## Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 43. Retrigger Engine | 0/TBD | Not started | - |
+| 44. Tremolo | 0/TBD | Not started | - |
+| 45. Auto-Pan | 0/TBD | Not started | - |
+| 46. Sidechain Duck | 0/TBD | Not started | - |
+| 47. Stereo Widener | 0/TBD | Not started | - |
+| 48. AM Synthesis | 0/TBD | Not started | - |
+| 49. Phase Modulator | 0/TBD | Not started | - |
+| 50. Internal Mod Bus | 0/TBD | Not started | - |
+| 51. GUI Integration | 0/TBD | Not started | - |
 
 ## Previous Milestone Archives
 
@@ -158,4 +298,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-24 -- v1.9 Complete Voice archived, milestone closed*
+*Last updated: 2026-05-24 -- v1.10.0 roadmap created*

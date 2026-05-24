@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.10.0
 milestone_name: Voice Dynamics & Stereo Effects
-status: planning
-stopped_at: Defining requirements
-last_updated: 2026-05-24T16:15:00.000Z
-last_activity: 2026-05-24 -- Milestone v1.10.0 started
+status: ready_to_plan
+stopped_at: Roadmap created, ready to plan Phase 43
+last_updated: 2026-05-24T17:00:00.000Z
+last_activity: 2026-05-24 -- v1.10.0 roadmap created (9 phases, 44 requirements mapped)
 progress:
-  total_phases: 0
+  total_phases: 9
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,21 +21,36 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-24)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.10.0 Voice Dynamics & Stereo Effects — defining requirements
+**Current focus:** v1.10.0 Voice Dynamics & Stereo Effects -- Phase 43 Retrigger Engine (ready to plan)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-05-24 — Milestone v1.10.0 started
+Phase: 43 of 51 (Retrigger Engine) -- first of 9 phases in v1.10.0
+Plan: --
+Status: Ready to plan
+Last activity: 2026-05-24 -- Roadmap created
 
-Progress: N/A
+Progress: [..........] 0%
+
+## Phase Map (v1.10.0)
+
+| Phase | Name | Requirements | Depends On |
+|-------|------|--------------|------------|
+| 43 | Retrigger Engine | RTR-01..05 | v1.9 Phase 37 |
+| 44 | Tremolo | TREM-01..06 | Phase 43 |
+| 45 | Auto-Pan | PAN-01..06 | Phase 43 |
+| 46 | Sidechain Duck | DUCK-01..06 | v1.9 Phase 37 |
+| 47 | Stereo Widener | WIDE-01..04 | v1.9 Phase 37 |
+| 48 | AM Synthesis | AM-01..05 | Phase 43 |
+| 49 | Phase Modulator | PMOD-01..05 | Phase 43 |
+| 50 | Internal Mod Bus | MOD-01..06 | v1.9 Phase 36 |
+| 51 | GUI Integration | GUI-01..05 | Phases 44-50 |
 
 ## Milestone History
 
 | Milestone | Phases | Status | Shipped |
 |-----------|--------|--------|---------|
+| v1.10.0 Voice Dynamics | 43-51 (9 phases) | In progress | -- |
 | v1.9 Complete Voice | 33-42 (10 phases, 16 plans) | Archived | 2026-05-24 |
 | v1.8 PSX Voice Engine | 27-32 (6 phases, 7 plans) | Archived | 2026-05-21 |
 | v1.7 DAW Plugin Port | 21-26 (6 phases, 10 plans) | Archived | 2026-05-16 |
@@ -47,20 +62,12 @@ See `.planning/MILESTONES.md` for full history.
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-v1.9 research decisions (from FEATURES.md / PITFALLS.md):
+v1.10.0 key architectural decisions (from research):
 
-- VxOUTX capture point: post-ADSR, pre-volume (DuckStation-confirmed, HIGH confidence)
-- Noise LFSR: taps at bits 15,12,11,10 XOR 1, seed = 1, left-shift (nocash + DuckStation)
-- Noise generator: single global instance on mixer struct, ticked ONCE before voice loop
-- Sweep: separate state struct from ADSR (shared math helper, separate storage)
-- Sweep IS the volume register (modifies vol_l/vol_r directly, not a separate multiplier)
-- ADSR sustain-decrease off-by-one: pre-existing bug from v1.8, fixed first in Phase 33
-- Negative-phase sweep: LOW confidence (nocash "not yet tested"), needs ADR
-
-### ADSR Bug Context
-
-RESOLVED in Phase 33. Sustain-decrease and release formulas corrected from base 7 to base 8
-per nocash spec (ADR-0056). Volume Sweep (Phase 37) can now reuse the corrected formula.
+- Retrigger lives in C core (creative extension beyond hardware, but RT-safe and sample-accurate)
+- Effects are curated preconfigurations of the L/R VCA ramp state machines (not new DSP)
+- Internal mod bus is a creative extension (PS1 requires separate NON voice + PMON chain; we internalize it)
+- Phase Modulator needs prototype-first approach (zero-crossing behavior is unknown)
 
 ### Blockers/Concerns
 
@@ -93,32 +100,17 @@ None.
 
 ## Performance Metrics
 
-**Velocity:**
+**Velocity:** (reset for new milestone)
 
-- Total plans completed: 13 (v1.9)
-- Average duration: 14min
-- Total execution time: 0.35 hours
-
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 33 - ADSR Correction | 1 | 16min | 16min |
-| 34 | 2 | - | - |
-| 35 | 2 | - | - |
-| 36 | 2 | - | - |
-| 38 - Integration | 2/2 | 11min | 5.5min |
-| 39 | 1 | - | - |
-| 40 | 1 | - | - |
-| 41 | 1 | - | - |
-| 42 - Integration Verification | 1/1 | 5min | 5min |
-| 42 | 1 | - | - |
+- Total plans completed: 0
+- Average duration: --
+- Total execution time: 0 hours
 
 *Updated after each plan completion*
 
 ## Session Continuity
 
 Last session: 2026-05-24
-Stopped at: v1.9 milestone formally closed and archived
+Stopped at: v1.10.0 roadmap created (9 phases, 44 requirements, 100% coverage)
 Resume file: None
-Next action: /gsd:new-milestone for Voice Dynamics & Stereo Effects
+Next action: /gsd:plan-phase 43 (Retrigger Engine)
