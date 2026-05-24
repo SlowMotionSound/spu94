@@ -1536,6 +1536,28 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             }
         }
 
+        // Internal mod bus (Phase 50: noise-to-pitch/vol/pan per-voice modulation)
+        // MOD-05: Runs at control rate (once per processBlock call) to set depths.
+        // The actual modulation runs at sample rate inside spu94_voice_tick.
+        // NOT mutually exclusive with sweep effects — mod bus coexists with everything.
+        {
+            float pitchD = modBusPitchDepth.load(std::memory_order_relaxed);
+            float volD   = modBusVolDepth.load(std::memory_order_relaxed);
+            float panD   = modBusPanDepth.load(std::memory_order_relaxed);
+            // T-50-01: clamp floats to 0.0-1.0 at point of use before int16 conversion
+            if (pitchD < 0.0f) pitchD = 0.0f;
+            if (pitchD > 1.0f) pitchD = 1.0f;
+            if (volD < 0.0f) volD = 0.0f;
+            if (volD > 1.0f) volD = 1.0f;
+            if (panD < 0.0f) panD = 0.0f;
+            if (panD > 1.0f) panD = 1.0f;
+            // Convert 0.0-1.0 float to int16 depth for C core
+            int16_t pd   = static_cast<int16_t>(pitchD * 0x7FFF);
+            int16_t vd   = static_cast<int16_t>(volD * 0x7FFF);
+            int16_t pand = static_cast<int16_t>(panD * 0x7FFF);
+            spu94_voice_mixer_set_mod_bus(spu94_get_voice_mixer(), 0, pd, vd, pand);
+        }
+
         auto* outL = buffer.getWritePointer(0);
         auto* outR = (buffer.getNumChannels() > 1) ? buffer.getWritePointer(1) : nullptr;
         for (int i = 0; i < samplesToProcess; ++i)

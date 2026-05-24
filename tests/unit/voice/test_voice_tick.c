@@ -2496,6 +2496,211 @@ void test_int02_non_pmon_random_pitch_jitter(void) {
 }
 
 /* ---------------------------------------------------------------
+ * Phase 50: Internal Mod Bus tests (MOD-01..05)
+ * --------------------------------------------------------------- */
+
+/* File-scope mixer for mod bus tests (reused across tests) */
+static spu94_voice_mixer_t s_mod_mixer;
+
+/* Helper: set up a voice with a known pitch and long sample, then tick once
+ * to prime the decode buffer so subsequent ticks produce non-zero output.
+ * After setup, noise_gen.timer is set high so subsequent ticks won't mutate
+ * noise_gen.level — allowing tests to preset a specific noise value. */
+static void mod_bus_setup_voice(spu94_voice_mixer_t *mx, uint16_t pitch,
+                                 int16_t vol_l, int16_t vol_r) {
+    spu94_voice_mixer_init(mx);
+    mx->enabled = 1;
+    mx->master_vol_l = 0x7FFF;
+    mx->master_vol_r = 0x7FFF;
+    /* Load a multi-block sample into voice RAM */
+    make_long_sample(mx->voice_ram, 32);
+    /* Key on voice 0 directly (bypass pending for simplicity) */
+    spu94_voice_key_on(&mx->voices[0], 0, pitch, vol_l, vol_r);
+    mx->voices[0].adsr.enabled = 0;  /* disable ADSR for predictable output */
+    /* Prime: tick several times to decode blocks and fill the Gaussian ring
+     * (4 ticks at pitch=0x1000 pushes 4 samples into the ring, fully populating it). */
+    int16_t dl, dr, rl, rr;
+    for (int i = 0; i < 4; i++)
+        spu94_voice_mixer_tick(mx, &dl, &dr, &rl, &rr);
+    /* Freeze noise generator: set timer high so tick won't shift the LFSR.
+     * This lets tests preset noise_gen.level to a known value. */
+    mx->noise_gen.timer = 0x7FFFFFFF;
+}
+
+void test_mod_bus_pitch_depth_zero_no_change(void) {
+    /* With noise_mod_pitch_depth = 0, pitch counter advances at base rate
+     * regardless of noise_level value. */
+    mod_bus_setup_voice(&s_mod_mixer, 0x1000, 0x3FFF, 0x3FFF);
+
+    /* Set noise_mod_pitch_depth = 0 (no modulation) */
+    s_mod_mixer.voices[0].noise_mod_pitch_depth = 0;
+    s_mod_mixer.voices[0].noise_mod_vol_depth = 0;
+    s_mod_mixer.voices[0].noise_mod_pan_depth = 0;
+
+    /* Force a known noise level for the mixer */
+    s_mod_mixer.noise_gen.level = 0x4000;
+
+    /* Record pitch_counter before tick */
+    uint16_t pc_before = s_mod_mixer.voices[0].pitch_counter;
+    int16_t dl, dr, rl, rr;
+    spu94_voice_mixer_tick(&s_mod_mixer, &dl, &dr, &rl, &rr);
+    uint16_t pc_after = s_mod_mixer.voices[0].pitch_counter;
+
+    /* With pitch=0x1000 (4.12 format), the counter should advance by 0x1000.
+     * Since 0x1000 >> 12 = 1 sample consumed, the counter wraps back:
+     * new_ctr = (old + 0x1000) & 0x0FFF = (old + 0x1000) mod 4096.
+     * This confirms no pitch modulation offset was applied. */
+    uint16_t expected_pc = (uint16_t)((pc_before + 0x1000) & 0x0FFF);
+    TEST_ASSERT_EQUAL_HEX16(expected_pc, pc_after);
+}
+
+void test_mod_bus_pitch_depth_positive(void) {
+    /* With noise_mod_pitch_depth > 0 and positive noise, effective pitch
+     * should be higher than base pitch — counter advances faster. */
+    mod_bus_setup_voice(&s_mod_mixer, 0x1000, 0x3FFF, 0x3FFF);
+
+    s_mod_mixer.voices[0].noise_mod_pitch_depth = 0x4000; /* half max */
+    s_mod_mixer.voices[0].noise_mod_vol_depth = 0;
+    s_mod_mixer.voices[0].noise_mod_pan_depth = 0;
+
+    /* Set a known noise level */
+    s_mod_mixer.noise_gen.level = 0x4000; /* quarter full-scale positive */
+
+    /* Expected pitch_mod = (0x4000 * 0x4000) >> 15 = 0x2000
+     * Effective pitch = 0x1000 + 0x2000 = 0x3000 */
+    uint16_t pc_before = s_mod_mixer.voices[0].pitch_counter;
+    int16_t dl, dr, rl, rr;
+    spu94_voice_mixer_tick(&s_mod_mixer, &dl, &dr, &rl, &rr);
+    uint16_t pc_after = s_mod_mixer.voices[0].pitch_counter;
+
+    /* With effective pitch 0x3000, counter should advance more than with 0x1000.
+     * Expected: (pc_before + 0x3000) & 0x0FFF (since 0x3000 >> 12 = 3 samples consumed)
+     * The pitch_counter stores only the fractional part (lower 12 bits). */
+    uint16_t expected_pc = (uint16_t)((pc_before + 0x3000) & 0x0FFF);
+    TEST_ASSERT_EQUAL_HEX16(expected_pc, pc_after);
+}
+
+void test_mod_bus_vol_depth_produces_variation(void) {
+    /* With noise_mod_vol_depth > 0, the output amplitude changes based on noise. */
+
+    /* Test 1: positive noise -> volume increases */
+    mod_bus_setup_voice(&s_mod_mixer, 0x1000, 0x2000, 0x2000);
+    s_mod_mixer.voices[0].noise_mod_pitch_depth = 0;
+    s_mod_mixer.voices[0].noise_mod_vol_depth = 0x7FFF; /* max depth */
+    s_mod_mixer.voices[0].noise_mod_pan_depth = 0;
+    s_mod_mixer.noise_gen.level = 0x4000; /* positive noise */
+
+    int16_t dl_pos, dr_pos, rl, rr;
+    spu94_voice_mixer_tick(&s_mod_mixer, &dl_pos, &dr_pos, &rl, &rr);
+
+    /* Test 2: negative noise -> volume decreases */
+    mod_bus_setup_voice(&s_mod_mixer, 0x1000, 0x2000, 0x2000);
+    s_mod_mixer.voices[0].noise_mod_pitch_depth = 0;
+    s_mod_mixer.voices[0].noise_mod_vol_depth = 0x7FFF;
+    s_mod_mixer.voices[0].noise_mod_pan_depth = 0;
+    s_mod_mixer.noise_gen.level = -0x4000; /* negative noise */
+
+    int16_t dl_neg, dr_neg;
+    spu94_voice_mixer_tick(&s_mod_mixer, &dl_neg, &dr_neg, &rl, &rr);
+
+    /* Positive noise should produce louder output than negative noise */
+    int32_t mag_pos = (dl_pos < 0 ? -dl_pos : dl_pos) + (dr_pos < 0 ? -dr_pos : dr_pos);
+    int32_t mag_neg = (dl_neg < 0 ? -dl_neg : dl_neg) + (dr_neg < 0 ? -dr_neg : dr_neg);
+    TEST_ASSERT_TRUE_MESSAGE(mag_pos > mag_neg,
+        "MOD-02: positive noise should produce louder output than negative noise at max vol depth");
+}
+
+void test_mod_bus_pan_depth_creates_stereo_difference(void) {
+    /* With noise_mod_pan_depth > 0 and non-zero noise, out_l and out_r
+     * should differ (stereo divergence). */
+    mod_bus_setup_voice(&s_mod_mixer, 0x1000, 0x3000, 0x3000);
+    s_mod_mixer.voices[0].noise_mod_pitch_depth = 0;
+    s_mod_mixer.voices[0].noise_mod_vol_depth = 0;
+    s_mod_mixer.voices[0].noise_mod_pan_depth = 0x4000; /* substantial pan depth */
+    s_mod_mixer.noise_gen.level = 0x2000; /* non-zero noise */
+
+    int16_t dl, dr, rl, rr;
+    spu94_voice_mixer_tick(&s_mod_mixer, &dl, &dr, &rl, &rr);
+
+    /* pan_mod = (0x2000 * 0x4000) >> 15 = 0x1000
+     * mod_vol_l = 0x3000 + 0x1000 = 0x4000 -> clamped to 0x3FFF
+     * mod_vol_r = 0x3000 - 0x1000 = 0x2000
+     * Therefore out_l should be louder than out_r (or different magnitudes) */
+    TEST_ASSERT_TRUE_MESSAGE(dl != dr,
+        "MOD-03: pan modulation must create L/R divergence when noise is non-zero");
+
+    /* L should be louder (or equal to max) since noise is positive */
+    int16_t abs_l = (dl < 0) ? (int16_t)(-dl) : dl;
+    int16_t abs_r = (dr < 0) ? (int16_t)(-dr) : dr;
+    TEST_ASSERT_TRUE_MESSAGE(abs_l >= abs_r,
+        "MOD-03: positive noise should make L louder than R (differential pan)");
+}
+
+void test_mod_bus_all_three_simultaneous(void) {
+    /* All three modulation depths active at once: voice still produces output
+     * and differs from the baseline (all depths = 0). */
+
+    /* Baseline: no modulation */
+    mod_bus_setup_voice(&s_mod_mixer, 0x1000, 0x3000, 0x3000);
+    s_mod_mixer.voices[0].noise_mod_pitch_depth = 0;
+    s_mod_mixer.voices[0].noise_mod_vol_depth = 0;
+    s_mod_mixer.voices[0].noise_mod_pan_depth = 0;
+    s_mod_mixer.noise_gen.level = 0x4000;
+
+    int16_t base_l, base_r, rl, rr;
+    spu94_voice_mixer_tick(&s_mod_mixer, &base_l, &base_r, &rl, &rr);
+
+    /* Modulated: all three depths active */
+    mod_bus_setup_voice(&s_mod_mixer, 0x1000, 0x3000, 0x3000);
+    s_mod_mixer.voices[0].noise_mod_pitch_depth = 0x2000;
+    s_mod_mixer.voices[0].noise_mod_vol_depth = 0x2000;
+    s_mod_mixer.voices[0].noise_mod_pan_depth = 0x2000;
+    s_mod_mixer.noise_gen.level = 0x4000;
+
+    int16_t mod_l, mod_r;
+    spu94_voice_mixer_tick(&s_mod_mixer, &mod_l, &mod_r, &rl, &rr);
+
+    /* Must not be silent */
+    TEST_ASSERT_TRUE_MESSAGE(mod_l != 0 || mod_r != 0,
+        "MOD-04: voice with all three mod bus depths active must not be silent");
+
+    /* Must differ from baseline (since noise * depth != 0) */
+    TEST_ASSERT_TRUE_MESSAGE(mod_l != base_l || mod_r != base_r,
+        "MOD-04: all-three-active output must differ from unmodulated baseline");
+}
+
+void test_mod_bus_setter_api(void) {
+    spu94_voice_mixer_t mx;
+    spu94_voice_mixer_init(&mx);
+
+    /* Valid call: voice_idx = 0 */
+    spu94_result_t res = spu94_voice_mixer_set_mod_bus(&mx, 0, 0x1000, 0x2000, 0x3000);
+    TEST_ASSERT_EQUAL_INT(SPU94_OK, res);
+    TEST_ASSERT_EQUAL_INT16(0x1000, mx.voices[0].noise_mod_pitch_depth);
+    TEST_ASSERT_EQUAL_INT16(0x2000, mx.voices[0].noise_mod_vol_depth);
+    TEST_ASSERT_EQUAL_INT16(0x3000, mx.voices[0].noise_mod_pan_depth);
+
+    /* Valid call: voice_idx = 23 */
+    res = spu94_voice_mixer_set_mod_bus(&mx, 23, -0x7FFF, 0x7FFF, 0x4000);
+    TEST_ASSERT_EQUAL_INT(SPU94_OK, res);
+    TEST_ASSERT_EQUAL_INT16(-0x7FFF, mx.voices[23].noise_mod_pitch_depth);
+    TEST_ASSERT_EQUAL_INT16(0x7FFF, mx.voices[23].noise_mod_vol_depth);
+    TEST_ASSERT_EQUAL_INT16(0x4000, mx.voices[23].noise_mod_pan_depth);
+
+    /* Invalid: voice_idx = -1 */
+    res = spu94_voice_mixer_set_mod_bus(&mx, -1, 0, 0, 0);
+    TEST_ASSERT_EQUAL_INT(SPU94_INVALID_ARG, res);
+
+    /* Invalid: voice_idx = 24 */
+    res = spu94_voice_mixer_set_mod_bus(&mx, 24, 0, 0, 0);
+    TEST_ASSERT_EQUAL_INT(SPU94_INVALID_ARG, res);
+
+    /* Invalid: NULL pointer */
+    res = spu94_voice_mixer_set_mod_bus(NULL, 0, 0, 0, 0);
+    TEST_ASSERT_EQUAL_INT(SPU94_INVALID_ARG, res);
+}
+
+/* ---------------------------------------------------------------
  * Main
  * --------------------------------------------------------------- */
 int main(void) {
@@ -2569,5 +2774,12 @@ int main(void) {
     /* Phase 38: Integration — INT-02 PMON+NON cross-feature */
     RUN_TEST(test_int02_non_voice_feeds_pmon);
     RUN_TEST(test_int02_non_pmon_random_pitch_jitter);
+    /* Phase 50: Internal Mod Bus tests (MOD-01..05) */
+    RUN_TEST(test_mod_bus_pitch_depth_zero_no_change);
+    RUN_TEST(test_mod_bus_pitch_depth_positive);
+    RUN_TEST(test_mod_bus_vol_depth_produces_variation);
+    RUN_TEST(test_mod_bus_pan_depth_creates_stereo_difference);
+    RUN_TEST(test_mod_bus_all_three_simultaneous);
+    RUN_TEST(test_mod_bus_setter_api);
     return UNITY_END();
 }

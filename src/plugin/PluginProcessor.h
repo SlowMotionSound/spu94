@@ -117,6 +117,11 @@ public:
     // Stereo widener control (Phase 47: static L/R volume offset for perceived width)
     std::atomic<float>& getStereoWidth() { return stereoWidth; }
 
+    // Internal mod bus controls (Phase 50: per-voice noise-to-pitch/vol/pan routing)
+    std::atomic<float>& getModBusPitchDepth() { return modBusPitchDepth; }
+    std::atomic<float>& getModBusVolDepth()   { return modBusVolDepth; }
+    std::atomic<float>& getModBusPanDepth()   { return modBusPanDepth; }
+
     // ADSR parameter accessors (standalone sampler voice)
     std::atomic<bool>&  getAdsrEnabled()     { return adsrEnabled; }
     std::atomic<float>& getAdsrAttack()      { return adsrAttack; }
@@ -498,6 +503,12 @@ private:
     // Stereo widener (Phase 47: static L/R volume offset for perceived width)
     // 0.0 = no width (L/R unchanged), 1.0 = max width (offset = kWidthMaxOffset)
     std::atomic<float> stereoWidth{0.0f};
+
+    // Internal mod bus controls (Phase 50: per-voice noise-to-pitch/vol/pan routing)
+    // Each 0.0..1.0, converted to int16_t depth in processBlock before passing to C core.
+    std::atomic<float> modBusPitchDepth{0.0f};
+    std::atomic<float> modBusVolDepth{0.0f};
+    std::atomic<float> modBusPanDepth{0.0f};
 
     // Audio-thread-only duck state (NOT atomic -- only touched in processBlock)
     enum DuckPhase { DUCK_IDLE = 0, DUCK_DECREASING, DUCK_RECOVERING };
