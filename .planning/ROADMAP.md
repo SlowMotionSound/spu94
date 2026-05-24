@@ -44,7 +44,10 @@
   3. Retrigger rates cover the full range from sub-Hz (~0.5 Hz) through audio-rate (~7350 Hz)
   4. Disabling retrigger restores one-shot behavior identical to v1.9
   5. A new KON resets retrigger phase to zero (no stale phase from previous note)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
+- [ ] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
 
 ### Phase 44: Tremolo
 **Goal**: Users hear periodic volume pulsing on a voice, with musical control over speed, depth, and character
@@ -56,7 +59,10 @@
   3. Linear curve produces symmetric triangle-wave tremolo; exponential curve produces asymmetric Uni-Vibe character
   4. Setting L/R rate ratio away from 1:1 produces audible stereo drift (polyrhythmic)
   5. Tremolo controls are visible and labeled in the sampler GUI
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
+- [ ] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
 **UI hint**: yes
 
 ### Phase 45: Auto-Pan
@@ -69,7 +75,10 @@
   3. The PS1-faithful linear crossfade creates an audible volume dip at center (no equal-power smoothing)
   4. Asymmetric L/R rates produce evolving non-repeating stereo patterns
   5. Auto-pan controls are visible and labeled in the sampler GUI alongside tremolo
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
+- [ ] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
 **UI hint**: yes
 
 ### Phase 46: Sidechain Duck
@@ -82,7 +91,10 @@
   3. Partial depth settings produce subtle pumping; full depth produces momentary silence on the target
   4. After the duck completes, the target voice automatically recovers to its original level without manual intervention
   5. Duck source picker is visible per-voice in the sampler GUI
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
+- [ ] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
 **UI hint**: yes
 
 ### Phase 47: Stereo Widener
@@ -94,7 +106,10 @@
   2. At maximum width, summing to mono loses no more than ~3 dB (mono-safety cap prevents full cancellation)
   3. Width at 0% produces no change from the voice's natural stereo position
   4. Stereo widener control is visible in the sampler GUI with a mono-safety indicator
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
+- [ ] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
 **UI hint**: yes
 
 ### Phase 48: AM Synthesis
@@ -106,7 +121,10 @@
   2. Depth at low values produces subtle ring; depth at 100% produces full metallic character
   3. Linear and exponential curve settings produce audibly different harmonic series
   4. AM synthesis controls (rate/depth/curve) are visible and labeled in the sampler GUI
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
+- [ ] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
 **UI hint**: yes
 
 ### Phase 49: Phase Modulator
@@ -119,7 +137,10 @@
   3. Zero-crossing behavior is documented (ADR) with findings on whether it clicks, pops, or transitions smoothly
   4. Depth control limits how far into negative volume the oscillation reaches
   5. Phase modulator controls are visible in the sampler GUI (labeled experimental if zero-crossing is problematic)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
+- [ ] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
 **UI hint**: yes
 
 ### Phase 50: Internal Mod Bus
@@ -132,7 +153,10 @@
   3. Turning up noise-to-pan depth produces audible random stereo jitter
   4. All three mod destinations can be active simultaneously on the same voice without interference
   5. Internal mod bus controls (three depth knobs) are visible as a dedicated section in the sampler GUI
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
+- [ ] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
 **UI hint**: yes
 
 ### Phase 51: GUI Integration & Verification
@@ -144,14 +168,17 @@
   2. Existing v1.9 VCA ramp controls (direction/speed/curve/ARM) remain accessible as raw register access
   3. All existing voice features (ADSR, PMON, NON, pan/level) work without regression when new effects are enabled
   4. rt_safety gates pass with all effects simultaneously enabled (no heap, no locks, no syscalls, bounded latency)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
+- [ ] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
 **UI hint**: yes
 
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 43. Retrigger Engine | 0/TBD | Not started | - |
+| 43. Retrigger Engine | 0/2 | Planned | - |
 | 44. Tremolo | 0/TBD | Not started | - |
 | 45. Auto-Pan | 0/TBD | Not started | - |
 | 46. Sidechain Duck | 0/TBD | Not started | - |
