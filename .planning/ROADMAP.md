@@ -94,8 +94,8 @@ Plans:
   5. Duck source picker is visible per-voice in the sampler GUI
 **Plans**: 2 plans
 Plans:
-- [ ] 46-01-PLAN.md — KON-triggered duck with exponential decrease, depth scaling, auto-recovery (DUCK-01..05)
-- [ ] 46-02-PLAN.md — Duck source picker, release, depth GUI controls (DUCK-06)
+- [x] 46-01-PLAN.md — KON-triggered duck with exponential decrease, depth scaling, auto-recovery (DUCK-01..05)
+- [x] 46-02-PLAN.md — Duck source picker, release, depth GUI controls (DUCK-06)
 **UI hint**: yes
 
 ### Phase 47: Stereo Widener
@@ -182,7 +182,7 @@ Plans:
 | 43. Retrigger Engine | 2/2 | Complete | 2026-05-24 |
 | 44. Tremolo | 0/2 | Planned | - |
 | 45. Auto-Pan | 0/2 | Planned | - |
-| 46. Sidechain Duck | 0/2 | Planned | - |
+| 46. Sidechain Duck | 2/2 | Complete   | 2026-05-24 |
 | 47. Stereo Widener | 0/TBD | Not started | - |
 | 48. AM Synthesis | 0/TBD | Not started | - |
 | 49. Phase Modulator | 0/TBD | Not started | - |
