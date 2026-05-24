@@ -140,8 +140,8 @@ Plans:
   5. Phase modulator controls are visible in the sampler GUI (labeled experimental if zero-crossing is problematic)
 **Plans**: 2 plans
 Plans:
-- [ ] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
-- [ ] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
+- [ ] 49-01-PLAN.md — Phase mod DSP activation, zero-crossing depth formula, ADR-0060 (PMOD-01..04)
+- [ ] 49-02-PLAN.md — Phase modulator GUI controls in sampler window (PMOD-05)
 **UI hint**: yes
 
 ### Phase 50: Internal Mod Bus
@@ -185,7 +185,7 @@ Plans:
 | 46. Sidechain Duck | 2/2 | Complete   | 2026-05-24 |
 | 47. Stereo Widener | 1/2 | In Progress|  |
 | 48. AM Synthesis | 1/2 | In Progress|  |
-| 49. Phase Modulator | 0/TBD | Not started | - |
+| 49. Phase Modulator | 0/2 | Planned | - |
 | 50. Internal Mod Bus | 0/TBD | Not started | - |
 | 51. GUI Integration | 0/TBD | Not started | - |
 
