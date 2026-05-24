@@ -888,6 +888,90 @@ static void test_auto_pan_linear_crossfade_dip(void)
     TEST_ASSERT_TRUE(min_sum < (int16_t)(0x7FFF));  /* Sum well below single-channel max * 2 */
 }
 
+/* ---------------------------------------------------------------
+ * Phase 46: Sidechain duck integration test.
+ * Proves the exponential decrease -> recovery increase cycle that the
+ * host layer orchestrates for sidechain ducking.
+ *
+ * Flow: Key-on voice 1 at full volume -> configure exponential decrease
+ * (shift=10, fast attack) -> tick until sweep completes near zero ->
+ * configure exponential increase (shift=13, recovery) -> tick until
+ * sweep reaches near-max -> verify full cycle.
+ * --------------------------------------------------------------- */
+void test_sidechain_duck_trigger_and_recovery(void) {
+    spu94_voice_mixer_t *mixer = spu94_get_voice_mixer();
+    spu94_voice_mixer_init(mixer);
+    mixer->enabled = 1;
+    mixer->master_vol_l = 0x7FFF;
+    mixer->master_vol_r = 0x7FFF;
+
+    /* Load a non-silent sample into voice RAM so voices stay active.
+     * 256 blocks = 4096 bytes = enough for ~27000 samples at pitch 0x1000 */
+    uint8_t sample[4096];
+    memset(sample, 0, sizeof(sample));
+    for (int b = 0; b < 256; b++) {
+        sample[b * 16 + 0] = 0x00; /* shift=0, filter=0 */
+        sample[b * 16 + 1] = 0x00; /* no end flags */
+        sample[b * 16 + 2] = 0x37; /* non-silent nibbles */
+        sample[b * 16 + 3] = 0x25;
+    }
+    spu94_voice_mixer_load_sample(mixer, 0, sample, sizeof(sample));
+
+    /* Key-on voice 1 (the target that gets ducked) at full volume */
+    spu94_voice_mixer_key_on(mixer, 1, 0, 0x1000, 0x7FFF, 0x7FFF, 0, NULL);
+
+    /* First tick applies pending KON */
+    int16_t dry_l, dry_r, rev_l, rev_r;
+    spu94_voice_mixer_tick(mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+
+    /* Run 100 ticks so voice 1 is playing at full volume */
+    for (int i = 0; i < 100; i++)
+        spu94_voice_mixer_tick(mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+
+    /* Verify voice 1 is active and at full volume */
+    TEST_ASSERT_EQUAL_UINT8(1, mixer->voices[1].active);
+    TEST_ASSERT_EQUAL_INT16(0x7FFF, mixer->voices[1].vol_l);
+    TEST_ASSERT_EQUAL_INT16(0x7FFF, mixer->voices[1].vol_r);
+
+    /* --- DUCK PHASE: Configure exponential decrease (shift=10, one-shot) ---
+     * This simulates what the host layer does when it detects a KON on the
+     * source voice. */
+    spu94_voice_mixer_set_sweep_l(mixer, 1, 1, 1, 0, 10, 0, 0);
+    spu94_voice_mixer_set_sweep_r(mixer, 1, 1, 1, 0, 10, 0, 0);
+
+    /* Tick enough for exponential decrease to complete.
+     * At shift=10, exponential decrease fires every tick with multiplicative
+     * decay factor (1 - 16/32768) per tick. From 0x7FFF to <256 requires
+     * ~10000 ticks. Run 12000 to be safe. */
+    for (int i = 0; i < 12000; i++)
+        spu94_voice_mixer_tick(mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+
+    /* Assert: voice 1's volume is near zero.
+     * Note: one-shot sweep stays active=1 but level clamped at boundary.
+     * The host layer checks level (not active) for state transition. */
+    TEST_ASSERT_TRUE(mixer->voices[1].vol_l < 0x0100);
+    TEST_ASSERT_TRUE(mixer->voices[1].vol_r < 0x0100);
+
+    /* --- RECOVERY PHASE: Configure exponential increase (shift=13, one-shot) ---
+     * This simulates the host layer transitioning to recovery after the
+     * decrease hits the depth floor. */
+    spu94_voice_mixer_set_sweep_l(mixer, 1, 1, 0, 0, 13, 0, 0);
+    spu94_voice_mixer_set_sweep_r(mixer, 1, 1, 0, 0, 13, 0, 0);
+
+    /* Tick enough for exponential increase to reach 0x7FFF.
+     * At shift=13, counter fires every 4 ticks (step=7). Below 0x6000
+     * it's linear: ~14000 ticks. Above 0x6000 it slows (counter >>= 2):
+     * ~19000 ticks. Total ~33000. Run 36000 to be safe. */
+    for (int i = 0; i < 36000; i++)
+        spu94_voice_mixer_tick(mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+
+    /* Assert: voice 1's volume recovered to near-max.
+     * One-shot increase sweep clamps at 0x7FFF and stays active=1
+     * (the host layer checks level for state transition). */
+    TEST_ASSERT_TRUE(mixer->voices[1].vol_l > 0x7F00);
+    TEST_ASSERT_TRUE(mixer->voices[1].vol_r > 0x7F00);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_sweep_init);
@@ -921,5 +1005,7 @@ int main(void) {
     /* Phase 45: Auto-pan opposition-phase behavior */
     RUN_TEST(test_auto_pan_opposition);
     RUN_TEST(test_auto_pan_linear_crossfade_dip);
+    /* Phase 46: Sidechain duck mechanism */
+    RUN_TEST(test_sidechain_duck_trigger_and_recovery);
     return UNITY_END();
 }
