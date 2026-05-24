@@ -119,15 +119,16 @@ The current Volume L and R knobs need rework to be more musically intuitive. The
 4. **Compound envelope visualization?** ADSR and VCA ramp both affect output. Show them overlaid, or separately, or just the product?
 5. **Phase Modulator zero-crossing character?** Needs prototyping — could be a signature sound or could click/pop.
 6. **Phaser as separate DSP stage?** Anthony expressed interest. Would require all-pass filters not present in PS1 hardware — a departure from spec. Shelved for now.
-7. **NON and PMON GUI controls?** Also needed for v1.9 but not part of this milestone's VCA Modulation scope. Separate phases.
+7. **NON and PMON GUI controls?** Completed in v1.9 (Phases 39-41).
+8. **Per-voice internal mod bus?** Route the noise generator as a modulation source to pitch, volume, or pan within the same voice — no second voice needed. The PS1 requires dedicating a separate NON voice + PMON chain to get noise-driven pitch modulation; a per-voice internal mod bus would make each voice a self-contained instrument. Design directions: "noise → pitch depth," "noise → volume depth," "noise → pan depth" as per-voice mod routing. This is a creative extension beyond PS1 hardware but follows the same philosophy as the retrigger extension. Key architectural question: does this live in the C core voice struct (mod routing fields) or in the host layer (pre-tick parameter injection)?
 
-## Also Needed for v1.9 (not this milestone)
+## Completed in v1.9
 
-These came up in the same session but belong in v1.9's remaining work:
-- **Pan + Level fader** replacing raw Volume L/R knobs
-- **NON toggle** — per-voice noise enable in sampler GUI
-- **PMON toggle** — per-voice pitch modulation enable in sampler GUI
-- **VCA ramp on/off + basic speed control** — minimal exposure of the ramp system, enough to verify it works before the full effect suite
+These items were resolved during v1.9 (Phases 39-42):
+- Pan + Level fader replacing raw Volume L/R knobs (Phase 39)
+- NON toggle + Noise Color knob (Phase 40)
+- PMON toggle (Phase 40)
+- VCA ramp Direction/Speed/Curve/ARM controls (Phase 41)
 
 ---
 
