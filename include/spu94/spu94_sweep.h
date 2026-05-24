@@ -32,6 +32,7 @@ typedef struct {
     uint8_t  direction;   /* 0 = increase, 1 = decrease */
     uint8_t  phase;       /* 0 = positive, 1 = negative (inverts step sign) */
     uint8_t  active;      /* 0 = inactive, 1 = sweeping */
+    uint8_t  retrigger_enable; /* 0 = one-shot (v1.9), 1 = auto-reverse at limits */
 } spu94_sweep_t;
 
 /* Initialize sweep to defaults: active=0, level=0, counter=0. */
@@ -50,7 +51,8 @@ void spu94_sweep_tick(spu94_sweep_t *sw);
  * by the caller (because the volume register IS the sweep working state). */
 void spu94_sweep_configure(spu94_sweep_t *sw,
                            uint8_t mode, uint8_t direction, uint8_t phase,
-                           uint8_t shift, uint8_t step);
+                           uint8_t shift, uint8_t step,
+                           uint8_t retrigger_enable);
 
 #ifdef __cplusplus
 }

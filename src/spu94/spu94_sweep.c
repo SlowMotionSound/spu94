@@ -64,17 +64,35 @@ void spu94_sweep_tick(spu94_sweep_t *sw) {
 
     sw->level = (int16_t)level;
     sw->counter = env.counter;
+
+    /* Retrigger: auto-reverse direction when level hits clamping boundary.
+     * Only fires when retrigger_enable=1. Preserves v1.9 one-shot behavior
+     * when retrigger_enable=0. (RTR-01, RTR-03, RTR-04) */
+    if (sw->retrigger_enable) {
+        int16_t boundary;
+        if (effective_phase == 0) {
+            boundary = (sw->direction == 0) ? 0x7FFF : 0;
+        } else {
+            boundary = (sw->direction == 0) ? -0x7FFF : 0;
+        }
+        if (sw->level == boundary) {
+            sw->direction ^= 1;   /* flip direction */
+            sw->counter = 0;      /* clean start for new half-cycle */
+        }
+    }
 }
 
 void spu94_sweep_configure(spu94_sweep_t *sw,
                            uint8_t mode, uint8_t direction, uint8_t phase,
-                           uint8_t shift, uint8_t step) {
+                           uint8_t shift, uint8_t step,
+                           uint8_t retrigger_enable) {
     if (sw == NULL) return;
     sw->mode = mode;
     sw->direction = direction;
     sw->phase = phase;
     sw->shift = shift;
     sw->step = step;
+    sw->retrigger_enable = retrigger_enable;
     sw->counter = 0;
     sw->active = 1;
 }

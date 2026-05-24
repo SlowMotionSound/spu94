@@ -481,7 +481,7 @@ spu94_result_t spu94_voice_mixer_set_sweep_l(spu94_voice_mixer_t *m, int voice_i
         return SPU94_INVALID_ARG;
 
     spu94_sweep_configure(&m->voices[voice_idx].sweep_l,
-                          mode, direction, phase, shift, step);
+                          mode, direction, phase, shift, step, 0);
     m->voices[voice_idx].sweep_l.level = m->voices[voice_idx].vol_l;
     return SPU94_OK;
 }
@@ -496,7 +496,7 @@ spu94_result_t spu94_voice_mixer_set_sweep_r(spu94_voice_mixer_t *m, int voice_i
         return SPU94_INVALID_ARG;
 
     spu94_sweep_configure(&m->voices[voice_idx].sweep_r,
-                          mode, direction, phase, shift, step);
+                          mode, direction, phase, shift, step, 0);
     m->voices[voice_idx].sweep_r.level = m->voices[voice_idx].vol_r;
     return SPU94_OK;
 }
