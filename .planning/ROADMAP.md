@@ -249,7 +249,7 @@ Phases execute in numeric order: 33, 34, 35, 36, 37, 38, 39, 40, 41, 42
 | 39. Pan & Level Controls | 1/1 | Complete    | 2026-05-23 |
 | 40. Voice Feature Toggles | 1/1 | Complete    | 2026-05-24 |
 | 41. VCA Ramp Controls | 1/1 | Complete    | 2026-05-24 |
-| 42. Voice GUI Integration | 0/TBD | Not started | - |
+| 42. Voice GUI Integration | 0/1 | Not started | - |
 
 ## Previous Milestone Archives
 
