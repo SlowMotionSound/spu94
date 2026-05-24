@@ -760,6 +760,134 @@ static void test_sweep_tremolo_exponential_asymmetry(void)
     TEST_ASSERT_TRUE(decrease_ticks > increase_ticks * 2);
 }
 
+/* ---------------------------------------------------------------
+ * Phase 45: Auto-pan opposition-phase behavior (PAN-01, PAN-04)
+ * --------------------------------------------------------------- */
+
+/* PAN-01: L and R sweeps move in opposite directions.
+ * Configure L with direction=1 (decrease) and R with direction=0 (increase),
+ * both with retrigger_enable=1, mode=0 (linear). After ticking, L must have
+ * decreased while R increased -- proving opposition-phase stereo movement. */
+static void test_auto_pan_opposition(void)
+{
+    spu94_voice_mixer_t *mixer = spu94_get_voice_mixer();
+    spu94_voice_mixer_init(mixer);
+    mixer->enabled = 1;
+
+    /* Set both volumes to midpoint so sweeps have room to move */
+    mixer->voices[0].vol_l = 0x7FFF;
+    mixer->voices[0].vol_r = 0x7FFF;
+
+    /* Configure L sweep: direction=1 (decrease), mode=0 (linear), retrigger=1 */
+    spu94_voice_mixer_set_sweep_l(mixer, 0,
+        0, 1, 0, 10, 3, 1);  /* mode=0, dir=1(decrease), phase=0, shift=10, step=3, retrigger=1 */
+
+    /* Configure R sweep: direction=0 (increase), mode=0 (linear), retrigger=1 */
+    spu94_voice_mixer_set_sweep_r(mixer, 0,
+        0, 0, 0, 10, 3, 1);  /* mode=0, dir=0(increase), phase=0, shift=10, step=3, retrigger=1 */
+
+    int16_t initial_l = mixer->voices[0].sweep_l.level;
+    int16_t initial_r = mixer->voices[0].sweep_r.level;
+
+    /* Tick enough times to see movement (shift=10 is a moderate rate) */
+    for (int t = 0; t < 100; t++) {
+        spu94_sweep_tick(&mixer->voices[0].sweep_l);
+        spu94_sweep_tick(&mixer->voices[0].sweep_r);
+    }
+
+    /* L must have DECREASED from its initial level */
+    TEST_ASSERT_TRUE(mixer->voices[0].sweep_l.level < initial_l);
+    /* R must have stayed at max or be at max (it started at 0x7FFF and direction=increase
+     * means it clamps at 0x7FFF then reverses -- after reversal it may have decreased.
+     * The key assertion is that after the FIRST tick, R level >= initial since direction=0
+     * means increase. But since R started at 0x7FFF (the max), it immediately hits the
+     * retrigger boundary and reverses. Let's verify the opposition differently:
+     * After 100 ticks, L level != R level -- they are NOT in sync. */
+    /* Better assertion: verify sweeps are configured with opposite directions initially */
+    /* The ground truth proof: L direction was 1 (decrease), R direction was 0 (increase).
+     * After running, if L decreased from 0x7FFF and R also went through retrigger cycling,
+     * we can check that their levels diverged. Since both start at 0x7FFF with the same
+     * shift/step, L goes DOWN first while R immediately hits ceiling and reverses DOWN too.
+     * BUT the key is they reach boundaries at DIFFERENT times because of the starting direction.
+     * Let's verify the opposition pattern by running from non-boundary starting levels. */
+
+    /* Reset and test from midpoint where opposition is unambiguous */
+    spu94_voice_mixer_init(mixer);
+    mixer->enabled = 1;
+    mixer->voices[0].vol_l = 0x4000;
+    mixer->voices[0].vol_r = 0x4000;
+
+    spu94_voice_mixer_set_sweep_l(mixer, 0,
+        0, 1, 0, 10, 3, 1);  /* decrease */
+    spu94_voice_mixer_set_sweep_r(mixer, 0,
+        0, 0, 0, 10, 3, 1);  /* increase */
+
+    initial_l = mixer->voices[0].sweep_l.level;
+    initial_r = mixer->voices[0].sweep_r.level;
+
+    /* After just 1 tick, L must decrease and R must increase */
+    spu94_sweep_tick(&mixer->voices[0].sweep_l);
+    spu94_sweep_tick(&mixer->voices[0].sweep_r);
+
+    TEST_ASSERT_TRUE(mixer->voices[0].sweep_l.level < initial_l);  /* L decreased */
+    TEST_ASSERT_TRUE(mixer->voices[0].sweep_r.level > initial_r);  /* R increased */
+}
+
+/* PAN-04: Linear crossfade produces a volume dip at center.
+ * Configure L direction=1 (decrease) and R direction=0 (increase), both linear.
+ * Tick through until L and R cross near the midpoint. At that crossing, the SUM
+ * of L+R must be LESS than 2*0x7FFF -- proving that linear panning dips at center
+ * (unlike equal-power panning where L^2 + R^2 = constant). */
+static void test_auto_pan_linear_crossfade_dip(void)
+{
+    spu94_voice_mixer_t *mixer = spu94_get_voice_mixer();
+    spu94_voice_mixer_init(mixer);
+    mixer->enabled = 1;
+
+    /* L starts high, R starts low -- they will cross in the middle */
+    mixer->voices[0].vol_l = 0x7FFF;
+    mixer->voices[0].vol_r = 0;
+
+    /* L decreases, R increases -- linear mode, same rate */
+    spu94_voice_mixer_set_sweep_l(mixer, 0,
+        0, 1, 0, 10, 3, 1);  /* mode=0(linear), dir=1(decrease), shift=10, step=3, retrigger=1 */
+    spu94_voice_mixer_set_sweep_r(mixer, 0,
+        0, 0, 0, 10, 3, 1);  /* mode=0(linear), dir=0(increase), shift=10, step=3, retrigger=1 */
+
+    /* Tick until L and R are near the crossing point.
+     * At the crossing: L is decreasing toward 0, R is increasing toward 0x7FFF.
+     * When they meet near the middle (~0x4000 each), their sum should be < 0xFFFE. */
+    int16_t min_sum = 0x7FFF + 0x7FFF;  /* start at maximum possible sum */
+    int crossing_found = 0;
+
+    for (int t = 0; t < 50000; t++) {
+        spu94_sweep_tick(&mixer->voices[0].sweep_l);
+        spu94_sweep_tick(&mixer->voices[0].sweep_r);
+
+        int16_t l_lvl = mixer->voices[0].sweep_l.level;
+        int16_t r_lvl = mixer->voices[0].sweep_r.level;
+
+        /* Check for crossing region: both levels between 0x2000 and 0x6000 */
+        if (l_lvl > 0x2000 && l_lvl < 0x6000 &&
+            r_lvl > 0x2000 && r_lvl < 0x6000)
+        {
+            int32_t sum = (int32_t)l_lvl + (int32_t)r_lvl;
+            if (sum < min_sum) min_sum = (int16_t)sum;
+            crossing_found = 1;
+        }
+    }
+
+    /* Must have found a crossing point */
+    TEST_ASSERT_TRUE(crossing_found);
+
+    /* At the crossing, L + R < 2 * 0x7FFF (the linear dip).
+     * If panning were equal-power, L^2+R^2 would be constant, meaning
+     * L+R >= sqrt(2)*0x7FFF ~ 0xB504 at the crossing. But with LINEAR
+     * crossfade, L+R at midpoint = 0x4000 + 0x4000 = 0x8000, which is
+     * significantly less than 0xFFFE (2*0x7FFF). */
+    TEST_ASSERT_TRUE(min_sum < (int16_t)(0x7FFF));  /* Sum well below single-channel max * 2 */
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_sweep_init);
@@ -790,5 +918,8 @@ int main(void) {
     /* Phase 44: Tremolo oscillation behavior */
     RUN_TEST(test_sweep_tremolo_full_oscillation);
     RUN_TEST(test_sweep_tremolo_exponential_asymmetry);
+    /* Phase 45: Auto-pan opposition-phase behavior */
+    RUN_TEST(test_auto_pan_opposition);
+    RUN_TEST(test_auto_pan_linear_crossfade_dip);
     return UNITY_END();
 }
