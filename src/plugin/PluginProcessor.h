@@ -103,6 +103,9 @@ public:
     std::atomic<float>& getDuckRelease(int voice) { return duckRelease[voice]; }
     std::atomic<float>& getDuckDepth(int voice) { return duckDepth[voice]; }
 
+    // Stereo widener control (Phase 47: static L/R volume offset for perceived width)
+    std::atomic<float>& getStereoWidth() { return stereoWidth; }
+
     // ADSR parameter accessors (standalone sampler voice)
     std::atomic<bool>&  getAdsrEnabled()     { return adsrEnabled; }
     std::atomic<float>& getAdsrAttack()      { return adsrAttack; }
@@ -460,6 +463,10 @@ private:
     std::atomic<float> duckDepth[24] = {
         {1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},
         {1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f}};
+
+    // Stereo widener (Phase 47: static L/R volume offset for perceived width)
+    // 0.0 = no width (L/R unchanged), 1.0 = max width (offset = kWidthMaxOffset)
+    std::atomic<float> stereoWidth{0.0f};
 
     // Audio-thread-only duck state (NOT atomic -- only touched in processBlock)
     enum DuckPhase { DUCK_IDLE = 0, DUCK_DECREASING, DUCK_RECOVERING };

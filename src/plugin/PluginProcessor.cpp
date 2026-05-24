@@ -1215,6 +1215,32 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             }
         }
 
+        // Stereo widener: static L/R divergence (WIDE-01, WIDE-02, WIDE-03)
+        // Applied AFTER all sweep-based effects (tremolo, auto-pan, duck) have
+        // written vol_l/vol_r. Width offsets the channels in opposite directions.
+        // Mono-safety: kWidthMaxOffset = 0x2000 guarantees < 3 dB mono loss.
+        {
+            float width = stereoWidth.load(std::memory_order_relaxed);
+            if (width > 0.0f)
+            {
+                // T-47-01: clamp width to 0.0-1.0 at point of use
+                if (width > 1.0f) width = 1.0f;
+                constexpr int16_t kWidthMaxOffset = 0x2000; // ~-2.5 dB mono loss at max
+                int16_t offset = static_cast<int16_t>(width * kWidthMaxOffset);
+                auto* mx = spu94_get_voice_mixer();
+                // T-47-02: int32 intermediate prevents overflow before clamp
+                int32_t new_l = static_cast<int32_t>(mx->voices[0].vol_l) + offset;
+                int32_t new_r = static_cast<int32_t>(mx->voices[0].vol_r) - offset;
+                // Clamp to PS1 volume register range (-0x4000..+0x3FFF)
+                if (new_l > 0x3FFF) new_l = 0x3FFF;
+                if (new_l < -0x4000) new_l = -0x4000;
+                if (new_r > 0x3FFF) new_r = 0x3FFF;
+                if (new_r < -0x4000) new_r = -0x4000;
+                mx->voices[0].vol_l = static_cast<int16_t>(new_l);
+                mx->voices[0].vol_r = static_cast<int16_t>(new_r);
+            }
+        }
+
         auto* outL = buffer.getWritePointer(0);
         auto* outR = (buffer.getNumChannels() > 1) ? buffer.getWritePointer(1) : nullptr;
         for (int i = 0; i < samplesToProcess; ++i)
