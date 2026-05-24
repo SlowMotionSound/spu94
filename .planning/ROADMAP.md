@@ -124,7 +124,7 @@ Plans:
   4. AM synthesis controls (rate/depth/curve) are visible and labeled in the sampler GUI
 **Plans**: 2 plans
 Plans:
-- [ ] 48-01-PLAN.md — Audio-rate Hz table, AM activation logic, depth scaling, mutual exclusion (AM-01..04)
+- [x] 48-01-PLAN.md — Audio-rate Hz table, AM activation logic, depth scaling, mutual exclusion (AM-01..04)
 - [ ] 48-02-PLAN.md — AM synthesis GUI controls in sampler window (AM-05)
 **UI hint**: yes
 
@@ -184,7 +184,7 @@ Plans:
 | 45. Auto-Pan | 0/2 | Planned | - |
 | 46. Sidechain Duck | 2/2 | Complete   | 2026-05-24 |
 | 47. Stereo Widener | 1/2 | In Progress|  |
-| 48. AM Synthesis | 0/2 | Planned | - |
+| 48. AM Synthesis | 1/2 | In Progress|  |
 | 49. Phase Modulator | 0/TBD | Not started | - |
 | 50. Internal Mod Bus | 0/TBD | Not started | - |
 | 51. GUI Integration | 0/TBD | Not started | - |
