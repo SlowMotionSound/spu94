@@ -148,6 +148,17 @@ private:
     juce::TextButton rampCurveButton{"Linear"};
     juce::TextButton rampArmButton{"ARM"};
 
+    // Tremolo controls (Phase 44: continuous VCA oscillation)
+    juce::Label tremoloSectionLabel;
+    juce::ToggleButton tremoloEnableToggle{"Enable"};
+    juce::Slider tremoloSpeedKnob;
+    juce::Label tremoloSpeedLabel;
+    juce::Slider tremoloDepthKnob;
+    juce::Label tremoloDepthLabel;
+    juce::TextButton tremoloCurveButton{"Linear"};
+    juce::Slider tremoloRatioKnob;
+    juce::Label tremoloRatioLabel;
+
     // Sampler mixer knobs (standalone-only)
     juce::Slider samplerLevelKnob;
     juce::Label samplerLevelLabel;

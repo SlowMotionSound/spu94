@@ -488,6 +488,93 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         };
         panel.addAndMakeVisible(rampArmButton);
 
+        // Tremolo section (Phase 44: continuous VCA oscillation via retrigger)
+        tremoloSectionLabel.setText("Tremolo", juce::dontSendNotification);
+        tremoloSectionLabel.setJustificationType(juce::Justification::centredLeft);
+        tremoloSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
+        tremoloSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
+        panel.addAndMakeVisible(tremoloSectionLabel);
+
+        tremoloEnableToggle.setColour(juce::ToggleButton::tickColourId, juce::Colour(0xFF3CBBB1));
+        tremoloEnableToggle.onStateChange = [this] {
+            bool enabled = tremoloEnableToggle.getToggleState();
+            processorRef.getTremoloEnabled().store(enabled, std::memory_order_relaxed);
+            tremoloSpeedKnob.setEnabled(enabled);
+            tremoloDepthKnob.setEnabled(enabled);
+            tremoloCurveButton.setEnabled(enabled);
+            tremoloRatioKnob.setEnabled(enabled);
+            // Mutual exclusion: disable VCA ramp ARM when tremolo is active
+            rampArmButton.setEnabled(!enabled);
+        };
+        panel.addAndMakeVisible(tremoloEnableToggle);
+
+        tremoloSpeedKnob.setSliderStyle(juce::Slider::Rotary);
+        tremoloSpeedKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        tremoloSpeedKnob.setRange(0.5, 19.0, 0.1);
+        tremoloSpeedKnob.setValue(5.0, juce::dontSendNotification);
+        tremoloSpeedKnob.setTextValueSuffix(" Hz");
+        tremoloSpeedKnob.setSkewFactorFromMidPoint(4.0);
+        tremoloSpeedKnob.setDoubleClickReturnValue(true, 5.0);
+        tremoloSpeedKnob.onValueChange = [this] {
+            processorRef.getTremoloSpeedHz().store(
+                static_cast<float>(tremoloSpeedKnob.getValue()), std::memory_order_relaxed);
+        };
+        tremoloSpeedKnob.setEnabled(false);
+        panel.addAndMakeVisible(tremoloSpeedKnob);
+
+        tremoloSpeedLabel.setText("Speed", juce::dontSendNotification);
+        tremoloSpeedLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(tremoloSpeedLabel);
+
+        tremoloDepthKnob.setSliderStyle(juce::Slider::Rotary);
+        tremoloDepthKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        tremoloDepthKnob.setRange(0.0, 100.0, 1.0);
+        tremoloDepthKnob.setValue(100.0, juce::dontSendNotification);
+        tremoloDepthKnob.setTextValueSuffix("%");
+        tremoloDepthKnob.setDoubleClickReturnValue(true, 100.0);
+        tremoloDepthKnob.onValueChange = [this] {
+            processorRef.getTremoloDepth().store(
+                static_cast<float>(tremoloDepthKnob.getValue() / 100.0), std::memory_order_relaxed);
+        };
+        tremoloDepthKnob.setEnabled(false);
+        panel.addAndMakeVisible(tremoloDepthKnob);
+
+        tremoloDepthLabel.setText("Depth", juce::dontSendNotification);
+        tremoloDepthLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(tremoloDepthLabel);
+
+        tremoloCurveButton.onClick = [this] {
+            bool isLinear = (tremoloCurveButton.getButtonText() == "Linear");
+            if (isLinear) {
+                tremoloCurveButton.setButtonText("Exponential");
+                processorRef.getTremoloCurve().store(1, std::memory_order_relaxed);
+            } else {
+                tremoloCurveButton.setButtonText("Linear");
+                processorRef.getTremoloCurve().store(0, std::memory_order_relaxed);
+            }
+        };
+        tremoloCurveButton.setEnabled(false);
+        panel.addAndMakeVisible(tremoloCurveButton);
+
+        tremoloRatioKnob.setSliderStyle(juce::Slider::Rotary);
+        tremoloRatioKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        tremoloRatioKnob.setRange(0.5, 4.0, 0.1);
+        tremoloRatioKnob.setValue(1.0, juce::dontSendNotification);
+        tremoloRatioKnob.setDoubleClickReturnValue(true, 1.0);
+        tremoloRatioKnob.textFromValueFunction = [](double value) {
+            return juce::String("1:") + juce::String(value, 1);
+        };
+        tremoloRatioKnob.onValueChange = [this] {
+            processorRef.getTremoloRatio().store(
+                static_cast<float>(tremoloRatioKnob.getValue()), std::memory_order_relaxed);
+        };
+        tremoloRatioKnob.setEnabled(false);
+        panel.addAndMakeVisible(tremoloRatioKnob);
+
+        tremoloRatioLabel.setText("L/R Ratio", juce::dontSendNotification);
+        tremoloRatioLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(tremoloRatioLabel);
+
         // Sampler mixer knobs -- own bus in the master mixer.
         samplerLevelKnob.setSliderStyle(juce::Slider::Rotary);
         samplerLevelKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
@@ -1164,6 +1251,18 @@ void SPU94AudioProcessorEditor::resized()
             rampSpeedLabel.setBounds(200, rampy, 80, 16);
             rampSpeedKnob.setBounds(200, rampy + 16, 80, 70);
             rampArmButton.setBounds(300, rampy + 20, 80, 36);
+
+            // Tremolo section — below VCA Ramp (Phase 44)
+            constexpr int tremy = rampy + 100;
+            tremoloSectionLabel.setBounds(20, tremy, 120, 16);
+            tremoloEnableToggle.setBounds(140, tremy, 80, 20);
+            tremoloSpeedLabel.setBounds(20, tremy + 20, 80, 16);
+            tremoloSpeedKnob.setBounds(20, tremy + 36, 80, 70);
+            tremoloDepthLabel.setBounds(110, tremy + 20, 80, 16);
+            tremoloDepthKnob.setBounds(110, tremy + 36, 80, 70);
+            tremoloCurveButton.setBounds(200, tremy + 40, 90, 28);
+            tremoloRatioLabel.setBounds(300, tremy + 20, 80, 16);
+            tremoloRatioKnob.setBounds(300, tremy + 36, 80, 70);
         }
     }
 
