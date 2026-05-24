@@ -23,10 +23,20 @@
 **Shipped:** v1.9 — Complete Voice (2026-05-24, tag `v1.9`). Every voice feature-complete to PS1 SPU spec: ADSR correction (ADR-0056), signed volume with phase inversion, PMON voice-to-voice pitch modulation (ADR-0057), global LFSR noise generator (ADR-0058), hardware-driven volume sweep with independent L/R (ADR-0059). Musician-facing controls: pan/level, NON/PMON toggles, Noise Color, VCA ramp. 10 phases, 16 plans, 37/37 requirements. 98 voice engine tests, 6 rt_safety gates.
 
 **Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`, `v1.5`, `v1.6`, `v1.7`, `v1.8`, `v1.9`.
+(Adopting semver `MAJOR.MINOR.PATCH` from v1.10.0 onward.)
 
-## Current State
+## Current Milestone: v1.10.0 Voice Dynamics & Stereo Effects
 
-v1.9 shipped. Every voice is now feature-complete to the PS1 SPU spec. Next milestone not yet started — candidate: Voice Dynamics & Stereo Effects (tremolo, auto-pan, sidechain duck, stereo widener, AM synthesis, phase modulator). Research captured in `.planning/research/MILESTONE-VOICE-DYNAMICS-STEREO.md`.
+**Goal:** Surface the raw VCA ramp architecture as a curated suite of musician-facing modulation, dynamics, and stereo effects — exploiting the PS1's unique independent L/R ramp state machines. Plus a per-voice internal mod bus for self-contained noise-driven sound design.
+
+**Target features:**
+- Tremolo — retriggered VCA ramp, both channels in sync, with L/R rate ratio for polyrhythmic variants
+- Auto-Pan — retriggered, L/R in opposition, with asymmetric rate option
+- Sidechain Duck — voice-to-voice KON-triggered volume drop
+- Stereo Widener — L/R divergence with mono-safety cap
+- AM Synthesis — audio-rate retrigger, metallic sidebands
+- Phase Modulator — polarity oscillation, experimental
+- Internal Mod Bus — route noise to pitch/volume/pan per voice
 
 ## What This Is
 

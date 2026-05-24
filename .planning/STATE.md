@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: none
-milestone_name: Between milestones
-status: idle
-stopped_at: v1.9 archived, next milestone not started
-last_updated: 2026-05-24T15:55:00.000Z
-last_activity: 2026-05-24 -- v1.9 Complete Voice archived and closed
+milestone: v1.10.0
+milestone_name: Voice Dynamics & Stereo Effects
+status: planning
+stopped_at: Defining requirements
+last_updated: 2026-05-24T16:15:00.000Z
+last_activity: 2026-05-24 -- Milestone v1.10.0 started
 progress:
   total_phases: 0
   completed_phases: 0
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-24)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Between milestones — next candidate: Voice Dynamics & Stereo Effects
+**Current focus:** v1.10.0 Voice Dynamics & Stereo Effects — defining requirements
 
 ## Current Position
 
-Phase: None (between milestones)
-Plan: None
-Status: Idle — v1.9 archived
-Last activity: 2026-05-24
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-24 — Milestone v1.10.0 started
 
 Progress: N/A
 
