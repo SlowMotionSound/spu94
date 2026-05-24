@@ -678,6 +678,88 @@ void test_sweep_retrigger_polyrhythmic_divergence(void) {
     TEST_ASSERT_TRUE(sw_l.level != sw_r.level);
 }
 
+/* Phase 44: Tremolo oscillation behavior */
+
+/* Verify that retrigger mode produces full-range oscillation (0 to 0x7FFF)
+ * suitable for tremolo. A sweep starting at 0x7FFF in decrease mode with
+ * retrigger_enable=1 should visit both boundaries over 200000 ticks. */
+static void test_sweep_tremolo_full_oscillation(void)
+{
+    spu94_sweep_t sw;
+    spu94_sweep_init(&sw);
+    sw.mode = 0;            /* linear */
+    sw.direction = 1;       /* start decreasing */
+    sw.phase = 0;           /* positive */
+    sw.shift = 4;           /* fast rate for test (shift=4: ~350 Hz) */
+    sw.step = 3;            /* step magnitude = 4 */
+    sw.retrigger_enable = 1;
+    sw.level = 0x7FFF;      /* start at maximum */
+    sw.active = 1;
+
+    int16_t min_seen = 0x7FFF;
+    int16_t max_seen = 0;
+
+    for (int t = 0; t < 200000; t++) {
+        spu94_sweep_tick(&sw);
+        if (sw.level < min_seen) min_seen = sw.level;
+        if (sw.level > max_seen) max_seen = sw.level;
+    }
+
+    /* Must have visited both boundaries: full-range oscillation */
+    TEST_ASSERT_EQUAL_INT16(0, min_seen);
+    TEST_ASSERT_EQUAL_INT16(0x7FFF, max_seen);
+}
+
+/* Verify that exponential mode produces asymmetric half-cycles.
+ * Exponential DECREASE is slower than increase because the step magnitude
+ * scales with current level (step = step * level / 0x8000): as level drops,
+ * steps shrink to near-zero, producing a slow fade-out tail. The increase
+ * half-cycle is linear-fast (only a minor knee slowdown above 0x6000).
+ * Result: slow fade-out, snappy attack -- the classic PS1 exponential feel
+ * that gives tremolo its distinctive "breathe out slowly, snap back" character. */
+static void test_sweep_tremolo_exponential_asymmetry(void)
+{
+    spu94_sweep_t sw;
+    spu94_sweep_init(&sw);
+    sw.mode = 1;            /* exponential */
+    sw.direction = 1;       /* start decreasing */
+    sw.phase = 0;
+    sw.shift = 4;
+    sw.step = 3;
+    sw.retrigger_enable = 1;
+    sw.level = 0x7FFF;      /* start at maximum */
+    sw.active = 1;
+
+    /* Run until first direction flip (end of decrease half-cycle) */
+    int decrease_ticks = 0;
+    uint8_t initial_dir = sw.direction; /* 1 = decrease */
+    for (int t = 0; t < 500000; t++) {
+        spu94_sweep_tick(&sw);
+        decrease_ticks++;
+        if (sw.direction != initial_dir) break; /* direction flipped */
+    }
+
+    /* Now run until next direction flip (end of increase half-cycle) */
+    int increase_ticks = 0;
+    uint8_t second_dir = sw.direction; /* 0 = increase */
+    for (int t = 0; t < 500000; t++) {
+        spu94_sweep_tick(&sw);
+        increase_ticks++;
+        if (sw.direction != second_dir) break; /* direction flipped again */
+    }
+
+    /* Exponential decrease is SLOWER (more ticks) than the increase half-cycle.
+     * This proves the asymmetry: fade-out is gradual, snap-back is fast. */
+    TEST_ASSERT_TRUE(decrease_ticks > increase_ticks);
+
+    /* Sanity: verify both half-cycles completed (neither hit the loop guard) */
+    TEST_ASSERT_TRUE(decrease_ticks < 500000);
+    TEST_ASSERT_TRUE(increase_ticks < 500000);
+
+    /* The asymmetry should be significant (not just 1 tick difference) */
+    TEST_ASSERT_TRUE(decrease_ticks > increase_ticks * 2);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_sweep_init);
@@ -705,5 +787,8 @@ int main(void) {
     RUN_TEST(test_sweep_retrigger_kon_fresh_start);
     RUN_TEST(test_sweep_retrigger_mixer_api);
     RUN_TEST(test_sweep_retrigger_polyrhythmic_divergence);
+    /* Phase 44: Tremolo oscillation behavior */
+    RUN_TEST(test_sweep_tremolo_full_oscillation);
+    RUN_TEST(test_sweep_tremolo_exponential_asymmetry);
     return UNITY_END();
 }
