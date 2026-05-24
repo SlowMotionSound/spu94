@@ -77,8 +77,9 @@ Plans:
   5. Auto-pan controls are visible and labeled in the sampler GUI alongside tremolo
 **Plans**: 2 plans
 Plans:
-- [ ] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
-- [ ] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
+- [ ] 45-01-PLAN.md — Opposition-phase L/R sweep activation, depth scaling, mutual exclusion (PAN-01..05)
+- [ ] 45-02-PLAN.md — Auto-pan GUI controls in sampler window (PAN-06)
+
 **UI hint**: yes
 
 ### Phase 46: Sidechain Duck
@@ -180,7 +181,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 43. Retrigger Engine | 2/2 | Complete | 2026-05-24 |
 | 44. Tremolo | 0/2 | Planned | - |
-| 45. Auto-Pan | 0/TBD | Not started | - |
+| 45. Auto-Pan | 0/2 | Planned | - |
 | 46. Sidechain Duck | 0/TBD | Not started | - |
 | 47. Stereo Widener | 0/TBD | Not started | - |
 | 48. AM Synthesis | 0/TBD | Not started | - |
