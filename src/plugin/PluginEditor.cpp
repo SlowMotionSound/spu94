@@ -503,8 +503,12 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             tremoloDepthKnob.setEnabled(enabled);
             tremoloCurveButton.setEnabled(enabled);
             tremoloRatioKnob.setEnabled(enabled);
-            // Mutual exclusion: disable VCA ramp ARM when tremolo is active
-            rampArmButton.setEnabled(!enabled);
+            // Mutual exclusion: disable VCA ramp ARM and auto-pan toggle when tremolo is active
+            autoPanEnableToggle.setEnabled(!enabled);
+            if (enabled)
+                rampArmButton.setEnabled(false);
+            else if (!autoPanEnableToggle.getToggleState())
+                rampArmButton.setEnabled(true);
         };
         panel.addAndMakeVisible(tremoloEnableToggle);
 
@@ -574,6 +578,83 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         tremoloRatioLabel.setText("L/R Ratio", juce::dontSendNotification);
         tremoloRatioLabel.setJustificationType(juce::Justification::centred);
         panel.addAndMakeVisible(tremoloRatioLabel);
+
+        // Auto-Pan section (Phase 45: opposition-phase stereo movement via retrigger)
+        autoPanSectionLabel.setText("Auto-Pan", juce::dontSendNotification);
+        autoPanSectionLabel.setJustificationType(juce::Justification::centredLeft);
+        autoPanSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
+        autoPanSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
+        panel.addAndMakeVisible(autoPanSectionLabel);
+
+        autoPanEnableToggle.setColour(juce::ToggleButton::tickColourId, juce::Colour(0xFF3CBBB1));
+        autoPanEnableToggle.onStateChange = [this] {
+            bool enabled = autoPanEnableToggle.getToggleState();
+            processorRef.getAutoPanEnabled().store(enabled, std::memory_order_relaxed);
+            autoPanSpeedKnob.setEnabled(enabled);
+            autoPanDepthKnob.setEnabled(enabled);
+            autoPanRatioKnob.setEnabled(enabled);
+            // Mutual exclusion: disable tremolo toggle and VCA ramp ARM when auto-pan is active
+            tremoloEnableToggle.setEnabled(!enabled);
+            if (enabled)
+                rampArmButton.setEnabled(false);
+            else if (!tremoloEnableToggle.getToggleState())
+                rampArmButton.setEnabled(true);
+        };
+        panel.addAndMakeVisible(autoPanEnableToggle);
+
+        autoPanSpeedKnob.setSliderStyle(juce::Slider::Rotary);
+        autoPanSpeedKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        autoPanSpeedKnob.setRange(0.5, 19.0, 0.1);
+        autoPanSpeedKnob.setValue(2.0, juce::dontSendNotification);
+        autoPanSpeedKnob.setTextValueSuffix(" Hz");
+        autoPanSpeedKnob.setSkewFactorFromMidPoint(4.0);
+        autoPanSpeedKnob.setDoubleClickReturnValue(true, 2.0);
+        autoPanSpeedKnob.onValueChange = [this] {
+            processorRef.getAutoPanSpeedHz().store(
+                static_cast<float>(autoPanSpeedKnob.getValue()), std::memory_order_relaxed);
+        };
+        autoPanSpeedKnob.setEnabled(false);
+        panel.addAndMakeVisible(autoPanSpeedKnob);
+
+        autoPanSpeedLabel.setText("Speed", juce::dontSendNotification);
+        autoPanSpeedLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(autoPanSpeedLabel);
+
+        autoPanDepthKnob.setSliderStyle(juce::Slider::Rotary);
+        autoPanDepthKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        autoPanDepthKnob.setRange(0.0, 100.0, 1.0);
+        autoPanDepthKnob.setValue(100.0, juce::dontSendNotification);
+        autoPanDepthKnob.setTextValueSuffix("%");
+        autoPanDepthKnob.setDoubleClickReturnValue(true, 100.0);
+        autoPanDepthKnob.onValueChange = [this] {
+            processorRef.getAutoPanDepth().store(
+                static_cast<float>(autoPanDepthKnob.getValue() / 100.0), std::memory_order_relaxed);
+        };
+        autoPanDepthKnob.setEnabled(false);
+        panel.addAndMakeVisible(autoPanDepthKnob);
+
+        autoPanDepthLabel.setText("Depth", juce::dontSendNotification);
+        autoPanDepthLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(autoPanDepthLabel);
+
+        autoPanRatioKnob.setSliderStyle(juce::Slider::Rotary);
+        autoPanRatioKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        autoPanRatioKnob.setRange(0.5, 4.0, 0.1);
+        autoPanRatioKnob.setValue(1.0, juce::dontSendNotification);
+        autoPanRatioKnob.setDoubleClickReturnValue(true, 1.0);
+        autoPanRatioKnob.textFromValueFunction = [](double value) {
+            return juce::String("1:") + juce::String(value, 1);
+        };
+        autoPanRatioKnob.onValueChange = [this] {
+            processorRef.getAutoPanRatio().store(
+                static_cast<float>(autoPanRatioKnob.getValue()), std::memory_order_relaxed);
+        };
+        autoPanRatioKnob.setEnabled(false);
+        panel.addAndMakeVisible(autoPanRatioKnob);
+
+        autoPanRatioLabel.setText("L/R Ratio", juce::dontSendNotification);
+        autoPanRatioLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(autoPanRatioLabel);
 
         // Sampler mixer knobs -- own bus in the master mixer.
         samplerLevelKnob.setSliderStyle(juce::Slider::Rotary);
@@ -1263,6 +1344,17 @@ void SPU94AudioProcessorEditor::resized()
             tremoloCurveButton.setBounds(200, tremy + 40, 90, 28);
             tremoloRatioLabel.setBounds(300, tremy + 20, 80, 16);
             tremoloRatioKnob.setBounds(300, tremy + 36, 80, 70);
+
+            // Auto-Pan section — below Tremolo (Phase 45)
+            constexpr int pany = tremy + 110;
+            autoPanSectionLabel.setBounds(20, pany, 120, 16);
+            autoPanEnableToggle.setBounds(140, pany, 80, 20);
+            autoPanSpeedLabel.setBounds(20, pany + 20, 80, 16);
+            autoPanSpeedKnob.setBounds(20, pany + 36, 80, 70);
+            autoPanDepthLabel.setBounds(110, pany + 20, 80, 16);
+            autoPanDepthKnob.setBounds(110, pany + 36, 80, 70);
+            autoPanRatioLabel.setBounds(200, pany + 20, 80, 16);
+            autoPanRatioKnob.setBounds(200, pany + 36, 80, 70);
         }
     }
 

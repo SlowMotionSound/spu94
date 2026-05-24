@@ -159,6 +159,16 @@ private:
     juce::Slider tremoloRatioKnob;
     juce::Label tremoloRatioLabel;
 
+    // Auto-Pan controls (Phase 45: opposition-phase stereo movement)
+    juce::Label autoPanSectionLabel;
+    juce::ToggleButton autoPanEnableToggle{"Enable"};
+    juce::Slider autoPanSpeedKnob;
+    juce::Label autoPanSpeedLabel;
+    juce::Slider autoPanDepthKnob;
+    juce::Label autoPanDepthLabel;
+    juce::Slider autoPanRatioKnob;
+    juce::Label autoPanRatioLabel;
+
     // Sampler mixer knobs (standalone-only)
     juce::Slider samplerLevelKnob;
     juce::Label samplerLevelLabel;
