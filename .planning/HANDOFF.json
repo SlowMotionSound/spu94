@@ -1,41 +1,37 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-23T02:15:10Z",
-  "phase": "37",
-  "phase_name": "volume-sweep",
-  "phase_dir": ".planning/phases/37-volume-sweep",
-  "plan": 3,
-  "task": 1,
-  "total_tasks": 1,
+  "timestamp": "2026-05-24T01:55:15Z",
+  "phase": "42",
+  "phase_name": "voice-gui-integration",
+  "phase_dir": ".planning/phases/42-voice-gui-integration",
+  "plan": 1,
+  "task": 2,
+  "total_tasks": 2,
   "status": "complete",
   "completed_tasks": [
-    {"id": "phase-33", "name": "ADSR Correction — sustain-decrease and release formulas fixed (base 7 to base 8)", "status": "done", "commit": "7ed7bb9"},
-    {"id": "phase-34-01", "name": "Signed Volume C core — outx field, signed vol range, phase inversion tests", "status": "done", "commit": "2528d2c"},
-    {"id": "phase-34-02", "name": "Signed Volume GUI — Volume L/R knobs with teal INV indicator", "status": "done", "commit": "65b4686"},
-    {"id": "phase-35-01", "name": "PMON formula — pmon_flags bitmask, pitch modulation in mixer tick, 6 TDD tests", "status": "done", "commit": "5e5e16c"},
-    {"id": "phase-35-02", "name": "ADR-0057 + integration test proving ADSR shapes FM depth", "status": "done", "commit": "b39548e"},
-    {"id": "phase-36-01", "name": "Noise generator LFSR and NON voice branch", "status": "done", "commit": "b5143c3"},
-    {"id": "phase-36-02", "name": "ADR-0058 for noise generator LFSR, seed, and ADPCM-during-NON", "status": "done", "commit": "a4782cc"},
-    {"id": "phase-37-01", "name": "Extract shared envelope step helper from ADSR", "status": "done", "commit": "ad57375"},
-    {"id": "phase-37-02", "name": "Volume sweep module + voice pipeline integration (12 tests)", "status": "done", "commit": "c248910"},
-    {"id": "phase-37-03", "name": "ADR-0059 for negative-phase sweep uncertainty", "status": "done", "commit": "193d45b"}
+    {"id": "phase-33", "name": "ADSR Correction", "status": "done"},
+    {"id": "phase-34", "name": "Signed Volume + phase inversion", "status": "done"},
+    {"id": "phase-35", "name": "Pitch Modulation (PMON)", "status": "done"},
+    {"id": "phase-36", "name": "Noise Generator (NON)", "status": "done"},
+    {"id": "phase-37", "name": "Volume Sweep (VCA ramp)", "status": "done"},
+    {"id": "phase-38", "name": "Integration & Cross-Feature Verification", "status": "done"},
+    {"id": "phase-39", "name": "Pan & Level Controls", "status": "done"},
+    {"id": "phase-40", "name": "Voice Feature Toggles (NON/PMON + Noise Color)", "status": "done"},
+    {"id": "phase-41", "name": "VCA Ramp Controls (Direction/Speed/Curve/ARM)", "status": "done"},
+    {"id": "phase-42", "name": "Voice GUI Integration (final verification)", "status": "done"}
   ],
-  "remaining_tasks": [
-    {"id": "phase-38", "name": "Integration & Cross-Feature Verification — final v1.9 phase (4 requirements)", "status": "not_started"}
-  ],
+  "remaining_tasks": [],
   "blockers": [],
-  "human_actions_pending": [
-    {"action": "Visual verification of Phase 34 GUI (Volume L/R knobs, teal INV indicator)", "context": "Deferred to end of milestone per user request — not blocking further phases", "blocking": false}
-  ],
+  "human_actions_pending": [],
   "decisions": [
-    {"decision": "Defer all GUI visual checks to end of milestone", "rationale": "C core dependencies are satisfied; GUI checkpoints are independent presentation work", "phase": "34"},
-    {"decision": "Auto-approve GUI checkpoints, keep automated verification", "rationale": "User wants to batch visual testing at milestone end", "phase": "milestone"},
-    {"decision": "PMON Factor 0x8000 is unity (not half)", "rationale": "Executor corrected plan test expectations to match actual PS1 spec math", "phase": "35"},
-    {"decision": "Swap expanded from 4GB to 16GB", "rationale": "OOM killer was terminating Claude Code sessions; 16GB swap prevents this", "phase": "system"},
-    {"decision": "Envelope state level is int32_t not int16_t", "rationale": "Unclamped intermediates overflow int16_t during attack (e.g. 43008); callers clamp after reading back", "phase": "37"},
-    {"decision": "Phase bit ignored in exponential decrease mode", "rationale": "DuckStation interpretation; nocash says 'seems to have no effect'; documented in ADR-0059 as LOW confidence", "phase": "37"}
+    {"decision": "Call volume sweep 'VCA ramp' in user-facing contexts", "rationale": "Sweep is Sony register jargon, meaningless to musicians", "phase": "research"},
+    {"decision": "Label exponential curve as 'Exponential' not 'Natural'", "rationale": "Anthony wants accurate terminology", "phase": "41"},
+    {"decision": "Raw unfiltered noise only — no Gauss filter option", "rationale": "Noise-through-Gauss experiment showed darkening but nothing a filter couldn't do; keep PS1-faithful", "phase": "40"},
+    {"decision": "Noise Color knob (0-15) controls LFSR shift rate in real time", "rationale": "Global SPUCNT parameter exposed as a per-session control", "phase": "40"},
+    {"decision": "Pan/Level fader are static controls; VCA ramp is modulation layer — don't tie fader to ramp", "rationale": "Ramp will eventually loop (tremolo/auto-pan), a fader chasing it would be jittery", "phase": "41"},
+    {"decision": "Voice Dynamics & Stereo Effects is a separate future milestone", "rationale": "Tremolo, auto-pan, sidechain duck, stereo widener, AM synthesis, phase modulator deferred", "phase": "research"}
   ],
   "uncommitted_files": [],
-  "next_action": "Plan and execute Phase 38 (Integration & Cross-Feature Verification) -- the final v1.9 phase",
-  "context_notes": "Phase 37 fully complete. All 3 plans executed across 2 waves. Zombie packaging test processes from prior session were eating ~5GB RAM and likely caused the earlier OOM crash -- killed them. Two pre-existing CLI test failures (init preset in list) are unrelated to this work. v1.9 is at 83% -- one phase remaining."
+  "next_action": "v1.9 tagged and complete. Next milestone: Voice Dynamics & Stereo Effects (/gsd:new-milestone)",
+  "context_notes": "v1.9 Complete Voice shipped. 10 phases, 12 plans, 98 tests, 6 rt_safety gates. Research for next milestone already captured in .planning/research/MILESTONE-VOICE-DYNAMICS-STEREO.md with 7 effects ordered by confidence (fade, tremolo, auto-pan, sidechain duck, stereo widener, AM synthesis, phase modulator)."
 }
