@@ -33,6 +33,7 @@ typedef struct {
     uint8_t  phase;       /* 0 = positive, 1 = negative (inverts step sign) */
     uint8_t  active;      /* 0 = inactive, 1 = sweeping */
     uint8_t  retrigger_enable; /* 0 = one-shot (v1.9), 1 = auto-reverse at limits */
+    uint8_t  start_direction;  /* initial direction stored at configure time for KON reset */
 } spu94_sweep_t;
 
 /* Initialize sweep to defaults: active=0, level=0, counter=0. */

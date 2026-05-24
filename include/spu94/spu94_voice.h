@@ -186,17 +186,19 @@ spu94_result_t spu94_voice_mixer_set_noise_freq(spu94_voice_mixer_t *m,
 
 /* Configure left volume sweep for a voice. Sets sweep_l parameters and
  * initializes sweep_l.level to the voice's current vol_l. Sets active=1.
+ * retrigger_enable: 0=one-shot (v1.9), 1=auto-reverse at limits (RTR-02).
  * Returns SPU94_INVALID_ARG if voice_idx out of range. */
 spu94_result_t spu94_voice_mixer_set_sweep_l(spu94_voice_mixer_t *m, int voice_idx,
     uint8_t mode, uint8_t direction, uint8_t phase,
-    uint8_t shift, uint8_t step);
+    uint8_t shift, uint8_t step, uint8_t retrigger_enable);
 
 /* Configure right volume sweep for a voice. Sets sweep_r parameters and
  * initializes sweep_r.level to the voice's current vol_r. Sets active=1.
+ * retrigger_enable: 0=one-shot (v1.9), 1=auto-reverse at limits (RTR-02).
  * Returns SPU94_INVALID_ARG if voice_idx out of range. */
 spu94_result_t spu94_voice_mixer_set_sweep_r(spu94_voice_mixer_t *m, int voice_idx,
     uint8_t mode, uint8_t direction, uint8_t phase,
-    uint8_t shift, uint8_t step);
+    uint8_t shift, uint8_t step, uint8_t retrigger_enable);
 
 /* Update the pitch register of a playing voice without re-triggering.
  * Takes effect on the next tick. Clamped to 0x3FFF.

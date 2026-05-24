@@ -672,11 +672,11 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
                 static_cast<uint8_t>(curve),
                 static_cast<uint8_t>(dir),
-                0, ss.shift, ss.step);
+                0, ss.shift, ss.step, 0);  /* retrigger_enable=0: v1.9 one-shot */
             spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
                 static_cast<uint8_t>(curve),
                 static_cast<uint8_t>(dir),
-                0, ss.shift, ss.step);
+                0, ss.shift, ss.step, 0);  /* retrigger_enable=0: v1.9 one-shot */
         }
 
         // Update all marker positions on voice 0 in real time

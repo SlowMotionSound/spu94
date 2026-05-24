@@ -495,13 +495,14 @@ void test_sweep_retrigger_audio_rate(void) {
  * --------------------------------------------------------------- */
 
 void test_sweep_retrigger_independent_lr_rates(void) {
-    /* Configure L with retrigger_enable=1, shift=11, step=0 (faster)
-     * Configure R with retrigger_enable=1, shift=13, step=0 (slower)
+    /* Configure L with retrigger_enable=1, shift=2, step=0 (faster)
+     * Configure R with retrigger_enable=1, shift=4, step=0 (slower)
      * Both start from level=0, direction=increase, phase=0.
-     * L (faster rate) must have MORE direction reversals than R after 500 ticks. */
+     * L (faster rate, lower shift) must have MORE direction reversals than R
+     * after 500 ticks. Lower shift = larger step per tick = faster oscillation. */
     spu94_sweep_t sw_l;
     spu94_sweep_init(&sw_l);
-    sw_l.shift = 11;
+    sw_l.shift = 2;
     sw_l.step = 0;
     sw_l.mode = 0;       /* linear */
     sw_l.direction = 0;  /* increase */
@@ -512,7 +513,7 @@ void test_sweep_retrigger_independent_lr_rates(void) {
 
     spu94_sweep_t sw_r;
     spu94_sweep_init(&sw_r);
-    sw_r.shift = 13;
+    sw_r.shift = 4;
     sw_r.step = 0;
     sw_r.mode = 0;       /* linear */
     sw_r.direction = 0;  /* increase */
@@ -538,7 +539,7 @@ void test_sweep_retrigger_independent_lr_rates(void) {
         }
     }
 
-    /* L (shift=11, faster) must have MORE reversals than R (shift=13, slower) */
+    /* L (shift=2, faster) must have MORE reversals than R (shift=4, slower) */
     TEST_ASSERT_TRUE(reversals_l > reversals_r);
     /* Both must have at least 1 reversal */
     TEST_ASSERT_TRUE(reversals_l >= 1);

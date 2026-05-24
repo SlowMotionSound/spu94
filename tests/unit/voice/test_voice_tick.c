@@ -2100,7 +2100,7 @@ void test_int01_processing_order_sweep_before_decode(void) {
     spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
 
     /* Now configure sweep on the live voice (linear increase, shift=0, step=0 = max rate) */
-    spu94_voice_mixer_set_sweep_l(&s_test_mixer, 0, 0, 0, 0, 0, 0);
+    spu94_voice_mixer_set_sweep_l(&s_test_mixer, 0, 0, 0, 0, 0, 0, 0);
 
     /* Run a few ticks to let sweep advance vol_l above 0x100 */
     for (int i = 0; i < 5; i++) {

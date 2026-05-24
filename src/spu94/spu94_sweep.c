@@ -89,6 +89,7 @@ void spu94_sweep_configure(spu94_sweep_t *sw,
     if (sw == NULL) return;
     sw->mode = mode;
     sw->direction = direction;
+    sw->start_direction = direction;  /* RTR-05: record starting direction for KON reset */
     sw->phase = phase;
     sw->shift = shift;
     sw->step = step;
