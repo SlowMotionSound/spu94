@@ -503,11 +503,12 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             tremoloDepthKnob.setEnabled(enabled);
             tremoloCurveButton.setEnabled(enabled);
             tremoloRatioKnob.setEnabled(enabled);
-            // Mutual exclusion: disable VCA ramp ARM and auto-pan toggle when tremolo is active
+            // Mutual exclusion: disable VCA ramp ARM, auto-pan, and duck when tremolo is active
             autoPanEnableToggle.setEnabled(!enabled);
+            duckSourceBox.setEnabled(!enabled);
             if (enabled)
                 rampArmButton.setEnabled(false);
-            else if (!autoPanEnableToggle.getToggleState())
+            else if (!autoPanEnableToggle.getToggleState() && duckSourceBox.getSelectedId() == 1)
                 rampArmButton.setEnabled(true);
         };
         panel.addAndMakeVisible(tremoloEnableToggle);
@@ -593,11 +594,12 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             autoPanSpeedKnob.setEnabled(enabled);
             autoPanDepthKnob.setEnabled(enabled);
             autoPanRatioKnob.setEnabled(enabled);
-            // Mutual exclusion: disable tremolo toggle and VCA ramp ARM when auto-pan is active
+            // Mutual exclusion: disable tremolo toggle, duck, and VCA ramp ARM when auto-pan is active
             tremoloEnableToggle.setEnabled(!enabled);
+            duckSourceBox.setEnabled(!enabled);
             if (enabled)
                 rampArmButton.setEnabled(false);
-            else if (!tremoloEnableToggle.getToggleState())
+            else if (!tremoloEnableToggle.getToggleState() && duckSourceBox.getSelectedId() == 1)
                 rampArmButton.setEnabled(true);
         };
         panel.addAndMakeVisible(autoPanEnableToggle);
@@ -655,6 +657,72 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         autoPanRatioLabel.setText("L/R Ratio", juce::dontSendNotification);
         autoPanRatioLabel.setJustificationType(juce::Justification::centred);
         panel.addAndMakeVisible(autoPanRatioLabel);
+
+        // Sidechain Duck section (Phase 46: event-triggered VCA duck via KON detection)
+        duckSectionLabel.setText("Sidechain Duck", juce::dontSendNotification);
+        duckSectionLabel.setJustificationType(juce::Justification::centredLeft);
+        duckSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
+        duckSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
+        panel.addAndMakeVisible(duckSectionLabel);
+
+        duckSourceBox.addItem("None", 1);
+        for (int i = 0; i < 24; ++i)
+            duckSourceBox.addItem("Voice " + juce::String(i), i + 2);
+        duckSourceBox.setSelectedId(1, juce::dontSendNotification);
+        duckSourceBox.onChange = [this] {
+            int sel = duckSourceBox.getSelectedId();
+            // Clamp to valid range (T-46-04 threat mitigation)
+            if (sel < 1) sel = 1;
+            if (sel > 25) sel = 25;
+            int source = sel - 2; // -1 = None, 0-23 = voice index
+            processorRef.getDuckSource(0).store(source, std::memory_order_relaxed);
+            // Mutual exclusion: duck active disables tremolo/auto-pan toggles
+            bool duckActive = (source >= 0);
+            tremoloEnableToggle.setEnabled(!duckActive);
+            autoPanEnableToggle.setEnabled(!duckActive);
+            if (duckActive)
+                rampArmButton.setEnabled(false);
+            else if (!tremoloEnableToggle.getToggleState() && !autoPanEnableToggle.getToggleState())
+                rampArmButton.setEnabled(true);
+        };
+        panel.addAndMakeVisible(duckSourceBox);
+
+        duckSourceLabel.setText("Source", juce::dontSendNotification);
+        duckSourceLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(duckSourceLabel);
+
+        duckReleaseKnob.setSliderStyle(juce::Slider::Rotary);
+        duckReleaseKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        duckReleaseKnob.setRange(0.03, 6.8, 0.01);
+        duckReleaseKnob.setValue(0.4, juce::dontSendNotification);
+        duckReleaseKnob.setTextValueSuffix(" s");
+        duckReleaseKnob.setSkewFactorFromMidPoint(1.0);
+        duckReleaseKnob.setDoubleClickReturnValue(true, 0.4);
+        duckReleaseKnob.onValueChange = [this] {
+            processorRef.getDuckRelease(0).store(
+                static_cast<float>(duckReleaseKnob.getValue()), std::memory_order_relaxed);
+        };
+        panel.addAndMakeVisible(duckReleaseKnob);
+
+        duckReleaseLabel.setText("Release", juce::dontSendNotification);
+        duckReleaseLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(duckReleaseLabel);
+
+        duckDepthKnob.setSliderStyle(juce::Slider::Rotary);
+        duckDepthKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        duckDepthKnob.setRange(0.0, 100.0, 1.0);
+        duckDepthKnob.setValue(100.0, juce::dontSendNotification);
+        duckDepthKnob.setTextValueSuffix("%");
+        duckDepthKnob.setDoubleClickReturnValue(true, 100.0);
+        duckDepthKnob.onValueChange = [this] {
+            processorRef.getDuckDepth(0).store(
+                static_cast<float>(duckDepthKnob.getValue() / 100.0), std::memory_order_relaxed);
+        };
+        panel.addAndMakeVisible(duckDepthKnob);
+
+        duckDepthLabel.setText("Depth", juce::dontSendNotification);
+        duckDepthLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(duckDepthLabel);
 
         // Sampler mixer knobs -- own bus in the master mixer.
         samplerLevelKnob.setSliderStyle(juce::Slider::Rotary);
@@ -1132,6 +1200,23 @@ void SPU94AudioProcessorEditor::timerCallback()
         }
     }
 
+    // Phase 46: Sync duck controls from processor state (voice 0).
+    {
+        int src = processorRef.getDuckSource(0).load(std::memory_order_relaxed);
+        int expectedId = src + 2; // -1 -> 1 (None), 0 -> 2 (Voice 0), etc.
+        if (duckSourceBox.getSelectedId() != expectedId)
+            duckSourceBox.setSelectedId(expectedId, juce::dontSendNotification);
+
+        float rel = processorRef.getDuckRelease(0).load(std::memory_order_relaxed);
+        if (std::abs(static_cast<float>(duckReleaseKnob.getValue()) - rel) > 0.005f)
+            duckReleaseKnob.setValue(static_cast<double>(rel), juce::dontSendNotification);
+
+        float dep = processorRef.getDuckDepth(0).load(std::memory_order_relaxed);
+        float depPct = dep * 100.0f;
+        if (std::abs(static_cast<float>(duckDepthKnob.getValue()) - depPct) > 0.5f)
+            duckDepthKnob.setValue(static_cast<double>(depPct), juce::dontSendNotification);
+    }
+
 }
 
 void SPU94AudioProcessorEditor::refreshAdsrDisplay()
@@ -1355,6 +1440,16 @@ void SPU94AudioProcessorEditor::resized()
             autoPanDepthKnob.setBounds(110, pany + 36, 80, 70);
             autoPanRatioLabel.setBounds(200, pany + 20, 80, 16);
             autoPanRatioKnob.setBounds(200, pany + 36, 80, 70);
+
+            // Sidechain Duck section — below Auto-Pan (Phase 46)
+            constexpr int ducky = pany + 110;
+            duckSectionLabel.setBounds(20, ducky, 120, 16);
+            duckSourceLabel.setBounds(20, ducky + 20, 80, 16);
+            duckSourceBox.setBounds(20, ducky + 36, 120, 24);
+            duckReleaseLabel.setBounds(160, ducky + 20, 80, 16);
+            duckReleaseKnob.setBounds(160, ducky + 36, 80, 70);
+            duckDepthLabel.setBounds(260, ducky + 20, 80, 16);
+            duckDepthKnob.setBounds(260, ducky + 36, 80, 70);
         }
     }
 

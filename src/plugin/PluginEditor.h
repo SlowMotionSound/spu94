@@ -169,6 +169,15 @@ private:
     juce::Slider autoPanRatioKnob;
     juce::Label autoPanRatioLabel;
 
+    // Sidechain Duck controls (Phase 46: event-triggered VCA duck via KON detection)
+    juce::Label duckSectionLabel;
+    juce::ComboBox duckSourceBox;
+    juce::Label duckSourceLabel;
+    juce::Slider duckReleaseKnob;
+    juce::Label duckReleaseLabel;
+    juce::Slider duckDepthKnob;
+    juce::Label duckDepthLabel;
+
     // Sampler mixer knobs (standalone-only)
     juce::Slider samplerLevelKnob;
     juce::Label samplerLevelLabel;
