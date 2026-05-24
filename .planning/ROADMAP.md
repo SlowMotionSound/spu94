@@ -1,11 +1,11 @@
 # Roadmap: SPU-94
 
-**Updated:** 2026-05-23
+**Updated:** 2026-05-24
 **Core Value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
 
 ## Milestones
 
-- 🚧 **v1.9 Complete Voice** -- Phases 33-42 (in progress)
+- ✅ **v1.9 Complete Voice** -- Phases 33-42 (shipped 2026-05-24, tag `v1.9`)
 - ✅ **v1.8 PSX Voice Engine** -- Phases 27-32 (shipped 2026-05-21, tag `v1.8`)
 - ✅ **v1.7 DAW Plugin Port** -- Phases 21-26 (shipped 2026-05-16, tag `v1.7`)
 - ✅ **v1.6 User Programmable Waypoints** -- Phases 18-20 (shipped 2026-05-10, tag `v1.6`)
@@ -19,239 +19,29 @@
 
 ## Phases
 
-### v1.9 Complete Voice
-
-- [ ] **Phase 33: ADSR Correction** - Fix sustain-decrease and release step formulas to match spec
-- [ ] **Phase 34: Signed Volume** - Expose full signed volume range for phase inversion
-- [ ] **Phase 35: Pitch Modulation (PMON)** - Voice-to-voice pitch FM synthesis via VxOUTX
-- [ ] **Phase 36: Noise Generator (NON)** - Global LFSR noise source replacing ADPCM output per voice
-- [ ] **Phase 37: Volume Sweep** - Hardware-driven per-voice volume ramp with independent L/R
-- [x] **Phase 38: Integration & Cross-Feature Verification** - Mixer tick restructuring and cross-feature validation
-- [ ] **Phase 39: Pan & Level Controls** - Replace raw Volume L/R knobs with pan knob + level fader
-- [ ] **Phase 40: Voice Feature Toggles** - NON and PMON enable controls in sampler GUI
-- [ ] **Phase 41: VCA Ramp Controls** - Basic per-voice volume ramp exposure (fade in/out, speed, curve)
-- [x] **Phase 42: Voice GUI Integration** - Final verification of all new sampler controls
-
-## Phase Details
-
-### Phase 33: ADSR Correction
-
-**Goal**: ADSR envelope produces correct step magnitudes matching the PS1 spec
-**Depends on**: Nothing (first phase -- standalone bug fix)
-**Requirements**: ADSR-FIX-01, ADSR-FIX-02, ADSR-FIX-03, ADSR-FIX-04
-**Success Criteria** (what must be TRUE):
-
-  1. Sustain-decrease produces steps of -8, -7, -6, -5 (not -7, -6, -5, -4) for step values 0..3
-  2. Release step formula audited and corrected if off-by-one (matching decay's proven `-(8-step)` pattern)
-  3. ADSR golden files reflect the corrected behavior and regression suite passes
-  4. ADR documents the correction with spec source citation
-
-**Plans**: 1 plan
-Plans:
-
-- [ ] 33-01-PLAN.md -- Fix sustain-decrease and release step formulas, write ADR-0056
-
-### Phase 34: Signed Volume
-
-**Goal**: Voices can produce phase-inverted output through negative volume values
-**Depends on**: Phase 33
-**Requirements**: SVOL-01, SVOL-02, SVOL-03, SVOL-04, SVOL-05
-**Success Criteria** (what must be TRUE):
-
-  1. A voice with vol_l = -0x4000 produces sample-by-sample exact negation compared to vol_l = +0x4000
-  2. All call sites that previously clamped volume to positive-only accept the full -0x4000..+0x3FFF range
-  3. VxOUTX (post-ADSR, pre-volume) is unchanged by volume sign -- PMON reads are unaffected
-  4. Sampler GUI exposes the signed volume range with a visible phase-flip indicator
-
-**Plans**: 2 plans
-Plans:
-**Wave 1**
-
-- [x] 34-01-PLAN.md -- C core signed volume API, outx field, TDD regression tests
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 34-02-PLAN.md -- GUI Volume L/R knobs with phase-flip indicator
-
-### Phase 35: Pitch Modulation (PMON)
-
-**Goal**: Voice N-1 output modulates voice N pitch, enabling FM synthesis and vibrato
-**Depends on**: Phase 34
-**Requirements**: PMON-01, PMON-02, PMON-03, PMON-04, PMON-05, PMON-06, PMON-07
-**Success Criteria** (what must be TRUE):
-
-  1. A modulator voice playing a slow sine sweeps the carrier voice's pitch audibly, with depth controlled by the modulator's ADSR
-  2. Silent modulator (output = 0) halves the carrier pitch (Factor = 0x8000) without special-casing
-  3. PMON chain stacking works: voice 0 modulates voice 1, voice 1 modulates voice 2, producing cascading pitch modulation
-  4. PMON bit 0 is accepted but ignored (voice 0 has no predecessor)
-  5. ADR documents VxOUTX capture point (post-ADSR, pre-volume) with DuckStation as behavioral witness
-
-**Plans**: 2 plans
-Plans:
-**Wave 1**
-
-- [x] 35-01-PLAN.md -- TDD: PMON bitmask, formula, tests (PMON-01, PMON-03..06)
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 35-02-PLAN.md -- ADR-0057 VxOUTX capture point, ADSR-shaped FM integration test (PMON-02, PMON-07)
-
-### Phase 36: Noise Generator (NON)
-
-**Goal**: Voices can output LFSR pseudo-random noise instead of ADPCM, enabling percussion and texture
-**Depends on**: Phase 35
-**Requirements**: NON-01, NON-02, NON-03, NON-04, NON-05, NON-06, NON-07, NON-08, NON-09
-**Success Criteria** (what must be TRUE):
-
-  1. NON-enabled voice produces noise from the global LFSR at the frequency set by SPUCNT NoiseShift/NoiseStep -- per-voice pitch has no effect
-  2. Two NON-enabled voices output identical noise samples on every tick (one global generator, not per-voice)
-  3. ADSR envelope still shapes noise output (noise * adsr_level), producing percussive noise when ADSR has a fast decay
-  4. ADPCM decode still runs for NON voices (loop flags fire, ENDX status updates)
-  5. ADR documents noise initial seed, LFSR polynomial, and ADPCM-fetch-during-NON decision
-
-**Plans**: 2 plans
-Plans:
-**Wave 1**
-
-- [x] 36-01-PLAN.md -- TDD: noise generator LFSR module + NON voice pipeline integration (NON-01..08)
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 36-02-PLAN.md -- ADR-0058 noise generator decisions documentation (NON-09)
-
-### Phase 37: Volume Sweep
-
-**Goal**: Per-voice volume ramps automatically via hardware-driven sweep, independent of ADSR
-**Depends on**: Phase 36
-**Requirements**: SWEEP-01, SWEEP-02, SWEEP-03, SWEEP-04, SWEEP-05, SWEEP-06, SWEEP-07, SWEEP-08, SWEEP-09, SWEEP-10
-**Success Criteria** (what must be TRUE):
-
-  1. Left volume can sweep up while right sweeps down simultaneously on the same voice, creating automatic stereo panning
-  2. Sweep and ADSR run concurrently as independent envelopes -- a voice with sweep-decrease and ADSR-sustain produces a volume fade without affecting the envelope shape
-  3. Sweep modifies vol_l/vol_r directly (the volume register IS the sweep's working state, not a separate multiplier)
-  4. KON resets sweep state to the initial value; KOFF does not affect sweep
-  5. Exponential decrease near zero does not stall (anti-stall guard: if scaled_step == 0 and level > 0, step = -1)
-
-**Plans**: 3 plans
-Plans:
-**Wave 1**
-
-- [ ] 37-01-PLAN.md -- TDD: extract shared envelope step helper from ADSR, refactor ADSR to use it (SWEEP-03, SWEEP-04)
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [ ] 37-02-PLAN.md -- TDD: sweep module, voice pipeline integration, all sweep mode tests (SWEEP-01, SWEEP-02, SWEEP-05..09)
-- [ ] 37-03-PLAN.md -- ADR-0059 negative-phase sweep uncertainty documentation (SWEEP-10)
-
-### Phase 38: Integration & Cross-Feature Verification
-
-**Goal**: All four new features work together correctly in the restructured voice mixer tick
-**Depends on**: Phase 37
-**Requirements**: INT-01, INT-02, INT-03, INT-04
-**Success Criteria** (what must be TRUE):
-
-  1. Voice mixer tick processes in the correct order: noise tick globally, then per-voice sweep, PMON pitch modify, ADPCM decode, noise/Gauss branch, ADSR, store VxOUTX, volume multiply, accumulate
-  2. A noise voice's output feeds PMON factor for the next voice, producing random pitch jitter (spec-orthogonal behavior verified, not blocked)
-  3. All existing voice features unbroken: ADSR, loop mechanics, EON reverb send, Gaussian interpolation, anti-aliasing toggle, MIDI dispatch
-  4. rt_safety gates pass with all new features enabled (no heap, no locks, no syscalls, bounded latency)
-
-**Plans**: 2 plans
-Plans:
-**Wave 1**
-
-- [x] 38-01-PLAN.md -- Integration tests: processing order proof + PMON+NON cross-feature (INT-01, INT-02)
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 38-02-PLAN.md -- Full regression suite + rt_safety gates verification (INT-03, INT-04)
-
-### Phase 39: Pan & Level Controls
-
-**Goal**: Replace raw Volume L/R knobs with a musician-intuitive pan knob + level fader that map down to the same vol_l/vol_r registers
-**Depends on**: Phase 38
-**Requirements**: PAN-01, PAN-02, PAN-03, PAN-04
-**Success Criteria** (what must be TRUE):
-
-  1. Single pan knob controls the L/R balance (center = equal, hard left = L only, hard right = R only)
-  2. Single level fader controls overall voice volume (maps to both vol_l and vol_r scaled by pan position)
-  3. Teal INV indicator from Phase 34 still visible and functional when volume is negative (phase inversion)
-  4. Pan+Level produce identical vol_l/vol_r register values as the old raw knobs for equivalent settings
-
-**Plans**: 1 plan
-Plans:
-
-- [x] 39-01-PLAN.md -- Replace Vol L/R with Pan + Level + INV controls
-
-### Phase 40: Voice Feature Toggles
-
-**Goal**: Expose NON (noise) and PMON (pitch modulation) as per-voice controls in the sampler GUI
-**Depends on**: Phase 39
-**Requirements**: TOG-01, TOG-02, TOG-03, TOG-04
-**Success Criteria** (what must be TRUE):
-
-  1. Per-voice NON toggle in sampler GUI enables/disables noise generator output for that voice
-  2. Per-voice PMON toggle in sampler GUI enables/disables pitch modulation from the previous voice
-  3. Toggling NON replaces the voice's ADPCM output with the global noise generator (ADPCM still decodes for flag side effects)
-  4. Toggling PMON on voice N modulates its pitch by voice N-1's outx value (voice 0 PMON has no effect)
-
-**Plans**: 1 plan
-Plans:
-
-- [x] 40-01-PLAN.md -- NON and PMON toggle controls in sampler GUI
-
-### Phase 41: VCA Ramp Controls
-
-**Goal**: Expose basic per-voice volume ramp controls in the sampler GUI (fade in, fade out, speed, curve)
-**Depends on**: Phase 40
-**Requirements**: RAMP-01, RAMP-02, RAMP-03, RAMP-04, RAMP-05
-**Success Criteria** (what must be TRUE):
-
-  1. Per-voice VCA ramp section visible in sampler GUI with direction (up/down), speed, and curve (linear/natural) controls
-  2. Ramp controls configure both sweep_l and sweep_r in the C core with matched parameters
-  3. Speed control labeled in seconds (not raw shift values), covering musically useful range (~0.1s to ~7s)
-  4. Activating a ramp produces audible volume change matching the configured direction, speed, and curve
-  5. Ramp state resets on KON (new note starts fresh)
-
-**Plans**: 1 plan
-Plans:
-
-- [x] 41-01-PLAN.md -- VCA ramp controls: direction, speed, curve, ARM button with sweep API wiring
-
-### Phase 42: Voice GUI Integration
-
-**Goal**: Final verification that all new sampler controls (pan, level, NON, PMON, VCA ramp) work together correctly
-**Depends on**: Phase 41
-**Requirements**: VGUI-01, VGUI-02, VGUI-03
-**Success Criteria** (what must be TRUE):
-
-  1. All new controls function correctly when multiple features are active simultaneously (e.g., NON voice with VCA ramp fade-out and pan hard left)
-  2. Existing sampler features unbroken: waveform display, ADSR controls, pitch, latch/lock, drive, MIDI dispatch
-  3. rt_safety gates pass with all GUI-driven features enabled
-
-**Plans**: 1 plan
-Plans:
-
-- [x] 42-01-PLAN.md -- Final verification of all sampler controls
-
-## Progress
-
-**Execution Order:**
-Phases execute in numeric order: 33, 34, 35, 36, 37, 38, 39, 40, 41, 42
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 33. ADSR Correction | 1/1 | Complete | 2026-05-22 |
-| 34. Signed Volume | 2/2 | Complete    | 2026-05-22 |
-| 35. Pitch Modulation (PMON) | 2/2 | Complete    | 2026-05-22 |
-| 36. Noise Generator (NON) | 2/2 | Complete    | 2026-05-22 |
-| 37. Volume Sweep | 0/3 | Not started | - |
-| 38. Integration & Cross-Feature Verification | 2/2 | Complete | 2026-05-23 |
-| 39. Pan & Level Controls | 1/1 | Complete    | 2026-05-23 |
-| 40. Voice Feature Toggles | 1/1 | Complete    | 2026-05-24 |
-| 41. VCA Ramp Controls | 1/1 | Complete    | 2026-05-24 |
-| 42. Voice GUI Integration | 1/1 | Complete    | 2026-05-24 |
+(No active phases — next milestone not yet started)
 
 ## Previous Milestone Archives
+
+<details>
+<summary>v1.9 Complete Voice (Phases 33-42) -- SHIPPED 2026-05-24</summary>
+
+Every voice feature-complete to PS1 SPU spec: ADSR correction (ADR-0056), signed volume with phase inversion, PMON voice-to-voice pitch modulation (ADR-0057), global LFSR noise generator (ADR-0058), hardware-driven volume sweep with independent L/R (ADR-0059), plus musician GUI controls (pan/level, NON/PMON toggles, VCA ramp). 10 phases, 16 plans, 37/37 requirements. 98 voice engine tests, 6 rt_safety gates.
+
+- [x] Phase 33: ADSR Correction (1/1 plans) -- completed 2026-05-22
+- [x] Phase 34: Signed Volume (2/2 plans) -- completed 2026-05-22
+- [x] Phase 35: Pitch Modulation / PMON (2/2 plans) -- completed 2026-05-22
+- [x] Phase 36: Noise Generator / NON (2/2 plans) -- completed 2026-05-22
+- [x] Phase 37: Volume Sweep (3/3 plans) -- completed 2026-05-23
+- [x] Phase 38: Integration & Cross-Feature Verification (2/2 plans) -- completed 2026-05-23
+- [x] Phase 39: Pan & Level Controls (1/1 plans) -- completed 2026-05-23
+- [x] Phase 40: Voice Feature Toggles (1/1 plans) -- completed 2026-05-24
+- [x] Phase 41: VCA Ramp Controls (1/1 plans) -- completed 2026-05-24
+- [x] Phase 42: Voice GUI Integration (1/1 plans) -- completed 2026-05-24
+
+Full details: `milestones/v1.9-ROADMAP.md`, `milestones/v1.9-REQUIREMENTS.md`
+
+</details>
 
 <details>
 <summary>v1.8 PSX Voice Engine (Phases 27-32) -- SHIPPED 2026-05-21</summary>
@@ -368,4 +158,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-24 -- Phase 42 complete (VGUI-01..03 verified, v1.9 milestone ready to close)*
+*Last updated: 2026-05-24 -- v1.9 Complete Voice archived, milestone closed*

@@ -20,17 +20,13 @@
 
 **Shipped:** v1.8 — PSX Voice Engine (2026-05-21, tag `v1.8`). 24-voice ADPCM sampler engine with PS1-faithful single-counter Gaussian interpolation, counter-accumulate ADSR envelope, SPU loop mechanics with filter state snapshot/restore, polyphonic mixer with EON-gated reverb send. Full sampler GUI in standalone: waveform display with zoom/scroll, draggable markers, ADSR controls, latch/lock modes, drive stage, pitch control, MIDI dispatch. Anti-aliasing toggle for creative zero-order-hold aliasing. 6 phases, 7 plans, 34/34 requirements verified.
 
-**Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`, `v1.5`, `v1.6`, `v1.7`, `v1.8`.
+**Shipped:** v1.9 — Complete Voice (2026-05-24, tag `v1.9`). Every voice feature-complete to PS1 SPU spec: ADSR correction (ADR-0056), signed volume with phase inversion, PMON voice-to-voice pitch modulation (ADR-0057), global LFSR noise generator (ADR-0058), hardware-driven volume sweep with independent L/R (ADR-0059). Musician-facing controls: pan/level, NON/PMON toggles, Noise Color, VCA ramp. 10 phases, 16 plans, 37/37 requirements. 98 voice engine tests, 6 rt_safety gates.
 
-## Current Milestone: v1.9 Complete Voice
+**Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`, `v1.5`, `v1.6`, `v1.7`, `v1.8`, `v1.9`.
 
-**Goal:** Make each SPU-94S voice feature-complete to the PS1 SPU spec — pitch modulation, noise generation, volume sweep, and signed volume — so every voice is a fully capable PS1 voice before multi-timbral control is layered on.
+## Current State
 
-**Target features:**
-- PMON — voice N output modulates voice N+1 pitch (fixed chain, FM synthesis, vibrato)
-- NON — per-voice LFSR noise generator replacing ADPCM output (hi-hats, cymbals, white noise)
-- Volume Sweep — hardware-driven automatic per-voice volume ramp (linear/exponential)
-- Signed Volume / Phase Inversion — negative volume values flip waveform phase (stereo widening, cancellation)
+v1.9 shipped. Every voice is now feature-complete to the PS1 SPU spec. Next milestone not yet started — candidate: Voice Dynamics & Stereo Effects (tremolo, auto-pan, sidechain duck, stereo widener, AM synthesis, phase modulator). Research captured in `.planning/research/MILESTONE-VOICE-DYNAMICS-STEREO.md`.
 
 ## What This Is
 
@@ -86,6 +82,18 @@ See `.planning/milestones/v1.1-REQUIREMENTS.md` for full 23-requirement traceabi
 
 See `.planning/milestones/v1.2-REQUIREMENTS.md` for full 14-requirement traceability.
 
+### Validated — v1.9 Complete Voice (Shipped 2026-05-24, tag `v1.9`)
+
+- ✓ ADSR envelope correction: sustain-decrease/release formulas fixed to base 8 per nocash spec (ADR-0056) — v1.9 (Phase 33)
+- ✓ Signed volume: full -0x4000..+0x3FFF range with phase inversion, VxOUTX capture for PMON — v1.9 (Phase 34)
+- ✓ PMON: 24-bit bitmask, voice-to-voice pitch modulation, chain stacking (ADR-0057) — v1.9 (Phase 35)
+- ✓ NON: global LFSR noise generator, timer-driven frequency, ADPCM still decodes for flags (ADR-0058) — v1.9 (Phase 36)
+- ✓ Volume sweep: independent L/R state machines, linear/exponential modes, shared step helper with ADSR (ADR-0059) — v1.9 (Phase 37)
+- ✓ Integration: correct processing order verified, 98 tests + 6 rt_safety gates — v1.9 (Phase 38)
+- ✓ Musician GUI: Pan/Level/INV, NON/PMON toggles, Noise Color, VCA ramp controls — v1.9 (Phases 39-42)
+
+See `.planning/milestones/v1.9-REQUIREMENTS.md` for full 37-requirement traceability.
+
 ### Validated — v1.8 PSX Voice Engine (Shipped 2026-05-21, tag `v1.8`)
 
 - ✓ 24-voice ADPCM sampler: single-counter Gaussian interpolation, per-voice isolated state, 512 KB dedicated voice RAM — v1.8 (Phase 27)
@@ -111,7 +119,7 @@ See `.planning/milestones/v1.8-REQUIREMENTS.md` for full 34-requirement traceabi
 - **FPGA implementation** — future direction; C core chosen specifically to keep FPGA HLS path open
 - **MCU firmware port (Daisy, Cortex-M)** — Phase 8 (cross-compile smoke test) was scoped for v1.0 but parked per Anthony's 2026-04-24 decision; moves to between M4 and M5 as a portability gate. The portability claim is upheld by the M1 design discipline (no heap, no locks, no syscalls, no STL) and the existing `arm-none-eabi-gcc` build infrastructure that the v1.0 codebase already supports — the smoke test landing is a paper formality, not a discovery.
 - **SPU voice engine, envelope generation, ADSR** — SHIPPED as v1.8 (2026-05-21); 24-voice sampler with ADSR and loop mechanics
-- **Pitch modulation (PMON), noise generator (NON), volume sweep, signed volume** — ACTIVE as v1.9 (Complete Voice)
+- **Pitch modulation (PMON), noise generator (NON), volume sweep, signed volume** — SHIPPED as v1.9 (2026-05-24)
 - **Windows and macOS builds** — ACTIVE as v1.7; brought in alongside the DAW plugin port so beta testers on those OSes can participate
 - **Reading Mednafen / lv2-psx-reverb / DuckStation / MiSTer source as a primary development activity** — excluded by licensing posture (see Constraints)
 
@@ -197,4 +205,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-21 — v1.9 Complete Voice milestone started*
+*Last updated: 2026-05-24 after v1.9 milestone*

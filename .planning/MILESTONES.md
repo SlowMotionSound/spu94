@@ -1,5 +1,40 @@
 # Milestones
 
+## v1.9 Complete Voice (Shipped: 2026-05-24)
+
+**Phases completed:** 10 phases, 16 plans (Phases 33-42)
+**Tag:** `v1.9`
+**Requirements:** 37/37 complete (ADSR-FIX-01..04, SVOL-01..05, PMON-01..07, NON-01..09, SWEEP-01..10, INT-01..04, PAN-01..04, TOG-01..04, RAMP-01..05, VGUI-01..03)
+
+**What shipped:**
+
+Every SPU-94S voice is now feature-complete to the PS1 SPU spec. ADSR envelope corrected to match hardware (base-8 decrease formulas). Signed volume with phase inversion. Voice-to-voice pitch modulation (PMON) for FM synthesis and vibrato. Global LFSR noise generator (NON) for percussion and texture. Hardware-driven volume sweep with independent L/R state machines (VCA ramp). Musician-facing GUI controls: pan knob + level fader replacing raw register sliders, NON/PMON toggles with Noise Color control, VCA ramp section with direction/speed/curve/ARM. 98 voice engine unit tests, 6 rt_safety gates, all green. 99 commits, 230 files changed over 4 days.
+
+**Key accomplishments:**
+
+1. ADSR correction (ADR-0056) — sustain-decrease/release formulas fixed from base 7 to base 8 per nocash spec
+2. Signed volume + VxOUTX capture — full -0x4000..+0x3FFF range, phase inversion, outx field for PMON chain
+3. Pitch modulation (PMON) — 24-bit bitmask, Factor=outx+0x8000, chain stacking, ADR-0057 with DuckStation witness
+4. Noise generator (NON) — global LFSR (taps 15,12,11,10), timer-driven frequency, ADR-0058
+5. Volume sweep — independent L/R sweep state machines, shared step helper with ADSR, anti-stall guard, ADR-0059
+6. Musician controls — Pan/Level/INV replacing raw Vol L/R, NON/PMON toggles, Noise Color knob, VCA ramp (direction/speed/curve/ARM)
+
+**Key decisions:**
+
+- ADR-0056: Decrease base 8, increase base 7 (nocash spec)
+- ADR-0057: VxOUTX is post-ADSR, pre-volume (DuckStation-confirmed, HIGH confidence)
+- ADR-0058: Noise LFSR XNOR taps 15,12,11,10, seed=1 (emulator consensus)
+- ADR-0059: Negative-phase sweep LOW confidence (nocash "not yet tested")
+- VCA ramp naming over "sweep" (musician-facing vs Sony register jargon)
+- Pan/Level static, VCA ramp is modulation layer (future loop/tremolo won't fight faders)
+- Voice Dynamics & Stereo Effects deferred to own milestone
+
+Known deferred items at close: 1 (MIDI dispatch regression test — deferred to plugin port rebuild)
+
+**Archived to:** `.planning/milestones/v1.9-ROADMAP.md`, `.planning/milestones/v1.9-REQUIREMENTS.md`
+
+---
+
 ## v1.8 PSX Voice Engine (Shipped: 2026-05-21)
 
 **Phases completed:** 6 phases, 7 plans (Phases 27-32)

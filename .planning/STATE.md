@@ -1,51 +1,46 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.9
-milestone_name: Complete Voice
-status: milestone_complete
-stopped_at: Milestone complete (Phase 42 was final phase)
-last_updated: 2026-05-24T01:52:05.600Z
-last_activity: 2026-05-24 -- Phase 42 verification complete, v1.9 ready to close
+milestone: none
+milestone_name: Between milestones
+status: idle
+stopped_at: v1.9 archived, next milestone not started
+last_updated: 2026-05-24T15:55:00.000Z
+last_activity: 2026-05-24 -- v1.9 Complete Voice archived and closed
 progress:
-  total_phases: 10
-  completed_phases: 10
-  total_plans: 16
-  completed_plans: 13
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-21)
+See: .planning/PROJECT.md (updated 2026-05-24)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Milestone complete
+**Current focus:** Between milestones — next candidate: Voice Dynamics & Stereo Effects
 
 ## Current Position
 
-Phase: 42
-Plan: Not started
-Status: Milestone complete
+Phase: None (between milestones)
+Plan: None
+Status: Idle — v1.9 archived
 Last activity: 2026-05-24
 
-Progress: [██████████] 100%
+Progress: N/A
 
-## v1.9 Phase Map
+## Milestone History
 
-| Phase | Name | Requirements | Status |
-|-------|------|--------------|--------|
-| 33 | ADSR Correction | ADSR-FIX-01..04 | **Complete** |
-| 34 | Signed Volume | SVOL-01..05 | **Complete** |
-| 35 | Pitch Modulation (PMON) | PMON-01..07 | **Complete** |
-| 36 | Noise Generator (NON) | NON-01..09 | **Complete** |
-| 37 | Volume Sweep | SWEEP-01..10 | **Complete** |
-| 38 | Integration & Cross-Feature Verification | INT-01..04 | **Complete** |
-| 39 | Pan & Level Controls | PAN-01..04 | **Task 1 done, checkpoint** |
-| 40 | Voice Feature Toggles | TOG-01..04 | **Task 1 done, checkpoint** |
-| 41 | VCA Ramp Controls | RAMP-01..05 | **Task 1 done, checkpoint** |
-| 42 | Voice GUI Integration | VGUI-01..03 | **Complete** |
+| Milestone | Phases | Status | Shipped |
+|-----------|--------|--------|---------|
+| v1.9 Complete Voice | 33-42 (10 phases, 16 plans) | Archived | 2026-05-24 |
+| v1.8 PSX Voice Engine | 27-32 (6 phases, 7 plans) | Archived | 2026-05-21 |
+| v1.7 DAW Plugin Port | 21-26 (6 phases, 10 plans) | Archived | 2026-05-16 |
+
+See `.planning/MILESTONES.md` for full history.
 
 ## Accumulated Context
 
@@ -124,5 +119,6 @@ None.
 ## Session Continuity
 
 Last session: 2026-05-24
-Stopped at: Phase 42-01 complete -- all v1.9 verification gates passed
-Resume file: None -- v1.9 milestone ready to close
+Stopped at: v1.9 milestone formally closed and archived
+Resume file: None
+Next action: /gsd:new-milestone for Voice Dynamics & Stereo Effects

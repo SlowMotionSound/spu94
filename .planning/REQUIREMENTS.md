@@ -7,10 +7,10 @@
 
 ### ADSR Correction
 
-- [ ] **ADSR-FIX-01**: Sustain-decrease step formula uses `-(8 - step)` producing steps -8, -7, -6, -5 per spec (currently uses `-(7 - step)` producing -7, -6, -5, -4)
-- [ ] **ADSR-FIX-02**: Release step formula audited against spec and corrected if off-by-one (currently uses base 7, spec may require 8)
-- [ ] **ADSR-FIX-03**: ADR documenting the correction, spec source, and any golden file changes
-- [ ] **ADSR-FIX-04**: ADSR golden files regenerated and regression suite updated to match corrected behavior
+- [x] **ADSR-FIX-01**: Sustain-decrease step formula uses `-(8 - step)` producing steps -8, -7, -6, -5 per spec (currently uses `-(7 - step)` producing -7, -6, -5, -4)
+- [x] **ADSR-FIX-02**: Release step formula audited against spec and corrected if off-by-one (currently uses base 7, spec may require 8)
+- [x] **ADSR-FIX-03**: ADR documenting the correction, spec source, and any golden file changes
+- [x] **ADSR-FIX-04**: ADSR golden files regenerated and regression suite updated to match corrected behavior
 
 ### Signed Volume
 
@@ -44,16 +44,16 @@
 
 ### Volume Sweep
 
-- [ ] **SWEEP-01**: Per-voice volume sweep with independent L/R state machines (2 sweep states per voice)
-- [ ] **SWEEP-02**: Sweep modes: linear increase, linear decrease, exponential increase (fake exp above 0x6000), exponential decrease (proportional to level)
-- [ ] **SWEEP-03**: Sweep step values: increase +7,+6,+5,+4 via (7-step); decrease -8,-7,-6,-5 via -(8-step)
-- [ ] **SWEEP-04**: Sweep uses counter-accumulate mechanism identical to ADSR (shared math helper, separate state storage)
-- [ ] **SWEEP-05**: Sweep modifies vol_l/vol_r directly -- not a separate multiplier (the volume register IS the sweep's working state)
-- [ ] **SWEEP-06**: Sweep and ADSR run concurrently as independent envelopes (both multiply into the signal chain)
-- [ ] **SWEEP-07**: KON resets sweep state (counter = 0, level set to initial value); KOFF does not affect sweep
-- [ ] **SWEEP-08**: Anti-stall guard for exponential decrease near zero (if scaled_step == 0 && level > 0, step = -1)
-- [ ] **SWEEP-09**: Negative-phase sweep mode (Phase bit = 1): sweep operates on negative volume values, clamps to -0x8000..0
-- [ ] **SWEEP-10**: ADR (low-confidence) documenting negative-phase behavior, Phase bit interaction with exponential decrease, spec uncertainty
+- [x] **SWEEP-01**: Per-voice volume sweep with independent L/R state machines (2 sweep states per voice)
+- [x] **SWEEP-02**: Sweep modes: linear increase, linear decrease, exponential increase (fake exp above 0x6000), exponential decrease (proportional to level)
+- [x] **SWEEP-03**: Sweep step values: increase +7,+6,+5,+4 via (7-step); decrease -8,-7,-6,-5 via -(8-step)
+- [x] **SWEEP-04**: Sweep uses counter-accumulate mechanism identical to ADSR (shared math helper, separate state storage)
+- [x] **SWEEP-05**: Sweep modifies vol_l/vol_r directly -- not a separate multiplier (the volume register IS the sweep's working state)
+- [x] **SWEEP-06**: Sweep and ADSR run concurrently as independent envelopes (both multiply into the signal chain)
+- [x] **SWEEP-07**: KON resets sweep state (counter = 0, level set to initial value); KOFF does not affect sweep
+- [x] **SWEEP-08**: Anti-stall guard for exponential decrease near zero (if scaled_step == 0 && level > 0, step = -1)
+- [x] **SWEEP-09**: Negative-phase sweep mode (Phase bit = 1): sweep operates on negative volume values, clamps to -0x8000..0
+- [x] **SWEEP-10**: ADR (low-confidence) documenting negative-phase behavior, Phase bit interaction with exponential decrease, spec uncertainty
 
 ### Integration
 
@@ -122,10 +122,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ADSR-FIX-01 | Phase 33 | Pending |
-| ADSR-FIX-02 | Phase 33 | Pending |
-| ADSR-FIX-03 | Phase 33 | Pending |
-| ADSR-FIX-04 | Phase 33 | Pending |
+| ADSR-FIX-01 | Phase 33 | Complete |
+| ADSR-FIX-02 | Phase 33 | Complete |
+| ADSR-FIX-03 | Phase 33 | Complete |
+| ADSR-FIX-04 | Phase 33 | Complete |
 | SVOL-01 | Phase 34 | Complete |
 | SVOL-02 | Phase 34 | Complete |
 | SVOL-03 | Phase 34 | Complete |
@@ -147,16 +147,16 @@
 | NON-07 | Phase 36 | Complete |
 | NON-08 | Phase 36 | Complete |
 | NON-09 | Phase 36 | Complete |
-| SWEEP-01 | Phase 37 | Pending |
-| SWEEP-02 | Phase 37 | Pending |
-| SWEEP-03 | Phase 37 | Pending |
-| SWEEP-04 | Phase 37 | Pending |
-| SWEEP-05 | Phase 37 | Pending |
-| SWEEP-06 | Phase 37 | Pending |
-| SWEEP-07 | Phase 37 | Pending |
-| SWEEP-08 | Phase 37 | Pending |
-| SWEEP-09 | Phase 37 | Pending |
-| SWEEP-10 | Phase 37 | Pending |
+| SWEEP-01 | Phase 37 | Complete |
+| SWEEP-02 | Phase 37 | Complete |
+| SWEEP-03 | Phase 37 | Complete |
+| SWEEP-04 | Phase 37 | Complete |
+| SWEEP-05 | Phase 37 | Complete |
+| SWEEP-06 | Phase 37 | Complete |
+| SWEEP-07 | Phase 37 | Complete |
+| SWEEP-08 | Phase 37 | Complete |
+| SWEEP-09 | Phase 37 | Complete |
+| SWEEP-10 | Phase 37 | Complete |
 | INT-01 | Phase 38 | **Complete** (38-01) |
 | INT-02 | Phase 38 | **Complete** (38-01) |
 | INT-03 | Phase 38 | **Complete** (38-02) |
