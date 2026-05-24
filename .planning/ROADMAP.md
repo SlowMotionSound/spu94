@@ -156,8 +156,8 @@ Plans:
   5. Internal mod bus controls (three depth knobs) are visible as a dedicated section in the sampler GUI
 **Plans**: 2 plans
 Plans:
-- [ ] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
-- [ ] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
+- [ ] 50-01-PLAN.md — C core mod bus implementation: noise-to-pitch/vol/pan in voice tick (MOD-01..05)
+- [ ] 50-02-PLAN.md — Mod Bus GUI section: three depth knobs in sampler window (MOD-06)
 **UI hint**: yes
 
 ### Phase 51: GUI Integration & Verification
@@ -186,7 +186,7 @@ Plans:
 | 47. Stereo Widener | 1/2 | In Progress|  |
 | 48. AM Synthesis | 1/2 | In Progress|  |
 | 49. Phase Modulator | 0/2 | Planned | - |
-| 50. Internal Mod Bus | 0/TBD | Not started | - |
+| 50. Internal Mod Bus | 0/2 | Planned | - |
 | 51. GUI Integration | 0/TBD | Not started | - |
 
 ## Previous Milestone Archives
