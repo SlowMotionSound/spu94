@@ -109,8 +109,8 @@ Plans:
   4. Stereo widener control is visible in the sampler GUI with a mono-safety indicator
 **Plans**: 2 plans
 Plans:
-- [ ] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
-- [ ] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
+- [ ] 47-01-PLAN.md — Static L/R volume offset with mono-safety cap (WIDE-01, WIDE-02, WIDE-03)
+- [ ] 47-02-PLAN.md — Stereo width GUI control with mono-safety indicator (WIDE-04)
 **UI hint**: yes
 
 ### Phase 48: AM Synthesis
@@ -183,7 +183,7 @@ Plans:
 | 44. Tremolo | 0/2 | Planned | - |
 | 45. Auto-Pan | 0/2 | Planned | - |
 | 46. Sidechain Duck | 2/2 | Complete   | 2026-05-24 |
-| 47. Stereo Widener | 0/TBD | Not started | - |
+| 47. Stereo Widener | 0/2 | Planned | - |
 | 48. AM Synthesis | 0/TBD | Not started | - |
 | 49. Phase Modulator | 0/TBD | Not started | - |
 | 50. Internal Mod Bus | 0/TBD | Not started | - |
