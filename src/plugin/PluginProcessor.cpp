@@ -726,8 +726,9 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
         // VCA ramp activation (Phase 41: volume sweep GUI surface)
         // One-shot: GUI sets rampArm=true, audio thread reads and resets to false.
-        // TREM-05: Tremolo and VCA ramp are mutually exclusive -- skip rampArm when tremolo active.
-        if (!tremoloEnabled.load(std::memory_order_relaxed))
+        // TREM-05/PAN-05: Tremolo, auto-pan, and VCA ramp are mutually exclusive.
+        if (!tremoloEnabled.load(std::memory_order_relaxed) &&
+            !autoPanEnabled.load(std::memory_order_relaxed))
         {
             if (rampArm.exchange(false, std::memory_order_acquire))
             {
@@ -850,6 +851,126 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             {
                 auto* mx = spu94_get_voice_mixer();
                 float depth = tremoloDepth.load(std::memory_order_relaxed);
+                if (depth < 0.0f) depth = 0.0f;
+                if (depth > 1.0f) depth = 1.0f;
+
+                if (mx->voices[0].sweep_l.active) {
+                    int16_t sweep_lvl = mx->voices[0].sweep_l.level;
+                    mx->voices[0].vol_l = static_cast<int16_t>(
+                        0x7FFF - static_cast<int16_t>(
+                            static_cast<float>(0x7FFF - sweep_lvl) * depth));
+                }
+                if (mx->voices[0].sweep_r.active) {
+                    int16_t sweep_lvl = mx->voices[0].sweep_r.level;
+                    mx->voices[0].vol_r = static_cast<int16_t>(
+                        0x7FFF - static_cast<int16_t>(
+                            static_cast<float>(0x7FFF - sweep_lvl) * depth));
+                }
+            }
+        }
+
+        // Auto-pan activation (Phase 45: opposition-phase L/R sweep for stereo movement)
+        // PAN-05: Mutual exclusion -- auto-pan skipped if tremolo is active (tremolo wins).
+        // PAN-04: Always linear (mode=0) -- no equal-power, no exponential.
+        // PAN-01: L direction=1 (decrease), R direction=0 (increase) -- OPPOSITION.
+        {
+            bool tremEn = tremoloEnabled.load(std::memory_order_relaxed);
+            bool panEn  = autoPanEnabled.load(std::memory_order_relaxed);
+            // Mutual exclusion: tremolo has priority
+            if (tremEn) panEn = false;
+
+            if (panEn && !autoPanWasActive)
+            {
+                // Auto-pan just enabled: configure L/R sweeps in opposition
+                float hz    = autoPanSpeedHz.load(std::memory_order_relaxed);
+                float ratio = autoPanRatio.load(std::memory_order_relaxed);
+
+                // T-45-01: clamp Hz to table range
+                if (hz < 0.5f) hz = 0.5f;
+                if (hz > 43.0f) hz = 43.0f;
+
+                auto ss = hzToShift(hz);
+
+                // L channel: direction=1 (decrease from current vol)
+                spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
+                    0,  // mode=0 (linear always, PAN-04)
+                    1,  // direction=decrease (L starts going down)
+                    0,  // phase=positive
+                    ss.shift, ss.step, 1);  // retrigger_enable=1
+
+                // R channel: direction=0 (increase) -- OPPOSITION to L
+                // Apply ratio for independent rate
+                if (ratio < 0.5f) ratio = 0.5f;
+                if (ratio > 4.0f) ratio = 4.0f;
+                uint8_t r_shift = ss.shift;
+                if (ratio > 1.0f) {
+                    int offset = static_cast<int>(std::floor(std::log2(ratio)));
+                    r_shift = static_cast<uint8_t>(std::min(31, (int)ss.shift + offset));
+                } else if (ratio < 1.0f) {
+                    int offset = static_cast<int>(std::floor(std::log2(1.0f / ratio)));
+                    r_shift = static_cast<uint8_t>(std::max(0, (int)ss.shift - offset));
+                }
+
+                spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
+                    0,  // mode=0 (linear always, PAN-04)
+                    0,  // direction=increase (R goes UP while L goes DOWN)
+                    0, r_shift, ss.step, 1);  // retrigger_enable=1
+
+                lastAutoPanHz = hz;
+                lastAutoPanRatio = ratio;
+                autoPanWasActive = true;
+            }
+            else if (panEn && autoPanWasActive)
+            {
+                // Auto-pan already active: check if parameters changed
+                float hz    = autoPanSpeedHz.load(std::memory_order_relaxed);
+                float ratio = autoPanRatio.load(std::memory_order_relaxed);
+
+                if (hz < 0.5f) hz = 0.5f;
+                if (hz > 43.0f) hz = 43.0f;
+                if (ratio < 0.5f) ratio = 0.5f;
+                if (ratio > 4.0f) ratio = 4.0f;
+
+                if (hz != lastAutoPanHz || ratio != lastAutoPanRatio)
+                {
+                    auto ss = hzToShift(hz);
+
+                    spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
+                        0, 1, 0, ss.shift, ss.step, 1);  // linear, decrease, retrigger
+
+                    uint8_t r_shift = ss.shift;
+                    if (ratio > 1.0f) {
+                        int offset = static_cast<int>(std::floor(std::log2(ratio)));
+                        r_shift = static_cast<uint8_t>(std::min(31, (int)ss.shift + offset));
+                    } else if (ratio < 1.0f) {
+                        int offset = static_cast<int>(std::floor(std::log2(1.0f / ratio)));
+                        r_shift = static_cast<uint8_t>(std::max(0, (int)ss.shift - offset));
+                    }
+
+                    spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
+                        0, 0, 0, r_shift, ss.step, 1);  // linear, increase, retrigger
+
+                    lastAutoPanHz = hz;
+                    lastAutoPanRatio = ratio;
+                }
+            }
+            else if (!panEn && autoPanWasActive)
+            {
+                // Auto-pan just disabled: deactivate sweeps
+                auto* mx = spu94_get_voice_mixer();
+                mx->voices[0].sweep_l.active = 0;
+                mx->voices[0].sweep_r.active = 0;
+                autoPanWasActive = false;
+            }
+
+            // Auto-pan depth scaling: same formula as tremolo but applied per-channel
+            // with the opposition directions already baked into the sweep config.
+            // At depth=1.0, vol ranges 0..0x7FFF (full L-to-R excursion).
+            // At depth=0.5, vol ranges 0x3FFF..0x7FFF (sound stays closer to center).
+            if (panEn)
+            {
+                auto* mx = spu94_get_voice_mixer();
+                float depth = autoPanDepth.load(std::memory_order_relaxed);
                 if (depth < 0.0f) depth = 0.0f;
                 if (depth > 1.0f) depth = 1.0f;
 

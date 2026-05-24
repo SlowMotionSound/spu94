@@ -92,6 +92,12 @@ public:
     std::atomic<int>&   getTremoloCurve()    { return tremoloCurve; }
     std::atomic<float>& getTremoloRatio()    { return tremoloRatio; }
 
+    // Auto-pan controls (Phase 45: opposition-phase L/R sweep for stereo movement)
+    std::atomic<bool>&  getAutoPanEnabled()  { return autoPanEnabled; }
+    std::atomic<float>& getAutoPanSpeedHz()  { return autoPanSpeedHz; }
+    std::atomic<float>& getAutoPanDepth()    { return autoPanDepth; }
+    std::atomic<float>& getAutoPanRatio()    { return autoPanRatio; }
+
     // ADSR parameter accessors (standalone sampler voice)
     std::atomic<bool>&  getAdsrEnabled()     { return adsrEnabled; }
     std::atomic<float>& getAdsrAttack()      { return adsrAttack; }
@@ -424,6 +430,17 @@ private:
     float lastTremoloHz{-1.0f};
     int   lastTremoloCurve{-1};
     float lastTremoloRatio{-1.0f};
+
+    // Auto-pan controls (Phase 45: opposition-phase L/R sweep for stereo movement)
+    std::atomic<bool>  autoPanEnabled{false};     // true = sweep configured for opposition-phase L/R
+    std::atomic<float> autoPanSpeedHz{2.0f};      // oscillation rate in Hz (0.5..43.0)
+    std::atomic<float> autoPanDepth{1.0f};        // pan depth (0.0 = no pan, 1.0 = full L-to-R)
+    std::atomic<float> autoPanRatio{1.0f};        // L/R rate ratio (0.5..4.0; 1.0 = symmetric)
+
+    // Audio-thread-only auto-pan state (not atomic -- only accessed from processBlock)
+    bool  autoPanWasActive{false};
+    float lastAutoPanHz{-1.0f};
+    float lastAutoPanRatio{-1.0f};
 
     // ADSR parameters (standalone sampler voice)
     std::atomic<bool>  adsrEnabled{true};
