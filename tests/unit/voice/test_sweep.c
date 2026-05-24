@@ -1115,6 +1115,93 @@ static void test_am_audio_rate_oscillation(void)
     TEST_ASSERT_EQUAL_INT16(0, min_seen);
 }
 
+/* Phase 49: Phase modulator polarity cycling through zero */
+static void test_sweep_phase_mod_polarity_cycling(void)
+{
+    /* Setup: configure sweep with phase=1, direction=0 (increase toward -0x7FFF),
+     * retrigger_enable=1. Start level at 0. This makes the sweep oscillate
+     * between 0 and -0x7FFF -- the domain of the phase modulator depth formula. */
+    spu94_sweep_t sw;
+    spu94_sweep_init(&sw);
+    sw.mode = 0;            /* linear (exponential ignores phase bit, ADR-0059) */
+    sw.direction = 0;       /* increase (in negative phase: toward -0x7FFF) */
+    sw.phase = 1;           /* negative phase -- polarity cycling territory */
+    sw.shift = 9;           /* moderate rate (~18.8 Hz at step=0) */
+    sw.step = 0;
+    sw.retrigger_enable = 1;
+    sw.level = 0;           /* start at zero boundary */
+    sw.active = 1;
+
+    /* Part 1: Verify sweep goes negative after some ticks */
+    int went_negative = 0;
+    int16_t min_level = 0;
+    int ticks_to_min = 0;
+
+    for (int t = 0; t < 2000; t++) {
+        spu94_sweep_tick(&sw);
+        if (sw.level < 0) went_negative = 1;
+        if (sw.level < min_level) {
+            min_level = sw.level;
+            ticks_to_min = t + 1;
+        }
+        /* Stop once we've reached the boundary */
+        if (sw.level == -0x7FFF) break;
+    }
+
+    TEST_ASSERT_TRUE_MESSAGE(went_negative, "Sweep should go negative with phase=1");
+    TEST_ASSERT_EQUAL_INT16(-0x7FFF, min_level);
+
+    /* Part 2: Verify direction flipped at boundary (retrigger behavior) */
+    TEST_ASSERT_EQUAL_UINT8(1, sw.direction);  /* should have flipped to decrease (toward 0) */
+
+    /* Part 3: Continue ticking until sweep returns to 0 (full cycle) */
+    int returned_to_zero = 0;
+    for (int t = 0; t < 2000; t++) {
+        spu94_sweep_tick(&sw);
+        if (sw.level == 0) {
+            returned_to_zero = 1;
+            break;
+        }
+    }
+    TEST_ASSERT_TRUE_MESSAGE(returned_to_zero, "Sweep should return to 0 after retrigger");
+
+    /* Part 4: Apply phase mod depth formula at depth=1.0 and verify zero-crossing.
+     * Formula: vol = 0x7FFF + (sweep_level * 2 * depth)
+     * At sweep_level = -0x4000 (midpoint), depth=1.0:
+     *   vol = 0x7FFF + (-0x4000 * 2 * 1.0) = 0x7FFF + (-0x8000) = -1
+     * This proves the formula crosses zero at the midpoint with depth=1.0. */
+    {
+        int16_t test_sweep_level = -0x4000;  /* midpoint of 0..-0x7FFF range */
+        float depth = 1.0f;
+        int32_t vol = 0x7FFF + (int32_t)((float)test_sweep_level * 2.0f * depth);
+        /* At midpoint with full depth, volume should be approximately -1 (just past zero) */
+        TEST_ASSERT_TRUE(vol < 0);
+        TEST_ASSERT_TRUE(vol > -0x100);  /* should be very close to zero */
+    }
+
+    /* Part 5: Apply depth formula at depth=0.5 -- should never go below zero.
+     * Formula: vol = 0x7FFF + (sweep_level * 2 * 0.5) = 0x7FFF + sweep_level
+     * At sweep_level = -0x7FFF: vol = 0x7FFF + (-0x7FFF) = 0 (exactly zero, no inversion) */
+    {
+        int16_t test_sweep_level = -0x7FFF;  /* maximum negative excursion */
+        float depth = 0.5f;
+        int32_t vol = 0x7FFF + (int32_t)((float)test_sweep_level * 2.0f * depth);
+        /* At depth=0.5, worst case (sweep=-0x7FFF) should give exactly 0 */
+        TEST_ASSERT_TRUE(vol >= 0);
+        TEST_ASSERT_TRUE(vol <= 1);  /* allow rounding tolerance */
+    }
+
+    /* Part 6: At depth=0.25, vol stays well positive.
+     * Formula: vol = 0x7FFF + (-0x7FFF * 2 * 0.25) = 0x7FFF + (-0x3FFF) = +0x4000 */
+    {
+        int16_t test_sweep_level = -0x7FFF;
+        float depth = 0.25f;
+        int32_t vol = 0x7FFF + (int32_t)((float)test_sweep_level * 2.0f * depth);
+        TEST_ASSERT_TRUE(vol > 0x3F00);  /* should be approximately +0x4000 */
+        TEST_ASSERT_TRUE(vol < 0x4100);
+    }
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_sweep_init);
@@ -1157,5 +1244,7 @@ int main(void) {
     RUN_TEST(test_stereo_widener_low_volume_no_clip);
     /* Phase 48: AM synthesis audio-rate oscillation */
     RUN_TEST(test_am_audio_rate_oscillation);
+    /* Phase 49: Phase modulator polarity cycling through zero */
+    RUN_TEST(test_sweep_phase_mod_polarity_cycling);
     return UNITY_END();
 }
