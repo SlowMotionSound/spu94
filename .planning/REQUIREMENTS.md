@@ -86,9 +86,9 @@
 
 ### Voice GUI Integration
 
-- [ ] **VGUI-01**: All new controls function correctly when multiple features are active simultaneously
-- [ ] **VGUI-02**: Existing sampler features unbroken: waveform display, ADSR controls, pitch, latch/lock, drive, MIDI dispatch
-- [ ] **VGUI-03**: rt_safety gates pass with all GUI-driven features enabled
+- [x] **VGUI-01**: All new controls function correctly when multiple features are active simultaneously
+- [x] **VGUI-02**: Existing sampler features unbroken: waveform display, ADSR controls, pitch, latch/lock, drive, MIDI dispatch
+- [x] **VGUI-03**: rt_safety gates pass with all GUI-driven features enabled
 
 ## Future Requirements
 
@@ -161,6 +161,22 @@
 | INT-02 | Phase 38 | **Complete** (38-01) |
 | INT-03 | Phase 38 | **Complete** (38-02) |
 | INT-04 | Phase 38 | **Complete** (38-02) |
+| PAN-01 | Phase 39 | Complete |
+| PAN-02 | Phase 39 | Complete |
+| PAN-03 | Phase 39 | Complete |
+| PAN-04 | Phase 39 | Complete |
+| TOG-01 | Phase 40 | Complete |
+| TOG-02 | Phase 40 | Complete |
+| TOG-03 | Phase 40 | Complete |
+| TOG-04 | Phase 40 | Complete |
+| RAMP-01 | Phase 41 | Complete |
+| RAMP-02 | Phase 41 | Complete |
+| RAMP-03 | Phase 41 | Complete |
+| RAMP-04 | Phase 41 | Complete |
+| RAMP-05 | Phase 41 | Complete |
+| VGUI-01 | Phase 42 | **Complete** (42-01) |
+| VGUI-02 | Phase 42 | **Complete** (42-01) |
+| VGUI-03 | Phase 42 | **Complete** (42-01) |
 
 **Coverage:**
 - v1.9 requirements: 37 total
@@ -169,4 +185,4 @@
 
 ---
 *Requirements defined: 2026-05-21*
-*Last updated: 2026-05-22 -- traceability populated during roadmap creation*
+*Last updated: 2026-05-24 -- VGUI-01..03 complete, all v1.9 requirements verified*

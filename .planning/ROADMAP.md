@@ -30,7 +30,7 @@
 - [ ] **Phase 39: Pan & Level Controls** - Replace raw Volume L/R knobs with pan knob + level fader
 - [ ] **Phase 40: Voice Feature Toggles** - NON and PMON enable controls in sampler GUI
 - [ ] **Phase 41: VCA Ramp Controls** - Basic per-voice volume ramp exposure (fade in/out, speed, curve)
-- [ ] **Phase 42: Voice GUI Integration** - Final verification of all new sampler controls
+- [x] **Phase 42: Voice GUI Integration** - Final verification of all new sampler controls
 
 ## Phase Details
 
@@ -231,7 +231,7 @@ Plans:
 **Plans**: 1 plan
 Plans:
 
-- [ ] 42-01-PLAN.md -- Final verification of all sampler controls
+- [x] 42-01-PLAN.md -- Final verification of all sampler controls
 
 ## Progress
 
@@ -249,7 +249,7 @@ Phases execute in numeric order: 33, 34, 35, 36, 37, 38, 39, 40, 41, 42
 | 39. Pan & Level Controls | 1/1 | Complete    | 2026-05-23 |
 | 40. Voice Feature Toggles | 1/1 | Complete    | 2026-05-24 |
 | 41. VCA Ramp Controls | 1/1 | Complete    | 2026-05-24 |
-| 42. Voice GUI Integration | 0/1 | Not started | - |
+| 42. Voice GUI Integration | 1/1 | Complete | 2026-05-24 |
 
 ## Previous Milestone Archives
 
@@ -368,4 +368,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-23 -- Phase 38 complete (INT-01..04 verified, all v1.9 integration gates passed)*
+*Last updated: 2026-05-24 -- Phase 42 complete (VGUI-01..03 verified, v1.9 milestone ready to close)*

@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Complete Voice
 status: executing
-stopped_at: Phase 41-01 Task 2 checkpoint — awaiting human visual verification of VCA ramp controls
-last_updated: "2026-05-24T01:43:55.153Z"
-last_activity: 2026-05-24 -- Phase 42 execution started
+stopped_at: Phase 42-01 complete — all v1.9 verification gates passed
+last_updated: "2026-05-24T01:49:18Z"
+last_activity: 2026-05-24 -- Phase 42 verification complete, v1.9 ready to close
 progress:
   total_phases: 10
-  completed_phases: 8
+  completed_phases: 10
   total_plans: 16
-  completed_plans: 12
-  percent: 75
+  completed_plans: 16
+  percent: 100
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-21)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 42 — Voice GUI Integration
+**Current focus:** v1.9 Complete Voice — all phases complete, ready for milestone close
 
 ## Current Position
 
-Phase: 42 (Voice GUI Integration) — EXECUTING
+Phase: 42 (Voice GUI Integration) — COMPLETE
 Plan: 1 of 1
-Status: Executing Phase 42
-Last activity: 2026-05-24 -- Phase 42 execution started
+Status: All 10 phases complete (33-42), v1.9 ready to close
+Last activity: 2026-05-24 -- Phase 42 verification passed (98 unit tests + 6 rt_safety gates)
 
-Progress: [██████░░░░] 60%
+Progress: [██████████] 100%
 
 ## v1.9 Phase Map
 
@@ -45,7 +45,7 @@ Progress: [██████░░░░] 60%
 | 39 | Pan & Level Controls | PAN-01..04 | **Task 1 done, checkpoint** |
 | 40 | Voice Feature Toggles | TOG-01..04 | **Task 1 done, checkpoint** |
 | 41 | VCA Ramp Controls | RAMP-01..05 | **Task 1 done, checkpoint** |
-| 42 | Voice GUI Integration | VGUI-01..03 | Not started |
+| 42 | Voice GUI Integration | VGUI-01..03 | **Complete** |
 
 ## Accumulated Context
 
@@ -116,11 +116,12 @@ None.
 | 39 | 1 | - | - |
 | 40 | 1 | - | - |
 | 41 | 1 | - | - |
+| 42 - Integration Verification | 1/1 | 5min | 5min |
 
 *Updated after each plan completion*
 
 ## Session Continuity
 
-Last session: 2026-05-23
-Stopped at: Phase 41-01 Task 2 checkpoint — awaiting human visual verification of VCA ramp controls
-Resume file: .planning/phases/41-vca-ramp-controls/41-01-PLAN.md
+Last session: 2026-05-24
+Stopped at: Phase 42-01 complete -- all v1.9 verification gates passed
+Resume file: None -- v1.9 milestone ready to close
