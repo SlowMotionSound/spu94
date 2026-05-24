@@ -61,7 +61,7 @@ Plans:
   5. Tremolo controls are visible and labeled in the sampler GUI
 **Plans**: 2 plans
 Plans:
-- [ ] 44-01-PLAN.md — Tremolo C-core helper: hz-to-shift, configure, apply_depth (TREM-01..05)
+- [ ] 44-01-PLAN.md — Hz-to-shift conversion, tremolo activation logic, depth scaling (TREM-01..05)
 - [ ] 44-02-PLAN.md — Tremolo GUI controls in sampler window (TREM-06)
 **UI hint**: yes
 
