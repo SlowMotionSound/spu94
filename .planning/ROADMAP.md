@@ -44,9 +44,9 @@
   3. Retrigger rates cover the full range from sub-Hz (~0.5 Hz) through audio-rate (~7350 Hz)
   4. Disabling retrigger restores one-shot behavior identical to v1.9
   5. A new KON resets retrigger phase to zero (no stale phase from previous note)
-**Plans**: 2 plans
+**Plans**: 2 plans (1 complete)
 Plans:
-- [ ] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
+- [x] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
 - [ ] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
 
 ### Phase 44: Tremolo

@@ -7,10 +7,10 @@
 
 ### Retrigger Engine (Foundation)
 
-- [ ] **RTR-01**: C core retrigger mechanism that auto-reverses VCA ramp direction when a ramp reaches its limit (0 or max)
+- [x] **RTR-01**: C core retrigger mechanism that auto-reverses VCA ramp direction when a ramp reaches its limit (0 or max)
 - [ ] **RTR-02**: Independent L/R retrigger rates — each channel can retrigger at a different speed for polyrhythmic modulation
-- [ ] **RTR-03**: Retrigger rate range covers sub-Hz (~0.5 Hz) through audio-rate (~7350 Hz) using the existing sweep shift/step infrastructure
-- [ ] **RTR-04**: Retrigger enable/disable per voice per channel — when disabled, ramp behaves as one-shot (existing v1.9 behavior preserved)
+- [x] **RTR-03**: Retrigger rate range covers sub-Hz (~0.5 Hz) through audio-rate (~7350 Hz) using the existing sweep shift/step infrastructure
+- [x] **RTR-04**: Retrigger enable/disable per voice per channel — when disabled, ramp behaves as one-shot (existing v1.9 behavior preserved)
 - [ ] **RTR-05**: Retrigger state resets on KON (new note starts fresh, no stale phase from previous note)
 
 ### Tremolo
@@ -107,10 +107,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RTR-01 | Phase 43 | Pending |
+| RTR-01 | Phase 43 | Complete |
 | RTR-02 | Phase 43 | Pending |
-| RTR-03 | Phase 43 | Pending |
-| RTR-04 | Phase 43 | Pending |
+| RTR-03 | Phase 43 | Complete |
+| RTR-04 | Phase 43 | Complete |
 | RTR-05 | Phase 43 | Pending |
 | TREM-01 | Phase 44 | Pending |
 | TREM-02 | Phase 44 | Pending |
