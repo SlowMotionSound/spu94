@@ -279,10 +279,49 @@ void spu94_voice_tick(spu94_voice_t *v,
         v->outx = gauss_out;
 
         /* ---------------------------------------------------------------
-         * STEP 3 — Apply per-voice volume (VOICE-04)
+         * STEP 2.9 — Internal mod bus (Phase 50: MOD-01..05)
+         * Noise-to-volume and noise-to-pan modulation. Applied BEFORE
+         * Step 3 so the modulated volumes are used in the final multiply.
+         * Ephemeral per-tick — does NOT write back to v->vol_l/vol_r.
+         * Early-out: skip entire block when all three depths are 0.
          * --------------------------------------------------------------- */
-        *out_l = q15_mul_truncate(gauss_out, v->vol_l);
-        *out_r = q15_mul_truncate(gauss_out, v->vol_r);
+        int16_t mod_vol_l = v->vol_l;
+        int16_t mod_vol_r = v->vol_r;
+        if (v->noise_mod_pitch_depth | v->noise_mod_vol_depth | v->noise_mod_pan_depth) {
+            /* MOD-02: Volume modulation — symmetric offset to both channels */
+            if (v->noise_mod_vol_depth != 0) {
+                int32_t vol_mod = ((int32_t)noise_level * (int32_t)v->noise_mod_vol_depth) >> 15;
+                int32_t vl32 = (int32_t)mod_vol_l + vol_mod;
+                int32_t vr32 = (int32_t)mod_vol_r + vol_mod;
+                if (vl32 > 0x3FFF) vl32 = 0x3FFF;
+                if (vl32 < -0x4000) vl32 = -0x4000;
+                if (vr32 > 0x3FFF) vr32 = 0x3FFF;
+                if (vr32 < -0x4000) vr32 = -0x4000;
+                mod_vol_l = (int16_t)vl32;
+                mod_vol_r = (int16_t)vr32;
+            }
+            /* MOD-03: Pan modulation — differential offset (L gets +noise*depth,
+             * R gets -noise*depth) creating stereo jitter */
+            if (v->noise_mod_pan_depth != 0) {
+                int32_t pan_mod = ((int32_t)noise_level * (int32_t)v->noise_mod_pan_depth) >> 15;
+                int32_t pl32 = (int32_t)mod_vol_l + pan_mod;
+                int32_t pr32 = (int32_t)mod_vol_r - pan_mod;
+                if (pl32 > 0x3FFF) pl32 = 0x3FFF;
+                if (pl32 < -0x4000) pl32 = -0x4000;
+                if (pr32 > 0x3FFF) pr32 = 0x3FFF;
+                if (pr32 < -0x4000) pr32 = -0x4000;
+                mod_vol_l = (int16_t)pl32;
+                mod_vol_r = (int16_t)pr32;
+            }
+        }
+
+        /* ---------------------------------------------------------------
+         * STEP 3 — Apply per-voice volume (VOICE-04)
+         * Uses mod_vol_l/mod_vol_r which include mod bus offsets (or
+         * are identical to v->vol_l/vol_r when all depths are 0).
+         * --------------------------------------------------------------- */
+        *out_l = q15_mul_truncate(gauss_out, mod_vol_l);
+        *out_r = q15_mul_truncate(gauss_out, mod_vol_r);
     }
 
     /* ---------------------------------------------------------------
@@ -294,6 +333,18 @@ void spu94_voice_tick(spu94_voice_t *v,
          * PMON (Phase 35) can set pitch to 0x4000 — this is spec-correct:
          * "IF Step > 3FFFh THEN Step = 4000h". Accept 0x4000, clamp above it. */
         uint16_t effective_pitch = (v->pitch > 0x4000) ? 0x4000 : v->pitch;
+
+        /* MOD-01: Pitch modulation — offset effective pitch by noise * depth.
+         * Applied per-tick (does NOT write back to v->pitch).
+         * Clamp to 0..0x4000 (same range PMON allows). */
+        if (v->noise_mod_pitch_depth != 0) {
+            int32_t pitch_mod = ((int32_t)noise_level * (int32_t)v->noise_mod_pitch_depth) >> 15;
+            int32_t mod_pitch = (int32_t)effective_pitch + pitch_mod;
+            if (mod_pitch < 0) mod_pitch = 0;
+            if (mod_pitch > 0x4000) mod_pitch = 0x4000;
+            effective_pitch = (uint16_t)mod_pitch;
+        }
+
         uint16_t new_ctr = (uint16_t)(old_ctr + effective_pitch);
         uint16_t samples_consumed = (uint16_t)((new_ctr >> 12) - (old_ctr >> 12));
         if (new_ctr < old_ctr) samples_consumed = 1;  /* 16-bit wrap guard */
@@ -510,6 +561,19 @@ spu94_result_t spu94_voice_mixer_set_pitch(spu94_voice_mixer_t *m, int voice_idx
     if (pitch == 0) pitch = 0x1000;
     if (pitch > 0x3FFF) pitch = 0x3FFF;
     m->voices[voice_idx].pitch = pitch;
+
+    return SPU94_OK;
+}
+
+spu94_result_t spu94_voice_mixer_set_mod_bus(spu94_voice_mixer_t *m, int voice_idx,
+    int16_t pitch_depth, int16_t vol_depth, int16_t pan_depth)
+{
+    if (m == NULL || voice_idx < 0 || voice_idx >= 24)
+        return SPU94_INVALID_ARG;
+
+    m->voices[voice_idx].noise_mod_pitch_depth = pitch_depth;
+    m->voices[voice_idx].noise_mod_vol_depth   = vol_depth;
+    m->voices[voice_idx].noise_mod_pan_depth   = pan_depth;
 
     return SPU94_OK;
 }

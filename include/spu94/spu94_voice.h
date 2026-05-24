@@ -58,6 +58,10 @@ typedef struct {
     spu94_adsr_state_t adsr;     /* Phase 28: per-voice ADSR envelope state */
     spu94_sweep_t sweep_l;       /* Phase 37: per-voice left volume sweep */
     spu94_sweep_t sweep_r;       /* Phase 37: per-voice right volume sweep */
+    /* Phase 50: Internal mod bus -- per-voice noise-to-pitch/vol/pan routing (MOD-01..05) */
+    int16_t noise_mod_pitch_depth; /* bipolar (-0x7FFF..+0x7FFF): noise -> pitch offset. 0 = off */
+    int16_t noise_mod_vol_depth;   /* unipolar (0..0x7FFF): noise -> volume offset. 0 = off */
+    int16_t noise_mod_pan_depth;   /* unipolar (0..0x7FFF): noise -> stereo divergence. 0 = off */
     /* Phase 29: Loop mechanics fields (LOOP-01..05; C4, C5 pitfall prevention) */
     uint32_t  loop_addr;          /* byte offset latched on Loop-Start flag (LOOP-02) */
     int16_t   loop_adpcm_old;     /* ADPCM filter history snapshot at loop start (LOOP-03 / C5) */
@@ -205,6 +209,16 @@ spu94_result_t spu94_voice_mixer_set_sweep_r(spu94_voice_mixer_t *m, int voice_i
  * Returns SPU94_INVALID_ARG if voice_idx out of range. */
 spu94_result_t spu94_voice_mixer_set_pitch(spu94_voice_mixer_t *m, int voice_idx,
     uint16_t pitch);
+
+/* Set noise modulation depths for internal mod bus (Phase 50: MOD-01..05).
+ * All three depths are independently controllable per voice.
+ * Pitch depth is bipolar (-0x7FFF..+0x7FFF); vol and pan depths are unipolar
+ * (0..0x7FFF). When all depths are 0, the mod bus is bypassed (bit-identical
+ * to unmodulated output). Modulation is applied per-tick inside spu94_voice_tick
+ * at sample rate; it does NOT persist to the voice struct fields.
+ * Returns SPU94_INVALID_ARG if voice_idx out of range. */
+spu94_result_t spu94_voice_mixer_set_mod_bus(spu94_voice_mixer_t *m, int voice_idx,
+    int16_t pitch_depth, int16_t vol_depth, int16_t pan_depth);
 
 /* Load pre-encoded ADPCM blocks into mixer->voice_ram at given byte offset.
  * Validates addr + source_size <= SPU94_SPU_RAM_BYTES.
