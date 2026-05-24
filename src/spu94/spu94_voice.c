@@ -100,7 +100,6 @@ void spu94_voice_tick(spu94_voice_t *v,
                       uint8_t gauss_bypass,
                       int16_t noise_level,
                       uint8_t non_enabled,
-                      uint8_t noise_gauss,
                       int16_t *out_l, int16_t *out_r) {
     if (v == NULL || out_l == NULL || out_r == NULL) return;
 
@@ -229,26 +228,10 @@ void spu94_voice_tick(spu94_voice_t *v,
      * --------------------------------------------------------------- */
     {
         int16_t gauss_out;
-        if (non_enabled && !noise_gauss) {
+        if (non_enabled) {
+            /* NON-04/NON-05: substitute global noise level.
+             * All NON voices receive the same noise_level per tick. */
             gauss_out = noise_level;
-        } else if (non_enabled && noise_gauss) {
-            /* Route noise through Gaussian interpolation (creative extension).
-             * Write noise into the ring buffer position that the Gauss filter
-             * reads as the newest sample (s3), then let interpolation smooth
-             * between consecutive noise values. */
-            v->gauss_ring[(v->gauss_ring_pos + 3) & 3] = noise_level;
-            const uint8_t gi = (uint8_t)((v->pitch_counter >> 4) & 0xFF);
-            const uint8_t wp = v->gauss_ring_pos;
-            const int16_t s0 = v->gauss_ring[(wp + 0) & 3];
-            const int16_t s1 = v->gauss_ring[(wp + 1) & 3];
-            const int16_t s2 = v->gauss_ring[(wp + 2) & 3];
-            const int16_t s3 = v->gauss_ring[(wp + 3) & 3];
-            int32_t interpolated =
-                  (int32_t)spu94_gauss_table[0x0FF - gi] * (int32_t)s0
-                + (int32_t)spu94_gauss_table[0x1FF - gi] * (int32_t)s1
-                + (int32_t)spu94_gauss_table[0x100 + gi] * (int32_t)s2
-                + (int32_t)spu94_gauss_table[0x000 + gi] * (int32_t)s3;
-            gauss_out = sat_s16(interpolated >> 15);
         } else {
             const uint8_t gi = (uint8_t)((v->pitch_counter >> 4) & 0xFF);
             const uint8_t wp = v->gauss_ring_pos;
@@ -630,9 +613,8 @@ void spu94_voice_mixer_tick(spu94_voice_mixer_t *m,
         spu94_voice_tick(&m->voices[v],
                          m->voice_ram, SPU94_SPU_RAM_BYTES,
                          m->gauss_bypass,
-                         m->noise_gen.level,
+                         m->noise_gen.level,  /* NON-05: same value for all voices */
                          non_enabled,
-                         m->noise_gauss,
                          &vl, &vr);
 
         /* Restore original pitch register (PMON is per-tick, not persistent) */

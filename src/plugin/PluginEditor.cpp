@@ -420,15 +420,6 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         noiseColorLabel.setJustificationType(juce::Justification::centred);
         panel.addAndMakeVisible(noiseColorLabel);
 
-        // Noise Gauss toggle — route noise through Gaussian interpolation
-        noiseGaussToggle.setClickingTogglesState(true);
-        noiseGaussToggle.setToggleState(false, juce::dontSendNotification);
-        noiseGaussToggle.onClick = [this] {
-            processorRef.getNoiseGauss().store(
-                noiseGaussToggle.getToggleState(), std::memory_order_relaxed);
-        };
-        panel.addAndMakeVisible(noiseGaussToggle);
-
         // Voice Mode group label
         voiceModeLabel.setText("Voice Mode", juce::dontSendNotification);
         voiceModeLabel.setJustificationType(juce::Justification::centredLeft);
@@ -1164,7 +1155,6 @@ void SPU94AudioProcessorEditor::resized()
             voicePmonToggle.setBounds(160, voly + 132, 70, 30);
             noiseColorLabel.setBounds(260, voly + 80, 100, 16);
             noiseColorKnob.setBounds(270, voly + 96, 80, 70);
-            noiseGaussToggle.setBounds(270, voly + 168, 80, 26);
 
             // VCA Ramp section — below Pan/Level area (Phase 41)
             constexpr int rampy = voly + 218;

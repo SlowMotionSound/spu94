@@ -64,7 +64,7 @@ void test_inactive_voice_produces_silence(void) {
     make_test_block(ram);
 
     int16_t out_l = 999, out_r = 999;
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
 
     TEST_ASSERT_EQUAL_INT16(0, out_l);
     TEST_ASSERT_EQUAL_INT16(0, out_r);
@@ -135,7 +135,7 @@ void test_first_tick_decodes_and_outputs(void) {
     int16_t out_l = 0, out_r = 0;
     int found_nonzero = 0;
     for (int i = 0; i < 10; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
         if (out_l != 0 || out_r != 0) {
             found_nonzero = 1;
             break;
@@ -164,7 +164,7 @@ void test_volume_scaling(void) {
     int16_t out_l = 0, out_r = 0;
     /* Run enough ticks to get non-zero Gaussian output */
     for (int i = 0; i < 10; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
 
     /* out_l should be 0 (volume=0), out_r may be non-zero */
@@ -173,7 +173,7 @@ void test_volume_scaling(void) {
      * but let's run more ticks and check */
     int found_r_nonzero = 0;
     for (int i = 0; i < 20; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
         TEST_ASSERT_EQUAL_INT16(0, out_l);
         if (out_r != 0) found_r_nonzero = 1;
     }
@@ -189,7 +189,7 @@ void test_null_voice_ram_safety(void) {
     spu94_voice_key_on(&v, 0, 0x1000, 0x7FFF, 0x7FFF);
 
     int16_t out_l = 999, out_r = 999;
-    spu94_voice_tick(&v, NULL, 0, 0, 0, 0, 0, &out_l, &out_r);
+    spu94_voice_tick(&v, NULL, 0, 0, 0, 0, &out_l, &out_r);
 
     TEST_ASSERT_EQUAL_INT16(0, out_l);
     TEST_ASSERT_EQUAL_INT16(0, out_r);
@@ -207,7 +207,7 @@ void test_zero_size_ram_safety(void) {
     make_test_block(ram);
 
     int16_t out_l = 999, out_r = 999;
-    spu94_voice_tick(&v, ram, 0, 0, 0, 0, 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, 0, 0, 0, 0, &out_l, &out_r);
 
     TEST_ASSERT_EQUAL_INT16(0, out_l);
     TEST_ASSERT_EQUAL_INT16(0, out_r);
@@ -228,13 +228,13 @@ void test_key_off_silences(void) {
     /* Run a few ticks to get audio going */
     int16_t out_l, out_r;
     for (int i = 0; i < 5; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
 
     spu94_voice_key_off(&v);
     TEST_ASSERT_EQUAL_UINT8(0, v.active);
 
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     TEST_ASSERT_EQUAL_INT16(0, out_l);
     TEST_ASSERT_EQUAL_INT16(0, out_r);
 }
@@ -255,7 +255,7 @@ void test_voice_stops_at_ram_boundary(void) {
     /* Run enough ticks to consume the one block (28 samples at pitch 0x1000 = 28 ticks) */
     int16_t out_l, out_r;
     for (int i = 0; i < 40; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
 
     /* Voice should have deactivated (ran past the single block) */
@@ -283,7 +283,7 @@ void test_adsr_bypass_matches_phase27(void) {
     int16_t out_l, out_r;
     int found_nonzero = 0;
     for (int i = 0; i < 10; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
         if (out_l != 0) found_nonzero = 1;
     }
     TEST_ASSERT_TRUE(found_nonzero);
@@ -307,7 +307,7 @@ void test_adsr_off_silences_voice(void) {
     v.adsr.level = 0;
 
     int16_t out_l = 999, out_r = 999;
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
 
     TEST_ASSERT_EQUAL_UINT8(0, v.active);
     TEST_ASSERT_EQUAL_INT16(0, out_l);
@@ -336,7 +336,7 @@ void test_key_off_enters_release(void) {
     /* Run a few ticks to get into sustain */
     int16_t out_l, out_r;
     for (int i = 0; i < 100; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
 
     /* Key off should enter release, not set active=0 */
@@ -370,14 +370,14 @@ void test_adsr_attack_ramps_output(void) {
     /* After key_on, ADSR level starts at 0. First tick should produce
      * near-zero output (ADSR level is 0 before tick fires). */
     int16_t out_l, out_r;
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     int16_t level_after_1 = v.adsr.level;
 
     /* Run a few more ticks — level should be increasing */
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     int16_t level_after_2 = v.adsr.level;
 
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     int16_t level_after_3 = v.adsr.level;
 
     /* ADSR level must be increasing during attack */
@@ -444,13 +444,13 @@ void test_adsr_full_pipeline_attack_sustain_release(void) {
 
     /* Warm up the Gaussian ring (first few ticks may be 0 from ring cold start) */
     for (int i = 0; i < 5; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
 
     /* Now measure — the ring should have non-zero samples.
      * Track whether output generally increases. */
     for (int i = 0; i < 5; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
         int16_t abs_out = out_l > 0 ? out_l : (int16_t)(-out_l);
         if (abs_out > prev_abs) attack_increasing = 1;
         prev_abs = abs_out;
@@ -461,7 +461,7 @@ void test_adsr_full_pipeline_attack_sustain_release(void) {
     /* --- Run until SUSTAIN ---
      * The ADSR should transition attack->decay->sustain */
     for (int i = 0; i < 200; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
         if (v.adsr.phase == ADSR_SUSTAIN) break;
     }
     TEST_ASSERT_EQUAL(ADSR_SUSTAIN, v.adsr.phase);
@@ -470,7 +470,7 @@ void test_adsr_full_pipeline_attack_sustain_release(void) {
     TEST_ASSERT_EQUAL_INT16(0x4000, v.adsr.level);
 
     /* Output should be non-zero (sustained) */
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     TEST_ASSERT_TRUE(out_l != 0 || out_r != 0);
 
     /* Record sustain-level output for later comparison */
@@ -485,12 +485,12 @@ void test_adsr_full_pipeline_attack_sustain_release(void) {
 
     /* Run a few ticks — output should be decreasing */
     int16_t release_out_first = 0;
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     release_out_first = out_l > 0 ? out_l : (int16_t)(-out_l);
 
     int16_t release_out_later = 0;
     for (int i = 0; i < 10; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
     release_out_later = out_l > 0 ? out_l : (int16_t)(-out_l);
 
@@ -501,7 +501,7 @@ void test_adsr_full_pipeline_attack_sustain_release(void) {
     /* --- Run until voice goes silent ---
      * ADSR should reach OFF, voice active=0 */
     for (int i = 0; i < 10000; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
         if (v.active == 0) break;
     }
     TEST_ASSERT_EQUAL_UINT8(0, v.active);
@@ -537,7 +537,7 @@ void test_loop_start_latches_address(void) {
 
     /* Tick once — at pitch 0x1000, the first tick triggers decode of block 0 */
     int16_t out_l, out_r;
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
 
     /* After block 0 is decoded, loop_addr should be latched to address of block 0 */
     TEST_ASSERT_EQUAL_UINT32(0, v.loop_addr);
@@ -571,7 +571,7 @@ void test_loop_end_repeat_jumps_to_loop_addr(void) {
      * then 1 more tick triggers decode of block 1) */
     int16_t out_l, out_r;
     for (int i = 0; i < 29; i++) {
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
 
     /* After block 1 is decoded: current_addr should have jumped to loop_addr (0) */
@@ -602,7 +602,7 @@ void test_one_shot_silences_voice(void) {
 
     /* Tick once — triggers decode of block 0 with LOOP_END flag */
     int16_t out_l, out_r;
-    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+    spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
 
     /* ENDX should be set immediately on flag parse */
     TEST_ASSERT_EQUAL_UINT8(1, spu94_voice_get_endx(&v));
@@ -1066,7 +1066,7 @@ void test_gauss_bypass_zoh_differs_from_gauss(void) {
     int16_t gauss_out[40];
     for (int i = 0; i < N; i++) {
         int16_t out_l, out_r;
-        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
         gauss_out[i] = out_l;
     }
 
@@ -1077,7 +1077,7 @@ void test_gauss_bypass_zoh_differs_from_gauss(void) {
     int16_t zoh_out[40];
     for (int i = 0; i < N; i++) {
         int16_t out_l, out_r;
-        spu94_voice_tick(&v, ram, sizeof(ram), 1, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&v, ram, sizeof(ram), 1, 0, 0, &out_l, &out_r);
         zoh_out[i] = out_l;
     }
 
@@ -1119,14 +1119,14 @@ void test_negative_volume_phase_inversion(void) {
     /* Warm up Gaussian ring (first ~4 ticks from cold ring produce 0) */
     int16_t out_l, out_r;
     for (int i = 0; i < 5; i++) {
-        spu94_voice_tick(&v_pos, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&v_pos, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
 
     /* Collect N ticks of stabilized output */
     const int N = 20;
     int16_t pos_l[20], pos_r[20];
     for (int i = 0; i < N; i++) {
-        spu94_voice_tick(&v_pos, ram, sizeof(ram), 0, 0, 0, 0, &pos_l[i], &pos_r[i]);
+        spu94_voice_tick(&v_pos, ram, sizeof(ram), 0, 0, 0, &pos_l[i], &pos_r[i]);
     }
 
     /* Run fresh voice with negative volume: vol_l=-0x4000, vol_r=-0x4000 */
@@ -1136,13 +1136,13 @@ void test_negative_volume_phase_inversion(void) {
 
     /* Same warmup */
     for (int i = 0; i < 5; i++) {
-        spu94_voice_tick(&v_neg, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&v_neg, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
     }
 
     /* Collect N ticks */
     int16_t neg_l[20], neg_r[20];
     for (int i = 0; i < N; i++) {
-        spu94_voice_tick(&v_neg, ram, sizeof(ram), 0, 0, 0, 0, &neg_l[i], &neg_r[i]);
+        spu94_voice_tick(&v_neg, ram, sizeof(ram), 0, 0, 0, &neg_l[i], &neg_r[i]);
     }
 
     /* For every tick where the positive output is nonzero, the negative output
@@ -1224,8 +1224,8 @@ void test_outx_stored_post_adsr_pre_volume(void) {
     int16_t out_l, out_r;
     int found_nonzero_outx = 0;
     for (int i = 0; i < 20; i++) {
-        spu94_voice_tick(&va, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
-        spu94_voice_tick(&vb, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&va, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&vb, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
         if (va.outx != 0) {
             found_nonzero_outx = 1;
             /* outx must be identical for both voices regardless of volume sign */
@@ -2296,8 +2296,8 @@ void test_int01_outx_post_adsr_pre_volume(void) {
     int16_t out_l, out_r;
     int found_nonzero = 0;
     for (int i = 0; i < 20; i++) {
-        spu94_voice_tick(&va, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
-        spu94_voice_tick(&vb, ram, sizeof(ram), 0, 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&va, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
+        spu94_voice_tick(&vb, ram, sizeof(ram), 0, 0, 0, &out_l, &out_r);
         if (va.outx != 0) {
             found_nonzero = 1;
             /* The key assertion: outx must be identical for both voices,
@@ -2312,8 +2312,8 @@ void test_int01_outx_post_adsr_pre_volume(void) {
 
     /* Additional check: the actual outputs must DIFFER (volume does affect final output) */
     int16_t out_a_l, out_a_r, out_b_l, out_b_r;
-    spu94_voice_tick(&va, ram, sizeof(ram), 0, 0, 0, 0, &out_a_l, &out_a_r);
-    spu94_voice_tick(&vb, ram, sizeof(ram), 0, 0, 0, 0, &out_b_l, &out_b_r);
+    spu94_voice_tick(&va, ram, sizeof(ram), 0, 0, 0, &out_a_l, &out_a_r);
+    spu94_voice_tick(&vb, ram, sizeof(ram), 0, 0, 0, &out_b_l, &out_b_r);
     /* With different volumes, final outputs should differ (outx same, but volume applied after) */
     if (va.outx != 0) {
         TEST_ASSERT_TRUE_MESSAGE(out_a_l != out_b_l,

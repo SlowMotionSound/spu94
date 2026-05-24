@@ -138,7 +138,6 @@ private:
     juce::Label voiceModeLabel;
     juce::Slider noiseColorKnob;
     juce::Label noiseColorLabel;
-    juce::ToggleButton noiseGaussToggle{"Gauss"};
     void updateVoiceVolumes();
 
     // VCA ramp controls (Phase 41: volume sweep GUI surface)

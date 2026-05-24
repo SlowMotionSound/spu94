@@ -98,8 +98,6 @@ uint8_t spu94_voice_get_endx(const spu94_voice_t *v);
  *               1 = zero-order hold (output newest sample, raw aliasing).
  * noise_level: NON-05: global noise value from spu94_noise_gen_t.level.
  * non_enabled: NON-04: 1 = output noise instead of ADPCM/Gauss, 0 = normal.
- * noise_gauss: 0 = raw noise (PS1 faithful), 1 = route noise through Gaussian
- *              interpolation for smoother, less pitched character (creative extension).
  *
  * RT-safe: no heap, no locks, no syscalls. */
 void spu94_voice_tick(spu94_voice_t *v,
@@ -107,7 +105,6 @@ void spu94_voice_tick(spu94_voice_t *v,
                       uint8_t gauss_bypass,
                       int16_t noise_level,
                       uint8_t non_enabled,
-                      uint8_t noise_gauss,
                       int16_t *out_l, int16_t *out_r);
 
 /* -----------------------------------------------------------------------
@@ -141,7 +138,6 @@ typedef struct {
     int16_t       master_vol_r;        /* MIX-03: Q15, applied after voice sum */
     uint8_t       enabled;             /* gate: 0 = voice engine bypassed entirely */
     uint8_t       gauss_bypass;        /* AA-01: 0 = Gauss interp (PS1 faithful), 1 = zero-order hold (raw aliasing) */
-    uint8_t       noise_gauss;         /* 0 = raw noise (PS1 faithful), 1 = route noise through Gaussian filter (creative extension) */
 } spu94_voice_mixer_t;
 
 /* Initialize mixer: zero all 24 voices, clear pending masks, clear eon_flags,
