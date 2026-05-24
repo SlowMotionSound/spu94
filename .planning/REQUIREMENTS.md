@@ -71,18 +71,18 @@
 
 ### Voice Feature Toggles
 
-- [ ] **TOG-01**: Per-voice NON toggle in sampler GUI enables/disables noise generator output
-- [ ] **TOG-02**: Per-voice PMON toggle in sampler GUI enables/disables pitch modulation from previous voice
-- [ ] **TOG-03**: NON toggle replaces voice ADPCM output with global noise generator (ADPCM still decodes for flag side effects)
-- [ ] **TOG-04**: PMON toggle on voice N modulates pitch by voice N-1's outx (voice 0 PMON has no effect)
+- [x] **TOG-01**: Per-voice NON toggle in sampler GUI enables/disables noise generator output
+- [x] **TOG-02**: Per-voice PMON toggle in sampler GUI enables/disables pitch modulation from previous voice
+- [x] **TOG-03**: NON toggle replaces voice ADPCM output with global noise generator (ADPCM still decodes for flag side effects)
+- [x] **TOG-04**: PMON toggle on voice N modulates pitch by voice N-1's outx (voice 0 PMON has no effect)
 
 ### VCA Ramp Controls
 
-- [ ] **RAMP-01**: Per-voice VCA ramp section in sampler GUI with direction (up/down), speed, and curve (linear/natural) controls
-- [ ] **RAMP-02**: Ramp controls configure both sweep_l and sweep_r in C core with matched parameters
-- [ ] **RAMP-03**: Speed control labeled in seconds (not raw shift values), covering ~0.1s to ~7s
-- [ ] **RAMP-04**: Activating a ramp produces audible volume change matching configured direction, speed, and curve
-- [ ] **RAMP-05**: Ramp state resets on KON (new note starts fresh)
+- [x] **RAMP-01**: Per-voice VCA ramp section in sampler GUI with direction (up/down), speed, and curve (linear/natural) controls
+- [x] **RAMP-02**: Ramp controls configure both sweep_l and sweep_r in C core with matched parameters
+- [x] **RAMP-03**: Speed control labeled in seconds (not raw shift values), covering ~0.1s to ~7s
+- [x] **RAMP-04**: Activating a ramp produces audible volume change matching configured direction, speed, and curve
+- [x] **RAMP-05**: Ramp state resets on KON (new note starts fresh)
 
 ### Voice GUI Integration
 

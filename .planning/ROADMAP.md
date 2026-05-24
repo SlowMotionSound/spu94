@@ -197,7 +197,7 @@ Plans:
 **Plans**: 1 plan
 Plans:
 
-- [ ] 40-01-PLAN.md -- NON and PMON toggle controls in sampler GUI
+- [x] 40-01-PLAN.md -- NON and PMON toggle controls in sampler GUI
 
 ### Phase 41: VCA Ramp Controls
 
@@ -215,7 +215,7 @@ Plans:
 **Plans**: 1 plan
 Plans:
 
-- [ ] 41-01-PLAN.md -- VCA ramp controls: direction, speed, curve, ARM button with sweep API wiring
+- [x] 41-01-PLAN.md -- VCA ramp controls: direction, speed, curve, ARM button with sweep API wiring
 
 ### Phase 42: Voice GUI Integration
 
@@ -247,8 +247,8 @@ Phases execute in numeric order: 33, 34, 35, 36, 37, 38, 39, 40, 41, 42
 | 37. Volume Sweep | 0/3 | Not started | - |
 | 38. Integration & Cross-Feature Verification | 2/2 | Complete | 2026-05-23 |
 | 39. Pan & Level Controls | 1/1 | Complete    | 2026-05-23 |
-| 40. Voice Feature Toggles | 0/1 | Not started | - |
-| 41. VCA Ramp Controls | 0/TBD | Not started | - |
+| 40. Voice Feature Toggles | 1/1 | Complete    | 2026-05-24 |
+| 41. VCA Ramp Controls | 1/1 | Complete    | 2026-05-24 |
 | 42. Voice GUI Integration | 0/TBD | Not started | - |
 
 ## Previous Milestone Archives

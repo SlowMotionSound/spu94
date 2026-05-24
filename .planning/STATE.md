@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: Complete Voice
-status: executing
-stopped_at: Phase 41-01 Task 2 checkpoint — awaiting human visual verification of VCA ramp controls
-last_updated: "2026-05-23T22:08:00Z"
+status: ready_to_plan
+stopped_at: Phase 41 complete (1/1) — ready to discuss Phase 42
+last_updated: 2026-05-24T01:29:16.210Z
 last_activity: 2026-05-23 -- Phase 41-01 Task 1 committed (843fb87)
 progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 15
-  completed_plans: 11
+  completed_plans: 12
   percent: 70
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-21)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 41 — VCA Ramp Controls
+**Current focus:** Phase 42 — voice gui integration
 
 ## Current Position
 
-Phase: 41 (VCA Ramp Controls) — EXECUTING
-Plan: 1 of 1
-Status: Checkpoint — awaiting human verification of VCA ramp controls
-Last activity: 2026-05-23 -- Phase 41-01 Task 1 committed (843fb87)
+Phase: 42
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-24
 
 Progress: [██████░░░░] 60%
 
@@ -100,7 +100,7 @@ None.
 
 **Velocity:**
 
-- Total plans completed: 10 (v1.9)
+- Total plans completed: 12 (v1.9)
 - Average duration: 14min
 - Total execution time: 0.35 hours
 
@@ -114,6 +114,8 @@ None.
 | 36 | 2 | - | - |
 | 38 - Integration | 2/2 | 11min | 5.5min |
 | 39 | 1 | - | - |
+| 40 | 1 | - | - |
+| 41 | 1 | - | - |
 
 *Updated after each plan completion*
 
