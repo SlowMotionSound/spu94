@@ -44,10 +44,10 @@
   3. Retrigger rates cover the full range from sub-Hz (~0.5 Hz) through audio-rate (~7350 Hz)
   4. Disabling retrigger restores one-shot behavior identical to v1.9
   5. A new KON resets retrigger phase to zero (no stale phase from previous note)
-**Plans**: 2 plans (1 complete)
+**Plans**: 2 plans (2 complete)
 Plans:
 - [x] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
-- [ ] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
+- [x] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
 
 ### Phase 44: Tremolo
 **Goal**: Users hear periodic volume pulsing on a voice, with musical control over speed, depth, and character
@@ -61,8 +61,8 @@ Plans:
   5. Tremolo controls are visible and labeled in the sampler GUI
 **Plans**: 2 plans
 Plans:
-- [ ] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
-- [ ] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
+- [ ] 44-01-PLAN.md — Tremolo C-core helper: hz-to-shift, configure, apply_depth (TREM-01..05)
+- [ ] 44-02-PLAN.md — Tremolo GUI controls in sampler window (TREM-06)
 **UI hint**: yes
 
 ### Phase 45: Auto-Pan
@@ -178,8 +178,8 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 43. Retrigger Engine | 0/2 | Planned | - |
-| 44. Tremolo | 0/TBD | Not started | - |
+| 43. Retrigger Engine | 2/2 | Complete | 2026-05-24 |
+| 44. Tremolo | 0/2 | Planned | - |
 | 45. Auto-Pan | 0/TBD | Not started | - |
 | 46. Sidechain Duck | 0/TBD | Not started | - |
 | 47. Stereo Widener | 0/TBD | Not started | - |
