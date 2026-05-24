@@ -724,6 +724,37 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         duckDepthLabel.setJustificationType(juce::Justification::centred);
         panel.addAndMakeVisible(duckDepthLabel);
 
+        // Stereo Width section (Phase 47: static L/R offset for stereo widening)
+        stereoWidthSectionLabel.setText("Stereo Width", juce::dontSendNotification);
+        stereoWidthSectionLabel.setJustificationType(juce::Justification::centredLeft);
+        stereoWidthSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
+        stereoWidthSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
+        panel.addAndMakeVisible(stereoWidthSectionLabel);
+
+        stereoWidthSlider.setSliderStyle(juce::Slider::Rotary);
+        stereoWidthSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        stereoWidthSlider.setRange(0.0, 1.0, 0.01);
+        stereoWidthSlider.setValue(0.0, juce::dontSendNotification);
+        stereoWidthSlider.setDoubleClickReturnValue(true, 0.0);
+        stereoWidthSlider.textFromValueFunction = [](double value) {
+            return juce::String(static_cast<int>(value * 100.0)) + "%";
+        };
+        stereoWidthSlider.onValueChange = [this] {
+            processorRef.getStereoWidth().store(
+                static_cast<float>(stereoWidthSlider.getValue()), std::memory_order_relaxed);
+        };
+        panel.addAndMakeVisible(stereoWidthSlider);
+
+        stereoWidthLabel.setText("Width", juce::dontSendNotification);
+        stereoWidthLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(stereoWidthLabel);
+
+        stereoWidthMonoIndicator.setText("Mono: 0.0 dB", juce::dontSendNotification);
+        stereoWidthMonoIndicator.setJustificationType(juce::Justification::centredLeft);
+        stereoWidthMonoIndicator.setFont(juce::Font(juce::FontOptions(10.0f)));
+        stereoWidthMonoIndicator.setColour(juce::Label::textColourId, juce::Colour(0xFF4CAF50)); // green
+        panel.addAndMakeVisible(stereoWidthMonoIndicator);
+
         // Sampler mixer knobs -- own bus in the master mixer.
         samplerLevelKnob.setSliderStyle(juce::Slider::Rotary);
         samplerLevelKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
@@ -1217,6 +1248,33 @@ void SPU94AudioProcessorEditor::timerCallback()
             duckDepthKnob.setValue(static_cast<double>(depPct), juce::dontSendNotification);
     }
 
+    // Phase 47: Sync stereo width slider and mono-safety indicator.
+    {
+        float width = processorRef.getStereoWidth().load(std::memory_order_relaxed);
+        if (!stereoWidthSlider.isMouseButtonDown() &&
+            std::abs(static_cast<float>(stereoWidthSlider.getValue()) - width) > 0.005f)
+            stereoWidthSlider.setValue(static_cast<double>(width), juce::dontSendNotification);
+
+        // Compute worst-case mono loss (center-panned signal at max volume):
+        // offset = width * 0x2000
+        // Louder channel clips at 0x3FFF, quieter = 0x3FFF - offset
+        // mono_sum_ratio = (0x3FFF + max(0, 0x3FFF - offset)) / (2.0 * 0x3FFF)
+        float offset = width * 0x2000;
+        float mono_ratio = (0x3FFF + std::max(0.0f, 0x3FFF - offset)) / (2.0f * 0x3FFF);
+        float loss_dB = 20.0f * std::log10(std::max(0.001f, mono_ratio));
+
+        stereoWidthMonoIndicator.setText(
+            juce::String::formatted("Mono: %.1f dB", loss_dB), juce::dontSendNotification);
+
+        // Color-code: green < 1 dB loss, yellow 1-2 dB, orange > 2 dB
+        if (loss_dB >= -1.0f)
+            stereoWidthMonoIndicator.setColour(juce::Label::textColourId, juce::Colour(0xFF4CAF50)); // green
+        else if (loss_dB >= -2.0f)
+            stereoWidthMonoIndicator.setColour(juce::Label::textColourId, juce::Colour(0xFFFFEB3B)); // yellow
+        else
+            stereoWidthMonoIndicator.setColour(juce::Label::textColourId, juce::Colour(0xFFFF9800)); // orange
+    }
+
 }
 
 void SPU94AudioProcessorEditor::refreshAdsrDisplay()
@@ -1450,6 +1508,13 @@ void SPU94AudioProcessorEditor::resized()
             duckReleaseKnob.setBounds(160, ducky + 36, 80, 70);
             duckDepthLabel.setBounds(260, ducky + 20, 80, 16);
             duckDepthKnob.setBounds(260, ducky + 36, 80, 70);
+
+            // Stereo Width section — below Sidechain Duck (Phase 47)
+            constexpr int widthy = ducky + 110;
+            stereoWidthSectionLabel.setBounds(20, widthy, 120, 16);
+            stereoWidthLabel.setBounds(20, widthy + 20, 80, 16);
+            stereoWidthSlider.setBounds(20, widthy + 36, 80, 70);
+            stereoWidthMonoIndicator.setBounds(120, widthy + 50, 140, 18);
         }
     }
 

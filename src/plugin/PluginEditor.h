@@ -178,6 +178,12 @@ private:
     juce::Slider duckDepthKnob;
     juce::Label duckDepthLabel;
 
+    // Stereo Width controls (Phase 47: static L/R offset for stereo widening)
+    juce::Label stereoWidthSectionLabel;
+    juce::Slider stereoWidthSlider;
+    juce::Label stereoWidthLabel;
+    juce::Label stereoWidthMonoIndicator;
+
     // Sampler mixer knobs (standalone-only)
     juce::Slider samplerLevelKnob;
     juce::Label samplerLevelLabel;
