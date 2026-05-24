@@ -610,7 +610,15 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     mx->voices[0].adpcm_state.old = adpcmStateCache[blockIdx].old;
                     mx->voices[0].adpcm_state.older = adpcmStateCache[blockIdx].older;
                 }
-                uint32_t endAddr = posToBlockAddr(sampleEndPos.load(std::memory_order_relaxed));
+                uint32_t endAddr;
+                bool nonOn = guiVoiceNon.load(std::memory_order_relaxed);
+                if (nonOn && voiceSampleBytes == 0) {
+                    endAddr = SPU94_SPU_RAM_BYTES;
+                    mx->pending_config[0].loop_enabled = 1;
+                    mx->pending_config[0].loop_addr = 0;
+                } else {
+                    endAddr = posToBlockAddr(sampleEndPos.load(std::memory_order_relaxed));
+                }
                 if (endAddr <= startAddr)
                     endAddr = startAddr + SPU94_ADPCM_BLOCK_BYTES;
                 mx->pending_config[0].end_addr = endAddr;
