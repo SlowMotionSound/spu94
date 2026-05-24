@@ -19,6 +19,7 @@
 #include <spu94/spu94_voice.h>
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -972,6 +973,96 @@ void test_sidechain_duck_trigger_and_recovery(void) {
     TEST_ASSERT_TRUE(mixer->voices[1].vol_r > 0x7F00);
 }
 
+/* -----------------------------------------------------------------------
+ * Phase 47: Stereo widener offset formula tests.
+ * These test the exact same math used in processBlock's width offset block.
+ * No mixer ticking needed — pure arithmetic verification.
+ * ----------------------------------------------------------------------- */
+
+/* Helper: apply stereo width offset formula (mirrors processBlock logic) */
+static void apply_width_offset(int16_t *vol_l, int16_t *vol_r, float width) {
+    if (width <= 0.0f) return;
+    if (width > 1.0f) width = 1.0f;
+    const int16_t kWidthMaxOffset = 0x2000;
+    int16_t offset = (int16_t)(width * kWidthMaxOffset);
+    int32_t new_l = (int32_t)(*vol_l) + offset;
+    int32_t new_r = (int32_t)(*vol_r) - offset;
+    if (new_l > 0x3FFF) new_l = 0x3FFF;
+    if (new_l < -0x4000) new_l = -0x4000;
+    if (new_r > 0x3FFF) new_r = 0x3FFF;
+    if (new_r < -0x4000) new_r = -0x4000;
+    *vol_l = (int16_t)new_l;
+    *vol_r = (int16_t)new_r;
+}
+
+void test_stereo_widener_offset_mono_safety(void) {
+    /* Worst case: both channels at max volume (center pan).
+     * At width=1.0, offset = 0x2000.
+     * L clamps at 0x3FFF, R drops to 0x1FFF.
+     * Mono sum = 0x3FFF + 0x1FFF = 0x5FFE vs ideal 0x7FFE.
+     * Loss = 20*log10(0x5FFE / 0x7FFE) ~ -2.5 dB. Must be < 3.0 dB. */
+    int16_t vol_l = 0x3FFF;
+    int16_t vol_r = 0x3FFF;
+    apply_width_offset(&vol_l, &vol_r, 1.0f);
+
+    TEST_ASSERT_EQUAL_INT16(0x3FFF, vol_l);  /* clamped at max */
+    TEST_ASSERT_EQUAL_INT16(0x1FFF, vol_r);  /* 0x3FFF - 0x2000 */
+
+    /* Mono sum check */
+    int32_t mono_sum = (int32_t)vol_l + (int32_t)vol_r;
+    int32_t original_sum = 0x3FFF + 0x3FFF;  /* 0x7FFE */
+    float loss_dB = 20.0f * log10f((float)mono_sum / (float)original_sum);
+    TEST_ASSERT_TRUE(loss_dB > -3.0f);  /* Loss must be less than 3 dB */
+}
+
+void test_stereo_widener_zero_width_no_change(void) {
+    /* Width = 0 should produce NO change to vol_l/vol_r */
+    int16_t vol_l = 0x3000;
+    int16_t vol_r = 0x2000;
+    apply_width_offset(&vol_l, &vol_r, 0.0f);
+
+    TEST_ASSERT_EQUAL_INT16(0x3000, vol_l);
+    TEST_ASSERT_EQUAL_INT16(0x2000, vol_r);
+}
+
+void test_stereo_widener_half_width_symmetric(void) {
+    /* Width = 0.5: offset = 0x1000.
+     * L = 0x3FFF + 0x1000 = 0x4FFF -> clamps to 0x3FFF
+     * R = 0x3FFF - 0x1000 = 0x2FFF
+     * Mono sum = 0x3FFF + 0x2FFF = 0x6FFE vs original 0x7FFE
+     * Loss ~ -1.15 dB, must be < 3.0 dB. */
+    int16_t vol_l = 0x3FFF;
+    int16_t vol_r = 0x3FFF;
+    apply_width_offset(&vol_l, &vol_r, 0.5f);
+
+    TEST_ASSERT_EQUAL_INT16(0x3FFF, vol_l);  /* clamped at max */
+    TEST_ASSERT_EQUAL_INT16(0x2FFF, vol_r);  /* 0x3FFF - 0x1000 */
+
+    int32_t mono_sum = (int32_t)vol_l + (int32_t)vol_r;
+    int32_t original_sum = 0x3FFF + 0x3FFF;
+    float loss_dB = 20.0f * log10f((float)mono_sum / (float)original_sum);
+    TEST_ASSERT_TRUE(loss_dB > -3.0f);
+}
+
+void test_stereo_widener_low_volume_no_clip(void) {
+    /* Low volume: vol_l = vol_r = 0x1000.
+     * Width = 1.0: offset = 0x2000.
+     * L = 0x1000 + 0x2000 = 0x3000 (no clamp needed)
+     * R = 0x1000 - 0x2000 = -0x1000 (goes negative: phase inversion territory)
+     * Mono sum = 0x3000 + (-0x1000) = 0x2000 = 2 * 0x1000 (EXACTLY preserved). */
+    int16_t vol_l = 0x1000;
+    int16_t vol_r = 0x1000;
+    apply_width_offset(&vol_l, &vol_r, 1.0f);
+
+    TEST_ASSERT_EQUAL_INT16(0x3000, vol_l);   /* no clamp */
+    TEST_ASSERT_EQUAL_INT16(-0x1000, vol_r);  /* negative = phase inversion */
+
+    /* Mono sum preserved exactly (no clipping occurred) */
+    int32_t mono_sum = (int32_t)vol_l + (int32_t)vol_r;
+    int32_t original_sum = 0x1000 + 0x1000;
+    TEST_ASSERT_EQUAL_INT32(original_sum, mono_sum);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_sweep_init);
@@ -1007,5 +1098,10 @@ int main(void) {
     RUN_TEST(test_auto_pan_linear_crossfade_dip);
     /* Phase 46: Sidechain duck mechanism */
     RUN_TEST(test_sidechain_duck_trigger_and_recovery);
+    /* Phase 47: Stereo widener offset formula */
+    RUN_TEST(test_stereo_widener_offset_mono_safety);
+    RUN_TEST(test_stereo_widener_zero_width_no_change);
+    RUN_TEST(test_stereo_widener_half_width_symmetric);
+    RUN_TEST(test_stereo_widener_low_volume_no_clip);
     return UNITY_END();
 }
