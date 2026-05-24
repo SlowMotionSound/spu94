@@ -898,6 +898,73 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         phaseModDepthLabel.setJustificationType(juce::Justification::centred);
         panel.addAndMakeVisible(phaseModDepthLabel);
 
+        // Internal Mod Bus section (Phase 50: noise-to-pitch/vol/pan per voice)
+        modBusSectionLabel.setText("Mod Bus", juce::dontSendNotification);
+        modBusSectionLabel.setJustificationType(juce::Justification::centredLeft);
+        modBusSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
+        modBusSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
+        panel.addAndMakeVisible(modBusSectionLabel);
+
+        modBusPitchKnob.setSliderStyle(juce::Slider::Rotary);
+        modBusPitchKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        modBusPitchKnob.setRange(0.0, 100.0, 1.0);
+        modBusPitchKnob.setValue(0.0, juce::dontSendNotification);
+        modBusPitchKnob.setTextValueSuffix(" %");
+        modBusPitchKnob.setDoubleClickReturnValue(true, 0.0);
+        modBusPitchKnob.setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xFF3CBBB1));
+        modBusPitchKnob.onValueChange = [this] {
+            processorRef.getModBusPitchDepth().store(
+                static_cast<float>(modBusPitchKnob.getValue() / 100.0),
+                std::memory_order_relaxed);
+        };
+        panel.addAndMakeVisible(modBusPitchKnob);
+
+        modBusPitchLabel.setText("Pitch", juce::dontSendNotification);
+        modBusPitchLabel.setJustificationType(juce::Justification::centred);
+        modBusPitchLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
+        modBusPitchLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFA0A0A0));
+        panel.addAndMakeVisible(modBusPitchLabel);
+
+        modBusVolKnob.setSliderStyle(juce::Slider::Rotary);
+        modBusVolKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        modBusVolKnob.setRange(0.0, 100.0, 1.0);
+        modBusVolKnob.setValue(0.0, juce::dontSendNotification);
+        modBusVolKnob.setTextValueSuffix(" %");
+        modBusVolKnob.setDoubleClickReturnValue(true, 0.0);
+        modBusVolKnob.setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xFF3CBBB1));
+        modBusVolKnob.onValueChange = [this] {
+            processorRef.getModBusVolDepth().store(
+                static_cast<float>(modBusVolKnob.getValue() / 100.0),
+                std::memory_order_relaxed);
+        };
+        panel.addAndMakeVisible(modBusVolKnob);
+
+        modBusVolLabel.setText("Volume", juce::dontSendNotification);
+        modBusVolLabel.setJustificationType(juce::Justification::centred);
+        modBusVolLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
+        modBusVolLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFA0A0A0));
+        panel.addAndMakeVisible(modBusVolLabel);
+
+        modBusPanKnob.setSliderStyle(juce::Slider::Rotary);
+        modBusPanKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        modBusPanKnob.setRange(0.0, 100.0, 1.0);
+        modBusPanKnob.setValue(0.0, juce::dontSendNotification);
+        modBusPanKnob.setTextValueSuffix(" %");
+        modBusPanKnob.setDoubleClickReturnValue(true, 0.0);
+        modBusPanKnob.setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xFF3CBBB1));
+        modBusPanKnob.onValueChange = [this] {
+            processorRef.getModBusPanDepth().store(
+                static_cast<float>(modBusPanKnob.getValue() / 100.0),
+                std::memory_order_relaxed);
+        };
+        panel.addAndMakeVisible(modBusPanKnob);
+
+        modBusPanLabel.setText("Pan", juce::dontSendNotification);
+        modBusPanLabel.setJustificationType(juce::Justification::centred);
+        modBusPanLabel.setFont(juce::Font(juce::FontOptions(10.0f)));
+        modBusPanLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFA0A0A0));
+        panel.addAndMakeVisible(modBusPanLabel);
+
         // Sampler mixer knobs -- own bus in the master mixer.
         samplerLevelKnob.setSliderStyle(juce::Slider::Rotary);
         samplerLevelKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
@@ -1719,6 +1786,16 @@ void SPU94AudioProcessorEditor::resized()
             phaseModRateKnob.setBounds(20, phasy + 36, 80, 70);
             phaseModDepthLabel.setBounds(110, phasy + 20, 80, 16);
             phaseModDepthKnob.setBounds(110, phasy + 36, 80, 70);
+
+            // Mod Bus section — below Phase Mod (Phase 50)
+            constexpr int mody = phasy + 110;
+            modBusSectionLabel.setBounds(20, mody, 120, 16);
+            modBusPitchLabel.setBounds(20, mody + 20, 80, 16);
+            modBusPitchKnob.setBounds(20, mody + 36, 80, 70);
+            modBusVolLabel.setBounds(110, mody + 20, 80, 16);
+            modBusVolKnob.setBounds(110, mody + 36, 80, 70);
+            modBusPanLabel.setBounds(200, mody + 20, 80, 16);
+            modBusPanKnob.setBounds(200, mody + 36, 80, 70);
         }
     }
 

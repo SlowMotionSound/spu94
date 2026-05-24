@@ -201,6 +201,15 @@ private:
     juce::Slider phaseModDepthKnob;
     juce::Label phaseModDepthLabel;
 
+    // Internal Mod Bus (Phase 50: noise-to-pitch/vol/pan modulation)
+    juce::Label modBusSectionLabel;
+    juce::Slider modBusPitchKnob;
+    juce::Label modBusPitchLabel;
+    juce::Slider modBusVolKnob;
+    juce::Label modBusVolLabel;
+    juce::Slider modBusPanKnob;
+    juce::Label modBusPanLabel;
+
     // Sampler mixer knobs (standalone-only)
     juce::Slider samplerLevelKnob;
     juce::Label samplerLevelLabel;
