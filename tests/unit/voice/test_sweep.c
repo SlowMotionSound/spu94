@@ -1063,6 +1063,58 @@ void test_stereo_widener_low_volume_no_clip(void) {
     TEST_ASSERT_EQUAL_INT32(original_sum, mono_sum);
 }
 
+/* ---------------------------------------------------------------
+ * Phase 48: AM synthesis audio-rate oscillation test (AM-01)
+ * Proves that sweep retrigger at shift=4/step=0 produces a full
+ * oscillation cycle at approximately 639 Hz (audio rate), confirming
+ * the mechanism works for AM synthesis frequency range.
+ * --------------------------------------------------------------- */
+
+static void test_am_audio_rate_oscillation(void)
+{
+    spu94_sweep_t sw;
+    spu94_sweep_init(&sw);
+    sw.mode = 0;            /* linear */
+    sw.direction = 1;       /* start decreasing (from max volume) */
+    sw.phase = 0;           /* positive */
+    sw.shift = 4;           /* mid-range audio rate */
+    sw.step = 0;            /* step=0: fastest for this shift */
+    sw.retrigger_enable = 1;
+    sw.level = 0x7FFF;      /* start at maximum */
+    sw.active = 1;
+
+    /* Count ticks for one complete cycle: decrease to 0 then increase back to 0x7FFF.
+     * Expected: ~69 ticks (32 decrease + 37 increase) = ~639 Hz at 44100 sample rate.
+     * Decrease: step_magnitude = (8-0) << (11-4) = 1024; ceil(32767/1024) = 32 ticks.
+     * Increase: step_magnitude = (7-0) << (11-4) = 896; ceil(32767/896) = 37 ticks. */
+    int ticks = 0;
+    int16_t min_seen = 0x7FFF;
+
+    /* Run until level returns to 0x7FFF after having dropped */
+    int hit_zero = 0;
+    for (int t = 0; t < 200; t++) {
+        spu94_sweep_tick(&sw);
+        ticks++;
+        if (sw.level < min_seen) min_seen = sw.level;
+
+        if (sw.level == 0) hit_zero = 1;
+
+        /* Cycle complete when level returns to max after visiting zero */
+        if (hit_zero && sw.level == 0x7FFF) break;
+    }
+
+    /* Assert full cycle completed */
+    TEST_ASSERT_TRUE(hit_zero);
+    TEST_ASSERT_EQUAL_INT16(0x7FFF, sw.level);
+
+    /* Assert cycle length is approximately 69 ticks (within +/- 2 for edge effects) */
+    TEST_ASSERT_TRUE(ticks >= 67);
+    TEST_ASSERT_TRUE(ticks <= 71);
+
+    /* Assert that level reached 0 at the half-cycle point (full-range modulation) */
+    TEST_ASSERT_EQUAL_INT16(0, min_seen);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_sweep_init);
@@ -1103,5 +1155,7 @@ int main(void) {
     RUN_TEST(test_stereo_widener_zero_width_no_change);
     RUN_TEST(test_stereo_widener_half_width_symmetric);
     RUN_TEST(test_stereo_widener_low_volume_no_clip);
+    /* Phase 48: AM synthesis audio-rate oscillation */
+    RUN_TEST(test_am_audio_rate_oscillation);
     return UNITY_END();
 }
