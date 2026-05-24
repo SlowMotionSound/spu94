@@ -261,6 +261,235 @@ void test_sweep_phase_ignored_exp_decrease(void) {
     TEST_ASSERT_EQUAL_INT16(sw_pos.level, sw_neg.level);
 }
 
+/* ---------------------------------------------------------------
+ * Phase 43 Plan 01: Retrigger engine tests (RTR-01, RTR-03, RTR-04)
+ * --------------------------------------------------------------- */
+
+void test_sweep_retrigger_linear_increase_reverses(void) {
+    spu94_sweep_t sw;
+    spu94_sweep_init(&sw);
+    sw.shift = 0;
+    sw.step = 0;
+    sw.mode = 0;       /* linear */
+    sw.direction = 0;  /* increase */
+    sw.phase = 0;      /* positive */
+    sw.active = 1;
+    sw.level = 0;
+    sw.retrigger_enable = 1;
+
+    /* Tick until level reaches +0x7FFF */
+    int ticks = 0;
+    while (sw.level < 0x7FFF && ticks < 100) {
+        spu94_sweep_tick(&sw);
+        ticks++;
+    }
+    TEST_ASSERT_EQUAL_INT16(0x7FFF, sw.level);
+
+    /* On the tick AFTER reaching the clamp, direction must flip to decrease */
+    spu94_sweep_tick(&sw);
+    TEST_ASSERT_EQUAL_UINT8(1, sw.direction);  /* flipped to decrease */
+    TEST_ASSERT_EQUAL_UINT32(0, sw.counter);   /* counter reset */
+    /* Level stays at boundary on the reversal tick, next tick moves it away */
+}
+
+void test_sweep_retrigger_linear_decrease_reverses(void) {
+    spu94_sweep_t sw;
+    spu94_sweep_init(&sw);
+    sw.shift = 0;
+    sw.step = 0;
+    sw.mode = 0;       /* linear */
+    sw.direction = 1;  /* decrease */
+    sw.phase = 0;      /* positive */
+    sw.active = 1;
+    sw.level = 0x7FFF;
+    sw.retrigger_enable = 1;
+
+    /* Tick until level reaches 0 */
+    int ticks = 0;
+    while (sw.level > 0 && ticks < 100) {
+        spu94_sweep_tick(&sw);
+        ticks++;
+    }
+    TEST_ASSERT_EQUAL_INT16(0, sw.level);
+
+    /* On reversal tick, direction must flip to increase */
+    spu94_sweep_tick(&sw);
+    TEST_ASSERT_EQUAL_UINT8(0, sw.direction);  /* flipped to increase */
+    TEST_ASSERT_EQUAL_UINT32(0, sw.counter);   /* counter reset */
+}
+
+void test_sweep_retrigger_disabled_is_oneshot(void) {
+    spu94_sweep_t sw;
+    spu94_sweep_init(&sw);
+    sw.shift = 0;
+    sw.step = 0;
+    sw.mode = 0;       /* linear */
+    sw.direction = 0;  /* increase */
+    sw.phase = 0;      /* positive */
+    sw.active = 1;
+    sw.level = 0;
+    sw.retrigger_enable = 0;  /* disabled -- v1.9 one-shot behavior */
+
+    /* Tick until level reaches +0x7FFF */
+    int ticks = 0;
+    while (sw.level < 0x7FFF && ticks < 100) {
+        spu94_sweep_tick(&sw);
+        ticks++;
+    }
+    TEST_ASSERT_EQUAL_INT16(0x7FFF, sw.level);
+
+    /* Further ticks should NOT change direction; level stays clamped */
+    spu94_sweep_tick(&sw);
+    TEST_ASSERT_EQUAL_UINT8(0, sw.direction);  /* still increase (NOT flipped) */
+    TEST_ASSERT_EQUAL_INT16(0x7FFF, sw.level); /* still clamped */
+
+    spu94_sweep_tick(&sw);
+    TEST_ASSERT_EQUAL_UINT8(0, sw.direction);
+    TEST_ASSERT_EQUAL_INT16(0x7FFF, sw.level);
+}
+
+void test_sweep_retrigger_full_cycle(void) {
+    spu94_sweep_t sw;
+    spu94_sweep_init(&sw);
+    sw.shift = 0;
+    sw.step = 0;
+    sw.mode = 0;       /* linear */
+    sw.direction = 0;  /* increase */
+    sw.phase = 0;      /* positive */
+    sw.active = 1;
+    sw.level = 0;
+    sw.retrigger_enable = 1;
+
+    /* Phase 1: tick up to max */
+    int ticks = 0;
+    while (sw.level < 0x7FFF && ticks < 100) {
+        spu94_sweep_tick(&sw);
+        ticks++;
+    }
+    TEST_ASSERT_EQUAL_INT16(0x7FFF, sw.level);
+
+    /* Reversal tick: should flip to decrease */
+    spu94_sweep_tick(&sw);
+    TEST_ASSERT_EQUAL_UINT8(1, sw.direction);
+
+    /* Phase 2: tick down to 0 */
+    ticks = 0;
+    while (sw.level > 0 && ticks < 100) {
+        spu94_sweep_tick(&sw);
+        ticks++;
+    }
+    TEST_ASSERT_EQUAL_INT16(0, sw.level);
+
+    /* Reversal tick: should flip back to increase */
+    spu94_sweep_tick(&sw);
+    TEST_ASSERT_EQUAL_UINT8(0, sw.direction);
+    TEST_ASSERT_EQUAL_UINT32(0, sw.counter);
+}
+
+void test_sweep_retrigger_exponential_reversal(void) {
+    spu94_sweep_t sw;
+    spu94_sweep_init(&sw);
+    sw.shift = 0;
+    sw.step = 0;
+    sw.mode = 1;       /* exponential */
+    sw.direction = 1;  /* decrease */
+    sw.phase = 0;      /* positive */
+    sw.active = 1;
+    sw.level = 0x4000;
+    sw.retrigger_enable = 1;
+
+    /* Tick until level reaches 0 (exponential anti-stall ensures it reaches zero) */
+    int ticks = 0;
+    while (sw.level > 0 && ticks < 1000) {
+        spu94_sweep_tick(&sw);
+        ticks++;
+    }
+    TEST_ASSERT_EQUAL_INT16(0, sw.level);
+
+    /* Reversal: direction flips to increase, counter resets */
+    spu94_sweep_tick(&sw);
+    TEST_ASSERT_EQUAL_UINT8(0, sw.direction);  /* flipped to increase */
+    TEST_ASSERT_EQUAL_UINT32(0, sw.counter);   /* counter reset */
+}
+
+void test_sweep_retrigger_negative_phase(void) {
+    spu94_sweep_t sw;
+    spu94_sweep_init(&sw);
+    sw.shift = 0;
+    sw.step = 0;
+    sw.mode = 0;       /* linear */
+    sw.direction = 0;  /* increase (toward -0x7FFF in negative phase) */
+    sw.phase = 1;      /* negative */
+    sw.active = 1;
+    sw.level = 0;
+    sw.retrigger_enable = 1;
+
+    /* Tick until level reaches -0x7FFF */
+    int ticks = 0;
+    while (sw.level > -0x7FFF && ticks < 100) {
+        spu94_sweep_tick(&sw);
+        ticks++;
+    }
+    TEST_ASSERT_EQUAL_INT16(-0x7FFF, sw.level);
+
+    /* Reversal: direction flips to decrease (toward 0 in negative phase) */
+    spu94_sweep_tick(&sw);
+    TEST_ASSERT_EQUAL_UINT8(1, sw.direction);
+    TEST_ASSERT_EQUAL_UINT32(0, sw.counter);
+
+    /* Tick until level reaches 0 */
+    ticks = 0;
+    while (sw.level < 0 && ticks < 100) {
+        spu94_sweep_tick(&sw);
+        ticks++;
+    }
+    TEST_ASSERT_EQUAL_INT16(0, sw.level);
+
+    /* Reversal: direction flips back to increase */
+    spu94_sweep_tick(&sw);
+    TEST_ASSERT_EQUAL_UINT8(0, sw.direction);
+    TEST_ASSERT_EQUAL_UINT32(0, sw.counter);
+}
+
+void test_sweep_retrigger_audio_rate(void) {
+    spu94_sweep_t sw;
+    spu94_sweep_init(&sw);
+    sw.shift = 0;
+    sw.step = 0;
+    sw.mode = 0;       /* linear */
+    sw.direction = 0;  /* increase */
+    sw.phase = 0;      /* positive */
+    sw.active = 1;
+    sw.level = 0;
+    sw.retrigger_enable = 1;
+
+    /* Count ticks for one complete up+down cycle at fastest rate (shift=0, step=0) */
+    int total_ticks = 0;
+    int reversals = 0;
+    uint8_t last_dir = sw.direction;
+
+    /* Run until we get 2 reversals (one full cycle: up then down) */
+    while (reversals < 2 && total_ticks < 200) {
+        spu94_sweep_tick(&sw);
+        total_ticks++;
+        if (sw.direction != last_dir) {
+            reversals++;
+            last_dir = sw.direction;
+        }
+    }
+
+    /* At shift=0/step=0, linear increase adds 14336 per tick.
+     * 0x7FFF / 14336 ~ 2.28, so 3 ticks to clamp + reversal tick = ~4 ticks up.
+     * Decrease: (8<<11)=16384 per tick. 0x7FFF/16384 ~ 2, so 2 ticks + reversal.
+     * Total cycle should be deterministic and small (under 10 ticks). */
+    TEST_ASSERT_TRUE(reversals == 2);
+    TEST_ASSERT_TRUE(total_ticks < 20);  /* sanity: fast oscillation */
+    TEST_ASSERT_TRUE(total_ticks > 2);   /* sanity: not degenerate */
+
+    /* Verify no stuck levels or skipped reversals -- direction should be back to 0 */
+    TEST_ASSERT_EQUAL_UINT8(0, sw.direction);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_sweep_init);
@@ -275,5 +504,12 @@ int main(void) {
     RUN_TEST(test_sweep_negative_phase_increase);
     RUN_TEST(test_sweep_negative_phase_decrease);
     RUN_TEST(test_sweep_phase_ignored_exp_decrease);
+    RUN_TEST(test_sweep_retrigger_linear_increase_reverses);
+    RUN_TEST(test_sweep_retrigger_linear_decrease_reverses);
+    RUN_TEST(test_sweep_retrigger_disabled_is_oneshot);
+    RUN_TEST(test_sweep_retrigger_full_cycle);
+    RUN_TEST(test_sweep_retrigger_exponential_reversal);
+    RUN_TEST(test_sweep_retrigger_negative_phase);
+    RUN_TEST(test_sweep_retrigger_audio_rate);
     return UNITY_END();
 }
