@@ -1069,6 +1069,45 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             }
         }
 
+        // Phase 46: Sidechain duck — KON snapshot and duck trigger.
+        // Read pending_kon BEFORE spu94_process (which calls mixer_tick and clears it).
+        // This tells us which voices are about to key-on this block.
+        {
+            auto* mx = spu94_get_voice_mixer();
+            uint32_t konSnapshot = mx->pending_kon;
+
+            if (konSnapshot != 0)
+            {
+                bool tremEn = tremoloEnabled.load(std::memory_order_relaxed);
+                bool panEn  = autoPanEnabled.load(std::memory_order_relaxed);
+
+                for (int v = 0; v < 24; ++v)
+                {
+                    if (duckState[v] != DUCK_IDLE) continue;
+
+                    int src = duckSource[v].load(std::memory_order_relaxed);
+                    // T-46-01: clamp source index to valid range
+                    if (src < 0 || src > 23) continue;
+                    // T-46-02: self-duck blocked
+                    if (src == v) continue;
+                    // Mutual exclusion: duck disabled on voice 0 when tremolo/auto-pan active
+                    if (v == 0 && (tremEn || panEn)) continue;
+
+                    // Check if the source voice is triggering KON this block
+                    if (!(konSnapshot & (1u << src))) continue;
+
+                    // Duck triggers on voice v!
+                    duckOrigLevel_l[v] = mx->voices[v].vol_l;
+                    duckOrigLevel_r[v] = mx->voices[v].vol_r;
+
+                    // Configure exponential decrease (fast attack: shift=10, one-shot)
+                    spu94_voice_mixer_set_sweep_l(mx, v, 1, 1, 0, 10, 0, 0);
+                    spu94_voice_mixer_set_sweep_r(mx, v, 1, 1, 0, 10, 0, 0);
+                    duckState[v] = DUCK_DECREASING;
+                }
+            }
+        }
+
         // wavSource gate: when no WAV is loaded or playback is paused,
         // emit silence. This preserves the standalone testbed's
         // Load-Play-Stop behaviour byte-identically with end-of-Phase-21.
@@ -1111,6 +1150,62 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
         spu94_process(engines[0], tmpL_in, tmpR_in, tmpL_out, tmpR_out,
                       static_cast<uint32_t>(samplesToProcess));
+
+        // Phase 46: Sidechain duck state machine — runs AFTER spu94_process
+        // so sweeps have been ticked for this block.
+        {
+            auto* mx = spu94_get_voice_mixer();
+            for (int v = 0; v < 24; ++v)
+            {
+                if (duckState[v] == DUCK_DECREASING)
+                {
+                    float depth = duckDepth[v].load(std::memory_order_relaxed);
+                    if (depth < 0.0f) depth = 0.0f;
+                    if (depth > 1.0f) depth = 1.0f;
+
+                    int16_t floor_l = static_cast<int16_t>((1.0f - depth) * duckOrigLevel_l[v]);
+                    int16_t floor_r = static_cast<int16_t>((1.0f - depth) * duckOrigLevel_r[v]);
+
+                    // Check if decrease has reached the depth-scaled floor
+                    bool l_done = (mx->voices[v].sweep_l.active == 0) ||
+                                  (mx->voices[v].sweep_l.level <= floor_l);
+                    bool r_done = (mx->voices[v].sweep_r.active == 0) ||
+                                  (mx->voices[v].sweep_r.level <= floor_r);
+
+                    if (l_done && r_done)
+                    {
+                        // Clamp at floor and deactivate decrease sweep
+                        mx->voices[v].sweep_l.active = 0;
+                        mx->voices[v].sweep_r.active = 0;
+                        mx->voices[v].vol_l = floor_l;
+                        mx->voices[v].vol_r = floor_r;
+
+                        // Transition to recovery: exponential increase from floor back to original
+                        float relSec = duckRelease[v].load(std::memory_order_relaxed);
+                        auto ss = speedToShift(relSec);
+
+                        // Set volume to floor before configuring increase sweep
+                        // (set_sweep_l initializes level from current vol_l)
+                        spu94_voice_mixer_set_sweep_l(mx, v, 1, 0, 0, ss.shift, ss.step, 0);
+                        spu94_voice_mixer_set_sweep_r(mx, v, 1, 0, 0, ss.shift, ss.step, 0);
+
+                        duckState[v] = DUCK_RECOVERING;
+                    }
+                }
+                else if (duckState[v] == DUCK_RECOVERING)
+                {
+                    // Check if recovery sweep has completed
+                    if (mx->voices[v].sweep_l.active == 0 &&
+                        mx->voices[v].sweep_r.active == 0)
+                    {
+                        // Restore exact original volume
+                        mx->voices[v].vol_l = duckOrigLevel_l[v];
+                        mx->voices[v].vol_r = duckOrigLevel_r[v];
+                        duckState[v] = DUCK_IDLE;
+                    }
+                }
+            }
+        }
 
         auto* outL = buffer.getWritePointer(0);
         auto* outR = (buffer.getNumChannels() > 1) ? buffer.getWritePointer(1) : nullptr;

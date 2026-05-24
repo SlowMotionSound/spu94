@@ -98,6 +98,11 @@ public:
     std::atomic<float>& getAutoPanDepth()    { return autoPanDepth; }
     std::atomic<float>& getAutoPanRatio()    { return autoPanRatio; }
 
+    // Sidechain duck controls (Phase 46: event-triggered VCA duck via KON detection)
+    std::atomic<int>&   getDuckSource(int voice) { return duckSource[voice]; }
+    std::atomic<float>& getDuckRelease(int voice) { return duckRelease[voice]; }
+    std::atomic<float>& getDuckDepth(int voice) { return duckDepth[voice]; }
+
     // ADSR parameter accessors (standalone sampler voice)
     std::atomic<bool>&  getAdsrEnabled()     { return adsrEnabled; }
     std::atomic<float>& getAdsrAttack()      { return adsrAttack; }
@@ -441,6 +446,26 @@ private:
     bool  autoPanWasActive{false};
     float lastAutoPanHz{-1.0f};
     float lastAutoPanRatio{-1.0f};
+
+    // Sidechain duck controls (Phase 46: event-triggered VCA duck via KON detection)
+    // Per-voice: which voice's KON triggers duck (-1 = none, 0-23 = source voice)
+    std::atomic<int>   duckSource[24] = {
+        {-1},{-1},{-1},{-1},{-1},{-1},{-1},{-1},{-1},{-1},{-1},{-1},
+        {-1},{-1},{-1},{-1},{-1},{-1},{-1},{-1},{-1},{-1},{-1},{-1}};
+    // Recovery speed in seconds (0.03-6.8, same range as VCA ramp)
+    std::atomic<float> duckRelease[24] = {
+        {0.4f},{0.4f},{0.4f},{0.4f},{0.4f},{0.4f},{0.4f},{0.4f},{0.4f},{0.4f},{0.4f},{0.4f},
+        {0.4f},{0.4f},{0.4f},{0.4f},{0.4f},{0.4f},{0.4f},{0.4f},{0.4f},{0.4f},{0.4f},{0.4f}};
+    // How far volume drops (0.0 = no duck, 1.0 = full silence)
+    std::atomic<float> duckDepth[24] = {
+        {1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},
+        {1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f},{1.0f}};
+
+    // Audio-thread-only duck state (NOT atomic -- only touched in processBlock)
+    enum DuckPhase { DUCK_IDLE = 0, DUCK_DECREASING, DUCK_RECOVERING };
+    DuckPhase duckState[24] = {};          // all DUCK_IDLE
+    int16_t   duckOrigLevel_l[24] = {};    // volume level before duck started
+    int16_t   duckOrigLevel_r[24] = {};
 
     // ADSR parameters (standalone sampler voice)
     std::atomic<bool>  adsrEnabled{true};
