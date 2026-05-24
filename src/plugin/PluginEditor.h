@@ -184,6 +184,15 @@ private:
     juce::Label stereoWidthLabel;
     juce::Label stereoWidthMonoIndicator;
 
+    // AM Synthesis controls (Phase 48: audio-rate metallic sidebands)
+    juce::Label amSectionLabel;
+    juce::ToggleButton amEnableToggle{"Enable"};
+    juce::Slider amRateKnob;
+    juce::Label amRateLabel;
+    juce::Slider amDepthKnob;
+    juce::Label amDepthLabel;
+    juce::TextButton amCurveButton{"Linear"};
+
     // Sampler mixer knobs (standalone-only)
     juce::Slider samplerLevelKnob;
     juce::Label samplerLevelLabel;

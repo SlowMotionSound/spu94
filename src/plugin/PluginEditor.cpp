@@ -503,12 +503,14 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             tremoloDepthKnob.setEnabled(enabled);
             tremoloCurveButton.setEnabled(enabled);
             tremoloRatioKnob.setEnabled(enabled);
-            // Mutual exclusion: disable VCA ramp ARM, auto-pan, and duck when tremolo is active
+            // Mutual exclusion: disable VCA ramp ARM, auto-pan, AM, and duck when tremolo is active
             autoPanEnableToggle.setEnabled(!enabled);
+            amEnableToggle.setEnabled(!enabled);
             duckSourceBox.setEnabled(!enabled);
             if (enabled)
                 rampArmButton.setEnabled(false);
-            else if (!autoPanEnableToggle.getToggleState() && duckSourceBox.getSelectedId() == 1)
+            else if (!autoPanEnableToggle.getToggleState() && !amEnableToggle.getToggleState()
+                     && duckSourceBox.getSelectedId() == 1)
                 rampArmButton.setEnabled(true);
         };
         panel.addAndMakeVisible(tremoloEnableToggle);
@@ -594,12 +596,14 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             autoPanSpeedKnob.setEnabled(enabled);
             autoPanDepthKnob.setEnabled(enabled);
             autoPanRatioKnob.setEnabled(enabled);
-            // Mutual exclusion: disable tremolo toggle, duck, and VCA ramp ARM when auto-pan is active
+            // Mutual exclusion: disable tremolo toggle, AM, duck, and VCA ramp ARM when auto-pan is active
             tremoloEnableToggle.setEnabled(!enabled);
+            amEnableToggle.setEnabled(!enabled);
             duckSourceBox.setEnabled(!enabled);
             if (enabled)
                 rampArmButton.setEnabled(false);
-            else if (!tremoloEnableToggle.getToggleState() && duckSourceBox.getSelectedId() == 1)
+            else if (!tremoloEnableToggle.getToggleState() && !amEnableToggle.getToggleState()
+                     && duckSourceBox.getSelectedId() == 1)
                 rampArmButton.setEnabled(true);
         };
         panel.addAndMakeVisible(autoPanEnableToggle);
@@ -676,13 +680,15 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             if (sel > 25) sel = 25;
             int source = sel - 2; // -1 = None, 0-23 = voice index
             processorRef.getDuckSource(0).store(source, std::memory_order_relaxed);
-            // Mutual exclusion: duck active disables tremolo/auto-pan toggles
+            // Mutual exclusion: duck active disables tremolo/auto-pan/AM toggles
             bool duckActive = (source >= 0);
             tremoloEnableToggle.setEnabled(!duckActive);
             autoPanEnableToggle.setEnabled(!duckActive);
+            amEnableToggle.setEnabled(!duckActive);
             if (duckActive)
                 rampArmButton.setEnabled(false);
-            else if (!tremoloEnableToggle.getToggleState() && !autoPanEnableToggle.getToggleState())
+            else if (!tremoloEnableToggle.getToggleState() && !autoPanEnableToggle.getToggleState()
+                     && !amEnableToggle.getToggleState())
                 rampArmButton.setEnabled(true);
         };
         panel.addAndMakeVisible(duckSourceBox);
@@ -754,6 +760,79 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         stereoWidthMonoIndicator.setFont(juce::Font(juce::FontOptions(10.0f)));
         stereoWidthMonoIndicator.setColour(juce::Label::textColourId, juce::Colour(0xFF4CAF50)); // green
         panel.addAndMakeVisible(stereoWidthMonoIndicator);
+
+        // AM Synthesis section (Phase 48: audio-rate metallic sidebands via retrigger)
+        amSectionLabel.setText("AM Synthesis", juce::dontSendNotification);
+        amSectionLabel.setJustificationType(juce::Justification::centredLeft);
+        amSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
+        amSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
+        panel.addAndMakeVisible(amSectionLabel);
+
+        amEnableToggle.setColour(juce::ToggleButton::tickColourId, juce::Colour(0xFF3CBBB1));
+        amEnableToggle.onStateChange = [this] {
+            bool enabled = amEnableToggle.getToggleState();
+            processorRef.getAmEnabled().store(enabled, std::memory_order_relaxed);
+            amRateKnob.setEnabled(enabled);
+            amDepthKnob.setEnabled(enabled);
+            amCurveButton.setEnabled(enabled);
+            // Mutual exclusion: AM disables tremolo and auto-pan toggles
+            tremoloEnableToggle.setEnabled(!enabled);
+            autoPanEnableToggle.setEnabled(!enabled);
+            if (enabled)
+                rampArmButton.setEnabled(false);
+            else if (!tremoloEnableToggle.getToggleState() && !autoPanEnableToggle.getToggleState()
+                     && duckSourceBox.getSelectedId() == 1)
+                rampArmButton.setEnabled(true);
+        };
+        panel.addAndMakeVisible(amEnableToggle);
+
+        amRateKnob.setSliderStyle(juce::Slider::Rotary);
+        amRateKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        amRateKnob.setRange(37.0, 7350.0, 1.0);
+        amRateKnob.setValue(440.0, juce::dontSendNotification);
+        amRateKnob.setTextValueSuffix(" Hz");
+        amRateKnob.setSkewFactorFromMidPoint(500.0);
+        amRateKnob.setDoubleClickReturnValue(true, 440.0);
+        amRateKnob.onValueChange = [this] {
+            processorRef.getAmRateHz().store(
+                static_cast<float>(amRateKnob.getValue()), std::memory_order_relaxed);
+        };
+        amRateKnob.setEnabled(false);
+        panel.addAndMakeVisible(amRateKnob);
+
+        amRateLabel.setText("Rate", juce::dontSendNotification);
+        amRateLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(amRateLabel);
+
+        amDepthKnob.setSliderStyle(juce::Slider::Rotary);
+        amDepthKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        amDepthKnob.setRange(0.0, 100.0, 1.0);
+        amDepthKnob.setValue(100.0, juce::dontSendNotification);
+        amDepthKnob.setTextValueSuffix("%");
+        amDepthKnob.setDoubleClickReturnValue(true, 100.0);
+        amDepthKnob.onValueChange = [this] {
+            processorRef.getAmDepth().store(
+                static_cast<float>(amDepthKnob.getValue() / 100.0), std::memory_order_relaxed);
+        };
+        amDepthKnob.setEnabled(false);
+        panel.addAndMakeVisible(amDepthKnob);
+
+        amDepthLabel.setText("Depth", juce::dontSendNotification);
+        amDepthLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(amDepthLabel);
+
+        amCurveButton.onClick = [this] {
+            bool isLinear = (amCurveButton.getButtonText() == "Linear");
+            if (isLinear) {
+                amCurveButton.setButtonText("Exponential");
+                processorRef.getAmCurve().store(1, std::memory_order_relaxed);
+            } else {
+                amCurveButton.setButtonText("Linear");
+                processorRef.getAmCurve().store(0, std::memory_order_relaxed);
+            }
+        };
+        amCurveButton.setEnabled(false);
+        panel.addAndMakeVisible(amCurveButton);
 
         // Sampler mixer knobs -- own bus in the master mixer.
         samplerLevelKnob.setSliderStyle(juce::Slider::Rotary);
@@ -1515,6 +1594,16 @@ void SPU94AudioProcessorEditor::resized()
             stereoWidthLabel.setBounds(20, widthy + 20, 80, 16);
             stereoWidthSlider.setBounds(20, widthy + 36, 80, 70);
             stereoWidthMonoIndicator.setBounds(120, widthy + 50, 140, 18);
+
+            // AM Synthesis section — below Stereo Width (Phase 48)
+            constexpr int amy = widthy + 110;
+            amSectionLabel.setBounds(20, amy, 120, 16);
+            amEnableToggle.setBounds(140, amy, 80, 20);
+            amRateLabel.setBounds(20, amy + 20, 80, 16);
+            amRateKnob.setBounds(20, amy + 36, 80, 70);
+            amDepthLabel.setBounds(110, amy + 20, 80, 16);
+            amDepthKnob.setBounds(110, amy + 36, 80, 70);
+            amCurveButton.setBounds(200, amy + 40, 90, 28);
         }
     }
 
