@@ -1194,11 +1194,19 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 }
                 else if (duckState[v] == DUCK_RECOVERING)
                 {
-                    // Check if recovery sweep has completed
-                    if (mx->voices[v].sweep_l.active == 0 &&
-                        mx->voices[v].sweep_r.active == 0)
+                    // Check if recovery sweep has reached the original level.
+                    // One-shot sweeps stay active=1 at the clamping boundary,
+                    // so check level >= target (not active==0).
+                    bool l_recovered = (mx->voices[v].sweep_l.level >= duckOrigLevel_l[v]) ||
+                                       (mx->voices[v].sweep_l.active == 0);
+                    bool r_recovered = (mx->voices[v].sweep_r.level >= duckOrigLevel_r[v]) ||
+                                       (mx->voices[v].sweep_r.active == 0);
+
+                    if (l_recovered && r_recovered)
                     {
-                        // Restore exact original volume
+                        // Deactivate sweep and restore exact original volume
+                        mx->voices[v].sweep_l.active = 0;
+                        mx->voices[v].sweep_r.active = 0;
                         mx->voices[v].vol_l = duckOrigLevel_l[v];
                         mx->voices[v].vol_r = duckOrigLevel_r[v];
                         duckState[v] = DUCK_IDLE;
