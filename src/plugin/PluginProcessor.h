@@ -104,6 +104,11 @@ public:
     std::atomic<float>& getAmDepth()    { return amDepth; }
     std::atomic<int>&   getAmCurve()    { return amCurve; }
 
+    // Phase modulator controls (Phase 49: polarity-cycling sweep for hollow/phaser character)
+    std::atomic<bool>&  getPhaseModEnabled()  { return phaseModEnabled; }
+    std::atomic<float>& getPhaseModSpeedHz()  { return phaseModSpeedHz; }
+    std::atomic<float>& getPhaseModDepth()    { return phaseModDepth; }
+
     // Sidechain duck controls (Phase 46: event-triggered VCA duck via KON detection)
     std::atomic<int>&   getDuckSource(int voice) { return duckSource[voice]; }
     std::atomic<float>& getDuckRelease(int voice) { return duckRelease[voice]; }
@@ -466,6 +471,15 @@ private:
     bool  amWasActive{false};
     float lastAmHz{-1.0f};
     int   lastAmCurve{-1};
+
+    // Phase modulator controls (Phase 49: polarity-cycling sweep for hollow/phaser character)
+    std::atomic<bool>  phaseModEnabled{false};    // true = sweep configured for negative-phase oscillation
+    std::atomic<float> phaseModSpeedHz{4.0f};     // oscillation rate in Hz (0.5..43.0, default medium hollow)
+    std::atomic<float> phaseModDepth{1.0f};       // depth (0.0=no mod, 0.5=zero boundary, 1.0=full inversion)
+
+    // Audio-thread-only phase modulator state (not atomic -- only accessed from processBlock)
+    bool  phaseModWasActive{false};
+    float lastPhaseModHz{-1.0f};
 
     // Sidechain duck controls (Phase 46: event-triggered VCA duck via KON detection)
     // Per-voice: which voice's KON triggers duck (-1 = none, 0-23 = source voice)

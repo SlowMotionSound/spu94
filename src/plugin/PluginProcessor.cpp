@@ -802,10 +802,11 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
         // VCA ramp activation (Phase 41: volume sweep GUI surface)
         // One-shot: GUI sets rampArm=true, audio thread reads and resets to false.
-        // TREM-05/PAN-05/AM-04: Tremolo, auto-pan, AM, and VCA ramp are mutually exclusive.
+        // TREM-05/PAN-05/AM-04/PMOD-01: Tremolo, auto-pan, AM, phase mod, and VCA ramp are mutually exclusive.
         if (!tremoloEnabled.load(std::memory_order_relaxed) &&
             !autoPanEnabled.load(std::memory_order_relaxed) &&
-            !amEnabled.load(std::memory_order_relaxed))
+            !amEnabled.load(std::memory_order_relaxed) &&
+            !phaseModEnabled.load(std::memory_order_relaxed))
         {
             if (rampArm.exchange(false, std::memory_order_acquire))
             {
@@ -875,6 +876,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
                 // AM-04: Tremolo takes priority -- force-deactivate AM if it was active
                 if (amWasActive) amWasActive = false;
+                // PMOD-01: Tremolo takes priority -- force-deactivate phase mod if it was active
+                if (phaseModWasActive) phaseModWasActive = false;
             }
             else if (tremEn && tremoloWasActive)
             {
@@ -1002,6 +1005,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
                 // AM-04: Auto-pan takes priority -- force-deactivate AM if it was active
                 if (amWasActive) amWasActive = false;
+                // PMOD-01: Auto-pan takes priority -- force-deactivate phase mod if it was active
+                if (phaseModWasActive) phaseModWasActive = false;
             }
             else if (panEn && autoPanWasActive)
             {
@@ -1108,6 +1113,9 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 lastAmHz = hz;
                 lastAmCurve = curve;
                 amWasActive = true;
+
+                // PMOD-01: AM takes priority -- force-deactivate phase mod if it was active
+                if (phaseModWasActive) phaseModWasActive = false;
             }
             else if (amEn && amWasActive)
             {
@@ -1163,6 +1171,113 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     mx->voices[0].vol_r = static_cast<int16_t>(
                         0x7FFF - static_cast<int16_t>(
                             static_cast<float>(0x7FFF - sweep_lvl) * depth));
+                }
+            }
+        }
+
+        // Phase modulator activation (Phase 49: polarity-cycling sweep for hollow/phaser character)
+        // PMOD-01/02: Mutual exclusion -- phase mod has LOWEST priority (tremolo, auto-pan, AM all win).
+        // Uses phase=1 + retrigger_enable=1 to oscillate between 0 and -0x7FFF (negative territory).
+        // Linear mode only (exponential ignores phase bit per ADR-0059).
+        {
+            bool tremEn = tremoloEnabled.load(std::memory_order_relaxed);
+            bool panEn  = autoPanEnabled.load(std::memory_order_relaxed);
+            bool amEn   = amEnabled.load(std::memory_order_relaxed);
+            bool pmEn   = phaseModEnabled.load(std::memory_order_relaxed);
+            // Mutual exclusion: tremolo, auto-pan, and AM all have priority over phase mod
+            if (tremEn || panEn || amEn) pmEn = false;
+
+            if (pmEn && !phaseModWasActive)
+            {
+                // Phase mod just enabled: configure sweeps for negative-phase oscillation
+                float hz = phaseModSpeedHz.load(std::memory_order_relaxed);
+
+                // T-49-01: clamp Hz to table range
+                if (hz < 0.5f) hz = 0.5f;
+                if (hz > 43.0f) hz = 43.0f;
+
+                auto ss = hzToShift(hz);
+
+                // Both L and R: mode=0 (linear), direction=0 (increase toward -0x7FFF),
+                // phase=1 (negative), retrigger_enable=1
+                spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
+                    0,  // mode=linear (exponential ignores phase bit, ADR-0059)
+                    0,  // direction=increase (in negative phase: toward -0x7FFF)
+                    1,  // phase=1 (negative -- enables polarity cycling)
+                    ss.shift, ss.step, 1);  // retrigger_enable=1
+
+                spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
+                    0, 0, 1, ss.shift, ss.step, 1);  // retrigger_enable=1
+
+                // Start sweep at 0 -- will oscillate 0 to -0x7FFF and back
+                auto* mx = spu94_get_voice_mixer();
+                mx->voices[0].sweep_l.level = 0;
+                mx->voices[0].sweep_r.level = 0;
+
+                lastPhaseModHz = hz;
+                phaseModWasActive = true;
+            }
+            else if (pmEn && phaseModWasActive)
+            {
+                // Phase mod already active: check if parameters changed
+                float hz = phaseModSpeedHz.load(std::memory_order_relaxed);
+
+                if (hz < 0.5f) hz = 0.5f;
+                if (hz > 43.0f) hz = 43.0f;
+
+                if (hz != lastPhaseModHz)
+                {
+                    auto ss = hzToShift(hz);
+
+                    spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
+                        0, 0, 1, ss.shift, ss.step, 1);
+
+                    spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
+                        0, 0, 1, ss.shift, ss.step, 1);
+
+                    lastPhaseModHz = hz;
+                }
+            }
+            else if (!pmEn && phaseModWasActive)
+            {
+                // Phase mod just disabled (explicitly or by mutual exclusion): deactivate sweeps
+                auto* mx = spu94_get_voice_mixer();
+                mx->voices[0].sweep_l.active = 0;
+                mx->voices[0].sweep_r.active = 0;
+                phaseModWasActive = false;
+            }
+
+            // PMOD-03: Zero-crossing depth formula.
+            // Sweep oscillates 0 to -0x7FFF (with phase=1, retrigger=1).
+            // Depth maps this into effective volume crossing zero:
+            //   vol = 0x7FFF + (sweep_level * 2 * depth)
+            // At depth=1.0: vol ranges +0x7FFF (sweep=0) to -0x7FFF (sweep=-0x7FFF)
+            // At depth=0.5: vol ranges +0x7FFF (sweep=0) to 0 (just touches zero)
+            // At depth<0.5: vol stays positive (attenuation only, no inversion)
+            // T-49-01: clamp depth 0.0-1.0 at point of use.
+            // T-49-02: clamp result to int16_t range.
+            if (pmEn)
+            {
+                auto* mx = spu94_get_voice_mixer();
+                float depth = phaseModDepth.load(std::memory_order_relaxed);
+                if (depth < 0.0f) depth = 0.0f;
+                if (depth > 1.0f) depth = 1.0f;
+
+                if (mx->voices[0].sweep_l.active) {
+                    int16_t sweep_lvl = mx->voices[0].sweep_l.level;
+                    int32_t vol = 0x7FFF + static_cast<int32_t>(
+                        static_cast<float>(sweep_lvl) * 2.0f * depth);
+                    if (vol > 0x7FFF) vol = 0x7FFF;
+                    if (vol < -0x7FFF) vol = -0x7FFF;
+                    mx->voices[0].vol_l = static_cast<int16_t>(vol);
+                }
+                if (mx->voices[0].sweep_r.active) {
+                    int16_t sweep_lvl = mx->voices[0].sweep_r.level;
+                    int32_t vol = 0x7FFF + static_cast<int32_t>(
+                        static_cast<float>(sweep_lvl) * 2.0f * depth);
+                    if (vol > 0x7FFF) vol = 0x7FFF;
+                    if (vol < -0x7FFF) vol = -0x7FFF;
+                    mx->voices[0].vol_r = static_cast<int16_t>(vol);
                 }
             }
         }
@@ -1259,6 +1374,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 bool tremEn = tremoloEnabled.load(std::memory_order_relaxed);
                 bool panEn  = autoPanEnabled.load(std::memory_order_relaxed);
                 bool amEn   = amEnabled.load(std::memory_order_relaxed);
+                bool pmEn   = phaseModEnabled.load(std::memory_order_relaxed);
 
                 for (int v = 0; v < 24; ++v)
                 {
@@ -1269,8 +1385,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     if (src < 0 || src > 23) continue;
                     // T-46-02: self-duck blocked
                     if (src == v) continue;
-                    // Mutual exclusion: duck disabled on voice 0 when tremolo/auto-pan/AM active
-                    if (v == 0 && (tremEn || panEn || amEn)) continue;
+                    // Mutual exclusion: duck disabled on voice 0 when tremolo/auto-pan/AM/phaseMod active
+                    if (v == 0 && (tremEn || panEn || amEn || pmEn)) continue;
 
                     // Check if the source voice is triggering KON this block
                     if (!(konSnapshot & (1u << src))) continue;
