@@ -85,6 +85,13 @@ public:
     std::atomic<float>& getRampSpeed()     { return rampSpeed; }
     std::atomic<bool>&  getRampArm()       { return rampArm; }
 
+    // Tremolo controls (Phase 44: continuous VCA oscillation via retrigger)
+    std::atomic<bool>&  getTremoloEnabled()  { return tremoloEnabled; }
+    std::atomic<float>& getTremoloSpeedHz()  { return tremoloSpeedHz; }
+    std::atomic<float>& getTremoloDepth()    { return tremoloDepth; }
+    std::atomic<int>&   getTremoloCurve()    { return tremoloCurve; }
+    std::atomic<float>& getTremoloRatio()    { return tremoloRatio; }
+
     // ADSR parameter accessors (standalone sampler voice)
     std::atomic<bool>&  getAdsrEnabled()     { return adsrEnabled; }
     std::atomic<float>& getAdsrAttack()      { return adsrAttack; }
@@ -404,6 +411,19 @@ private:
     std::atomic<int>   rampCurve{0};        // 0 = Linear, 1 = Natural (exponential)
     std::atomic<float> rampSpeed{1.7f};     // Speed in seconds, default ~1.7s (shift 15, mid-range)
     std::atomic<bool>  rampArm{false};      // One-shot: audio thread activates sweep and resets to false
+
+    // Tremolo controls (Phase 44: continuous VCA oscillation via retrigger)
+    std::atomic<bool>  tremoloEnabled{false};   // true = sweep configured for retrigger oscillation
+    std::atomic<float> tremoloSpeedHz{5.0f};    // oscillation rate in Hz (0.5..20.0)
+    std::atomic<float> tremoloDepth{1.0f};      // modulation depth (0.0 = no mod, 1.0 = full range)
+    std::atomic<int>   tremoloCurve{0};         // 0 = linear (triangle), 1 = exponential (asymmetric)
+    std::atomic<float> tremoloRatio{1.0f};      // L/R rate ratio (0.5..4.0; 1.0 = same both channels)
+
+    // Audio-thread-only tremolo state (not atomic -- only accessed from processBlock)
+    bool  tremoloWasActive{false};
+    float lastTremoloHz{-1.0f};
+    int   lastTremoloCurve{-1};
+    float lastTremoloRatio{-1.0f};
 
     // ADSR parameters (standalone sampler voice)
     std::atomic<bool>  adsrEnabled{true};

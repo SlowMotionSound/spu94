@@ -47,6 +47,72 @@ namespace {
         }
         return { kSweepTable[bestIdx].shift, 0 };
     }
+    // Phase 44: Hz-to-shift mapping for tremolo speed control.
+    // Uses the counter-accumulate math from spu94_envelope_step to derive the
+    // actual oscillation rate (Hz) for each shift/step pair. The sweep produces
+    // a full triangle cycle (up + down half-cycles) when retrigger_enable=1.
+    //
+    // Math derivation (linear mode, phase=0):
+    //   counter_increment = 0x8000 >> max(0, shift - 11)
+    //   step_magnitude = (7 - step_index) << max(0, 11 - shift)
+    //   ticks_per_fire = 0x8000 / counter_increment = 1 << max(0, shift - 11)
+    //   fires_per_half_cycle = 0x7FFF / step_magnitude
+    //   half_cycle_ticks = fires_per_half_cycle * ticks_per_fire
+    //   full_cycle_hz = 44100.0 / (2 * half_cycle_ticks)
+    struct TremoloHzEntry { uint8_t shift; uint8_t step; float hz; };
+
+    static const TremoloHzEntry kTremoloHzTable[] = {
+        // shift  step   Hz (computed from counter-accumulate math at 44100 Hz)
+        { 13, 0,  1.1776f },
+        { 13, 1,  1.0094f },
+        { 13, 2,  0.8412f },
+        { 13, 3,  0.6730f },
+        { 12, 3,  1.3460f },
+        { 12, 2,  1.6824f },
+        { 12, 1,  2.0189f },
+        { 12, 0,  2.3553f },
+        { 11, 3,  2.6920f },
+        { 11, 2,  3.3649f },
+        { 11, 1,  4.0377f },
+        { 11, 0,  4.7105f },
+        { 10, 3,  5.3846f },
+        { 10, 2,  6.7308f },
+        { 10, 1,  8.0769f },
+        { 10, 0,  9.4231f },
+        {  9, 3, 10.7719f },
+        {  9, 2, 13.4615f },
+        {  9, 1, 16.1538f },
+        {  9, 0, 18.8462f },
+        {  8, 3, 21.5543f },
+        {  8, 2, 26.9231f },
+        {  8, 1, 32.3314f },
+        {  8, 0, 37.6923f },
+        {  7, 3, 43.1507f },
+    };
+    static constexpr int kTremoloHzTableSize = 25;
+
+    // Find the shift/step pair closest to the requested Hz (log-distance).
+    // Clamps to table boundaries for out-of-range inputs (T-44-01 mitigation).
+    SweepShiftResult hzToShift(float hz)
+    {
+        if (hz <= kTremoloHzTable[3].hz)  // below table minimum
+            return { kTremoloHzTable[3].shift, kTremoloHzTable[3].step };
+        if (hz >= kTremoloHzTable[kTremoloHzTableSize - 1].hz)  // above table maximum
+            return { kTremoloHzTable[kTremoloHzTableSize - 1].shift, kTremoloHzTable[kTremoloHzTableSize - 1].step };
+
+        int bestIdx = 0;
+        float bestDist = std::fabs(std::log(hz) - std::log(kTremoloHzTable[0].hz));
+        for (int i = 1; i < kTremoloHzTableSize; ++i)
+        {
+            float dist = std::fabs(std::log(hz) - std::log(kTremoloHzTable[i].hz));
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestIdx = i;
+            }
+        }
+        return { kTremoloHzTable[bestIdx].shift, kTremoloHzTable[bestIdx].step };
+    }
 } // anonymous namespace
 
 SPU94AudioProcessor::SPU94AudioProcessor()
@@ -660,23 +726,146 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
         // VCA ramp activation (Phase 41: volume sweep GUI surface)
         // One-shot: GUI sets rampArm=true, audio thread reads and resets to false.
-        if (rampArm.exchange(false, std::memory_order_acquire))
+        // TREM-05: Tremolo and VCA ramp are mutually exclusive -- skip rampArm when tremolo active.
+        if (!tremoloEnabled.load(std::memory_order_relaxed))
         {
-            int dir   = rampDirection.load(std::memory_order_relaxed);
-            int curve = rampCurve.load(std::memory_order_relaxed);
-            float spd = rampSpeed.load(std::memory_order_relaxed);
-            auto ss   = speedToShift(spd);
+            if (rampArm.exchange(false, std::memory_order_acquire))
+            {
+                int dir   = rampDirection.load(std::memory_order_relaxed);
+                int curve = rampCurve.load(std::memory_order_relaxed);
+                float spd = rampSpeed.load(std::memory_order_relaxed);
+                auto ss   = speedToShift(spd);
 
-            // mode: 0=linear, 1=exponential; direction: 0=increase, 1=decrease
-            // phase: 0=positive; both L and R get matched parameters (RAMP-02)
-            spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
-                static_cast<uint8_t>(curve),
-                static_cast<uint8_t>(dir),
-                0, ss.shift, ss.step, 0);  /* retrigger_enable=0: v1.9 one-shot */
-            spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
-                static_cast<uint8_t>(curve),
-                static_cast<uint8_t>(dir),
-                0, ss.shift, ss.step, 0);  /* retrigger_enable=0: v1.9 one-shot */
+                // mode: 0=linear, 1=exponential; direction: 0=increase, 1=decrease
+                // phase: 0=positive; both L and R get matched parameters (RAMP-02)
+                spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
+                    static_cast<uint8_t>(curve),
+                    static_cast<uint8_t>(dir),
+                    0, ss.shift, ss.step, 0);  /* retrigger_enable=0: v1.9 one-shot */
+                spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
+                    static_cast<uint8_t>(curve),
+                    static_cast<uint8_t>(dir),
+                    0, ss.shift, ss.step, 0);  /* retrigger_enable=0: v1.9 one-shot */
+            }
+        }
+
+        // Tremolo activation (Phase 44: continuous VCA oscillation via retrigger)
+        // Configures both L/R sweeps with retrigger_enable=1 at Hz-derived shift/step.
+        {
+            bool tremEn = tremoloEnabled.load(std::memory_order_relaxed);
+            if (tremEn && !tremoloWasActive)
+            {
+                // Tremolo just enabled: configure sweeps for continuous oscillation
+                float hz    = tremoloSpeedHz.load(std::memory_order_relaxed);
+                int   curve = tremoloCurve.load(std::memory_order_relaxed);
+                float ratio = tremoloRatio.load(std::memory_order_relaxed);
+
+                // T-44-01: clamp Hz to table range
+                if (hz < 0.5f) hz = 0.5f;
+                if (hz > 43.0f) hz = 43.0f;
+
+                auto ss = hzToShift(hz);
+
+                // L channel: start decreasing from current vol (direction=1)
+                spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
+                    static_cast<uint8_t>(curve & 1),  // mode: 0=linear, 1=exponential
+                    1,  // direction=decrease (start from current vol going down)
+                    0,  // phase=positive
+                    ss.shift, ss.step, 1);  // retrigger_enable=1
+
+                // R channel: apply ratio for independent rate
+                // T-44-03: clamp ratio to safe range
+                if (ratio < 0.5f) ratio = 0.5f;
+                if (ratio > 4.0f) ratio = 4.0f;
+                uint8_t r_shift = ss.shift;
+                if (ratio > 1.0f) {
+                    int offset = static_cast<int>(std::floor(std::log2(ratio)));
+                    r_shift = static_cast<uint8_t>(std::min(31, (int)ss.shift + offset));
+                } else if (ratio < 1.0f) {
+                    int offset = static_cast<int>(std::floor(std::log2(1.0f / ratio)));
+                    r_shift = static_cast<uint8_t>(std::max(0, (int)ss.shift - offset));
+                }
+
+                spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
+                    static_cast<uint8_t>(curve & 1),
+                    1, 0, r_shift, ss.step, 1);  // retrigger_enable=1
+
+                lastTremoloHz = hz;
+                lastTremoloCurve = curve;
+                lastTremoloRatio = ratio;
+                tremoloWasActive = true;
+            }
+            else if (tremEn && tremoloWasActive)
+            {
+                // Tremolo already active: check if parameters changed
+                float hz    = tremoloSpeedHz.load(std::memory_order_relaxed);
+                int   curve = tremoloCurve.load(std::memory_order_relaxed);
+                float ratio = tremoloRatio.load(std::memory_order_relaxed);
+
+                if (hz < 0.5f) hz = 0.5f;
+                if (hz > 43.0f) hz = 43.0f;
+                if (ratio < 0.5f) ratio = 0.5f;
+                if (ratio > 4.0f) ratio = 4.0f;
+
+                if (hz != lastTremoloHz || curve != lastTremoloCurve || ratio != lastTremoloRatio)
+                {
+                    auto ss = hzToShift(hz);
+
+                    spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
+                        static_cast<uint8_t>(curve & 1), 1, 0,
+                        ss.shift, ss.step, 1);
+
+                    uint8_t r_shift = ss.shift;
+                    if (ratio > 1.0f) {
+                        int offset = static_cast<int>(std::floor(std::log2(ratio)));
+                        r_shift = static_cast<uint8_t>(std::min(31, (int)ss.shift + offset));
+                    } else if (ratio < 1.0f) {
+                        int offset = static_cast<int>(std::floor(std::log2(1.0f / ratio)));
+                        r_shift = static_cast<uint8_t>(std::max(0, (int)ss.shift - offset));
+                    }
+
+                    spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
+                        static_cast<uint8_t>(curve & 1), 1, 0,
+                        r_shift, ss.step, 1);
+
+                    lastTremoloHz = hz;
+                    lastTremoloCurve = curve;
+                    lastTremoloRatio = ratio;
+                }
+            }
+            else if (!tremEn && tremoloWasActive)
+            {
+                // Tremolo just disabled: deactivate sweeps
+                auto* mx = spu94_get_voice_mixer();
+                mx->voices[0].sweep_l.active = 0;
+                mx->voices[0].sweep_r.active = 0;
+                tremoloWasActive = false;
+            }
+
+            // Depth scaling: after sweep tick writes vol_l/vol_r, reduce the
+            // modulation range proportionally. At depth=1.0 vol ranges 0..0x7FFF.
+            // At depth=0.5 vol ranges 0x3FFF..0x7FFF (half modulation).
+            // T-44-02: clamp depth 0.0-1.0 at point of use.
+            if (tremEn)
+            {
+                auto* mx = spu94_get_voice_mixer();
+                float depth = tremoloDepth.load(std::memory_order_relaxed);
+                if (depth < 0.0f) depth = 0.0f;
+                if (depth > 1.0f) depth = 1.0f;
+
+                if (mx->voices[0].sweep_l.active) {
+                    int16_t sweep_lvl = mx->voices[0].sweep_l.level;
+                    mx->voices[0].vol_l = static_cast<int16_t>(
+                        0x7FFF - static_cast<int16_t>(
+                            static_cast<float>(0x7FFF - sweep_lvl) * depth));
+                }
+                if (mx->voices[0].sweep_r.active) {
+                    int16_t sweep_lvl = mx->voices[0].sweep_r.level;
+                    mx->voices[0].vol_r = static_cast<int16_t>(
+                        0x7FFF - static_cast<int16_t>(
+                            static_cast<float>(0x7FFF - sweep_lvl) * depth));
+                }
+            }
         }
 
         // Update all marker positions on voice 0 in real time
