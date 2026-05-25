@@ -602,7 +602,7 @@ void test_sweep_retrigger_kon_fresh_start(void) {
 
     /* Configure with starting direction = 0 (increase).
      * spu94_sweep_configure should set both direction AND start_direction. */
-    spu94_sweep_configure(&sw, 0, 0, 0, 11, 0, 1);
+    spu94_sweep_configure(&sw, 0, 0, 0, 11, 0, 1, 0);
 
     /* After configure: direction = 0 (the param), start_direction = 0 */
     TEST_ASSERT_EQUAL_UINT8(0, sw.direction);
@@ -610,7 +610,7 @@ void test_sweep_retrigger_kon_fresh_start(void) {
     TEST_ASSERT_EQUAL_UINT32(0, sw.counter);
 
     /* Also test with start_direction = 1 (decrease) */
-    spu94_sweep_configure(&sw, 0, 1, 0, 11, 0, 1);
+    spu94_sweep_configure(&sw, 0, 1, 0, 11, 0, 1, 0);
     TEST_ASSERT_EQUAL_UINT8(1, sw.direction);
     TEST_ASSERT_EQUAL_UINT8(1, sw.start_direction);
 }
@@ -628,18 +628,18 @@ void test_sweep_retrigger_mixer_api(void) {
 
     /* Configure L sweep with retrigger_enable=1 */
     spu94_result_t res_l = spu94_voice_mixer_set_sweep_l(mixer, 0,
-        0, 0, 0, 11, 0, 1);  /* mode=0, dir=0, phase=0, shift=11, step=0, retrigger=1 */
+        0, 0, 0, 11, 0, 1, 0);  /* mode=0, dir=0, phase=0, shift=11, step=0, retrigger=1, bipolar=0 */
     TEST_ASSERT_EQUAL(SPU94_OK, res_l);
     TEST_ASSERT_EQUAL_UINT8(1, mixer->voices[0].sweep_l.retrigger_enable);
 
     /* Configure R sweep with retrigger_enable=1 */
     spu94_result_t res_r = spu94_voice_mixer_set_sweep_r(mixer, 0,
-        0, 0, 0, 13, 0, 1);  /* mode=0, dir=0, phase=0, shift=13, step=0, retrigger=1 */
+        0, 0, 0, 13, 0, 1, 0);  /* mode=0, dir=0, phase=0, shift=13, step=0, retrigger=1, bipolar=0 */
     TEST_ASSERT_EQUAL(SPU94_OK, res_r);
     TEST_ASSERT_EQUAL_UINT8(1, mixer->voices[0].sweep_r.retrigger_enable);
 
     /* Also verify retrigger_enable=0 works */
-    spu94_voice_mixer_set_sweep_l(mixer, 0, 0, 0, 0, 11, 0, 0);
+    spu94_voice_mixer_set_sweep_l(mixer, 0, 0, 0, 0, 11, 0, 0, 0);
     TEST_ASSERT_EQUAL_UINT8(0, mixer->voices[0].sweep_l.retrigger_enable);
 }
 
@@ -781,11 +781,11 @@ static void test_auto_pan_opposition(void)
 
     /* Configure L sweep: direction=1 (decrease), mode=0 (linear), retrigger=1 */
     spu94_voice_mixer_set_sweep_l(mixer, 0,
-        0, 1, 0, 10, 3, 1);  /* mode=0, dir=1(decrease), phase=0, shift=10, step=3, retrigger=1 */
+        0, 1, 0, 10, 3, 1, 0);  /* mode=0, dir=1(decrease), phase=0, shift=10, step=3, retrigger=1, bipolar=0 */
 
     /* Configure R sweep: direction=0 (increase), mode=0 (linear), retrigger=1 */
     spu94_voice_mixer_set_sweep_r(mixer, 0,
-        0, 0, 0, 10, 3, 1);  /* mode=0, dir=0(increase), phase=0, shift=10, step=3, retrigger=1 */
+        0, 0, 0, 10, 3, 1, 0);  /* mode=0, dir=0(increase), phase=0, shift=10, step=3, retrigger=1, bipolar=0 */
 
     int16_t initial_l = mixer->voices[0].sweep_l.level;
     int16_t initial_r = mixer->voices[0].sweep_r.level;
@@ -819,9 +819,9 @@ static void test_auto_pan_opposition(void)
     mixer->voices[0].vol_r = 0x4000;
 
     spu94_voice_mixer_set_sweep_l(mixer, 0,
-        0, 1, 0, 10, 3, 1);  /* decrease */
+        0, 1, 0, 10, 3, 1, 0);  /* decrease, bipolar=0 */
     spu94_voice_mixer_set_sweep_r(mixer, 0,
-        0, 0, 0, 10, 3, 1);  /* increase */
+        0, 0, 0, 10, 3, 1, 0);  /* increase, bipolar=0 */
 
     initial_l = mixer->voices[0].sweep_l.level;
     initial_r = mixer->voices[0].sweep_r.level;
@@ -851,9 +851,9 @@ static void test_auto_pan_linear_crossfade_dip(void)
 
     /* L decreases, R increases -- linear mode, same rate */
     spu94_voice_mixer_set_sweep_l(mixer, 0,
-        0, 1, 0, 10, 3, 1);  /* mode=0(linear), dir=1(decrease), shift=10, step=3, retrigger=1 */
+        0, 1, 0, 10, 3, 1, 0);  /* mode=0(linear), dir=1(decrease), shift=10, step=3, retrigger=1, bipolar=0 */
     spu94_voice_mixer_set_sweep_r(mixer, 0,
-        0, 0, 0, 10, 3, 1);  /* mode=0(linear), dir=0(increase), shift=10, step=3, retrigger=1 */
+        0, 0, 0, 10, 3, 1, 0);  /* mode=0(linear), dir=0(increase), shift=10, step=3, retrigger=1, bipolar=0 */
 
     /* Tick until L and R are near the crossing point.
      * At the crossing: L is decreasing toward 0, R is increasing toward 0x7FFF.
@@ -937,8 +937,8 @@ void test_sidechain_duck_trigger_and_recovery(void) {
     /* --- DUCK PHASE: Configure exponential decrease (shift=10, one-shot) ---
      * This simulates what the host layer does when it detects a KON on the
      * source voice. */
-    spu94_voice_mixer_set_sweep_l(mixer, 1, 1, 1, 0, 10, 0, 0);
-    spu94_voice_mixer_set_sweep_r(mixer, 1, 1, 1, 0, 10, 0, 0);
+    spu94_voice_mixer_set_sweep_l(mixer, 1, 1, 1, 0, 10, 0, 0, 0);
+    spu94_voice_mixer_set_sweep_r(mixer, 1, 1, 1, 0, 10, 0, 0, 0);
 
     /* Tick enough for exponential decrease to complete.
      * At shift=10, exponential decrease fires every tick with multiplicative
@@ -956,8 +956,8 @@ void test_sidechain_duck_trigger_and_recovery(void) {
     /* --- RECOVERY PHASE: Configure exponential increase (shift=13, one-shot) ---
      * This simulates the host layer transitioning to recovery after the
      * decrease hits the depth floor. */
-    spu94_voice_mixer_set_sweep_l(mixer, 1, 1, 0, 0, 13, 0, 0);
-    spu94_voice_mixer_set_sweep_r(mixer, 1, 1, 0, 0, 13, 0, 0);
+    spu94_voice_mixer_set_sweep_l(mixer, 1, 1, 0, 0, 13, 0, 0, 0);
+    spu94_voice_mixer_set_sweep_r(mixer, 1, 1, 0, 0, 13, 0, 0, 0);
 
     /* Tick enough for exponential increase to reach 0x7FFF.
      * At shift=13, counter fires every 4 ticks (step=7). Below 0x6000
@@ -1202,6 +1202,216 @@ static void test_sweep_phase_mod_polarity_cycling(void)
     }
 }
 
+/* ---------------------------------------------------------------
+ * Phase 52: Ring mod bipolar sweep tests (PMOD-01..04)
+ * Bipolar sweep crosses zero into negative territory, enabling ring
+ * mod's phase inversion effect via native VCA ramp mechanism.
+ * --------------------------------------------------------------- */
+
+/* Bipolar sweep starting at +0x7FFF with direction=decrease crosses zero
+ * and reaches -0x7FFF. At the zero crossing, both direction AND phase flip.
+ * After zero crossing, sweep continues into negative territory. */
+static void test_sweep_bipolar_crosses_zero(void)
+{
+    spu94_sweep_t sw;
+    spu94_sweep_init(&sw);
+    spu94_sweep_configure(&sw, 0, 1, 0, 0, 0, 1, 1);
+    /* mode=0(linear), direction=1(decrease), phase=0(positive),
+     * shift=0, step=0, retrigger_enable=1, bipolar=1 */
+    sw.level = 0x7FFF;
+
+    /* Tick until level reaches 0 (the zero boundary) */
+    int ticks = 0;
+    while (sw.level > 0 && ticks < 100) {
+        spu94_sweep_tick(&sw);
+        ticks++;
+    }
+    TEST_ASSERT_EQUAL_INT16(0, sw.level);
+
+    /* At zero crossing in bipolar mode: phase flips AND direction flips */
+    /* The retrigger fires on the tick where level == boundary (0).
+     * After the retrigger: phase should have flipped to 1, direction flipped. */
+    spu94_sweep_tick(&sw);
+    TEST_ASSERT_EQUAL_UINT8(1, sw.phase);      /* phase flipped: 0 -> 1 */
+    TEST_ASSERT_EQUAL_UINT8(0, sw.direction);   /* direction flipped: 1 -> 0 */
+    /* In negative phase, direction=0(increase) means "toward -0x7FFF" */
+
+    /* Continue ticking: sweep should go into negative territory */
+    for (int t = 0; t < 50; t++) {
+        spu94_sweep_tick(&sw);
+    }
+    TEST_ASSERT_TRUE(sw.level < 0);  /* level has gone negative */
+
+    /* Continue until it reaches -0x7FFF */
+    while (sw.level > -0x7FFF && ticks < 200) {
+        spu94_sweep_tick(&sw);
+        ticks++;
+    }
+    TEST_ASSERT_EQUAL_INT16(-0x7FFF, sw.level);
+}
+
+/* Full 4-leg bipolar cycle: +0x7FFF -> 0 -> -0x7FFF -> 0 -> +0x7FFF.
+ * At zero crossings: both direction AND phase flip.
+ * At non-zero boundaries (+0x7FFF, -0x7FFF): only direction flips. */
+static void test_sweep_bipolar_full_cycle(void)
+{
+    spu94_sweep_t sw;
+    spu94_sweep_init(&sw);
+    spu94_sweep_configure(&sw, 0, 1, 0, 0, 0, 1, 1);
+    /* mode=0(linear), direction=1(decrease), phase=0(positive),
+     * shift=0, step=0, retrigger_enable=1, bipolar=1 */
+    sw.level = 0x7FFF;
+
+    int total_ticks = 0;
+    int reversals = 0;
+    uint8_t last_dir = sw.direction;
+
+    /* Leg 1: +0x7FFF -> 0 (decrease in positive phase) */
+    while (sw.level > 0 && total_ticks < 100) {
+        spu94_sweep_tick(&sw);
+        total_ticks++;
+        if (sw.direction != last_dir) { reversals++; last_dir = sw.direction; }
+    }
+    TEST_ASSERT_EQUAL_INT16(0, sw.level);
+    /* Retrigger at zero: direction AND phase flip */
+    spu94_sweep_tick(&sw);
+    total_ticks++;
+    if (sw.direction != last_dir) { reversals++; last_dir = sw.direction; }
+    TEST_ASSERT_EQUAL_UINT8(1, sw.phase);   /* phase flipped: 0 -> 1 */
+    /* Now direction=0(increase) in negative phase: toward -0x7FFF */
+
+    /* Leg 2: 0 -> -0x7FFF (increase in negative phase) */
+    while (sw.level > -0x7FFF && total_ticks < 200) {
+        spu94_sweep_tick(&sw);
+        total_ticks++;
+        if (sw.direction != last_dir) { reversals++; last_dir = sw.direction; }
+    }
+    TEST_ASSERT_EQUAL_INT16(-0x7FFF, sw.level);
+    /* Retrigger at -0x7FFF: only direction flips (not zero boundary) */
+    spu94_sweep_tick(&sw);
+    total_ticks++;
+    if (sw.direction != last_dir) { reversals++; last_dir = sw.direction; }
+    TEST_ASSERT_EQUAL_UINT8(1, sw.phase);   /* phase stays 1 */
+    TEST_ASSERT_EQUAL_UINT8(1, sw.direction); /* direction flipped: 0 -> 1 */
+    /* Now direction=1(decrease) in negative phase: toward 0 */
+
+    /* Leg 3: -0x7FFF -> 0 (decrease in negative phase) */
+    while (sw.level < 0 && total_ticks < 400) {
+        spu94_sweep_tick(&sw);
+        total_ticks++;
+        if (sw.direction != last_dir) { reversals++; last_dir = sw.direction; }
+    }
+    TEST_ASSERT_EQUAL_INT16(0, sw.level);
+    /* Retrigger at zero: direction AND phase flip back */
+    spu94_sweep_tick(&sw);
+    total_ticks++;
+    if (sw.direction != last_dir) { reversals++; last_dir = sw.direction; }
+    TEST_ASSERT_EQUAL_UINT8(0, sw.phase);   /* phase flipped: 1 -> 0 */
+    /* Now direction=0(increase) in positive phase: toward +0x7FFF */
+
+    /* Leg 4: 0 -> +0x7FFF (increase in positive phase) */
+    while (sw.level < 0x7FFF && total_ticks < 500) {
+        spu94_sweep_tick(&sw);
+        total_ticks++;
+        if (sw.direction != last_dir) { reversals++; last_dir = sw.direction; }
+    }
+    TEST_ASSERT_EQUAL_INT16(0x7FFF, sw.level);
+    /* Retrigger at +0x7FFF: only direction flips */
+    spu94_sweep_tick(&sw);
+    total_ticks++;
+    if (sw.direction != last_dir) { reversals++; last_dir = sw.direction; }
+    TEST_ASSERT_EQUAL_UINT8(0, sw.phase);   /* phase stays 0 */
+    TEST_ASSERT_EQUAL_UINT8(1, sw.direction); /* direction flipped: 0 -> 1 */
+
+    /* After full cycle: 4 reversals total (one per leg boundary) */
+    TEST_ASSERT_EQUAL_INT(4, reversals);
+
+    /* Bipolar cycle should take approximately 2x the unipolar cycle.
+     * Unipolar at shift=0/step=0 is about 5-7 ticks for a half-cycle.
+     * Full bipolar cycle (4 legs) should be under 30 ticks. */
+    TEST_ASSERT_TRUE(total_ticks < 30);
+    TEST_ASSERT_TRUE(total_ticks > 4);
+}
+
+/* Bipolar=0 must behave identically to the existing unipolar retrigger tests.
+ * Level bounces between 0 and +0x7FFF, never goes negative. */
+static void test_sweep_bipolar_off_is_unipolar(void)
+{
+    spu94_sweep_t sw;
+    spu94_sweep_init(&sw);
+    spu94_sweep_configure(&sw, 0, 0, 0, 0, 0, 1, 0);
+    /* mode=0(linear), direction=0(increase), phase=0(positive),
+     * shift=0, step=0, retrigger_enable=1, bipolar=0 */
+    sw.level = 0;
+
+    int16_t min_seen = 0x7FFF;
+    int16_t max_seen = 0;
+    int reversals = 0;
+    uint8_t last_dir = sw.direction;
+
+    /* Run 20 ticks (enough for several reversals at shift=0/step=0) */
+    for (int t = 0; t < 20; t++) {
+        spu94_sweep_tick(&sw);
+        if (sw.level < min_seen) min_seen = sw.level;
+        if (sw.level > max_seen) max_seen = sw.level;
+        if (sw.direction != last_dir) { reversals++; last_dir = sw.direction; }
+    }
+
+    /* Unipolar: bounces between 0 and +0x7FFF */
+    TEST_ASSERT_EQUAL_INT16(0, min_seen);
+    TEST_ASSERT_EQUAL_INT16(0x7FFF, max_seen);
+    /* Never goes negative */
+    TEST_ASSERT_TRUE(min_seen >= 0);
+    /* Phase must stay at 0 (never flips in unipolar mode) */
+    TEST_ASSERT_EQUAL_UINT8(0, sw.phase);
+    /* Must have at least 2 reversals (up then down) */
+    TEST_ASSERT_TRUE(reversals >= 2);
+}
+
+/* Verify spu94_sweep_configure stores the bipolar parameter correctly. */
+static void test_sweep_bipolar_configure_api(void)
+{
+    spu94_sweep_t sw;
+    spu94_sweep_init(&sw);
+
+    /* Configure with bipolar=1 */
+    spu94_sweep_configure(&sw, 0, 0, 0, 0, 0, 1, 1);
+    TEST_ASSERT_EQUAL_UINT8(1, sw.bipolar);
+
+    /* Re-configure with bipolar=0 */
+    spu94_sweep_configure(&sw, 0, 0, 0, 0, 0, 1, 0);
+    TEST_ASSERT_EQUAL_UINT8(0, sw.bipolar);
+}
+
+/* Verify spu94_voice_mixer_set_sweep_l/r forward bipolar to the sweep struct. */
+static void test_sweep_bipolar_mixer_api(void)
+{
+    spu94_voice_mixer_t *mixer = spu94_get_voice_mixer();
+    spu94_voice_mixer_init(mixer);
+    mixer->enabled = 1;
+
+    mixer->voices[0].vol_l = 0x2000;
+    mixer->voices[0].vol_r = 0x3000;
+
+    /* Configure L with bipolar=1 */
+    spu94_result_t res_l = spu94_voice_mixer_set_sweep_l(mixer, 0,
+        0, 0, 0, 11, 0, 1, 1);  /* mode=0, dir=0, phase=0, shift=11, step=0, retrigger=1, bipolar=1 */
+    TEST_ASSERT_EQUAL(SPU94_OK, res_l);
+    TEST_ASSERT_EQUAL_UINT8(1, mixer->voices[0].sweep_l.bipolar);
+
+    /* Configure R with bipolar=1 */
+    spu94_result_t res_r = spu94_voice_mixer_set_sweep_r(mixer, 0,
+        0, 0, 0, 13, 0, 1, 1);  /* mode=0, dir=0, phase=0, shift=13, step=0, retrigger=1, bipolar=1 */
+    TEST_ASSERT_EQUAL(SPU94_OK, res_r);
+    TEST_ASSERT_EQUAL_UINT8(1, mixer->voices[0].sweep_r.bipolar);
+
+    /* Verify bipolar=0 also works */
+    spu94_voice_mixer_set_sweep_l(mixer, 0, 0, 0, 0, 11, 0, 1, 0);
+    TEST_ASSERT_EQUAL_UINT8(0, mixer->voices[0].sweep_l.bipolar);
+    spu94_voice_mixer_set_sweep_r(mixer, 0, 0, 0, 0, 13, 0, 1, 0);
+    TEST_ASSERT_EQUAL_UINT8(0, mixer->voices[0].sweep_r.bipolar);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_sweep_init);
@@ -1246,5 +1456,11 @@ int main(void) {
     RUN_TEST(test_am_audio_rate_oscillation);
     /* Phase 49: Phase modulator polarity cycling through zero */
     RUN_TEST(test_sweep_phase_mod_polarity_cycling);
+    /* Phase 52: Ring mod bipolar sweep */
+    RUN_TEST(test_sweep_bipolar_crosses_zero);
+    RUN_TEST(test_sweep_bipolar_full_cycle);
+    RUN_TEST(test_sweep_bipolar_off_is_unipolar);
+    RUN_TEST(test_sweep_bipolar_configure_api);
+    RUN_TEST(test_sweep_bipolar_mixer_api);
     return UNITY_END();
 }
