@@ -74,11 +74,11 @@
 
 ### GUI & Integration
 
-- [ ] **GUI-01**: Sampler window resized to accommodate new effect sections without cramming
-- [ ] **GUI-02**: Effect selector or section layout that clearly organizes tremolo, auto-pan, sidechain, widener, AM, phase mod, and mod bus
-- [ ] **GUI-03**: Existing v1.9 VCA ramp controls (direction/speed/curve/ARM) remain accessible as raw register access
-- [ ] **GUI-04**: All new effects coexist with existing voice features (ADSR, PMON, NON, pan/level) without regression
-- [ ] **GUI-05**: rt_safety gates pass with all effects enabled (no heap, no locks, no syscalls, bounded latency)
+- [x] **GUI-01**: Sampler window resized to accommodate new effect sections without cramming
+- [x] **GUI-02**: Effect selector or section layout that clearly organizes tremolo, auto-pan, sidechain, widener, AM, phase mod, and mod bus
+- [x] **GUI-03**: Existing v1.9 VCA ramp controls (direction/speed/curve/ARM) remain accessible as raw register access
+- [x] **GUI-04**: All new effects coexist with existing voice features (ADSR, PMON, NON, pan/level) without regression
+- [x] **GUI-05**: rt_safety gates pass with all effects enabled (no heap, no locks, no syscalls, bounded latency)
 
 ## Future Requirements
 

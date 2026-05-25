@@ -5,7 +5,7 @@
 
 ## Milestones
 
-- **v1.10.0 Voice Dynamics & Stereo Effects** -- Phases 43-51 (in progress)
+- **v1.10.0 Voice Dynamics & Stereo Effects** -- Phases 43-51 (shipped 2026-05-25, tag `v1.10`)
 - v1.9 Complete Voice -- Phases 33-42 (shipped 2026-05-24, tag `v1.9`)
 - v1.8 PSX Voice Engine -- Phases 27-32 (shipped 2026-05-21, tag `v1.8`)
 - v1.7 DAW Plugin Port -- Phases 21-26 (shipped 2026-05-16, tag `v1.7`)
@@ -30,7 +30,7 @@
 - [ ] **Phase 48: AM Synthesis** - Audio-rate retrigger producing metallic sidebands
 - [ ] **Phase 49: Phase Modulator** - Polarity oscillation cycling through zero crossing
 - [ ] **Phase 50: Internal Mod Bus** - Per-voice noise-to-pitch/volume/pan routing
-- [ ] **Phase 51: GUI Integration & Verification** - Effect section layout, coexistence verification, RT-safety
+- [x] **Phase 51: GUI Integration & Verification** - Effect section layout, coexistence verification, RT-safety
 
 ## Phase Details
 
@@ -169,10 +169,9 @@ Plans:
   2. Existing v1.9 VCA ramp controls (direction/speed/curve/ARM) remain accessible as raw register access
   3. All existing voice features (ADSR, PMON, NON, pan/level) work without regression when new effects are enabled
   4. rt_safety gates pass with all effects simultaneously enabled (no heap, no locks, no syscalls, bounded latency)
-**Plans**: 2 plans
+**Plans**: 1 plan (1 complete)
 Plans:
-- [ ] 43-01-PLAN.md — Auto-reverse retrigger mechanism in sweep tick (RTR-01, RTR-03, RTR-04)
-- [ ] 43-02-PLAN.md — Independent L/R rates and KON reset (RTR-02, RTR-05)
+- [x] 51-01-PLAN.md — Full integration verification: build, tests, rt-safety, GUI layout (GUI-01..05)
 **UI hint**: yes
 
 ## Progress
@@ -187,7 +186,7 @@ Plans:
 | 48. AM Synthesis | 1/2 | In Progress|  |
 | 49. Phase Modulator | 0/2 | Planned | - |
 | 50. Internal Mod Bus | 0/2 | Planned | - |
-| 51. GUI Integration | 0/TBD | Not started | - |
+| 51. GUI Integration | 1/1 | Complete | 2026-05-25 |
 
 ## Previous Milestone Archives
 
