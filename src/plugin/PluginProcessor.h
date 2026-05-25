@@ -110,6 +110,9 @@ public:
     std::atomic<float>& getRingModDepth()    { return ringModDepth; }
     std::atomic<int>&   getRingModCurve()    { return ringModCurve; }
 
+    // Sweep shape (Phase 53: shared by all VCA ramp effects -- triangle/saw down/saw up)
+    std::atomic<int>&   getSweepShape()    { return sweepShape; }
+
     // Sidechain duck controls (Phase 46: event-triggered VCA duck via KON detection)
     std::atomic<int>&   getDuckSource(int voice) { return duckSource[voice]; }
     std::atomic<float>& getDuckRelease(int voice) { return duckRelease[voice]; }
@@ -485,6 +488,12 @@ private:
     bool  ringModWasActive{false};
     float lastRingModHz{-1.0f};
     int   lastRingModCurve{-1};
+
+    // Sweep shape (Phase 53: shared by all VCA ramp effects)
+    std::atomic<int>   sweepShape{0};         // 0=Triangle, 1=Saw Down, 2=Saw Up
+
+    // Audio-thread-only shape state (not atomic -- only accessed from processBlock)
+    int   lastSweepShape{0};
 
     // Sidechain duck controls (Phase 46: event-triggered VCA duck via KON detection)
     // Per-voice: which voice's KON triggers duck (-1 = none, 0-23 = source voice)

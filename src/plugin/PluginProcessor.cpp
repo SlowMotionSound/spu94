@@ -838,10 +838,14 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 float hz    = tremoloSpeedHz.load(std::memory_order_relaxed);
                 int   curve = tremoloCurve.load(std::memory_order_relaxed);
                 float ratio = tremoloRatio.load(std::memory_order_relaxed);
+                int   shape = sweepShape.load(std::memory_order_relaxed);
 
                 // T-44-01: clamp Hz to table range
                 if (hz < 0.5f) hz = 0.5f;
                 if (hz > 43.0f) hz = 43.0f;
+                // T-53-01: clamp shape to valid range
+                if (shape < 0) shape = 0;
+                if (shape > 2) shape = 2;
 
                 auto ss = hzToShift(hz);
 
@@ -850,7 +854,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     static_cast<uint8_t>(curve & 1),  // mode: 0=linear, 1=exponential
                     1,  // direction=decrease (start from current vol going down)
                     0,  // phase=positive
-                    ss.shift, ss.step, 1, 0, 0);  // retrigger_enable=1, bipolar=0, shape=0
+                    ss.shift, ss.step, 1, 0,
+                    static_cast<uint8_t>(shape));  // retrigger_enable=1, bipolar=0, shape
 
                 // R channel: apply ratio for independent rate
                 // T-44-03: clamp ratio to safe range
@@ -867,11 +872,13 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
                 spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
                     static_cast<uint8_t>(curve & 1),
-                    1, 0, r_shift, ss.step, 1, 0, 0);  // retrigger_enable=1, bipolar=0, shape=0
+                    1, 0, r_shift, ss.step, 1, 0,
+                    static_cast<uint8_t>(shape));  // retrigger_enable=1, bipolar=0, shape
 
                 lastTremoloHz = hz;
                 lastTremoloCurve = curve;
                 lastTremoloRatio = ratio;
+                lastSweepShape = shape;
                 tremoloWasActive = true;
 
                 // AM-04: Tremolo takes priority -- force-deactivate AM if it was active
@@ -885,22 +892,26 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 float hz    = tremoloSpeedHz.load(std::memory_order_relaxed);
                 int   curve = tremoloCurve.load(std::memory_order_relaxed);
                 float ratio = tremoloRatio.load(std::memory_order_relaxed);
+                int   shape = sweepShape.load(std::memory_order_relaxed);
 
                 if (hz < 0.5f) hz = 0.5f;
                 if (hz > 43.0f) hz = 43.0f;
                 if (ratio < 0.5f) ratio = 0.5f;
                 if (ratio > 4.0f) ratio = 4.0f;
+                if (shape < 0) shape = 0;
+                if (shape > 2) shape = 2;
 
-                if (hz != lastTremoloHz || curve != lastTremoloCurve || ratio != lastTremoloRatio)
+                if (hz != lastTremoloHz || curve != lastTremoloCurve || ratio != lastTremoloRatio || shape != lastSweepShape)
                 {
                     auto ss = hzToShift(hz);
                     auto* mx = spu94_get_voice_mixer();
 
-                    // Update speed/curve without resetting level/counter —
-                    // oscillation keeps running at new rate
+                    // Update speed/curve/shape without resetting level/counter —
+                    // oscillation keeps running at new rate/shape
                     mx->voices[0].sweep_l.shift = ss.shift;
                     mx->voices[0].sweep_l.step = ss.step;
                     mx->voices[0].sweep_l.mode = static_cast<uint8_t>(curve & 1);
+                    mx->voices[0].sweep_l.shape = static_cast<uint8_t>(shape);
 
                     uint8_t r_shift = ss.shift;
                     if (ratio > 1.0f) {
@@ -914,10 +925,12 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     mx->voices[0].sweep_r.shift = r_shift;
                     mx->voices[0].sweep_r.step = ss.step;
                     mx->voices[0].sweep_r.mode = static_cast<uint8_t>(curve & 1);
+                    mx->voices[0].sweep_r.shape = static_cast<uint8_t>(shape);
 
                     lastTremoloHz = hz;
                     lastTremoloCurve = curve;
                     lastTremoloRatio = ratio;
+                    lastSweepShape = shape;
                 }
             }
             else if (!tremEn && tremoloWasActive)
@@ -970,10 +983,13 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 // Auto-pan just enabled: configure L/R sweeps in opposition
                 float hz    = autoPanSpeedHz.load(std::memory_order_relaxed);
                 float ratio = autoPanRatio.load(std::memory_order_relaxed);
+                int   shape = sweepShape.load(std::memory_order_relaxed);
 
                 // T-45-01: clamp Hz to table range
                 if (hz < 0.5f) hz = 0.5f;
                 if (hz > 43.0f) hz = 43.0f;
+                if (shape < 0) shape = 0;
+                if (shape > 2) shape = 2;
 
                 auto ss = hzToShift(hz);
 
@@ -982,7 +998,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     0,  // mode=0 (linear always, PAN-04)
                     1,  // direction=decrease (L starts going down)
                     0,  // phase=positive
-                    ss.shift, ss.step, 1, 0, 0);  // retrigger_enable=1, bipolar=0, shape=0
+                    ss.shift, ss.step, 1, 0,
+                    static_cast<uint8_t>(shape));  // retrigger_enable=1, bipolar=0, shape
 
                 // R channel: direction=0 (increase) -- OPPOSITION to L
                 // Apply ratio for independent rate
@@ -1000,7 +1017,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
                     0,  // mode=0 (linear always, PAN-04)
                     0,  // direction=increase (R goes UP while L goes DOWN)
-                    0, r_shift, ss.step, 1, 0, 0);  // retrigger_enable=1, bipolar=0, shape=0
+                    0, r_shift, ss.step, 1, 0,
+                    static_cast<uint8_t>(shape));  // retrigger_enable=1, bipolar=0, shape
 
                 // R must start at 0 so it increases WHILE L decreases from 0x7FFF.
                 // set_sweep_r copies vol_r as starting level, but for opposition
@@ -1009,6 +1027,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
                 lastAutoPanHz = hz;
                 lastAutoPanRatio = ratio;
+                lastSweepShape = shape;
                 autoPanWasActive = true;
 
                 // AM-04: Auto-pan takes priority -- force-deactivate AM if it was active
@@ -1021,21 +1040,25 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 // Auto-pan already active: check if parameters changed
                 float hz    = autoPanSpeedHz.load(std::memory_order_relaxed);
                 float ratio = autoPanRatio.load(std::memory_order_relaxed);
+                int   shape = sweepShape.load(std::memory_order_relaxed);
 
                 if (hz < 0.5f) hz = 0.5f;
                 if (hz > 43.0f) hz = 43.0f;
                 if (ratio < 0.5f) ratio = 0.5f;
                 if (ratio > 4.0f) ratio = 4.0f;
+                if (shape < 0) shape = 0;
+                if (shape > 2) shape = 2;
 
-                if (hz != lastAutoPanHz || ratio != lastAutoPanRatio)
+                if (hz != lastAutoPanHz || ratio != lastAutoPanRatio || shape != lastSweepShape)
                 {
                     auto ss = hzToShift(hz);
                     auto* mx = spu94_get_voice_mixer();
 
-                    // Update speed without resetting level/counter/direction —
-                    // the oscillation keeps running, just at a new rate
+                    // Update speed/shape without resetting level/counter/direction —
+                    // the oscillation keeps running, just at a new rate/shape
                     mx->voices[0].sweep_l.shift = ss.shift;
                     mx->voices[0].sweep_l.step = ss.step;
+                    mx->voices[0].sweep_l.shape = static_cast<uint8_t>(shape);
 
                     uint8_t r_shift = ss.shift;
                     if (ratio > 1.0f) {
@@ -1048,9 +1071,11 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
                     mx->voices[0].sweep_r.shift = r_shift;
                     mx->voices[0].sweep_r.step = ss.step;
+                    mx->voices[0].sweep_r.shape = static_cast<uint8_t>(shape);
 
                     lastAutoPanHz = hz;
                     lastAutoPanRatio = ratio;
+                    lastSweepShape = shape;
                 }
             }
             else if (!panEn && autoPanWasActive)
@@ -1107,10 +1132,13 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 // AM just enabled: configure sweeps for audio-rate oscillation
                 float hz   = amRateHz.load(std::memory_order_relaxed);
                 int   curve = amCurve.load(std::memory_order_relaxed);
+                int   shape = sweepShape.load(std::memory_order_relaxed);
 
                 // T-48-01: clamp Hz to table range
                 if (hz < kAmHzTable[0].hz) hz = kAmHzTable[0].hz;
                 if (hz > kAmHzTable[kAmHzTableSize - 1].hz) hz = kAmHzTable[kAmHzTableSize - 1].hz;
+                if (shape < 0) shape = 0;
+                if (shape > 2) shape = 2;
 
                 auto ss = hzToShiftAm(hz);
 
@@ -1119,14 +1147,17 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     static_cast<uint8_t>(curve & 1),  // mode: 0=linear, 1=exponential
                     1,  // direction=decrease (start from current vol going down)
                     0,  // phase=positive
-                    ss.shift, ss.step, 1, 0, 0);  // retrigger_enable=1, bipolar=0, shape=0
+                    ss.shift, ss.step, 1, 0,
+                    static_cast<uint8_t>(shape));  // retrigger_enable=1, bipolar=0, shape
 
                 spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
                     static_cast<uint8_t>(curve & 1),
-                    1, 0, ss.shift, ss.step, 1, 0, 0);  // retrigger_enable=1, bipolar=0, shape=0
+                    1, 0, ss.shift, ss.step, 1, 0,
+                    static_cast<uint8_t>(shape));  // retrigger_enable=1, bipolar=0, shape
 
                 lastAmHz = hz;
                 lastAmCurve = curve;
+                lastSweepShape = shape;
                 amWasActive = true;
 
                 // Ring mod has lowest priority -- force-deactivate if it was active
@@ -1137,11 +1168,14 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 // AM already active: check if parameters changed
                 float hz   = amRateHz.load(std::memory_order_relaxed);
                 int   curve = amCurve.load(std::memory_order_relaxed);
+                int   shape = sweepShape.load(std::memory_order_relaxed);
 
                 if (hz < kAmHzTable[0].hz) hz = kAmHzTable[0].hz;
                 if (hz > kAmHzTable[kAmHzTableSize - 1].hz) hz = kAmHzTable[kAmHzTableSize - 1].hz;
+                if (shape < 0) shape = 0;
+                if (shape > 2) shape = 2;
 
-                if (hz != lastAmHz || curve != lastAmCurve)
+                if (hz != lastAmHz || curve != lastAmCurve || shape != lastSweepShape)
                 {
                     auto ss = hzToShiftAm(hz);
                     auto* mx = spu94_get_voice_mixer();
@@ -1149,12 +1183,15 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     mx->voices[0].sweep_l.shift = ss.shift;
                     mx->voices[0].sweep_l.step = ss.step;
                     mx->voices[0].sweep_l.mode = static_cast<uint8_t>(curve & 1);
+                    mx->voices[0].sweep_l.shape = static_cast<uint8_t>(shape);
                     mx->voices[0].sweep_r.shift = ss.shift;
                     mx->voices[0].sweep_r.step = ss.step;
                     mx->voices[0].sweep_r.mode = static_cast<uint8_t>(curve & 1);
+                    mx->voices[0].sweep_r.shape = static_cast<uint8_t>(shape);
 
                     lastAmHz = hz;
                     lastAmCurve = curve;
+                    lastSweepShape = shape;
                 }
             }
             else if (!amEn && amWasActive)
@@ -1209,10 +1246,13 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 // Ring mod just enabled: configure sweeps for bipolar oscillation
                 float hz   = ringModRateHz.load(std::memory_order_relaxed);
                 int   curve = ringModCurve.load(std::memory_order_relaxed);
+                int   shape = sweepShape.load(std::memory_order_relaxed);
 
                 // Clamp Hz to AM table range (ring mod uses same audio-rate table)
                 if (hz < kAmHzTable[0].hz) hz = kAmHzTable[0].hz;
                 if (hz > kAmHzTable[kAmHzTableSize - 1].hz) hz = kAmHzTable[kAmHzTableSize - 1].hz;
+                if (shape < 0) shape = 0;
+                if (shape > 2) shape = 2;
 
                 auto ss = hzToShiftAm(hz);
 
@@ -1222,14 +1262,17 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     static_cast<uint8_t>(curve & 1),  // mode: 0=linear, 1=exponential
                     1,  // direction=decrease (start from current vol going down)
                     0,  // phase=positive (bipolar handles zero crossing)
-                    ss.shift, ss.step, 1, 1, 0);  // retrigger_enable=1, bipolar=1, shape=0
+                    ss.shift, ss.step, 1, 1,
+                    static_cast<uint8_t>(shape));  // retrigger_enable=1, bipolar=1, shape
 
                 spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
                     static_cast<uint8_t>(curve & 1),
-                    1, 0, ss.shift, ss.step, 1, 1, 0);  // retrigger_enable=1, bipolar=1, shape=0
+                    1, 0, ss.shift, ss.step, 1, 1,
+                    static_cast<uint8_t>(shape));  // retrigger_enable=1, bipolar=1, shape
 
                 lastRingModHz = hz;
                 lastRingModCurve = curve;
+                lastSweepShape = shape;
                 ringModWasActive = true;
             }
             else if (rmEn && ringModWasActive)
@@ -1237,11 +1280,14 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 // Ring mod already active: check if parameters changed
                 float hz   = ringModRateHz.load(std::memory_order_relaxed);
                 int   curve = ringModCurve.load(std::memory_order_relaxed);
+                int   shape = sweepShape.load(std::memory_order_relaxed);
 
                 if (hz < kAmHzTable[0].hz) hz = kAmHzTable[0].hz;
                 if (hz > kAmHzTable[kAmHzTableSize - 1].hz) hz = kAmHzTable[kAmHzTableSize - 1].hz;
+                if (shape < 0) shape = 0;
+                if (shape > 2) shape = 2;
 
-                if (hz != lastRingModHz || curve != lastRingModCurve)
+                if (hz != lastRingModHz || curve != lastRingModCurve || shape != lastSweepShape)
                 {
                     auto ss = hzToShiftAm(hz);
                     auto* mx = spu94_get_voice_mixer();
@@ -1249,12 +1295,15 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     mx->voices[0].sweep_l.shift = ss.shift;
                     mx->voices[0].sweep_l.step = ss.step;
                     mx->voices[0].sweep_l.mode = static_cast<uint8_t>(curve & 1);
+                    mx->voices[0].sweep_l.shape = static_cast<uint8_t>(shape);
                     mx->voices[0].sweep_r.shift = ss.shift;
                     mx->voices[0].sweep_r.step = ss.step;
                     mx->voices[0].sweep_r.mode = static_cast<uint8_t>(curve & 1);
+                    mx->voices[0].sweep_r.shape = static_cast<uint8_t>(shape);
 
                     lastRingModHz = hz;
                     lastRingModCurve = curve;
+                    lastSweepShape = shape;
                 }
             }
             else if (!rmEn && ringModWasActive)
