@@ -65,14 +65,17 @@ void spu94_sweep_tick(spu94_sweep_t *sw) {
     sw->level = (int16_t)level;
     sw->counter = env.counter;
 
-    /* Retrigger: auto-reverse direction when level hits clamping boundary.
+    /* Retrigger: behavior at clamping boundary depends on shape.
      * Only fires when retrigger_enable=1. Preserves v1.9 one-shot behavior
      * when retrigger_enable=0. (RTR-01, RTR-03, RTR-04)
      *
-     * Bipolar mode (Phase 52): at zero-crossing boundaries, flip BOTH
-     * direction and phase -- this makes the sweep traverse from +0x7FFF
-     * through 0 into -0x7FFF territory and back. At non-zero boundaries
-     * (+0x7FFF or -0x7FFF), only direction flips (standard retrigger). */
+     * Shape behavior at boundary:
+     *   TRIANGLE (0): auto-reverse direction (existing behavior).
+     *     Bipolar mode (Phase 52): at zero-crossing boundaries, flip BOTH
+     *     direction and phase for full +/-0x7FFF traversal.
+     *   SAW_DOWN (1): reset level to start-of-ramp maximum. Direction stays 1.
+     *   SAW_UP (2): reset level to start-of-ramp minimum. Direction stays 0.
+     */
     if (sw->retrigger_enable) {
         int16_t boundary;
         if (effective_phase == 0) {
@@ -81,13 +84,46 @@ void spu94_sweep_tick(spu94_sweep_t *sw) {
             boundary = (sw->direction == 0) ? -0x7FFF : 0;
         }
         if (sw->level == boundary) {
-            if (sw->bipolar && boundary == 0) {
-                sw->direction ^= 1;  /* flip direction */
-                sw->phase ^= 1;     /* flip phase: cross into opposite quadrant */
-            } else {
-                sw->direction ^= 1;  /* flip direction only */
+            switch (sw->shape) {
+            case SPU94_SWEEP_SHAPE_SAW_DOWN:
+                /* Reset to max (start of downward ramp). Direction stays decrease.
+                 * For unipolar: reset to +0x7FFF.
+                 * For bipolar: reset to +0x7FFF (full bipolar saw traverses
+                 * +0x7FFF -> 0 -> -0x7FFF then resets). */
+                if (sw->bipolar) {
+                    sw->level = 0x7FFF;
+                    sw->phase = 0;
+                    sw->direction = 1;
+                } else {
+                    sw->level = 0x7FFF;
+                }
+                sw->counter = 0;
+                break;
+            case SPU94_SWEEP_SHAPE_SAW_UP:
+                /* Reset to min (start of upward ramp). Direction stays increase.
+                 * For unipolar: reset to 0.
+                 * For bipolar: reset to -0x7FFF (full bipolar saw traverses
+                 * -0x7FFF -> 0 -> +0x7FFF then resets). */
+                if (sw->bipolar) {
+                    sw->level = -0x7FFF;
+                    sw->phase = 1;
+                    sw->direction = 0;
+                } else {
+                    sw->level = 0;
+                }
+                sw->counter = 0;
+                break;
+            default: /* SPU94_SWEEP_SHAPE_TRIANGLE */
+                /* Auto-reverse: flip direction at boundary. */
+                if (sw->bipolar && boundary == 0) {
+                    sw->direction ^= 1;  /* flip direction */
+                    sw->phase ^= 1;     /* flip phase: cross into opposite quadrant */
+                } else {
+                    sw->direction ^= 1;  /* flip direction only */
+                }
+                sw->counter = 0;      /* clean start for new half-cycle */
+                break;
             }
-            sw->counter = 0;      /* clean start for new half-cycle */
         }
     }
 }

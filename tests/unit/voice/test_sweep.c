@@ -1420,7 +1420,11 @@ static void test_sweep_bipolar_mixer_api(void)
  * --------------------------------------------------------------- */
 
 /* Saw Down (shape=1), linear mode: level starts at 0x7FFF, decreases to 0,
- * then RESETS to 0x7FFF instead of reversing direction. Direction stays 1. */
+ * then RESETS to 0x7FFF instead of reversing direction. Direction stays 1.
+ *
+ * Note: boundary hit + reset happen in the same tick (atomically).
+ * We detect this by watching for the level to jump BACK to 0x7FFF after
+ * having been below it. */
 static void test_sweep_saw_down_linear(void)
 {
     spu94_sweep_t sw;
@@ -1430,26 +1434,37 @@ static void test_sweep_saw_down_linear(void)
      * shift=0, step=0, retrigger_enable=1, bipolar=0, shape=1(saw_down) */
     sw.level = 0x7FFF;
 
-    /* Tick until level reaches 0 */
-    int ticks = 0;
-    while (sw.level > 0 && ticks < 100) {
+    /* First tick: level decreases from 0x7FFF */
+    spu94_sweep_tick(&sw);
+    int16_t first_level = sw.level;
+    TEST_ASSERT_TRUE(first_level < 0x7FFF);  /* must have decreased */
+    TEST_ASSERT_EQUAL_UINT8(1, sw.direction); /* direction stays decrease */
+
+    /* Keep ticking until level resets to 0x7FFF (the sawtooth reset event).
+     * With shift=0/step=0 linear decrease, step = (8-0) << 11 = 16384.
+     * From 0x7FFF (32767) to 0: 2 ticks. On the 3rd tick from start,
+     * level hits 0 boundary and resets to 0x7FFF in the same tick. */
+    int ticks = 1;
+    int reset_detected = 0;
+    while (ticks < 20) {
         spu94_sweep_tick(&sw);
         ticks++;
-        /* Direction must remain 1 (decrease) throughout -- never flips */
+        /* Direction must NEVER flip to 0 (increase) for saw down */
         TEST_ASSERT_EQUAL_UINT8(1, sw.direction);
+        if (sw.level == 0x7FFF) {
+            reset_detected = 1;
+            break;
+        }
     }
-    TEST_ASSERT_EQUAL_INT16(0, sw.level);
-
-    /* Next tick: level should RESET to 0x7FFF (not reverse to increase) */
-    spu94_sweep_tick(&sw);
-    TEST_ASSERT_EQUAL_INT16(0x7FFF, sw.level);
+    TEST_ASSERT_TRUE_MESSAGE(reset_detected, "Saw down should reset to 0x7FFF at zero boundary");
     /* Direction still 1 (decrease) -- never flipped */
     TEST_ASSERT_EQUAL_UINT8(1, sw.direction);
     /* Phase stays 0 */
     TEST_ASSERT_EQUAL_UINT8(0, sw.phase);
 }
 
-/* Saw Down (shape=1), exponential mode: same reset behavior at zero boundary. */
+/* Saw Down (shape=1), exponential mode: same reset behavior at zero boundary.
+ * Exponential decrease with anti-stall guard ensures level reaches zero. */
 static void test_sweep_saw_down_exponential(void)
 {
     spu94_sweep_t sw;
@@ -1459,23 +1474,31 @@ static void test_sweep_saw_down_exponential(void)
      * shift=0, step=0, retrigger_enable=1, bipolar=0, shape=1(saw_down) */
     sw.level = 0x7FFF;
 
-    /* Tick until level reaches 0 (anti-stall ensures it gets there) */
-    int ticks = 0;
-    while (sw.level > 0 && ticks < 100000) {
+    /* Tick until level resets to 0x7FFF (meaning it hit zero and reset atomically).
+     * First tick will decrease from 0x7FFF, so we start looking after first tick. */
+    spu94_sweep_tick(&sw);
+    TEST_ASSERT_TRUE(sw.level < 0x7FFF);  /* decreased */
+
+    int ticks = 1;
+    int reset_detected = 0;
+    while (ticks < 100000) {
         spu94_sweep_tick(&sw);
         ticks++;
+        TEST_ASSERT_EQUAL_UINT8(1, sw.direction); /* never flips */
+        if (sw.level == 0x7FFF) {
+            reset_detected = 1;
+            break;
+        }
     }
-    TEST_ASSERT_EQUAL_INT16(0, sw.level);
-
-    /* Next tick: level should RESET to 0x7FFF */
-    spu94_sweep_tick(&sw);
-    TEST_ASSERT_EQUAL_INT16(0x7FFF, sw.level);
-    /* Direction still 1 (decrease) */
+    TEST_ASSERT_TRUE_MESSAGE(reset_detected, "Saw down exp should reset to 0x7FFF at zero boundary");
     TEST_ASSERT_EQUAL_UINT8(1, sw.direction);
 }
 
 /* Saw Up (shape=2), linear mode: level starts at 0, increases to 0x7FFF,
- * then RESETS to 0 instead of reversing direction. Direction stays 0. */
+ * then RESETS to 0 instead of reversing direction. Direction stays 0.
+ *
+ * Boundary hit + reset happen atomically within one tick. We detect the
+ * reset by watching for level to jump back to 0 after having increased. */
 static void test_sweep_saw_up_linear(void)
 {
     spu94_sweep_t sw;
@@ -1485,26 +1508,37 @@ static void test_sweep_saw_up_linear(void)
      * shift=0, step=0, retrigger_enable=1, bipolar=0, shape=2(saw_up) */
     sw.level = 0;
 
-    /* Tick until level reaches 0x7FFF */
-    int ticks = 0;
-    while (sw.level < 0x7FFF && ticks < 100) {
+    /* First tick: level increases from 0 */
+    spu94_sweep_tick(&sw);
+    int16_t first_level = sw.level;
+    TEST_ASSERT_TRUE(first_level > 0);  /* must have increased */
+    TEST_ASSERT_EQUAL_UINT8(0, sw.direction); /* direction stays increase */
+
+    /* Keep ticking until level resets to 0 (the sawtooth reset event).
+     * With shift=0/step=0 linear increase, step = (7-0) << 11 = 14336.
+     * From 0 to 0x7FFF (32767): ~3 ticks. On hitting 0x7FFF boundary,
+     * level resets to 0 in the same tick. */
+    int ticks = 1;
+    int reset_detected = 0;
+    while (ticks < 20) {
         spu94_sweep_tick(&sw);
         ticks++;
-        /* Direction must remain 0 (increase) throughout */
+        /* Direction must NEVER flip to 1 (decrease) for saw up */
         TEST_ASSERT_EQUAL_UINT8(0, sw.direction);
+        if (sw.level == 0) {
+            reset_detected = 1;
+            break;
+        }
     }
-    TEST_ASSERT_EQUAL_INT16(0x7FFF, sw.level);
-
-    /* Next tick: level should RESET to 0 (not reverse to decrease) */
-    spu94_sweep_tick(&sw);
-    TEST_ASSERT_EQUAL_INT16(0, sw.level);
+    TEST_ASSERT_TRUE_MESSAGE(reset_detected, "Saw up should reset to 0 at max boundary");
     /* Direction still 0 (increase) -- never flipped */
     TEST_ASSERT_EQUAL_UINT8(0, sw.direction);
     /* Phase stays 0 */
     TEST_ASSERT_EQUAL_UINT8(0, sw.phase);
 }
 
-/* Saw Up (shape=2), exponential mode: same reset behavior at max boundary. */
+/* Saw Up (shape=2), exponential mode: same reset behavior at max boundary.
+ * Exponential increase reaches 0x7FFF (clamped at max). */
 static void test_sweep_saw_up_exponential(void)
 {
     spu94_sweep_t sw;
@@ -1514,22 +1548,29 @@ static void test_sweep_saw_up_exponential(void)
      * shift=0, step=0, retrigger_enable=1, bipolar=0, shape=2(saw_up) */
     sw.level = 0;
 
-    /* Tick until level reaches 0x7FFF */
-    int ticks = 0;
-    while (sw.level < 0x7FFF && ticks < 100000) {
+    /* Tick until level resets to 0 (meaning it hit max and reset atomically).
+     * First tick will increase from 0, so we start looking after first tick. */
+    spu94_sweep_tick(&sw);
+    TEST_ASSERT_TRUE(sw.level > 0);  /* increased */
+
+    int ticks = 1;
+    int reset_detected = 0;
+    while (ticks < 100000) {
         spu94_sweep_tick(&sw);
         ticks++;
+        TEST_ASSERT_EQUAL_UINT8(0, sw.direction); /* never flips */
+        if (sw.level == 0) {
+            reset_detected = 1;
+            break;
+        }
     }
-    TEST_ASSERT_EQUAL_INT16(0x7FFF, sw.level);
-
-    /* Next tick: level should RESET to 0 */
-    spu94_sweep_tick(&sw);
-    TEST_ASSERT_EQUAL_INT16(0, sw.level);
-    /* Direction still 0 (increase) */
+    TEST_ASSERT_TRUE_MESSAGE(reset_detected, "Saw up exp should reset to 0 at max boundary");
     TEST_ASSERT_EQUAL_UINT8(0, sw.direction);
 }
 
-/* Triangle (shape=0): direction DOES flip at boundary (existing behavior preserved). */
+/* Triangle (shape=0): direction DOES flip at boundary (existing behavior preserved).
+ * Key difference from saw shapes: direction reverses, level stays at boundary.
+ * The level will then decrease on subsequent ticks (not reset to opposite end). */
 static void test_sweep_shape_triangle_unchanged(void)
 {
     spu94_sweep_t sw;
@@ -1539,18 +1580,32 @@ static void test_sweep_shape_triangle_unchanged(void)
      * shift=0, step=0, retrigger_enable=1, bipolar=0, shape=0(triangle) */
     sw.level = 0;
 
-    /* Tick until level reaches 0x7FFF */
-    while (sw.level < 0x7FFF) {
+    /* With shift=0/step=0 linear increase, step = (7-0) << 11 = 14336.
+     * Tick 1: 0 + 14336 = 14336
+     * Tick 2: 14336 + 14336 = 28672
+     * Tick 3: 28672 + 14336 = 43008 -> clamp to 0x7FFF (32767)
+     * At 0x7FFF boundary: direction flips to 1 in same tick. */
+    int16_t prev_level = sw.level;
+    int direction_flipped = 0;
+    for (int t = 0; t < 10; t++) {
         spu94_sweep_tick(&sw);
+        if (sw.direction == 1) {
+            direction_flipped = 1;
+            break;
+        }
+        prev_level = sw.level;
     }
-    TEST_ASSERT_EQUAL_INT16(0x7FFF, sw.level);
-    TEST_ASSERT_EQUAL_UINT8(0, sw.direction); /* still increase at boundary */
 
-    /* Next tick: direction should FLIP (triangle auto-reverse) */
+    /* Triangle: direction MUST have flipped (auto-reverse) */
+    TEST_ASSERT_TRUE_MESSAGE(direction_flipped, "Triangle shape must flip direction at boundary");
+    TEST_ASSERT_EQUAL_UINT8(1, sw.direction);
+    /* Level should be at or near 0x7FFF (the boundary), NOT reset to 0 */
+    TEST_ASSERT_EQUAL_INT16(0x7FFF, sw.level);
+
+    /* Now tick again: level should DECREASE from 0x7FFF (proving reversal, not reset) */
     spu94_sweep_tick(&sw);
-    TEST_ASSERT_EQUAL_UINT8(1, sw.direction); /* flipped to decrease */
-    /* Level should NOT have reset to 0 -- it should be 0x7FFF or just below */
-    TEST_ASSERT_TRUE(sw.level >= 0x7FFF - 16384);
+    TEST_ASSERT_TRUE(sw.level < 0x7FFF);  /* decreased from boundary */
+    TEST_ASSERT_EQUAL_UINT8(1, sw.direction); /* still decreasing */
 }
 
 /* Verify spu94_sweep_configure stores shape field correctly. */
