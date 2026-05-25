@@ -174,6 +174,58 @@ Plans:
 - [x] 51-01-PLAN.md — Full integration verification: build, tests, rt-safety, GUI layout (GUI-01..05)
 **UI hint**: yes
 
+### Phase 52: Ring Mod
+**Goal**: Enable bipolar sweep that crosses zero into negative volume (phase inversion), creating native ring modulation via the VCA ramp state machine
+**Depends on**: Phase 43 (Retrigger Engine)
+**Success Criteria** (what must be TRUE):
+  1. Sweep can travel from positive through zero into negative territory when bipolar mode enabled
+  2. Retrigger auto-reverses at both +0x7FFF and -0x7FFF boundaries in bipolar mode
+  3. Ring mod produces audible carrier suppression / metallic sidebands at audio rate
+  4. Existing unipolar sweep behavior unchanged when bipolar mode is off
+  5. All sweep tests pass, rt_safety gates green
+**Plans**: 1 plan
+Plans:
+- [ ] 52-01-PLAN.md — Bipolar sweep in C core + ring mod host-layer activation (PMOD-01..04)
+
+### Phase 53: Sweep Shapes
+**Goal**: Expose all native VCA ramp waveforms — Triangle, Sawtooth Up, Sawtooth Down — as a selectable shape parameter
+**Depends on**: Phase 43 (Retrigger Engine)
+**Success Criteria** (what must be TRUE):
+  1. Triangle shape oscillates up-down-up (auto-reverse, existing behavior)
+  2. Saw Down resets to max on retrigger completion (no auto-reverse, start high)
+  3. Saw Up resets to min on retrigger completion (no auto-reverse, start low)
+  4. Each shape available in both linear and exponential curve modes (6 total waveforms)
+  5. Shape applies to all VCA ramp effects (trem, AM, ring mod, auto-pan)
+**Plans**: 1 plan
+Plans:
+- [ ] 52-01-PLAN.md — Bipolar sweep in C core + ring mod host-layer activation (PMOD-01..04)
+
+### Phase 54: Unified Effects GUI
+**Goal**: Replace separate per-effect GUI sections with one dropdown selector and adaptive controls per mode
+**Depends on**: Phases 52, 53, 46 (all effect DSP)
+**Success Criteria** (what must be TRUE):
+  1. Single dropdown selects: Auto-Pan, Tremolo, AM, Ring Mod, Ducking
+  2. Shared controls (Rate, Depth, Shape, Lin/Exp) visible for Auto-Pan/Trem/AM/Ring Mod; Auto-Pan adds L/R Ratio
+  3. Ducking mode shows Source, Attack, Release, Depth instead
+  4. All controls fit in visible sampler window area (right half, x=410+)
+  5. Old per-effect sections removed
+**Plans**: 1 plan
+Plans:
+- [ ] 52-01-PLAN.md — Bipolar sweep in C core + ring mod host-layer activation (PMOD-01..04)
+
+### Phase 55: Effects UAT
+**Goal**: Full user acceptance testing pass on all 5 VCA ramp effect modes
+**Depends on**: Phase 54 (Unified Effects GUI)
+**Success Criteria** (what must be TRUE):
+  1. Each of the 5 modes produces the expected audible effect
+  2. Mode switching preserves audio stability (no clicks, no stuck states)
+  3. All 6 sweep shapes audible in applicable modes
+  4. Duck attack control responds audibly
+  5. Ring mod produces distinct character from unipolar AM
+**Plans**: 1 plan
+Plans:
+- [ ] 52-01-PLAN.md — Bipolar sweep in C core + ring mod host-layer activation (PMOD-01..04)
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
