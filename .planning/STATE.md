@@ -110,7 +110,37 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-25T00:25:00Z
-Stopped at: Completed 51-01-PLAN.md (GUI integration verification -- v1.10.0 final gate)
+Last session: 2026-05-24
+Stopped at: v1.10.0 effects UAT — fixing bugs found during live testing
 Resume file: None
-Next action: Tag v1.10.0 release
+Next action: Split-output bus fix (see below), then continue UAT
+
+## Blocking: Split-Output Bus
+
+The side limiter (kSideCeiling=0.06) protects against reverb feedback squeals but
+crushes ALL stereo content including voice effects (auto-pan, widener, etc.). The
+fix requires splitting spu94_process output into voice and reverb buses so the host
+can side-limit reverb only.
+
+**Scope:**
+1. C core API: add `spu94_process_split()` — writes voice (dry+adpcm+sampler) and
+   reverb to separate buffer pairs. Existing `spu94_process` unchanged.
+2. spu94_process.c: at the 4-bus mix (lines 267-276), write two sums instead of one.
+   DAC model application is a design decision (combined or per-bus).
+3. PluginProcessor.cpp: call split variant, side-limit reverb bus only, sum for output.
+   Voice stereo effects pass through clean.
+
+**Files:** spu94.h, spu94_process.c, PluginProcessor.cpp
+**Risk:** Low — additive API, existing function untouched.
+**Size:** ~2 tasks, half a session.
+
+**Until this is done:** stereo widener has no audible effect (side limiter kills it).
+Auto-pan works but is dampened. Tremolo works (volume-only, less affected by side limiting).
+
+## UAT Bugs Found This Session
+
+- [x] Auto-pan: R channel started at same level as L (both swept same direction). Fixed by setting sweep_r.level=0 on enable.
+- [x] Auto-pan: parameter changes reset oscillation state. Fixed by updating shift/step directly instead of calling set_sweep_l/r.
+- [ ] Stereo widener: no audible effect — blocked by side limiter (see Split-Output Bus above).
+- [ ] GUI layout: effects 46-50 were off-screen in original vertical layout. Fixed with two-column layout but spacing needs polish.
+- [ ] Mod bus: not verified yet (needs UAT).
