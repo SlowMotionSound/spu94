@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.10.0
 milestone_name: Voice Dynamics & Stereo Effects
-status: complete
-stopped_at: Completed 51-01-PLAN.md (GUI integration verification -- v1.10.0 final gate)
+status: in_progress
+stopped_at: v1.10.0 revised scope — unified VCA ramp effects
 last_updated: "2026-05-25T00:25:00Z"
 last_activity: 2026-05-25
 progress:
@@ -21,30 +21,33 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-24)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.10.0 Voice Dynamics & Stereo Effects -- COMPLETE (all 9 phases, 16 plans verified)
+**Current focus:** v1.10.0 Voice Dynamics & Stereo Effects -- REVISED SCOPE (unified VCA ramp effects rework)
 
 ## Current Position
 
-Phase: 51 of 51 (GUI Integration & Verification) -- plan 01 of 01 complete (MILESTONE DONE)
-Plan: 1 of 1 complete
-Status: Complete
+Phase: 52 of 55 — revised scope in progress
+Status: In progress
 Last activity: 2026-05-25
 
-Progress: [██████████] 100%
+Progress: [██████░░░░] 60%
 
-## Phase Map (v1.10.0)
+## Phase Map (v1.10.0 — revised)
 
-| Phase | Name | Requirements | Depends On |
-|-------|------|--------------|------------|
-| 43 | Retrigger Engine | RTR-01..05 | v1.9 Phase 37 |
-| 44 | Tremolo | TREM-01..06 | Phase 43 |
-| 45 | Auto-Pan | PAN-01..06 | Phase 43 |
-| 46 | Sidechain Duck | DUCK-01..06 | v1.9 Phase 37 |
-| 47 | Stereo Widener | WIDE-01..04 | v1.9 Phase 37 |
-| 48 | AM Synthesis | AM-01..05 | Phase 43 |
-| 49 | Phase Modulator | PMOD-01..05 | Phase 43 |
-| 50 | Internal Mod Bus | MOD-01..06 | v1.9 Phase 36 |
-| 51 | GUI Integration | GUI-01..05 | Phases 44-50 |
+| Phase | Name | Status | Notes |
+|-------|------|--------|-------|
+| 43 | Retrigger Engine | Done | Foundation for all VCA ramp effects |
+| 44 | Tremolo | Done (rework pending) | DSP works, GUI being unified |
+| 45 | Auto-Pan | Done (rework pending) | DSP works, GUI being unified |
+| 46 | Sidechain Duck | Done (addition pending) | Needs attack control exposed |
+| 47 | ~~Stereo Widener~~ | Dropped | SPU has no native stereo decorrelation |
+| 48 | AM Synthesis | Done (rework pending) | DSP works, GUI being unified |
+| 49 | ~~Phase Modulator~~ | Subsumed | Replaced by Ring Mod (Phase 52) |
+| 50 | Internal Mod Bus | Done | UAT verified |
+| 51 | Split-Output Bus | Done | Reverb-only side limiting |
+| 52 | Ring Mod | Not started | Bipolar sweep crossing zero in C core |
+| 53 | Sweep Shapes | Not started | Triangle / Saw Up / Saw Down |
+| 54 | Unified Effects GUI | Not started | Dropdown + adaptive controls |
+| 55 | Effects UAT | Not started | Full pass on all 5 modes |
 
 ## Milestone History
 
@@ -68,6 +71,31 @@ v1.10.0 key architectural decisions (from research):
 - Effects are curated preconfigurations of the L/R VCA ramp state machines (not new DSP)
 - Internal mod bus is a creative extension (PS1 requires separate NON voice + PMON chain; we internalize it)
 - Phase Modulator needs prototype-first approach (zero-crossing behavior is unknown)
+
+### VCA Ramp Effects — Locked Requirements (2026-05-25)
+
+Five effects, all configurations of the same VCA ramp state machine. Mutually exclusive (one at a time). GUI is a dropdown selector with per-mode controls.
+
+1. **Auto-Pan** — L/R sweeps in opposition
+2. **Tremolo** — sub-audio rate, unipolar (0 to +1)
+3. **AM** — audio rate, unipolar (0 to +1)
+4. **Ring Mod** — audio rate, bipolar (-1 to +1), sweep crosses zero into phase inversion
+5. **Ducking** — KON-triggered one-shot volume drop
+
+Phase Mod (Phase 49) subsumed by Ring Mod — same mechanism. Stereo Widener dropped — SPU has no native stereo decorrelation.
+
+**GUI:** One dropdown selects mode. Controls adapt per mode:
+
+| Mode | Rate | Depth | Shape | Lin/Exp | Extra |
+|------|------|-------|-------|---------|-------|
+| Auto-Pan | yes | yes | yes | yes | L/R Ratio |
+| Tremolo | yes | yes | yes | yes | — |
+| AM | yes | yes | yes | yes | — |
+| Ring Mod | yes | yes | yes | yes | — |
+| Ducking | — | yes | — | — | Source, Attack, Release |
+
+Shape = Triangle / Saw Up / Saw Down. All native sweep waveforms.
+Four shared controls visible for all modes except Ducking, which swaps in Source, Attack, Release.
 
 ### Blockers/Concerns
 
