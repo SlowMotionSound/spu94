@@ -97,6 +97,8 @@ None.
 | Visualization | Real-time room geometry visualizer | 2026-05-03 |
 | Idea | Unified Morph Control | 2026-05-10 |
 | Creative effect | "Bit Corrupt" mode | 2026-05-11 |
+| Creative extension | Pitch quantizer on mod bus — quantize LFSR noise to musical intervals before pitch modulation | 2026-05-25 |
+| Eurorack | Raw LFSR CV output — expose noise generator as a patchable output alongside audio outs | 2026-05-25 |
 
 ## Performance Metrics
 

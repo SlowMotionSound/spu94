@@ -362,6 +362,24 @@ void spu94_process(spu94_state *state,
                    int16_t *L_out, int16_t *R_out,
                    uint32_t num_samples);
 
+/* Split-output variant of spu94_process. Identical signal flow through the
+ * reverb network, but writes the voice bus (dry + ADPCM + sampler, fader-
+ * scaled) and reverb bus (reverb return, fader-scaled) to separate buffer
+ * pairs instead of combining them. DAC coloration is NOT applied (it
+ * belongs on the combined signal; the caller is responsible for summing
+ * and any post-mix processing).
+ *
+ * Use case: host-side side-channel limiting on reverb only, letting voice
+ * stereo effects (auto-pan, widener) pass through clean.
+ *
+ * NULL state is a no-op. NULL voice or reverb pointers suppress those
+ * writes. In-place with L_in/R_in is allowed. */
+void spu94_process_split(spu94_state *state,
+                         const int16_t *L_in, const int16_t *R_in,
+                         int16_t *voice_L, int16_t *voice_R,
+                         int16_t *reverb_L, int16_t *reverb_R,
+                         uint32_t num_samples);
+
 /* Drain trailing reverb tail by feeding internal silence (D-02). Semantics
  * are identical to spu94_process with NULL L_in/R_in -- same block-loop,
  * same per-sample spu94_fir_chain_step. Use this after the input stream

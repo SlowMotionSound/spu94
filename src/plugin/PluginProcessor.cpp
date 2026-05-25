@@ -1431,8 +1431,10 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
         int16_t tmpL_in [kMaxBlock];
         int16_t tmpR_in [kMaxBlock];
-        int16_t tmpL_out[kMaxBlock];
-        int16_t tmpR_out[kMaxBlock];
+        int16_t splitVoiceL[kMaxBlock];
+        int16_t splitVoiceR[kMaxBlock];
+        int16_t splitRevL  [kMaxBlock];
+        int16_t splitRevR  [kMaxBlock];
 
         // Phase 23 UAT: pre-clamp float gain on standalone path too.
         // int16 WAV sample -> float -> apply gain -> clamp+truncate back to int16.
@@ -1458,8 +1460,10 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             }
         }
 
-        spu94_process(engines[0], tmpL_in, tmpR_in, tmpL_out, tmpR_out,
-                      static_cast<uint32_t>(samplesToProcess));
+        spu94_process_split(engines[0], tmpL_in, tmpR_in,
+                            splitVoiceL, splitVoiceR,
+                            splitRevL, splitRevR,
+                            static_cast<uint32_t>(samplesToProcess));
 
         // Phase 46: Sidechain duck state machine — runs AFTER spu94_process
         // so sweeps have been ticked for this block.
@@ -1525,8 +1529,6 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             }
         }
 
-        // Stereo widener vol_l/vol_r manipulation removed —
-        // widening is applied post-limiter on the final output samples (see below).
 
         // Internal mod bus (Phase 50: noise-to-pitch/vol/pan per-voice modulation)
         // MOD-05: Runs at control rate (once per processBlock call) to set depths.
@@ -1554,33 +1556,19 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         auto* outR = (buffer.getNumChannels() > 1) ? buffer.getWritePointer(1) : nullptr;
         for (int i = 0; i < samplesToProcess; ++i)
         {
-            const float wetL = tmpL_out[i] / 32768.0f;
-            const float wetR = tmpR_out[i] / 32768.0f;
-            const float mid  = 0.5f * (wetL + wetR);
-            const float side = 0.5f * (wetL - wetR);
-            const float sideLimited = std::tanh(side / kSideKnee) * kSideCeiling;
-            outL[i] = mid + sideLimited;
-            if (outR) outR[i] = mid - sideLimited;
+            const float vL = splitVoiceL[i] / 32768.0f;
+            const float vR = splitVoiceR[i] / 32768.0f;
+
+            const float rL = splitRevL[i] / 32768.0f;
+            const float rR = splitRevR[i] / 32768.0f;
+            const float revMid  = 0.5f * (rL + rR);
+            const float revSide = 0.5f * (rL - rR);
+            const float revSideLimited = std::tanh(revSide / kSideKnee) * kSideCeiling;
+
+            outL[i] = vL + revMid + revSideLimited;
+            if (outR) outR[i] = vR + revMid - revSideLimited;
         }
 
-        // Stereo widener: applied AFTER the side limiter on final output samples.
-        // Scales the side component of the output to create perceived width.
-        {
-            float width = stereoWidth.load(std::memory_order_relaxed);
-            if (width > 0.0f && outR)
-            {
-                if (width > 1.0f) width = 1.0f;
-                float widthGain = 1.0f + width * 3.0f;
-                for (int i = 0; i < samplesToProcess; ++i)
-                {
-                    float m = 0.5f * (outL[i] + outR[i]);
-                    float s = 0.5f * (outL[i] - outR[i]);
-                    s *= widthGain;
-                    outL[i] = m + s;
-                    outR[i] = m - s;
-                }
-            }
-        }
 
         if (wavActive) {
             wavSource.playPos.store(
@@ -1602,6 +1590,10 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         int16_t coreInR [kMaxBlock];
         int16_t coreOutL[kMaxBlock];
         int16_t coreOutR[kMaxBlock];
+        int16_t plugVoiceL[kMaxBlock];
+        int16_t plugVoiceR[kMaxBlock];
+        int16_t plugRevL  [kMaxBlock];
+        int16_t plugRevR  [kMaxBlock];
 
         // Phase 25 / PLUG-34: stack scratch for the R channel when the host
         // negotiated mono output. SrcChain::processOut writes L+R into two
@@ -1646,8 +1638,29 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // shouldn't happen at kMaxBlock>=64 with hostSR>=44100/5).
         if (coreN <= 0) { buffer.clear(); return; }
 
-        spu94_process(engines[0], coreInL, coreInR, coreOutL, coreOutR,
-                      static_cast<uint32_t>(coreN));
+        spu94_process_split(engines[0], coreInL, coreInR,
+                            plugVoiceL, plugVoiceR,
+                            plugRevL, plugRevR,
+                            static_cast<uint32_t>(coreN));
+
+        for (int i = 0; i < coreN; ++i)
+        {
+            const float vL = plugVoiceL[i] / 32768.0f;
+            const float vR = plugVoiceR[i] / 32768.0f;
+            const float rL = plugRevL[i] / 32768.0f;
+            const float rR = plugRevR[i] / 32768.0f;
+            const float revMid  = 0.5f * (rL + rR);
+            const float revSide = 0.5f * (rL - rR);
+            const float revSideLimited = std::tanh(revSide / kSideKnee) * kSideCeiling;
+            float oL = vL + revMid + revSideLimited;
+            float oR = vR + revMid - revSideLimited;
+            coreOutL[i] = static_cast<int16_t>(
+                oL >= 1.0f ? 32767 : oL <= -1.0f ? -32768
+                : static_cast<int16_t>(oL * 32768.0f));
+            coreOutR[i] = static_cast<int16_t>(
+                oR >= 1.0f ? 32767 : oR <= -1.0f ? -32768
+                : static_cast<int16_t>(oR * 32768.0f));
+        }
 
         float* hostOutPtrs[2] = {
             buffer.getWritePointer(0),
@@ -1685,25 +1698,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 out[i] = (out[i] + monoRScratch[i]) * 0.5f;
         }
 
-        // Side-channel limiter on the host-rate float output (unchanged
-        // semantics from the standalone path). Skipped for mono output:
-        // after (L+R)/2 summing, L==R by definition so side==0 and the
-        // limiter is an identity transform -- skipping saves CPU.
-        if (!monoOutput)
-        {
-            float* outL = hostOutPtrs[0];
-            float* outR = hostOutPtrs[1];
-            for (int i = 0; i < n; ++i)
-            {
-                const float wetL = outL[i];
-                const float wetR = outR[i];
-                const float mid  = 0.5f * (wetL + wetR);
-                const float side = 0.5f * (wetL - wetR);
-                const float sideLimited = std::tanh(side / kSideKnee) * kSideCeiling;
-                outL[i] = mid + sideLimited;
-                outR[i] = mid - sideLimited;
-            }
-        }
+        // Side-channel limiter moved to core-rate split-bus loop above.
+        // Reverb is limited at 44.1kHz before SRC; voice stereo passes clean.
     }
 }
 

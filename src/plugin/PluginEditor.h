@@ -178,12 +178,6 @@ private:
     juce::Slider duckDepthKnob;
     juce::Label duckDepthLabel;
 
-    // Stereo Width controls (Phase 47: static L/R offset for stereo widening)
-    juce::Label stereoWidthSectionLabel;
-    juce::Slider stereoWidthSlider;
-    juce::Label stereoWidthLabel;
-    juce::Label stereoWidthMonoIndicator;
-
     // AM Synthesis controls (Phase 48: audio-rate metallic sidebands)
     juce::Label amSectionLabel;
     juce::ToggleButton amEnableToggle{"Enable"};

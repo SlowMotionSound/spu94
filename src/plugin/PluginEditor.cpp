@@ -733,37 +733,6 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         duckDepthLabel.setJustificationType(juce::Justification::centred);
         panel.addAndMakeVisible(duckDepthLabel);
 
-        // Stereo Width section (Phase 47: static L/R offset for stereo widening)
-        stereoWidthSectionLabel.setText("Stereo Width", juce::dontSendNotification);
-        stereoWidthSectionLabel.setJustificationType(juce::Justification::centredLeft);
-        stereoWidthSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
-        stereoWidthSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
-        panel.addAndMakeVisible(stereoWidthSectionLabel);
-
-        stereoWidthSlider.setSliderStyle(juce::Slider::Rotary);
-        stereoWidthSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-        stereoWidthSlider.setRange(0.0, 1.0, 0.01);
-        stereoWidthSlider.setValue(0.0, juce::dontSendNotification);
-        stereoWidthSlider.setDoubleClickReturnValue(true, 0.0);
-        stereoWidthSlider.textFromValueFunction = [](double value) {
-            return juce::String(static_cast<int>(value * 100.0)) + "%";
-        };
-        stereoWidthSlider.onValueChange = [this] {
-            processorRef.getStereoWidth().store(
-                static_cast<float>(stereoWidthSlider.getValue()), std::memory_order_relaxed);
-        };
-        panel.addAndMakeVisible(stereoWidthSlider);
-
-        stereoWidthLabel.setText("Width", juce::dontSendNotification);
-        stereoWidthLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(stereoWidthLabel);
-
-        stereoWidthMonoIndicator.setText("Mono: 0.0 dB", juce::dontSendNotification);
-        stereoWidthMonoIndicator.setJustificationType(juce::Justification::centredLeft);
-        stereoWidthMonoIndicator.setFont(juce::Font(juce::FontOptions(10.0f)));
-        stereoWidthMonoIndicator.setColour(juce::Label::textColourId, juce::Colour(0xFF4CAF50)); // green
-        panel.addAndMakeVisible(stereoWidthMonoIndicator);
-
         // AM Synthesis section (Phase 48: audio-rate metallic sidebands via retrigger)
         amSectionLabel.setText("AM Synthesis", juce::dontSendNotification);
         amSectionLabel.setJustificationType(juce::Justification::centredLeft);
@@ -1458,33 +1427,6 @@ void SPU94AudioProcessorEditor::timerCallback()
             duckDepthKnob.setValue(static_cast<double>(depPct), juce::dontSendNotification);
     }
 
-    // Phase 47: Sync stereo width slider and mono-safety indicator.
-    {
-        float width = processorRef.getStereoWidth().load(std::memory_order_relaxed);
-        if (!stereoWidthSlider.isMouseButtonDown() &&
-            std::abs(static_cast<float>(stereoWidthSlider.getValue()) - width) > 0.005f)
-            stereoWidthSlider.setValue(static_cast<double>(width), juce::dontSendNotification);
-
-        // Compute worst-case mono loss (center-panned signal at max volume):
-        // offset = width * 0x2000
-        // Louder channel clips at 0x3FFF, quieter = 0x3FFF - offset
-        // mono_sum_ratio = (0x3FFF + max(0, 0x3FFF - offset)) / (2.0 * 0x3FFF)
-        float offset = width * 0x2000;
-        float mono_ratio = (0x3FFF + std::max(0.0f, 0x3FFF - offset)) / (2.0f * 0x3FFF);
-        float loss_dB = 20.0f * std::log10(std::max(0.001f, mono_ratio));
-
-        stereoWidthMonoIndicator.setText(
-            juce::String::formatted("Mono: %.1f dB", loss_dB), juce::dontSendNotification);
-
-        // Color-code: green < 1 dB loss, yellow 1-2 dB, orange > 2 dB
-        if (loss_dB >= -1.0f)
-            stereoWidthMonoIndicator.setColour(juce::Label::textColourId, juce::Colour(0xFF4CAF50)); // green
-        else if (loss_dB >= -2.0f)
-            stereoWidthMonoIndicator.setColour(juce::Label::textColourId, juce::Colour(0xFFFFEB3B)); // yellow
-        else
-            stereoWidthMonoIndicator.setColour(juce::Label::textColourId, juce::Colour(0xFFFF9800)); // orange
-    }
-
     // Phase 49: Mutual exclusion visual for phase mod toggle.
     // Phase mod has lowest priority — grey out when tremolo, auto-pan, or AM is active.
     // Bidirectional: when phase mod is active, grey out tremolo/auto-pan/AM toggles.
@@ -1730,7 +1672,7 @@ void SPU94AudioProcessorEditor::resized()
 
             // === Effects area: two columns below VCA Ramp ===
             // Left column (x=20): Tremolo, Auto-Pan, AM Synthesis, Phase Mod
-            // Right column (x=410): Sidechain Duck, Stereo Width, Mod Bus
+            // Right column (x=410): Sidechain Duck, Mod Bus
             constexpr int fx_y = rampy + 100;
             constexpr int col_left = 20;
             constexpr int col_right = 410;
@@ -1792,15 +1734,8 @@ void SPU94AudioProcessorEditor::resized()
             duckDepthLabel.setBounds(col_right + 240, ducky + 20, 80, 16);
             duckDepthKnob.setBounds(col_right + 240, ducky + 36, 80, 70);
 
-            // Stereo Width (Phase 47)
-            constexpr int widthy = ducky + fx_spacing;
-            stereoWidthSectionLabel.setBounds(col_right, widthy, 120, 16);
-            stereoWidthLabel.setBounds(col_right, widthy + 20, 80, 16);
-            stereoWidthSlider.setBounds(col_right, widthy + 36, 80, 70);
-            stereoWidthMonoIndicator.setBounds(col_right + 100, widthy + 50, 140, 18);
-
             // Mod Bus (Phase 50)
-            constexpr int mody = widthy + fx_spacing;
+            constexpr int mody = ducky + fx_spacing;
             modBusSectionLabel.setBounds(col_right, mody, 120, 16);
             modBusPitchLabel.setBounds(col_right, mody + 20, 80, 16);
             modBusPitchKnob.setBounds(col_right, mody + 36, 80, 70);
