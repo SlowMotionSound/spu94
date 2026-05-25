@@ -198,7 +198,7 @@ Plans:
   5. Shape applies to all VCA ramp effects (trem, AM, ring mod, auto-pan)
 **Plans**: 1 plan
 Plans:
-- [ ] 52-01-PLAN.md — Bipolar sweep in C core + ring mod host-layer activation (PMOD-01..04)
+- [ ] 53-01-PLAN.md — Shape field in C core sweep + host-layer wiring for all effects (SHAPE-01..05)
 
 ### Phase 54: Unified Effects GUI
 **Goal**: Replace separate per-effect GUI sections with one dropdown selector and adaptive controls per mode
@@ -211,7 +211,7 @@ Plans:
   5. Old per-effect sections removed
 **Plans**: 1 plan
 Plans:
-- [ ] 52-01-PLAN.md — Bipolar sweep in C core + ring mod host-layer activation (PMOD-01..04)
+- [ ] 54-01-PLAN.md — Dropdown selector + adaptive controls
 
 ### Phase 55: Effects UAT
 **Goal**: Full user acceptance testing pass on all 5 VCA ramp effect modes
@@ -224,7 +224,7 @@ Plans:
   5. Ring mod produces distinct character from unipolar AM
 **Plans**: 1 plan
 Plans:
-- [ ] 52-01-PLAN.md — Bipolar sweep in C core + ring mod host-layer activation (PMOD-01..04)
+- [ ] 55-01-PLAN.md — Full UAT pass on all effect modes
 
 ## Progress
 
@@ -377,4 +377,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-24 -- v1.10.0 roadmap created*
+*Last updated: 2026-05-25 -- Phase 53 plan created*
