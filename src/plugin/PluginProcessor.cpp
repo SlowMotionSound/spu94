@@ -894,10 +894,13 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 if (hz != lastTremoloHz || curve != lastTremoloCurve || ratio != lastTremoloRatio)
                 {
                     auto ss = hzToShift(hz);
+                    auto* mx = spu94_get_voice_mixer();
 
-                    spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
-                        static_cast<uint8_t>(curve & 1), 1, 0,
-                        ss.shift, ss.step, 1);
+                    // Update speed/curve without resetting level/counter —
+                    // oscillation keeps running at new rate
+                    mx->voices[0].sweep_l.shift = ss.shift;
+                    mx->voices[0].sweep_l.step = ss.step;
+                    mx->voices[0].sweep_l.mode = static_cast<uint8_t>(curve & 1);
 
                     uint8_t r_shift = ss.shift;
                     if (ratio > 1.0f) {
@@ -908,9 +911,9 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                         r_shift = static_cast<uint8_t>(std::max(0, (int)ss.shift - offset));
                     }
 
-                    spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
-                        static_cast<uint8_t>(curve & 1), 1, 0,
-                        r_shift, ss.step, 1);
+                    mx->voices[0].sweep_r.shift = r_shift;
+                    mx->voices[0].sweep_r.step = ss.step;
+                    mx->voices[0].sweep_r.mode = static_cast<uint8_t>(curve & 1);
 
                     lastTremoloHz = hz;
                     lastTremoloCurve = curve;
@@ -999,6 +1002,11 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     0,  // direction=increase (R goes UP while L goes DOWN)
                     0, r_shift, ss.step, 1);  // retrigger_enable=1
 
+                // R must start at 0 so it increases WHILE L decreases from 0x7FFF.
+                // set_sweep_r copies vol_r as starting level, but for opposition
+                // panning R needs to start at the opposite end of its range.
+                spu94_get_voice_mixer()->voices[0].sweep_r.level = 0;
+
                 lastAutoPanHz = hz;
                 lastAutoPanRatio = ratio;
                 autoPanWasActive = true;
@@ -1022,9 +1030,12 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 if (hz != lastAutoPanHz || ratio != lastAutoPanRatio)
                 {
                     auto ss = hzToShift(hz);
+                    auto* mx = spu94_get_voice_mixer();
 
-                    spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
-                        0, 1, 0, ss.shift, ss.step, 1);  // linear, decrease, retrigger
+                    // Update speed without resetting level/counter/direction —
+                    // the oscillation keeps running, just at a new rate
+                    mx->voices[0].sweep_l.shift = ss.shift;
+                    mx->voices[0].sweep_l.step = ss.step;
 
                     uint8_t r_shift = ss.shift;
                     if (ratio > 1.0f) {
@@ -1035,8 +1046,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                         r_shift = static_cast<uint8_t>(std::max(0, (int)ss.shift - offset));
                     }
 
-                    spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
-                        0, 0, 0, r_shift, ss.step, 1);  // linear, increase, retrigger
+                    mx->voices[0].sweep_r.shift = r_shift;
+                    mx->voices[0].sweep_r.step = ss.step;
 
                     lastAutoPanHz = hz;
                     lastAutoPanRatio = ratio;
@@ -1051,10 +1062,11 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 autoPanWasActive = false;
             }
 
-            // Auto-pan depth scaling: same formula as tremolo but applied per-channel
-            // with the opposition directions already baked into the sweep config.
-            // At depth=1.0, vol ranges 0..0x7FFF (full L-to-R excursion).
-            // At depth=0.5, vol ranges 0x3FFF..0x7FFF (sound stays closer to center).
+            // Auto-pan depth scaling: sweep levels directly become vol_l/vol_r.
+            // L sweep decreases (0x7FFF→0) while R increases (0→0x7FFF) in opposition.
+            // Depth scales the deviation from the base pan/level volume.
+            // At depth=1.0: vol follows sweep level directly (full hard-pan excursion).
+            // At depth=0.0: vol stays at the pan/level base (no panning).
             if (panEn)
             {
                 auto* mx = spu94_get_voice_mixer();
@@ -1062,17 +1074,20 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 if (depth < 0.0f) depth = 0.0f;
                 if (depth > 1.0f) depth = 1.0f;
 
+                int16_t base_l = mx->voices[0].vol_l;
+                int16_t base_r = mx->voices[0].vol_r;
+
                 if (mx->voices[0].sweep_l.active) {
                     int16_t sweep_lvl = mx->voices[0].sweep_l.level;
+                    float t = static_cast<float>(sweep_lvl) / 0x7FFF;
                     mx->voices[0].vol_l = static_cast<int16_t>(
-                        0x7FFF - static_cast<int16_t>(
-                            static_cast<float>(0x7FFF - sweep_lvl) * depth));
+                        base_l * (1.0f - depth + depth * t));
                 }
                 if (mx->voices[0].sweep_r.active) {
                     int16_t sweep_lvl = mx->voices[0].sweep_r.level;
+                    float t = static_cast<float>(sweep_lvl) / 0x7FFF;
                     mx->voices[0].vol_r = static_cast<int16_t>(
-                        0x7FFF - static_cast<int16_t>(
-                            static_cast<float>(0x7FFF - sweep_lvl) * depth));
+                        base_r * (1.0f - depth + depth * t));
                 }
             }
         }
@@ -1129,14 +1144,14 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 if (hz != lastAmHz || curve != lastAmCurve)
                 {
                     auto ss = hzToShiftAm(hz);
+                    auto* mx = spu94_get_voice_mixer();
 
-                    spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
-                        static_cast<uint8_t>(curve & 1), 1, 0,
-                        ss.shift, ss.step, 1);
-
-                    spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
-                        static_cast<uint8_t>(curve & 1), 1, 0,
-                        ss.shift, ss.step, 1);
+                    mx->voices[0].sweep_l.shift = ss.shift;
+                    mx->voices[0].sweep_l.step = ss.step;
+                    mx->voices[0].sweep_l.mode = static_cast<uint8_t>(curve & 1);
+                    mx->voices[0].sweep_r.shift = ss.shift;
+                    mx->voices[0].sweep_r.step = ss.step;
+                    mx->voices[0].sweep_r.mode = static_cast<uint8_t>(curve & 1);
 
                     lastAmHz = hz;
                     lastAmCurve = curve;
@@ -1228,12 +1243,12 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 if (hz != lastPhaseModHz)
                 {
                     auto ss = hzToShift(hz);
+                    auto* mx = spu94_get_voice_mixer();
 
-                    spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
-                        0, 0, 1, ss.shift, ss.step, 1);
-
-                    spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
-                        0, 0, 1, ss.shift, ss.step, 1);
+                    mx->voices[0].sweep_l.shift = ss.shift;
+                    mx->voices[0].sweep_l.step = ss.step;
+                    mx->voices[0].sweep_r.shift = ss.shift;
+                    mx->voices[0].sweep_r.step = ss.step;
 
                     lastPhaseModHz = hz;
                 }
@@ -1510,31 +1525,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             }
         }
 
-        // Stereo widener: static L/R divergence (WIDE-01, WIDE-02, WIDE-03)
-        // Applied AFTER all sweep-based effects (tremolo, auto-pan, duck) have
-        // written vol_l/vol_r. Width offsets the channels in opposite directions.
-        // Mono-safety: kWidthMaxOffset = 0x2000 guarantees < 3 dB mono loss.
-        {
-            float width = stereoWidth.load(std::memory_order_relaxed);
-            if (width > 0.0f)
-            {
-                // T-47-01: clamp width to 0.0-1.0 at point of use
-                if (width > 1.0f) width = 1.0f;
-                constexpr int16_t kWidthMaxOffset = 0x2000; // ~-2.5 dB mono loss at max
-                int16_t offset = static_cast<int16_t>(width * kWidthMaxOffset);
-                auto* mx = spu94_get_voice_mixer();
-                // T-47-02: int32 intermediate prevents overflow before clamp
-                int32_t new_l = static_cast<int32_t>(mx->voices[0].vol_l) + offset;
-                int32_t new_r = static_cast<int32_t>(mx->voices[0].vol_r) - offset;
-                // Clamp to PS1 volume register range (-0x4000..+0x3FFF)
-                if (new_l > 0x3FFF) new_l = 0x3FFF;
-                if (new_l < -0x4000) new_l = -0x4000;
-                if (new_r > 0x3FFF) new_r = 0x3FFF;
-                if (new_r < -0x4000) new_r = -0x4000;
-                mx->voices[0].vol_l = static_cast<int16_t>(new_l);
-                mx->voices[0].vol_r = static_cast<int16_t>(new_r);
-            }
-        }
+        // Stereo widener vol_l/vol_r manipulation removed —
+        // widening is applied post-limiter on the final output samples (see below).
 
         // Internal mod bus (Phase 50: noise-to-pitch/vol/pan per-voice modulation)
         // MOD-05: Runs at control rate (once per processBlock call) to set depths.
@@ -1569,6 +1561,25 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             const float sideLimited = std::tanh(side / kSideKnee) * kSideCeiling;
             outL[i] = mid + sideLimited;
             if (outR) outR[i] = mid - sideLimited;
+        }
+
+        // Stereo widener: applied AFTER the side limiter on final output samples.
+        // Scales the side component of the output to create perceived width.
+        {
+            float width = stereoWidth.load(std::memory_order_relaxed);
+            if (width > 0.0f && outR)
+            {
+                if (width > 1.0f) width = 1.0f;
+                float widthGain = 1.0f + width * 3.0f;
+                for (int i = 0; i < samplesToProcess; ++i)
+                {
+                    float m = 0.5f * (outL[i] + outR[i]);
+                    float s = 0.5f * (outL[i] - outR[i]);
+                    s *= widthGain;
+                    outL[i] = m + s;
+                    outR[i] = m - s;
+                }
+            }
         }
 
         if (wavActive) {

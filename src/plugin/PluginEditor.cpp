@@ -1728,74 +1728,86 @@ void SPU94AudioProcessorEditor::resized()
             rampSpeedKnob.setBounds(200, rampy + 16, 80, 70);
             rampArmButton.setBounds(300, rampy + 20, 80, 36);
 
-            // Tremolo section — below VCA Ramp (Phase 44)
-            constexpr int tremy = rampy + 100;
-            tremoloSectionLabel.setBounds(20, tremy, 120, 16);
-            tremoloEnableToggle.setBounds(140, tremy, 80, 20);
-            tremoloSpeedLabel.setBounds(20, tremy + 20, 80, 16);
-            tremoloSpeedKnob.setBounds(20, tremy + 36, 80, 70);
-            tremoloDepthLabel.setBounds(110, tremy + 20, 80, 16);
-            tremoloDepthKnob.setBounds(110, tremy + 36, 80, 70);
-            tremoloCurveButton.setBounds(200, tremy + 40, 90, 28);
-            tremoloRatioLabel.setBounds(300, tremy + 20, 80, 16);
-            tremoloRatioKnob.setBounds(300, tremy + 36, 80, 70);
+            // === Effects area: two columns below VCA Ramp ===
+            // Left column (x=20): Tremolo, Auto-Pan, AM Synthesis, Phase Mod
+            // Right column (x=410): Sidechain Duck, Stereo Width, Mod Bus
+            constexpr int fx_y = rampy + 100;
+            constexpr int col_left = 20;
+            constexpr int col_right = 410;
+            constexpr int fx_spacing = 110;
 
-            // Auto-Pan section — below Tremolo (Phase 45)
-            constexpr int pany = tremy + 110;
-            autoPanSectionLabel.setBounds(20, pany, 120, 16);
-            autoPanEnableToggle.setBounds(140, pany, 80, 20);
-            autoPanSpeedLabel.setBounds(20, pany + 20, 80, 16);
-            autoPanSpeedKnob.setBounds(20, pany + 36, 80, 70);
-            autoPanDepthLabel.setBounds(110, pany + 20, 80, 16);
-            autoPanDepthKnob.setBounds(110, pany + 36, 80, 70);
-            autoPanRatioLabel.setBounds(200, pany + 20, 80, 16);
-            autoPanRatioKnob.setBounds(200, pany + 36, 80, 70);
+            // --- LEFT COLUMN ---
 
-            // Sidechain Duck section — below Auto-Pan (Phase 46)
-            constexpr int ducky = pany + 110;
-            duckSectionLabel.setBounds(20, ducky, 120, 16);
-            duckSourceLabel.setBounds(20, ducky + 20, 80, 16);
-            duckSourceBox.setBounds(20, ducky + 36, 120, 24);
-            duckReleaseLabel.setBounds(160, ducky + 20, 80, 16);
-            duckReleaseKnob.setBounds(160, ducky + 36, 80, 70);
-            duckDepthLabel.setBounds(260, ducky + 20, 80, 16);
-            duckDepthKnob.setBounds(260, ducky + 36, 80, 70);
+            // Tremolo (Phase 44)
+            constexpr int tremy = fx_y;
+            tremoloSectionLabel.setBounds(col_left, tremy, 120, 16);
+            tremoloEnableToggle.setBounds(col_left + 120, tremy, 80, 20);
+            tremoloSpeedLabel.setBounds(col_left, tremy + 20, 80, 16);
+            tremoloSpeedKnob.setBounds(col_left, tremy + 36, 80, 70);
+            tremoloDepthLabel.setBounds(col_left + 90, tremy + 20, 80, 16);
+            tremoloDepthKnob.setBounds(col_left + 90, tremy + 36, 80, 70);
+            tremoloCurveButton.setBounds(col_left + 180, tremy + 40, 90, 28);
+            tremoloRatioLabel.setBounds(col_left + 280, tremy + 20, 80, 16);
+            tremoloRatioKnob.setBounds(col_left + 280, tremy + 36, 80, 70);
 
-            // Stereo Width section — below Sidechain Duck (Phase 47)
-            constexpr int widthy = ducky + 110;
-            stereoWidthSectionLabel.setBounds(20, widthy, 120, 16);
-            stereoWidthLabel.setBounds(20, widthy + 20, 80, 16);
-            stereoWidthSlider.setBounds(20, widthy + 36, 80, 70);
-            stereoWidthMonoIndicator.setBounds(120, widthy + 50, 140, 18);
+            // Auto-Pan (Phase 45)
+            constexpr int pany = tremy + fx_spacing;
+            autoPanSectionLabel.setBounds(col_left, pany, 120, 16);
+            autoPanEnableToggle.setBounds(col_left + 120, pany, 80, 20);
+            autoPanSpeedLabel.setBounds(col_left, pany + 20, 80, 16);
+            autoPanSpeedKnob.setBounds(col_left, pany + 36, 80, 70);
+            autoPanDepthLabel.setBounds(col_left + 90, pany + 20, 80, 16);
+            autoPanDepthKnob.setBounds(col_left + 90, pany + 36, 80, 70);
+            autoPanRatioLabel.setBounds(col_left + 180, pany + 20, 80, 16);
+            autoPanRatioKnob.setBounds(col_left + 180, pany + 36, 80, 70);
 
-            // AM Synthesis section — below Stereo Width (Phase 48)
-            constexpr int amy = widthy + 110;
-            amSectionLabel.setBounds(20, amy, 120, 16);
-            amEnableToggle.setBounds(140, amy, 80, 20);
-            amRateLabel.setBounds(20, amy + 20, 80, 16);
-            amRateKnob.setBounds(20, amy + 36, 80, 70);
-            amDepthLabel.setBounds(110, amy + 20, 80, 16);
-            amDepthKnob.setBounds(110, amy + 36, 80, 70);
-            amCurveButton.setBounds(200, amy + 40, 90, 28);
+            // AM Synthesis (Phase 48)
+            constexpr int amy = pany + fx_spacing;
+            amSectionLabel.setBounds(col_left, amy, 120, 16);
+            amEnableToggle.setBounds(col_left + 120, amy, 80, 20);
+            amRateLabel.setBounds(col_left, amy + 20, 80, 16);
+            amRateKnob.setBounds(col_left, amy + 36, 80, 70);
+            amDepthLabel.setBounds(col_left + 90, amy + 20, 80, 16);
+            amDepthKnob.setBounds(col_left + 90, amy + 36, 80, 70);
+            amCurveButton.setBounds(col_left + 180, amy + 40, 90, 28);
 
-            // Phase Mod section — below AM Synthesis (Phase 49)
-            constexpr int phasy = amy + 110;
-            phaseModSectionLabel.setBounds(20, phasy, 120, 16);
-            phaseModEnableToggle.setBounds(140, phasy, 80, 20);
-            phaseModRateLabel.setBounds(20, phasy + 20, 80, 16);
-            phaseModRateKnob.setBounds(20, phasy + 36, 80, 70);
-            phaseModDepthLabel.setBounds(110, phasy + 20, 80, 16);
-            phaseModDepthKnob.setBounds(110, phasy + 36, 80, 70);
+            // Phase Mod (Phase 49)
+            constexpr int phasy = amy + fx_spacing;
+            phaseModSectionLabel.setBounds(col_left, phasy, 120, 16);
+            phaseModEnableToggle.setBounds(col_left + 120, phasy, 80, 20);
+            phaseModRateLabel.setBounds(col_left, phasy + 20, 80, 16);
+            phaseModRateKnob.setBounds(col_left, phasy + 36, 80, 70);
+            phaseModDepthLabel.setBounds(col_left + 90, phasy + 20, 80, 16);
+            phaseModDepthKnob.setBounds(col_left + 90, phasy + 36, 80, 70);
 
-            // Mod Bus section — below Phase Mod (Phase 50)
-            constexpr int mody = phasy + 110;
-            modBusSectionLabel.setBounds(20, mody, 120, 16);
-            modBusPitchLabel.setBounds(20, mody + 20, 80, 16);
-            modBusPitchKnob.setBounds(20, mody + 36, 80, 70);
-            modBusVolLabel.setBounds(110, mody + 20, 80, 16);
-            modBusVolKnob.setBounds(110, mody + 36, 80, 70);
-            modBusPanLabel.setBounds(200, mody + 20, 80, 16);
-            modBusPanKnob.setBounds(200, mody + 36, 80, 70);
+            // --- RIGHT COLUMN ---
+
+            // Sidechain Duck (Phase 46)
+            constexpr int ducky = fx_y;
+            duckSectionLabel.setBounds(col_right, ducky, 120, 16);
+            duckSourceLabel.setBounds(col_right, ducky + 20, 80, 16);
+            duckSourceBox.setBounds(col_right, ducky + 36, 120, 24);
+            duckReleaseLabel.setBounds(col_right + 140, ducky + 20, 80, 16);
+            duckReleaseKnob.setBounds(col_right + 140, ducky + 36, 80, 70);
+            duckDepthLabel.setBounds(col_right + 240, ducky + 20, 80, 16);
+            duckDepthKnob.setBounds(col_right + 240, ducky + 36, 80, 70);
+
+            // Stereo Width (Phase 47)
+            constexpr int widthy = ducky + fx_spacing;
+            stereoWidthSectionLabel.setBounds(col_right, widthy, 120, 16);
+            stereoWidthLabel.setBounds(col_right, widthy + 20, 80, 16);
+            stereoWidthSlider.setBounds(col_right, widthy + 36, 80, 70);
+            stereoWidthMonoIndicator.setBounds(col_right + 100, widthy + 50, 140, 18);
+
+            // Mod Bus (Phase 50)
+            constexpr int mody = widthy + fx_spacing;
+            modBusSectionLabel.setBounds(col_right, mody, 120, 16);
+            modBusPitchLabel.setBounds(col_right, mody + 20, 80, 16);
+            modBusPitchKnob.setBounds(col_right, mody + 36, 80, 70);
+            modBusVolLabel.setBounds(col_right + 90, mody + 20, 80, 16);
+            modBusVolKnob.setBounds(col_right + 90, mody + 36, 80, 70);
+            modBusPanLabel.setBounds(col_right + 180, mody + 20, 80, 16);
+            modBusPanKnob.setBounds(col_right + 180, mody + 36, 80, 70);
         }
     }
 

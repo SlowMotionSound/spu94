@@ -1,0 +1,41 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-25T00:30:00Z",
+  "phase": "47",
+  "phase_name": "stereo-widener",
+  "phase_dir": ".planning/phases/47-stereo-widener",
+  "plan": 2,
+  "task": 1,
+  "total_tasks": 1,
+  "status": "blocked",
+  "completed_tasks": [
+    {"id": "phase-43", "name": "Retrigger Engine", "status": "done"},
+    {"id": "phase-44", "name": "Tremolo", "status": "done"},
+    {"id": "phase-45", "name": "Auto-Pan", "status": "done"},
+    {"id": "phase-46", "name": "Sidechain Duck", "status": "done"},
+    {"id": "phase-47-01", "name": "Stereo Widener DSP", "status": "done"},
+    {"id": "phase-47-02", "name": "Stereo Widener GUI", "status": "done"},
+    {"id": "phase-48", "name": "AM Synthesis", "status": "done"},
+    {"id": "phase-49", "name": "Phase Modulator", "status": "done"},
+    {"id": "phase-50", "name": "Internal Mod Bus", "status": "done"},
+    {"id": "phase-51", "name": "GUI Integration", "status": "done"}
+  ],
+  "remaining_tasks": [],
+  "blockers": [
+    "Stereo widener has no audible effect — side limiter (kSideCeiling=0.06) crushes all stereo content because voice and reverb share one output bus. Fix requires spu94_process_split() to separate voice and reverb outputs."
+  ],
+  "human_actions_pending": [],
+  "decisions": [
+    {"decision": "Tremolo/auto-pan/AM/phase-mod are the sweep in retrigger mode — no separate LFO", "rationale": "VCA ramp IS the modulator, effects are configurations of existing hardware", "phase": "44"},
+    {"decision": "Side limiter must stay — protects against reverb feedback squeals", "rationale": "Removing it made reverb unlistenable with hard-panned content", "phase": "47"},
+    {"decision": "Fix is split-output bus, not removing the limiter", "rationale": "Side-limit reverb only, voice stereo effects pass through clean", "phase": "47"},
+    {"decision": "Stereo widener needs post-limiter placement OR split bus to work", "rationale": "Pre-limiter widening gets crushed; post-limiter widening amplifies near-zero side content", "phase": "47"}
+  ],
+  "uncommitted_files": [
+    "src/plugin/PluginEditor.cpp",
+    "src/plugin/PluginProcessor.cpp",
+    "src/plugin/SamplerWindow.h"
+  ],
+  "next_action": "Implement spu94_process_split() in C core, then rewire PluginProcessor to side-limit reverb only. After that, UAT remaining effects (widener, mod bus).",
+  "context_notes": "v1.10.0 phases 43-51 all planned and executed. UAT found auto-pan bugs (fixed), stereo widener blocked by side limiter architecture. GUI layout changed to two-column (left: tremolo/auto-pan/AM/phase-mod, right: duck/widener/mod-bus). All 35 sweep tests + 63 voice tests + 6 rt_safety gates pass."
+}

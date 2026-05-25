@@ -12,13 +12,13 @@ public:
                           DocumentWindow::closeButton)
     {
         setUsingNativeTitleBar(true);
-        setResizable(false, false);
+        setResizable(true, false);
 
         contentPanel.addAndMakeVisible(waveformDisplay);
-        contentPanel.setSize(400, 1550);
+        contentPanel.setSize(800, 1250);
         setContentNonOwned(&contentPanel, true);
 
-        centreWithSize(400, 1550);
+        centreWithSize(800, 1250);
         setVisible(true);
     }
 
@@ -38,10 +38,9 @@ public:
 
     void ensureMinimumSize()
     {
-        if (getWidth() < 400 || getHeight() < 1540)
+        if (getWidth() < 800 || getHeight() < 600)
         {
-            centreWithSize(401, 1551);
-            centreWithSize(400, 1550);
+            centreWithSize(800, 1250);
         }
     }
 
