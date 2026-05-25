@@ -525,16 +525,18 @@ spu94_result_t spu94_voice_mixer_set_noise_freq(spu94_voice_mixer_t *m,
 spu94_result_t spu94_voice_mixer_set_sweep_l(spu94_voice_mixer_t *m, int voice_idx,
     uint8_t mode, uint8_t direction, uint8_t phase,
     uint8_t shift, uint8_t step, uint8_t retrigger_enable,
-    uint8_t bipolar)
+    uint8_t bipolar, uint8_t shape)
 {
     if (m == NULL || voice_idx < 0 || voice_idx >= 24)
         return SPU94_INVALID_ARG;
     if (shift > 31 || step > 3)
         return SPU94_INVALID_ARG;
+    if (shape > 2)
+        return SPU94_INVALID_ARG;
 
     spu94_sweep_configure(&m->voices[voice_idx].sweep_l,
                           mode, direction, phase, shift, step, retrigger_enable,
-                          bipolar);
+                          bipolar, shape);
     m->voices[voice_idx].sweep_l.level = m->voices[voice_idx].vol_l;
     return SPU94_OK;
 }
@@ -542,16 +544,18 @@ spu94_result_t spu94_voice_mixer_set_sweep_l(spu94_voice_mixer_t *m, int voice_i
 spu94_result_t spu94_voice_mixer_set_sweep_r(spu94_voice_mixer_t *m, int voice_idx,
     uint8_t mode, uint8_t direction, uint8_t phase,
     uint8_t shift, uint8_t step, uint8_t retrigger_enable,
-    uint8_t bipolar)
+    uint8_t bipolar, uint8_t shape)
 {
     if (m == NULL || voice_idx < 0 || voice_idx >= 24)
         return SPU94_INVALID_ARG;
     if (shift > 31 || step > 3)
         return SPU94_INVALID_ARG;
+    if (shape > 2)
+        return SPU94_INVALID_ARG;
 
     spu94_sweep_configure(&m->voices[voice_idx].sweep_r,
                           mode, direction, phase, shift, step, retrigger_enable,
-                          bipolar);
+                          bipolar, shape);
     m->voices[voice_idx].sweep_r.level = m->voices[voice_idx].vol_r;
     return SPU94_OK;
 }

@@ -21,6 +21,16 @@
 extern "C" {
 #endif
 
+/* Sweep waveform shapes: how the sweep behaves at retrigger boundaries.
+ * Triangle = auto-reverse direction (existing behavior).
+ * Saw Down = reset level to max (start) when it reaches zero.
+ * Saw Up = reset level to zero when it reaches max. */
+enum {
+    SPU94_SWEEP_SHAPE_TRIANGLE = 0,  /* auto-reverse at boundary (default) */
+    SPU94_SWEEP_SHAPE_SAW_DOWN = 1,  /* reset to max at zero boundary */
+    SPU94_SWEEP_SHAPE_SAW_UP   = 2   /* reset to zero at max boundary */
+};
+
 /* [CITED: nocash psxspx -- volume sweep register bits]
  * [CITED: DuckStation spu.cpp VolumeEnvelope struct] */
 typedef struct {
@@ -35,6 +45,7 @@ typedef struct {
     uint8_t  retrigger_enable; /* 0 = one-shot (v1.9), 1 = auto-reverse at limits */
     uint8_t  start_direction;  /* initial direction stored at configure time for KON reset */
     uint8_t  bipolar;         /* 0=unipolar (single quadrant), 1=bipolar (crosses zero into opposite quadrant) */
+    uint8_t  shape;           /* 0=triangle, 1=saw down, 2=saw up (controls retrigger boundary behavior) */
 } spu94_sweep_t;
 
 /* Initialize sweep to defaults: active=0, level=0, counter=0. */
@@ -55,7 +66,8 @@ void spu94_sweep_configure(spu94_sweep_t *sw,
                            uint8_t mode, uint8_t direction, uint8_t phase,
                            uint8_t shift, uint8_t step,
                            uint8_t retrigger_enable,
-                           uint8_t bipolar);
+                           uint8_t bipolar,
+                           uint8_t shape);
 
 #ifdef __cplusplus
 }

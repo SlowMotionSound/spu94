@@ -820,11 +820,11 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
                     static_cast<uint8_t>(curve),
                     static_cast<uint8_t>(dir),
-                    0, ss.shift, ss.step, 0, 0);  /* retrigger_enable=0, bipolar=0: v1.9 one-shot */
+                    0, ss.shift, ss.step, 0, 0, 0);  /* retrigger_enable=0, bipolar=0, shape=0: v1.9 one-shot */
                 spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
                     static_cast<uint8_t>(curve),
                     static_cast<uint8_t>(dir),
-                    0, ss.shift, ss.step, 0, 0);  /* retrigger_enable=0, bipolar=0: v1.9 one-shot */
+                    0, ss.shift, ss.step, 0, 0, 0);  /* retrigger_enable=0, bipolar=0, shape=0: v1.9 one-shot */
             }
         }
 
@@ -850,7 +850,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     static_cast<uint8_t>(curve & 1),  // mode: 0=linear, 1=exponential
                     1,  // direction=decrease (start from current vol going down)
                     0,  // phase=positive
-                    ss.shift, ss.step, 1, 0);  // retrigger_enable=1, bipolar=0
+                    ss.shift, ss.step, 1, 0, 0);  // retrigger_enable=1, bipolar=0, shape=0
 
                 // R channel: apply ratio for independent rate
                 // T-44-03: clamp ratio to safe range
@@ -867,7 +867,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
                 spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
                     static_cast<uint8_t>(curve & 1),
-                    1, 0, r_shift, ss.step, 1, 0);  // retrigger_enable=1, bipolar=0
+                    1, 0, r_shift, ss.step, 1, 0, 0);  // retrigger_enable=1, bipolar=0, shape=0
 
                 lastTremoloHz = hz;
                 lastTremoloCurve = curve;
@@ -982,7 +982,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     0,  // mode=0 (linear always, PAN-04)
                     1,  // direction=decrease (L starts going down)
                     0,  // phase=positive
-                    ss.shift, ss.step, 1, 0);  // retrigger_enable=1, bipolar=0
+                    ss.shift, ss.step, 1, 0, 0);  // retrigger_enable=1, bipolar=0, shape=0
 
                 // R channel: direction=0 (increase) -- OPPOSITION to L
                 // Apply ratio for independent rate
@@ -1000,7 +1000,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
                     0,  // mode=0 (linear always, PAN-04)
                     0,  // direction=increase (R goes UP while L goes DOWN)
-                    0, r_shift, ss.step, 1, 0);  // retrigger_enable=1, bipolar=0
+                    0, r_shift, ss.step, 1, 0, 0);  // retrigger_enable=1, bipolar=0, shape=0
 
                 // R must start at 0 so it increases WHILE L decreases from 0x7FFF.
                 // set_sweep_r copies vol_r as starting level, but for opposition
@@ -1119,11 +1119,11 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     static_cast<uint8_t>(curve & 1),  // mode: 0=linear, 1=exponential
                     1,  // direction=decrease (start from current vol going down)
                     0,  // phase=positive
-                    ss.shift, ss.step, 1, 0);  // retrigger_enable=1, bipolar=0
+                    ss.shift, ss.step, 1, 0, 0);  // retrigger_enable=1, bipolar=0, shape=0
 
                 spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
                     static_cast<uint8_t>(curve & 1),
-                    1, 0, ss.shift, ss.step, 1, 0);  // retrigger_enable=1, bipolar=0
+                    1, 0, ss.shift, ss.step, 1, 0, 0);  // retrigger_enable=1, bipolar=0, shape=0
 
                 lastAmHz = hz;
                 lastAmCurve = curve;
@@ -1222,11 +1222,11 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     static_cast<uint8_t>(curve & 1),  // mode: 0=linear, 1=exponential
                     1,  // direction=decrease (start from current vol going down)
                     0,  // phase=positive (bipolar handles zero crossing)
-                    ss.shift, ss.step, 1, 1);  // retrigger_enable=1, bipolar=1
+                    ss.shift, ss.step, 1, 1, 0);  // retrigger_enable=1, bipolar=1, shape=0
 
                 spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
                     static_cast<uint8_t>(curve & 1),
-                    1, 0, ss.shift, ss.step, 1, 1);  // retrigger_enable=1, bipolar=1
+                    1, 0, ss.shift, ss.step, 1, 1, 0);  // retrigger_enable=1, bipolar=1, shape=0
 
                 lastRingModHz = hz;
                 lastRingModCurve = curve;
@@ -1411,8 +1411,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     duckOrigLevel_r[v] = mx->voices[v].vol_r;
 
                     // Configure exponential decrease (fast attack: shift=10, one-shot)
-                    spu94_voice_mixer_set_sweep_l(mx, v, 1, 1, 0, 10, 0, 0, 0);
-                    spu94_voice_mixer_set_sweep_r(mx, v, 1, 1, 0, 10, 0, 0, 0);
+                    spu94_voice_mixer_set_sweep_l(mx, v, 1, 1, 0, 10, 0, 0, 0, 0);
+                    spu94_voice_mixer_set_sweep_r(mx, v, 1, 1, 0, 10, 0, 0, 0, 0);
                     duckState[v] = DUCK_DECREASING;
                 }
             }
@@ -1500,8 +1500,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
                         // Set volume to floor before configuring increase sweep
                         // (set_sweep_l initializes level from current vol_l)
-                        spu94_voice_mixer_set_sweep_l(mx, v, 1, 0, 0, ss.shift, ss.step, 0, 0);
-                        spu94_voice_mixer_set_sweep_r(mx, v, 1, 0, 0, ss.shift, ss.step, 0, 0);
+                        spu94_voice_mixer_set_sweep_l(mx, v, 1, 0, 0, ss.shift, ss.step, 0, 0, 0);
+                        spu94_voice_mixer_set_sweep_r(mx, v, 1, 0, 0, ss.shift, ss.step, 0, 0, 0);
 
                         duckState[v] = DUCK_RECOVERING;
                     }

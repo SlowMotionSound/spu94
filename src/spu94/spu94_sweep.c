@@ -96,7 +96,8 @@ void spu94_sweep_configure(spu94_sweep_t *sw,
                            uint8_t mode, uint8_t direction, uint8_t phase,
                            uint8_t shift, uint8_t step,
                            uint8_t retrigger_enable,
-                           uint8_t bipolar) {
+                           uint8_t bipolar,
+                           uint8_t shape) {
     if (sw == NULL) return;
     sw->mode = mode;
     sw->direction = direction;
@@ -106,6 +107,7 @@ void spu94_sweep_configure(spu94_sweep_t *sw,
     sw->step = step;
     sw->retrigger_enable = retrigger_enable;
     sw->bipolar = bipolar;
+    sw->shape = shape;
     sw->counter = 0;
     sw->active = 1;
 }
