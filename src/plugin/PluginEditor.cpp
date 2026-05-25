@@ -1671,8 +1671,8 @@ void SPU94AudioProcessorEditor::resized()
             rampArmButton.setBounds(300, rampy + 20, 80, 36);
 
             // === Effects area: two columns below VCA Ramp ===
-            // Left column (x=20): Tremolo, Auto-Pan, AM Synthesis, Phase Mod
-            // Right column (x=410): Sidechain Duck, Mod Bus
+            // Left column (x=20): Tremolo, Auto-Pan
+            // Right column (x=410): Sidechain Duck, AM Synthesis, Phase Mod, Mod Bus
             constexpr int fx_y = rampy + 100;
             constexpr int col_left = 20;
             constexpr int col_right = 410;
@@ -1703,25 +1703,6 @@ void SPU94AudioProcessorEditor::resized()
             autoPanRatioLabel.setBounds(col_left + 180, pany + 20, 80, 16);
             autoPanRatioKnob.setBounds(col_left + 180, pany + 36, 80, 70);
 
-            // AM Synthesis (Phase 48)
-            constexpr int amy = pany + fx_spacing;
-            amSectionLabel.setBounds(col_left, amy, 120, 16);
-            amEnableToggle.setBounds(col_left + 120, amy, 80, 20);
-            amRateLabel.setBounds(col_left, amy + 20, 80, 16);
-            amRateKnob.setBounds(col_left, amy + 36, 80, 70);
-            amDepthLabel.setBounds(col_left + 90, amy + 20, 80, 16);
-            amDepthKnob.setBounds(col_left + 90, amy + 36, 80, 70);
-            amCurveButton.setBounds(col_left + 180, amy + 40, 90, 28);
-
-            // Phase Mod (Phase 49)
-            constexpr int phasy = amy + fx_spacing;
-            phaseModSectionLabel.setBounds(col_left, phasy, 120, 16);
-            phaseModEnableToggle.setBounds(col_left + 120, phasy, 80, 20);
-            phaseModRateLabel.setBounds(col_left, phasy + 20, 80, 16);
-            phaseModRateKnob.setBounds(col_left, phasy + 36, 80, 70);
-            phaseModDepthLabel.setBounds(col_left + 90, phasy + 20, 80, 16);
-            phaseModDepthKnob.setBounds(col_left + 90, phasy + 36, 80, 70);
-
             // --- RIGHT COLUMN ---
 
             // Sidechain Duck (Phase 46)
@@ -1733,6 +1714,26 @@ void SPU94AudioProcessorEditor::resized()
             duckReleaseKnob.setBounds(col_right + 140, ducky + 36, 80, 70);
             duckDepthLabel.setBounds(col_right + 240, ducky + 20, 80, 16);
             duckDepthKnob.setBounds(col_right + 240, ducky + 36, 80, 70);
+
+            // AM Synthesis (Phase 48) — right half of panel
+            constexpr int rh = 410;
+            constexpr int amy = 142;
+            amSectionLabel.setBounds(rh, amy, 120, 16);
+            amEnableToggle.setBounds(rh + 120, amy, 80, 20);
+            amRateLabel.setBounds(rh, amy + 20, 80, 16);
+            amRateKnob.setBounds(rh, amy + 36, 80, 70);
+            amDepthLabel.setBounds(rh + 90, amy + 20, 80, 16);
+            amDepthKnob.setBounds(rh + 90, amy + 36, 80, 70);
+            amCurveButton.setBounds(rh + 180, amy + 40, 90, 28);
+
+            // Phase Mod (Phase 49) — below AM on right half
+            constexpr int phasy = amy + fx_spacing;
+            phaseModSectionLabel.setBounds(rh, phasy, 120, 16);
+            phaseModEnableToggle.setBounds(rh + 120, phasy, 80, 20);
+            phaseModRateLabel.setBounds(rh, phasy + 20, 80, 16);
+            phaseModRateKnob.setBounds(rh, phasy + 36, 80, 70);
+            phaseModDepthLabel.setBounds(rh + 90, phasy + 20, 80, 16);
+            phaseModDepthKnob.setBounds(rh + 90, phasy + 36, 80, 70);
 
             // Mod Bus (Phase 50)
             constexpr int mody = ducky + fx_spacing;
