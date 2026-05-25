@@ -802,11 +802,11 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
         // VCA ramp activation (Phase 41: volume sweep GUI surface)
         // One-shot: GUI sets rampArm=true, audio thread reads and resets to false.
-        // TREM-05/PAN-05/AM-04/PMOD-01: Tremolo, auto-pan, AM, phase mod, and VCA ramp are mutually exclusive.
+        // Tremolo, auto-pan, AM, ring mod, and VCA ramp are mutually exclusive.
         if (!tremoloEnabled.load(std::memory_order_relaxed) &&
             !autoPanEnabled.load(std::memory_order_relaxed) &&
             !amEnabled.load(std::memory_order_relaxed) &&
-            !phaseModEnabled.load(std::memory_order_relaxed))
+            !ringModEnabled.load(std::memory_order_relaxed))
         {
             if (rampArm.exchange(false, std::memory_order_acquire))
             {
@@ -820,11 +820,11 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
                     static_cast<uint8_t>(curve),
                     static_cast<uint8_t>(dir),
-                    0, ss.shift, ss.step, 0);  /* retrigger_enable=0: v1.9 one-shot */
+                    0, ss.shift, ss.step, 0, 0);  /* retrigger_enable=0, bipolar=0: v1.9 one-shot */
                 spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
                     static_cast<uint8_t>(curve),
                     static_cast<uint8_t>(dir),
-                    0, ss.shift, ss.step, 0);  /* retrigger_enable=0: v1.9 one-shot */
+                    0, ss.shift, ss.step, 0, 0);  /* retrigger_enable=0, bipolar=0: v1.9 one-shot */
             }
         }
 
@@ -850,7 +850,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     static_cast<uint8_t>(curve & 1),  // mode: 0=linear, 1=exponential
                     1,  // direction=decrease (start from current vol going down)
                     0,  // phase=positive
-                    ss.shift, ss.step, 1);  // retrigger_enable=1
+                    ss.shift, ss.step, 1, 0);  // retrigger_enable=1, bipolar=0
 
                 // R channel: apply ratio for independent rate
                 // T-44-03: clamp ratio to safe range
@@ -867,7 +867,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
                 spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
                     static_cast<uint8_t>(curve & 1),
-                    1, 0, r_shift, ss.step, 1);  // retrigger_enable=1
+                    1, 0, r_shift, ss.step, 1, 0);  // retrigger_enable=1, bipolar=0
 
                 lastTremoloHz = hz;
                 lastTremoloCurve = curve;
@@ -876,8 +876,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
                 // AM-04: Tremolo takes priority -- force-deactivate AM if it was active
                 if (amWasActive) amWasActive = false;
-                // PMOD-01: Tremolo takes priority -- force-deactivate phase mod if it was active
-                if (phaseModWasActive) phaseModWasActive = false;
+                // Ring mod has lowest priority -- force-deactivate if it was active
+                if (ringModWasActive) ringModWasActive = false;
             }
             else if (tremEn && tremoloWasActive)
             {
@@ -982,7 +982,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     0,  // mode=0 (linear always, PAN-04)
                     1,  // direction=decrease (L starts going down)
                     0,  // phase=positive
-                    ss.shift, ss.step, 1);  // retrigger_enable=1
+                    ss.shift, ss.step, 1, 0);  // retrigger_enable=1, bipolar=0
 
                 // R channel: direction=0 (increase) -- OPPOSITION to L
                 // Apply ratio for independent rate
@@ -1000,7 +1000,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
                     0,  // mode=0 (linear always, PAN-04)
                     0,  // direction=increase (R goes UP while L goes DOWN)
-                    0, r_shift, ss.step, 1);  // retrigger_enable=1
+                    0, r_shift, ss.step, 1, 0);  // retrigger_enable=1, bipolar=0
 
                 // R must start at 0 so it increases WHILE L decreases from 0x7FFF.
                 // set_sweep_r copies vol_r as starting level, but for opposition
@@ -1013,8 +1013,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
                 // AM-04: Auto-pan takes priority -- force-deactivate AM if it was active
                 if (amWasActive) amWasActive = false;
-                // PMOD-01: Auto-pan takes priority -- force-deactivate phase mod if it was active
-                if (phaseModWasActive) phaseModWasActive = false;
+                // Ring mod has lowest priority -- force-deactivate if it was active
+                if (ringModWasActive) ringModWasActive = false;
             }
             else if (panEn && autoPanWasActive)
             {
@@ -1119,18 +1119,18 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     static_cast<uint8_t>(curve & 1),  // mode: 0=linear, 1=exponential
                     1,  // direction=decrease (start from current vol going down)
                     0,  // phase=positive
-                    ss.shift, ss.step, 1);  // retrigger_enable=1
+                    ss.shift, ss.step, 1, 0);  // retrigger_enable=1, bipolar=0
 
                 spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
                     static_cast<uint8_t>(curve & 1),
-                    1, 0, ss.shift, ss.step, 1);  // retrigger_enable=1
+                    1, 0, ss.shift, ss.step, 1, 0);  // retrigger_enable=1, bipolar=0
 
                 lastAmHz = hz;
                 lastAmCurve = curve;
                 amWasActive = true;
 
-                // PMOD-01: AM takes priority -- force-deactivate phase mod if it was active
-                if (phaseModWasActive) phaseModWasActive = false;
+                // Ring mod has lowest priority -- force-deactivate if it was active
+                if (ringModWasActive) ringModWasActive = false;
             }
             else if (amEn && amWasActive)
             {
@@ -1190,106 +1190,106 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             }
         }
 
-        // Phase modulator activation (Phase 49: polarity-cycling sweep for hollow/phaser character)
-        // PMOD-01/02: Mutual exclusion -- phase mod has LOWEST priority (tremolo, auto-pan, AM all win).
-        // Uses phase=1 + retrigger_enable=1 to oscillate between 0 and -0x7FFF (negative territory).
-        // Linear mode only (exponential ignores phase bit per ADR-0059).
+        // Ring mod activation (Phase 52: bipolar sweep for phase-inversion ring mod effect)
+        // Replaces Phase 49's phase mod workaround. Ring mod uses native bipolar sweep
+        // (level traverses +0x7FFF through 0 to -0x7FFF) with the same depth formula as
+        // tremolo/AM. No host-layer remapping needed -- bipolar sweep produces negative
+        // volume naturally at high depth.
+        // Mutual exclusion: ring mod has LOWEST priority (tremolo, auto-pan, AM all win).
         {
             bool tremEn = tremoloEnabled.load(std::memory_order_relaxed);
             bool panEn  = autoPanEnabled.load(std::memory_order_relaxed);
             bool amEn   = amEnabled.load(std::memory_order_relaxed);
-            bool pmEn   = phaseModEnabled.load(std::memory_order_relaxed);
-            // Mutual exclusion: tremolo, auto-pan, and AM all have priority over phase mod
-            if (tremEn || panEn || amEn) pmEn = false;
+            bool rmEn   = ringModEnabled.load(std::memory_order_relaxed);
+            // Mutual exclusion: tremolo, auto-pan, and AM all have priority over ring mod
+            if (tremEn || panEn || amEn) rmEn = false;
 
-            if (pmEn && !phaseModWasActive)
+            if (rmEn && !ringModWasActive)
             {
-                // Phase mod just enabled: configure sweeps for negative-phase oscillation
-                float hz = phaseModSpeedHz.load(std::memory_order_relaxed);
+                // Ring mod just enabled: configure sweeps for bipolar oscillation
+                float hz   = ringModRateHz.load(std::memory_order_relaxed);
+                int   curve = ringModCurve.load(std::memory_order_relaxed);
 
-                // T-49-01: clamp Hz to table range
-                if (hz < 0.5f) hz = 0.5f;
-                if (hz > 43.0f) hz = 43.0f;
+                // Clamp Hz to AM table range (ring mod uses same audio-rate table)
+                if (hz < kAmHzTable[0].hz) hz = kAmHzTable[0].hz;
+                if (hz > kAmHzTable[kAmHzTableSize - 1].hz) hz = kAmHzTable[kAmHzTableSize - 1].hz;
 
-                auto ss = hzToShift(hz);
+                auto ss = hzToShiftAm(hz);
 
-                // Both L and R: mode=0 (linear), direction=0 (increase toward -0x7FFF),
-                // phase=1 (negative), retrigger_enable=1
+                // Both L and R: direction=1 (decrease from current vol), phase=0 (positive),
+                // retrigger_enable=1, bipolar=1 -- sweep crosses zero into negative territory
                 spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
-                    0,  // mode=linear (exponential ignores phase bit, ADR-0059)
-                    0,  // direction=increase (in negative phase: toward -0x7FFF)
-                    1,  // phase=1 (negative -- enables polarity cycling)
-                    ss.shift, ss.step, 1);  // retrigger_enable=1
+                    static_cast<uint8_t>(curve & 1),  // mode: 0=linear, 1=exponential
+                    1,  // direction=decrease (start from current vol going down)
+                    0,  // phase=positive (bipolar handles zero crossing)
+                    ss.shift, ss.step, 1, 1);  // retrigger_enable=1, bipolar=1
 
                 spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
-                    0, 0, 1, ss.shift, ss.step, 1);  // retrigger_enable=1
+                    static_cast<uint8_t>(curve & 1),
+                    1, 0, ss.shift, ss.step, 1, 1);  // retrigger_enable=1, bipolar=1
 
-                // Start sweep at 0 -- will oscillate 0 to -0x7FFF and back
-                auto* mx = spu94_get_voice_mixer();
-                mx->voices[0].sweep_l.level = 0;
-                mx->voices[0].sweep_r.level = 0;
-
-                lastPhaseModHz = hz;
-                phaseModWasActive = true;
+                lastRingModHz = hz;
+                lastRingModCurve = curve;
+                ringModWasActive = true;
             }
-            else if (pmEn && phaseModWasActive)
+            else if (rmEn && ringModWasActive)
             {
-                // Phase mod already active: check if parameters changed
-                float hz = phaseModSpeedHz.load(std::memory_order_relaxed);
+                // Ring mod already active: check if parameters changed
+                float hz   = ringModRateHz.load(std::memory_order_relaxed);
+                int   curve = ringModCurve.load(std::memory_order_relaxed);
 
-                if (hz < 0.5f) hz = 0.5f;
-                if (hz > 43.0f) hz = 43.0f;
+                if (hz < kAmHzTable[0].hz) hz = kAmHzTable[0].hz;
+                if (hz > kAmHzTable[kAmHzTableSize - 1].hz) hz = kAmHzTable[kAmHzTableSize - 1].hz;
 
-                if (hz != lastPhaseModHz)
+                if (hz != lastRingModHz || curve != lastRingModCurve)
                 {
-                    auto ss = hzToShift(hz);
+                    auto ss = hzToShiftAm(hz);
                     auto* mx = spu94_get_voice_mixer();
 
                     mx->voices[0].sweep_l.shift = ss.shift;
                     mx->voices[0].sweep_l.step = ss.step;
+                    mx->voices[0].sweep_l.mode = static_cast<uint8_t>(curve & 1);
                     mx->voices[0].sweep_r.shift = ss.shift;
                     mx->voices[0].sweep_r.step = ss.step;
+                    mx->voices[0].sweep_r.mode = static_cast<uint8_t>(curve & 1);
 
-                    lastPhaseModHz = hz;
+                    lastRingModHz = hz;
+                    lastRingModCurve = curve;
                 }
             }
-            else if (!pmEn && phaseModWasActive)
+            else if (!rmEn && ringModWasActive)
             {
-                // Phase mod just disabled (explicitly or by mutual exclusion): deactivate sweeps
+                // Ring mod just disabled (explicitly or by mutual exclusion): deactivate sweeps
                 auto* mx = spu94_get_voice_mixer();
                 mx->voices[0].sweep_l.active = 0;
                 mx->voices[0].sweep_r.active = 0;
-                phaseModWasActive = false;
+                ringModWasActive = false;
             }
 
-            // PMOD-03: Zero-crossing depth formula.
-            // Sweep oscillates 0 to -0x7FFF (with phase=1, retrigger=1).
-            // Depth maps this into effective volume crossing zero:
-            //   vol = 0x7FFF + (sweep_level * 2 * depth)
-            // At depth=1.0: vol ranges +0x7FFF (sweep=0) to -0x7FFF (sweep=-0x7FFF)
-            // At depth=0.5: vol ranges +0x7FFF (sweep=0) to 0 (just touches zero)
-            // At depth<0.5: vol stays positive (attenuation only, no inversion)
-            // T-49-01: clamp depth 0.0-1.0 at point of use.
-            // T-49-02: clamp result to int16_t range.
-            if (pmEn)
+            // Ring mod depth scaling: same formula as tremolo/AM.
+            // When sweep_lvl is negative (bipolar sweep in negative territory),
+            // (0x7FFF - sweep_lvl) exceeds 0x7FFF, producing negative volume at
+            // depth > ~0.5. This IS the ring mod effect: phase inversion.
+            // Clamp result to int16_t range for safety.
+            if (rmEn)
             {
                 auto* mx = spu94_get_voice_mixer();
-                float depth = phaseModDepth.load(std::memory_order_relaxed);
+                float depth = ringModDepth.load(std::memory_order_relaxed);
                 if (depth < 0.0f) depth = 0.0f;
                 if (depth > 1.0f) depth = 1.0f;
 
                 if (mx->voices[0].sweep_l.active) {
                     int16_t sweep_lvl = mx->voices[0].sweep_l.level;
-                    int32_t vol = 0x7FFF + static_cast<int32_t>(
-                        static_cast<float>(sweep_lvl) * 2.0f * depth);
+                    int32_t vol = 0x7FFF - static_cast<int32_t>(
+                        static_cast<float>(0x7FFF - sweep_lvl) * depth);
                     if (vol > 0x7FFF) vol = 0x7FFF;
                     if (vol < -0x7FFF) vol = -0x7FFF;
                     mx->voices[0].vol_l = static_cast<int16_t>(vol);
                 }
                 if (mx->voices[0].sweep_r.active) {
                     int16_t sweep_lvl = mx->voices[0].sweep_r.level;
-                    int32_t vol = 0x7FFF + static_cast<int32_t>(
-                        static_cast<float>(sweep_lvl) * 2.0f * depth);
+                    int32_t vol = 0x7FFF - static_cast<int32_t>(
+                        static_cast<float>(0x7FFF - sweep_lvl) * depth);
                     if (vol > 0x7FFF) vol = 0x7FFF;
                     if (vol < -0x7FFF) vol = -0x7FFF;
                     mx->voices[0].vol_r = static_cast<int16_t>(vol);
@@ -1389,7 +1389,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 bool tremEn = tremoloEnabled.load(std::memory_order_relaxed);
                 bool panEn  = autoPanEnabled.load(std::memory_order_relaxed);
                 bool amEn   = amEnabled.load(std::memory_order_relaxed);
-                bool pmEn   = phaseModEnabled.load(std::memory_order_relaxed);
+                bool rmEn   = ringModEnabled.load(std::memory_order_relaxed);
 
                 for (int v = 0; v < 24; ++v)
                 {
@@ -1400,8 +1400,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     if (src < 0 || src > 23) continue;
                     // T-46-02: self-duck blocked
                     if (src == v) continue;
-                    // Mutual exclusion: duck disabled on voice 0 when tremolo/auto-pan/AM/phaseMod active
-                    if (v == 0 && (tremEn || panEn || amEn || pmEn)) continue;
+                    // Mutual exclusion: duck disabled on voice 0 when tremolo/auto-pan/AM/ringMod active
+                    if (v == 0 && (tremEn || panEn || amEn || rmEn)) continue;
 
                     // Check if the source voice is triggering KON this block
                     if (!(konSnapshot & (1u << src))) continue;
@@ -1411,8 +1411,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     duckOrigLevel_r[v] = mx->voices[v].vol_r;
 
                     // Configure exponential decrease (fast attack: shift=10, one-shot)
-                    spu94_voice_mixer_set_sweep_l(mx, v, 1, 1, 0, 10, 0, 0);
-                    spu94_voice_mixer_set_sweep_r(mx, v, 1, 1, 0, 10, 0, 0);
+                    spu94_voice_mixer_set_sweep_l(mx, v, 1, 1, 0, 10, 0, 0, 0);
+                    spu94_voice_mixer_set_sweep_r(mx, v, 1, 1, 0, 10, 0, 0, 0);
                     duckState[v] = DUCK_DECREASING;
                 }
             }
@@ -1500,8 +1500,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
                         // Set volume to floor before configuring increase sweep
                         // (set_sweep_l initializes level from current vol_l)
-                        spu94_voice_mixer_set_sweep_l(mx, v, 1, 0, 0, ss.shift, ss.step, 0);
-                        spu94_voice_mixer_set_sweep_r(mx, v, 1, 0, 0, ss.shift, ss.step, 0);
+                        spu94_voice_mixer_set_sweep_l(mx, v, 1, 0, 0, ss.shift, ss.step, 0, 0);
+                        spu94_voice_mixer_set_sweep_r(mx, v, 1, 0, 0, ss.shift, ss.step, 0, 0);
 
                         duckState[v] = DUCK_RECOVERING;
                     }

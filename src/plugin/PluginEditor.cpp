@@ -506,12 +506,12 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             // Mutual exclusion: disable VCA ramp ARM, auto-pan, AM, phase mod, and duck when tremolo is active
             autoPanEnableToggle.setEnabled(!enabled);
             amEnableToggle.setEnabled(!enabled);
-            phaseModEnableToggle.setEnabled(!enabled);
+            ringModEnableToggle.setEnabled(!enabled);
             duckSourceBox.setEnabled(!enabled);
             if (enabled)
                 rampArmButton.setEnabled(false);
             else if (!autoPanEnableToggle.getToggleState() && !amEnableToggle.getToggleState()
-                     && !phaseModEnableToggle.getToggleState() && duckSourceBox.getSelectedId() == 1)
+                     && !ringModEnableToggle.getToggleState() && duckSourceBox.getSelectedId() == 1)
                 rampArmButton.setEnabled(true);
         };
         panel.addAndMakeVisible(tremoloEnableToggle);
@@ -600,12 +600,12 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             // Mutual exclusion: disable tremolo toggle, AM, phase mod, duck, and VCA ramp ARM when auto-pan is active
             tremoloEnableToggle.setEnabled(!enabled);
             amEnableToggle.setEnabled(!enabled);
-            phaseModEnableToggle.setEnabled(!enabled);
+            ringModEnableToggle.setEnabled(!enabled);
             duckSourceBox.setEnabled(!enabled);
             if (enabled)
                 rampArmButton.setEnabled(false);
             else if (!tremoloEnableToggle.getToggleState() && !amEnableToggle.getToggleState()
-                     && !phaseModEnableToggle.getToggleState() && duckSourceBox.getSelectedId() == 1)
+                     && !ringModEnableToggle.getToggleState() && duckSourceBox.getSelectedId() == 1)
                 rampArmButton.setEnabled(true);
         };
         panel.addAndMakeVisible(autoPanEnableToggle);
@@ -687,11 +687,11 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             tremoloEnableToggle.setEnabled(!duckActive);
             autoPanEnableToggle.setEnabled(!duckActive);
             amEnableToggle.setEnabled(!duckActive);
-            phaseModEnableToggle.setEnabled(!duckActive);
+            ringModEnableToggle.setEnabled(!duckActive);
             if (duckActive)
                 rampArmButton.setEnabled(false);
             else if (!tremoloEnableToggle.getToggleState() && !autoPanEnableToggle.getToggleState()
-                     && !amEnableToggle.getToggleState() && !phaseModEnableToggle.getToggleState())
+                     && !amEnableToggle.getToggleState() && !ringModEnableToggle.getToggleState())
                 rampArmButton.setEnabled(true);
         };
         panel.addAndMakeVisible(duckSourceBox);
@@ -750,11 +750,11 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             // Mutual exclusion: AM disables tremolo, auto-pan, and phase mod toggles
             tremoloEnableToggle.setEnabled(!enabled);
             autoPanEnableToggle.setEnabled(!enabled);
-            phaseModEnableToggle.setEnabled(!enabled);
+            ringModEnableToggle.setEnabled(!enabled);
             if (enabled)
                 rampArmButton.setEnabled(false);
             else if (!tremoloEnableToggle.getToggleState() && !autoPanEnableToggle.getToggleState()
-                     && !phaseModEnableToggle.getToggleState() && duckSourceBox.getSelectedId() == 1)
+                     && !ringModEnableToggle.getToggleState() && duckSourceBox.getSelectedId() == 1)
                 rampArmButton.setEnabled(true);
         };
         panel.addAndMakeVisible(amEnableToggle);
@@ -807,20 +807,20 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         amCurveButton.setEnabled(false);
         panel.addAndMakeVisible(amCurveButton);
 
-        // Phase Mod section (Phase 49: polarity-cycling sweep for hollow/phaser character)
-        phaseModSectionLabel.setText("Phase Mod", juce::dontSendNotification);
-        phaseModSectionLabel.setJustificationType(juce::Justification::centredLeft);
-        phaseModSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
-        phaseModSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
-        panel.addAndMakeVisible(phaseModSectionLabel);
+        // Ring Mod section (Phase 52: bipolar sweep for phase-inversion ring mod effect)
+        ringModSectionLabel.setText("Ring Mod", juce::dontSendNotification);
+        ringModSectionLabel.setJustificationType(juce::Justification::centredLeft);
+        ringModSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
+        ringModSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
+        panel.addAndMakeVisible(ringModSectionLabel);
 
-        phaseModEnableToggle.setColour(juce::ToggleButton::tickColourId, juce::Colour(0xFF3CBBB1));
-        phaseModEnableToggle.onStateChange = [this] {
-            bool enabled = phaseModEnableToggle.getToggleState();
-            processorRef.getPhaseModEnabled().store(enabled, std::memory_order_relaxed);
-            phaseModRateKnob.setEnabled(enabled);
-            phaseModDepthKnob.setEnabled(enabled);
-            // Mutual exclusion: phase mod disables tremolo, auto-pan, AM toggles
+        ringModEnableToggle.setColour(juce::ToggleButton::tickColourId, juce::Colour(0xFF3CBBB1));
+        ringModEnableToggle.onStateChange = [this] {
+            bool enabled = ringModEnableToggle.getToggleState();
+            processorRef.getRingModEnabled().store(enabled, std::memory_order_relaxed);
+            ringModRateKnob.setEnabled(enabled);
+            ringModDepthKnob.setEnabled(enabled);
+            // Mutual exclusion: ring mod disables tremolo, auto-pan, AM toggles
             tremoloEnableToggle.setEnabled(!enabled);
             autoPanEnableToggle.setEnabled(!enabled);
             amEnableToggle.setEnabled(!enabled);
@@ -830,42 +830,42 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
                      && !amEnableToggle.getToggleState() && duckSourceBox.getSelectedId() == 1)
                 rampArmButton.setEnabled(true);
         };
-        panel.addAndMakeVisible(phaseModEnableToggle);
+        panel.addAndMakeVisible(ringModEnableToggle);
 
-        phaseModRateKnob.setSliderStyle(juce::Slider::Rotary);
-        phaseModRateKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-        phaseModRateKnob.setRange(0.5, 19.0, 0.1);
-        phaseModRateKnob.setValue(4.0, juce::dontSendNotification);
-        phaseModRateKnob.setTextValueSuffix(" Hz");
-        phaseModRateKnob.setSkewFactorFromMidPoint(4.0);
-        phaseModRateKnob.setDoubleClickReturnValue(true, 4.0);
-        phaseModRateKnob.onValueChange = [this] {
-            processorRef.getPhaseModSpeedHz().store(
-                static_cast<float>(phaseModRateKnob.getValue()), std::memory_order_relaxed);
+        ringModRateKnob.setSliderStyle(juce::Slider::Rotary);
+        ringModRateKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        ringModRateKnob.setRange(21.5, 9647.0, 1.0);
+        ringModRateKnob.setValue(440.0, juce::dontSendNotification);
+        ringModRateKnob.setTextValueSuffix(" Hz");
+        ringModRateKnob.setSkewFactorFromMidPoint(440.0);
+        ringModRateKnob.setDoubleClickReturnValue(true, 440.0);
+        ringModRateKnob.onValueChange = [this] {
+            processorRef.getRingModRateHz().store(
+                static_cast<float>(ringModRateKnob.getValue()), std::memory_order_relaxed);
         };
-        phaseModRateKnob.setEnabled(false);
-        panel.addAndMakeVisible(phaseModRateKnob);
+        ringModRateKnob.setEnabled(false);
+        panel.addAndMakeVisible(ringModRateKnob);
 
-        phaseModRateLabel.setText("Rate", juce::dontSendNotification);
-        phaseModRateLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(phaseModRateLabel);
+        ringModRateLabel.setText("Rate", juce::dontSendNotification);
+        ringModRateLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(ringModRateLabel);
 
-        phaseModDepthKnob.setSliderStyle(juce::Slider::Rotary);
-        phaseModDepthKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-        phaseModDepthKnob.setRange(0.0, 100.0, 1.0);
-        phaseModDepthKnob.setValue(100.0, juce::dontSendNotification);
-        phaseModDepthKnob.setTextValueSuffix("%");
-        phaseModDepthKnob.setDoubleClickReturnValue(true, 100.0);
-        phaseModDepthKnob.onValueChange = [this] {
-            processorRef.getPhaseModDepth().store(
-                static_cast<float>(phaseModDepthKnob.getValue() / 100.0), std::memory_order_relaxed);
+        ringModDepthKnob.setSliderStyle(juce::Slider::Rotary);
+        ringModDepthKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        ringModDepthKnob.setRange(0.0, 100.0, 1.0);
+        ringModDepthKnob.setValue(100.0, juce::dontSendNotification);
+        ringModDepthKnob.setTextValueSuffix("%");
+        ringModDepthKnob.setDoubleClickReturnValue(true, 100.0);
+        ringModDepthKnob.onValueChange = [this] {
+            processorRef.getRingModDepth().store(
+                static_cast<float>(ringModDepthKnob.getValue() / 100.0), std::memory_order_relaxed);
         };
-        phaseModDepthKnob.setEnabled(false);
-        panel.addAndMakeVisible(phaseModDepthKnob);
+        ringModDepthKnob.setEnabled(false);
+        panel.addAndMakeVisible(ringModDepthKnob);
 
-        phaseModDepthLabel.setText("Depth", juce::dontSendNotification);
-        phaseModDepthLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(phaseModDepthLabel);
+        ringModDepthLabel.setText("Depth", juce::dontSendNotification);
+        ringModDepthLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(ringModDepthLabel);
 
         // Internal Mod Bus section (Phase 50: noise-to-pitch/vol/pan per voice)
         modBusSectionLabel.setText("Mod Bus", juce::dontSendNotification);
@@ -1434,13 +1434,13 @@ void SPU94AudioProcessorEditor::timerCallback()
         bool tremOn = tremoloEnableToggle.getToggleState();
         bool panOn  = autoPanEnableToggle.getToggleState();
         bool amOn   = amEnableToggle.getToggleState();
-        bool pmOn   = phaseModEnableToggle.getToggleState();
+        bool pmOn   = ringModEnableToggle.getToggleState();
 
         bool higherActive = tremOn || panOn || amOn;
-        phaseModEnableToggle.setEnabled(!higherActive);
-        phaseModEnableToggle.setAlpha(higherActive ? 0.4f : 1.0f);
-        phaseModRateKnob.setAlpha(higherActive ? 0.4f : 1.0f);
-        phaseModDepthKnob.setAlpha(higherActive ? 0.4f : 1.0f);
+        ringModEnableToggle.setEnabled(!higherActive);
+        ringModEnableToggle.setAlpha(higherActive ? 0.4f : 1.0f);
+        ringModRateKnob.setAlpha(higherActive ? 0.4f : 1.0f);
+        ringModDepthKnob.setAlpha(higherActive ? 0.4f : 1.0f);
 
         // Bidirectional: phase mod active greys out tremolo/auto-pan/AM
         if (pmOn && !higherActive)
@@ -1728,12 +1728,12 @@ void SPU94AudioProcessorEditor::resized()
 
             // Phase Mod (Phase 49) — below AM on right half
             constexpr int phasy = amy + fx_spacing;
-            phaseModSectionLabel.setBounds(rh, phasy, 120, 16);
-            phaseModEnableToggle.setBounds(rh + 120, phasy, 80, 20);
-            phaseModRateLabel.setBounds(rh, phasy + 20, 80, 16);
-            phaseModRateKnob.setBounds(rh, phasy + 36, 80, 70);
-            phaseModDepthLabel.setBounds(rh + 90, phasy + 20, 80, 16);
-            phaseModDepthKnob.setBounds(rh + 90, phasy + 36, 80, 70);
+            ringModSectionLabel.setBounds(rh, phasy, 120, 16);
+            ringModEnableToggle.setBounds(rh + 120, phasy, 80, 20);
+            ringModRateLabel.setBounds(rh, phasy + 20, 80, 16);
+            ringModRateKnob.setBounds(rh, phasy + 36, 80, 70);
+            ringModDepthLabel.setBounds(rh + 90, phasy + 20, 80, 16);
+            ringModDepthKnob.setBounds(rh + 90, phasy + 36, 80, 70);
 
             // Mod Bus (Phase 50)
             constexpr int mody = ducky + fx_spacing;
