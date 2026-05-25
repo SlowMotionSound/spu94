@@ -34,6 +34,7 @@ typedef struct {
     uint8_t  active;      /* 0 = inactive, 1 = sweeping */
     uint8_t  retrigger_enable; /* 0 = one-shot (v1.9), 1 = auto-reverse at limits */
     uint8_t  start_direction;  /* initial direction stored at configure time for KON reset */
+    uint8_t  bipolar;         /* 0=unipolar (single quadrant), 1=bipolar (crosses zero into opposite quadrant) */
 } spu94_sweep_t;
 
 /* Initialize sweep to defaults: active=0, level=0, counter=0. */
@@ -53,7 +54,8 @@ void spu94_sweep_tick(spu94_sweep_t *sw);
 void spu94_sweep_configure(spu94_sweep_t *sw,
                            uint8_t mode, uint8_t direction, uint8_t phase,
                            uint8_t shift, uint8_t step,
-                           uint8_t retrigger_enable);
+                           uint8_t retrigger_enable,
+                           uint8_t bipolar);
 
 #ifdef __cplusplus
 }
