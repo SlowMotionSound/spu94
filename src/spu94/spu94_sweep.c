@@ -111,10 +111,11 @@ void spu94_sweep_tick(spu94_sweep_t *sw) {
                 if (sw->bipolar) {
                     sw->level = -0x7FFF;
                     sw->phase = 1;
+                    sw->direction = 1;
                 } else {
                     sw->level = 0;
+                    sw->direction = 0;
                 }
-                sw->direction = 0;
                 sw->counter = 0;
                 break;
             default: /* SPU94_SWEEP_SHAPE_TRIANGLE */
