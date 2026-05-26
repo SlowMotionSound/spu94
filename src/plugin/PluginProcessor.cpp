@@ -811,34 +811,6 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             ringModWasActive = false;
         }
 
-        // VCA ramp activation (Phase 41: volume sweep GUI surface)
-        // One-shot: GUI sets rampArm=true, audio thread reads and resets to false.
-        // Tremolo, auto-pan, AM, ring mod, and VCA ramp are mutually exclusive.
-        if (!tremoloEnabled.load(std::memory_order_relaxed) &&
-            !autoPanEnabled.load(std::memory_order_relaxed) &&
-            !amEnabled.load(std::memory_order_relaxed) &&
-            !ringModEnabled.load(std::memory_order_relaxed))
-        {
-            if (rampArm.exchange(false, std::memory_order_acquire))
-            {
-                int dir   = rampDirection.load(std::memory_order_relaxed);
-                int curve = rampCurve.load(std::memory_order_relaxed);
-                float spd = rampSpeed.load(std::memory_order_relaxed);
-                auto ss   = speedToShift(spd);
-
-                // mode: 0=linear, 1=exponential; direction: 0=increase, 1=decrease
-                // phase: 0=positive; both L and R get matched parameters (RAMP-02)
-                spu94_voice_mixer_set_sweep_l(spu94_get_voice_mixer(), 0,
-                    static_cast<uint8_t>(curve),
-                    static_cast<uint8_t>(dir),
-                    0, ss.shift, ss.step, 0, 0, 0);  /* retrigger_enable=0, bipolar=0, shape=0: v1.9 one-shot */
-                spu94_voice_mixer_set_sweep_r(spu94_get_voice_mixer(), 0,
-                    static_cast<uint8_t>(curve),
-                    static_cast<uint8_t>(dir),
-                    0, ss.shift, ss.step, 0, 0, 0);  /* retrigger_enable=0, bipolar=0, shape=0: v1.9 one-shot */
-            }
-        }
-
         // Tremolo activation (Phase 44: continuous VCA oscillation via retrigger)
         // Configures both L/R sweeps with retrigger_enable=1 at Hz-derived shift/step.
         {

@@ -46,6 +46,9 @@ typedef struct {
     uint8_t  start_direction;  /* initial direction stored at configure time for KON reset */
     uint8_t  bipolar;         /* 0=unipolar (single quadrant), 1=bipolar (crosses zero into opposite quadrant) */
     uint8_t  shape;           /* 0=triangle, 1=saw down, 2=saw up (controls retrigger boundary behavior) */
+    int16_t  ramp_target;     /* target level during anti-click crossfade (only used when ramp_remaining > 0) */
+    int16_t  ramp_origin;     /* starting level of crossfade ramp */
+    uint8_t  ramp_remaining;  /* samples left in crossfade; 0 = no ramp active */
 } spu94_sweep_t;
 
 /* Initialize sweep to defaults: active=0, level=0, counter=0. */

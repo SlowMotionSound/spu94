@@ -23,8 +23,20 @@ void spu94_sweep_init(spu94_sweep_t *sw) {
     memset(sw, 0, sizeof(*sw));
 }
 
+#define SPU94_SWEEP_RAMP_LEN 8
+
 void spu94_sweep_tick(spu94_sweep_t *sw) {
     if (sw == NULL || !sw->active) return;
+
+    if (sw->ramp_remaining > 0) {
+        sw->ramp_remaining--;
+        int32_t t = SPU94_SWEEP_RAMP_LEN - sw->ramp_remaining;
+        sw->level = (int16_t)(sw->ramp_origin +
+            ((((int32_t)sw->ramp_target - (int32_t)sw->ramp_origin) * t) / SPU94_SWEEP_RAMP_LEN));
+        if (sw->ramp_remaining == 0)
+            sw->level = sw->ramp_target;
+        return;
+    }
 
     spu94_envelope_state_t env;
     env.level = (int32_t)sw->level;
@@ -97,27 +109,34 @@ void spu94_sweep_tick(spu94_sweep_t *sw) {
 
         if (sw->level == boundary && (!sw->bipolar || boundary != 0)) {
             switch (sw->shape) {
-            case SPU94_SWEEP_SHAPE_SAW_DOWN:
+            case SPU94_SWEEP_SHAPE_SAW_DOWN: {
+                int16_t target = 0x7FFF;
+                sw->ramp_origin = sw->level;
+                sw->ramp_target = target;
+                sw->ramp_remaining = SPU94_SWEEP_RAMP_LEN;
                 if (sw->bipolar) {
-                    sw->level = 0x7FFF;
                     sw->phase = 0;
-                } else {
-                    sw->level = 0x7FFF;
                 }
                 sw->direction = 1;
                 sw->counter = 0;
                 break;
-            case SPU94_SWEEP_SHAPE_SAW_UP:
+            }
+            case SPU94_SWEEP_SHAPE_SAW_UP: {
+                int16_t target;
                 if (sw->bipolar) {
-                    sw->level = -0x7FFF;
+                    target = -0x7FFF;
                     sw->phase = 1;
                     sw->direction = 1;
                 } else {
-                    sw->level = 0;
+                    target = 0;
                     sw->direction = 0;
                 }
+                sw->ramp_origin = sw->level;
+                sw->ramp_target = target;
+                sw->ramp_remaining = SPU94_SWEEP_RAMP_LEN;
                 sw->counter = 0;
                 break;
+            }
             default: /* SPU94_SWEEP_SHAPE_TRIANGLE */
                 sw->direction ^= 1;
                 sw->counter = 0;

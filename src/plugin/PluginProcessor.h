@@ -79,12 +79,6 @@ public:
     std::atomic<bool>& getGuiVoicePmon() { return guiVoicePmon; }
     std::atomic<int>& getNoiseShift() { return noiseShift; }
 
-    // VCA ramp controls (Phase 41: volume sweep GUI surface)
-    std::atomic<int>&   getRampDirection() { return rampDirection; }
-    std::atomic<int>&   getRampCurve()     { return rampCurve; }
-    std::atomic<float>& getRampSpeed()     { return rampSpeed; }
-    std::atomic<bool>&  getRampArm()       { return rampArm; }
-
     // Tremolo controls (Phase 44: continuous VCA oscillation via retrigger)
     std::atomic<bool>&  getTremoloEnabled()  { return tremoloEnabled; }
     std::atomic<float>& getTremoloSpeedHz()  { return tremoloSpeedHz; }
@@ -444,10 +438,6 @@ private:
     std::atomic<int> noiseShift{10};        // noise generator shift (0-15), controls noise color/frequency
 
     // VCA ramp controls (Phase 41: volume sweep GUI surface)
-    std::atomic<int>   rampDirection{0};    // 0 = Up (fade in / increase), 1 = Down (fade out / decrease)
-    std::atomic<int>   rampCurve{0};        // 0 = Linear, 1 = Natural (exponential)
-    std::atomic<float> rampSpeed{1.7f};     // Speed in seconds, default ~1.7s (shift 15, mid-range)
-    std::atomic<bool>  rampArm{false};      // One-shot: audio thread activates sweep and resets to false
 
     // Tremolo controls (Phase 44: continuous VCA oscillation via retrigger)
     std::atomic<bool>  tremoloEnabled{false};   // true = sweep configured for retrigger oscillation

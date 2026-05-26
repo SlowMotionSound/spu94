@@ -427,67 +427,6 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         voiceModeLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
         panel.addAndMakeVisible(voiceModeLabel);
 
-        // VCA Ramp section (Phase 41: volume sweep GUI surface)
-        rampSectionLabel.setText("VCA Ramp", juce::dontSendNotification);
-        rampSectionLabel.setJustificationType(juce::Justification::centredLeft);
-        rampSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
-        rampSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
-        panel.addAndMakeVisible(rampSectionLabel);
-
-        // Direction button: toggles between "Up" (fade in) and "Down" (fade out)
-        rampDirButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF3CBBB1)); // teal = Up
-        rampDirButton.onClick = [this] {
-            bool isUp = (rampDirButton.getButtonText() == "Up");
-            if (isUp) {
-                rampDirButton.setButtonText("Down");
-                rampDirButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFFCD6155)); // coral = Down
-                processorRef.getRampDirection().store(1, std::memory_order_relaxed);
-            } else {
-                rampDirButton.setButtonText("Up");
-                rampDirButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF3CBBB1)); // teal = Up
-                processorRef.getRampDirection().store(0, std::memory_order_relaxed);
-            }
-        };
-        panel.addAndMakeVisible(rampDirButton);
-
-        // Speed knob: rotary, displays seconds, skewed midpoint near 0.85s
-        rampSpeedKnob.setSliderStyle(juce::Slider::Rotary);
-        rampSpeedKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-        rampSpeedKnob.setRange(0.03, 7.0, 0.01);
-        rampSpeedKnob.setValue(1.7, juce::dontSendNotification);
-        rampSpeedKnob.setTextValueSuffix(" s");
-        rampSpeedKnob.setSkewFactorFromMidPoint(0.85);
-        rampSpeedKnob.setDoubleClickReturnValue(true, 1.7);
-        rampSpeedKnob.onValueChange = [this] {
-            processorRef.getRampSpeed().store(
-                static_cast<float>(rampSpeedKnob.getValue()), std::memory_order_relaxed);
-        };
-        panel.addAndMakeVisible(rampSpeedKnob);
-
-        rampSpeedLabel.setText("Speed", juce::dontSendNotification);
-        rampSpeedLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(rampSpeedLabel);
-
-        // Curve button: toggles between "Linear" and "Exponential"
-        rampCurveButton.onClick = [this] {
-            bool isLinear = (rampCurveButton.getButtonText() == "Linear");
-            if (isLinear) {
-                rampCurveButton.setButtonText("Exponential");
-                processorRef.getRampCurve().store(1, std::memory_order_relaxed);
-            } else {
-                rampCurveButton.setButtonText("Linear");
-                processorRef.getRampCurve().store(0, std::memory_order_relaxed);
-            }
-        };
-        panel.addAndMakeVisible(rampCurveButton);
-
-        // ARM button: one-shot trigger, visually distinct with mauve accent
-        rampArmButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF9B59B6)); // mauve
-        rampArmButton.onClick = [this] {
-            processorRef.getRampArm().store(true, std::memory_order_relaxed);
-        };
-        panel.addAndMakeVisible(rampArmButton);
-
         // ===== Unified VCA Effects section (Phase 54: dropdown + adaptive controls) =====
         fxSectionLabel.setText("VCA Effects", juce::dontSendNotification);
         fxSectionLabel.setJustificationType(juce::Justification::centredLeft);
@@ -536,7 +475,6 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
 
             processorRef.getEffectMode().store(mode - 1, std::memory_order_relaxed);
             processorRef.getEffectModeChanged().store(true, std::memory_order_release);
-            rampArmButton.setEnabled(mode == 1);
 
             updateEffectControlVisibility();
         };
@@ -1510,15 +1448,6 @@ void SPU94AudioProcessorEditor::resized()
             voicePmonToggle.setBounds(160, voly + 132, 70, 30);
             noiseColorLabel.setBounds(260, voly + 80, 100, 16);
             noiseColorKnob.setBounds(270, voly + 96, 80, 70);
-
-            // VCA Ramp section — below Pan/Level area (Phase 41)
-            constexpr int rampy = voly + 218;
-            rampSectionLabel.setBounds(20, rampy, 120, 16);
-            rampDirButton.setBounds(20, rampy + 20, 70, 28);
-            rampCurveButton.setBounds(100, rampy + 20, 80, 28);
-            rampSpeedLabel.setBounds(200, rampy, 80, 16);
-            rampSpeedKnob.setBounds(200, rampy + 16, 80, 70);
-            rampArmButton.setBounds(300, rampy + 20, 80, 36);
 
             // === Unified VCA Effects section (Phase 54: right half, y=142) ===
             constexpr int fx_x = 410;

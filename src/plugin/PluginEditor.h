@@ -140,14 +140,6 @@ private:
     juce::Label noiseColorLabel;
     void updateVoiceVolumes();
 
-    // VCA ramp controls (Phase 41: volume sweep GUI surface)
-    juce::Label rampSectionLabel;
-    juce::TextButton rampDirButton{"Up"};
-    juce::Slider rampSpeedKnob;
-    juce::Label rampSpeedLabel;
-    juce::TextButton rampCurveButton{"Linear"};
-    juce::TextButton rampArmButton{"ARM"};
-
     // Unified VCA Effects section (Phase 54: dropdown + adaptive controls)
     juce::Label fxSectionLabel;
     juce::ComboBox effectModeBox;
