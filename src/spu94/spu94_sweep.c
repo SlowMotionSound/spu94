@@ -77,19 +77,31 @@ void spu94_sweep_tick(spu94_sweep_t *sw) {
      *   SAW_UP (2): reset level to start-of-ramp minimum. Direction stays 0.
      */
     if (sw->retrigger_enable) {
+        /* Bipolar zero-crossing: when a bipolar sweep hits 0, flip phase and
+         * direction so it continues through into the opposite quadrant. This
+         * fires for ALL shapes (triangle, saw down, saw up) in bipolar mode.
+         * It is NOT a retrigger — the sweep just keeps going. */
+        if (sw->bipolar && sw->level == 0) {
+            sw->phase ^= 1;
+            sw->direction ^= 1;
+            sw->counter = 0;
+        }
+
+        /* Endpoint boundary: where the sweep stops and retrigger logic fires. */
         int16_t boundary;
         if (effective_phase == 0) {
             boundary = (sw->direction == 0) ? 0x7FFF : 0;
         } else {
             boundary = (sw->direction == 0) ? -0x7FFF : 0;
         }
-        if (sw->level == boundary) {
+
+        if (sw->level == boundary && (!sw->bipolar || boundary != 0)) {
             switch (sw->shape) {
             case SPU94_SWEEP_SHAPE_SAW_DOWN:
                 if (sw->bipolar) {
                     sw->level = 0x7FFF;
                     sw->phase = 0;
-                }  else {
+                } else {
                     sw->level = 0x7FFF;
                 }
                 sw->direction = 1;
@@ -106,14 +118,8 @@ void spu94_sweep_tick(spu94_sweep_t *sw) {
                 sw->counter = 0;
                 break;
             default: /* SPU94_SWEEP_SHAPE_TRIANGLE */
-                /* Auto-reverse: flip direction at boundary. */
-                if (sw->bipolar && boundary == 0) {
-                    sw->direction ^= 1;  /* flip direction */
-                    sw->phase ^= 1;     /* flip phase: cross into opposite quadrant */
-                } else {
-                    sw->direction ^= 1;  /* flip direction only */
-                }
-                sw->counter = 0;      /* clean start for new half-cycle */
+                sw->direction ^= 1;
+                sw->counter = 0;
                 break;
             }
         }
