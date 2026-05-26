@@ -1,41 +1,50 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-25T17:06:52Z",
-  "phase": "51",
-  "phase_name": "gui-integration",
-  "phase_dir": ".planning/phases/51-gui-integration",
-  "plan": 1,
-  "task": 1,
-  "total_tasks": 1,
+  "timestamp": "2026-05-26T04:10:45Z",
+  "phase": "55",
+  "phase_name": "effects-uat",
+  "phase_dir": ".planning/phases/55-effects-uat",
+  "plan": 0,
+  "task": 0,
+  "total_tasks": 0,
   "status": "paused",
   "completed_tasks": [
-    {"id": "split-bus", "name": "Split-output bus (spu94_process_split)", "status": "done", "commit": "d3b8599"},
-    {"id": "widener-remove", "name": "Remove stereo widener (not physically possible on SPU)", "status": "done", "commit": "d3b8599"},
-    {"id": "uat-tremolo", "name": "Tremolo UAT", "status": "done"},
-    {"id": "uat-autopan", "name": "Auto-pan UAT", "status": "done"},
-    {"id": "uat-modbus", "name": "Mod bus UAT (noise-to-pitch verified, clicks at max depth expected)", "status": "done"},
-    {"id": "layout-move", "name": "Move AM/Phase Mod to right half of sampler panel", "status": "in_progress", "progress": "Positioned at x=410, y=142 but not yet UAT verified"}
+    {"id": "phase-52", "name": "Ring Mod — bipolar sweep crossing zero in C core", "status": "done"},
+    {"id": "phase-53", "name": "Sweep Shapes — Triangle/Saw Down/Saw Up", "status": "done"},
+    {"id": "phase-54", "name": "Unified Effects GUI — dropdown + adaptive controls", "status": "done"},
+    {"id": "fix-depth", "name": "Per-sample depth scaling via sweep_depth_l/r in voice struct", "status": "done"},
+    {"id": "fix-off-mode", "name": "Off mode in dropdown, effects start disabled", "status": "done"},
+    {"id": "fix-mutex", "name": "Remove redundant mutual exclusion from processBlock", "status": "done"},
+    {"id": "fix-saw-dir", "name": "Saw shapes set direction on retrigger", "status": "done"},
+    {"id": "fix-bipolar-saw", "name": "Bipolar zero crossing + saw up direction fix", "status": "done"},
+    {"id": "fix-mode-switch", "name": "Reset wasActive flags on dropdown mode change", "status": "done"},
+    {"id": "fix-sweep-resume", "name": "Re-activate sweeps when effect outlives voice restart", "status": "done"},
+    {"id": "uat-trem", "name": "Tremolo UAT — all shapes, mode switching", "status": "done"},
+    {"id": "uat-autopan", "name": "Auto-Pan UAT — verified", "status": "done"},
+    {"id": "uat-am", "name": "AM UAT — all shapes work", "status": "done"},
+    {"id": "uat-ringmod", "name": "Ring Mod UAT — bipolar works, resume after restart works", "status": "done"},
+    {"id": "uat-modbus", "name": "Mod Bus UAT — noise-to-pitch verified", "status": "done"}
   ],
   "remaining_tasks": [
-    {"id": "uat-am", "name": "AM Synthesis UAT", "status": "not_started"},
-    {"id": "uat-phasemod", "name": "Phase Modulator UAT", "status": "not_started"},
-    {"id": "uat-duck", "name": "Sidechain Duck UAT (needs MIDI)", "status": "blocked"},
-    {"id": "gui-polish", "name": "GUI layout polish pass", "status": "not_started"},
-    {"id": "commit-layout", "name": "Commit layout changes", "status": "not_started"}
+    {"id": "bug-pan", "name": "Pan inaccessible during effects — sweep overwrites vol_l/vol_r", "status": "not_started"},
+    {"id": "gui-remove-ramp", "name": "Remove old VCA ramp controls (ARM/direction/speed/curve)", "status": "not_started"},
+    {"id": "gui-noise", "name": "Organize Noise section in sampler panel", "status": "not_started"},
+    {"id": "gui-speed-divisions", "name": "Musical divisions for Speed encoder", "status": "not_started"},
+    {"id": "uat-duck", "name": "Sidechain Duck UAT (needs MIDI)", "status": "blocked"}
   ],
   "blockers": [
-    {"description": "Sidechain duck needs MIDI input to test live — C-level test passes but host-layer wiring untested", "type": "external", "workaround": "Defer until MIDI controller available"}
+    {"description": "Sidechain duck needs MIDI input to test live", "type": "external", "workaround": "C-level test passes; defer until MIDI available"}
   ],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "Split-output bus: side-limit reverb only, voice passes clean", "rationale": "Side limiter was crushing all stereo content including voice effects", "phase": "47"},
-    {"decision": "Stereo widener dropped entirely", "rationale": "PS1 SPU has no native stereo decorrelation mechanism; vol_l/vol_r offset is panning not widening", "phase": "47"},
-    {"decision": "Non-native M/S post-processing removed", "rationale": "Anthony requires SPU-faithful DSP only; no textbook corrections", "phase": "47"},
-    {"decision": "Mod bus clicks at max depth are expected", "rationale": "SPU has no smoothing between register changes; hard jumps at sample rate are authentic", "phase": "50"}
+    {"decision": "Five VCA ramp effects locked: Auto-Pan, Tremolo, AM, Ring Mod, Ducking", "rationale": "All configurations of the same VCA ramp state machine", "phase": "54"},
+    {"decision": "Stereo widener dropped", "rationale": "SPU has no native stereo decorrelation mechanism", "phase": "47"},
+    {"decision": "Phase Mod subsumed by Ring Mod", "rationale": "Same mechanism — bipolar sweep is cleaner than host-layer depth remapping", "phase": "52"},
+    {"decision": "Depth implemented per-sample in C core", "rationale": "Per-block depth in processBlock was overwritten by voice_mixer_tick", "phase": "54"},
+    {"decision": "Saw Up/Down sound identical in linear mode", "rationale": "Symmetric linear ramps are perceptually identical; only exponential produces different character", "phase": "53"},
+    {"decision": "Side limiter stays on reverb output", "rationale": "Anthony's explicit instruction — protects against reverb feedback", "phase": "47"}
   ],
-  "uncommitted_files": [
-    "src/plugin/PluginEditor.cpp"
-  ],
-  "next_action": "Verify AM Synthesis and Phase Mod GUI are visible in sampler window right half, then UAT both effects.",
-  "context_notes": "v1.10.0 UAT session. All 9 phases executed. Split-output bus shipped. Widener dropped after discovering the SPU can't do true stereo widening. AM and Phase Mod GUI were off-screen at bottom of sampler panel — moved to right half (x=410) at y=142 and y=252. Layout change is uncommitted. Anthony was frustrated about repeated off-screen positioning — put overflow controls in the empty right half of the sampler window, NOT in the main window, NOT stacked below existing content."
+  "uncommitted_files": [],
+  "next_action": "Fix pan-during-effects bug (sweep should modulate relative to pan-set volume, not hardcoded 0x7FFF). Then GUI cleanup: remove old VCA ramp controls, organize noise section, add musical speed divisions.",
+  "context_notes": "Massive UAT session. Phases 52-54 executed. Multiple bug fix cycles on depth scaling, saw shapes, mode switching, sweep resume. All effects working and UAT verified except sidechain duck (needs MIDI). Pan-during-effects is the last known bug."
 }
