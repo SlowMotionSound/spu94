@@ -488,384 +488,231 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         };
         panel.addAndMakeVisible(rampArmButton);
 
-        // Tremolo section (Phase 44: continuous VCA oscillation via retrigger)
-        tremoloSectionLabel.setText("Tremolo", juce::dontSendNotification);
-        tremoloSectionLabel.setJustificationType(juce::Justification::centredLeft);
-        tremoloSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
-        tremoloSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
-        panel.addAndMakeVisible(tremoloSectionLabel);
+        // ===== Unified VCA Effects section (Phase 54: dropdown + adaptive controls) =====
+        fxSectionLabel.setText("VCA Effects", juce::dontSendNotification);
+        fxSectionLabel.setJustificationType(juce::Justification::centredLeft);
+        fxSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
+        fxSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
+        panel.addAndMakeVisible(fxSectionLabel);
 
-        tremoloEnableToggle.setColour(juce::ToggleButton::tickColourId, juce::Colour(0xFF3CBBB1));
-        tremoloEnableToggle.onStateChange = [this] {
-            bool enabled = tremoloEnableToggle.getToggleState();
-            processorRef.getTremoloEnabled().store(enabled, std::memory_order_relaxed);
-            tremoloSpeedKnob.setEnabled(enabled);
-            tremoloDepthKnob.setEnabled(enabled);
-            tremoloCurveButton.setEnabled(enabled);
-            tremoloRatioKnob.setEnabled(enabled);
-            // Mutual exclusion: disable VCA ramp ARM, auto-pan, AM, phase mod, and duck when tremolo is active
-            autoPanEnableToggle.setEnabled(!enabled);
-            amEnableToggle.setEnabled(!enabled);
-            ringModEnableToggle.setEnabled(!enabled);
-            duckSourceBox.setEnabled(!enabled);
-            if (enabled)
-                rampArmButton.setEnabled(false);
-            else if (!autoPanEnableToggle.getToggleState() && !amEnableToggle.getToggleState()
-                     && !ringModEnableToggle.getToggleState() && duckSourceBox.getSelectedId() == 1)
-                rampArmButton.setEnabled(true);
+        // Effect mode dropdown: single selector enforces mutual exclusion
+        effectModeBox.addItem("Auto-Pan", 1);
+        effectModeBox.addItem("Tremolo", 2);
+        effectModeBox.addItem("AM", 3);
+        effectModeBox.addItem("Ring Mod", 4);
+        effectModeBox.addItem("Ducking", 5);
+        effectModeBox.setSelectedId(1, juce::dontSendNotification);
+        effectModeBox.onChange = [this] {
+            int mode = effectModeBox.getSelectedId();
+            // T-54-01: clamp selectedId to valid range
+            if (mode < 1) mode = 1;
+            if (mode > 5) mode = 5;
+
+            // Disable ALL effects first (mutual exclusion via dropdown)
+            processorRef.getTremoloEnabled().store(false, std::memory_order_relaxed);
+            processorRef.getAutoPanEnabled().store(false, std::memory_order_relaxed);
+            processorRef.getAmEnabled().store(false, std::memory_order_relaxed);
+            processorRef.getRingModEnabled().store(false, std::memory_order_relaxed);
+            processorRef.getDuckSource(0).store(-1, std::memory_order_relaxed);
+
+            // Enable the selected effect
+            switch (mode) {
+                case 1: processorRef.getAutoPanEnabled().store(true, std::memory_order_relaxed); break;
+                case 2: processorRef.getTremoloEnabled().store(true, std::memory_order_relaxed); break;
+                case 3: processorRef.getAmEnabled().store(true, std::memory_order_relaxed); break;
+                case 4: processorRef.getRingModEnabled().store(true, std::memory_order_relaxed); break;
+                case 5: {
+                    // Restore last duck source (or default to Voice 1 if none was set)
+                    int sel = fxDuckSourceBox.getSelectedId();
+                    int source = sel - 2; // -1=None, 0-23=voice
+                    processorRef.getDuckSource(0).store(source, std::memory_order_relaxed);
+                    break;
+                }
+            }
+
+            // Store GUI state
+            processorRef.getEffectMode().store(mode - 1, std::memory_order_relaxed);
+
+            // Disable rampArmButton when any effect is active
+            rampArmButton.setEnabled(false);
+
+            updateEffectControlVisibility();
         };
-        panel.addAndMakeVisible(tremoloEnableToggle);
+        panel.addAndMakeVisible(effectModeBox);
 
-        tremoloSpeedKnob.setSliderStyle(juce::Slider::Rotary);
-        tremoloSpeedKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-        tremoloSpeedKnob.setRange(0.5, 19.0, 0.1);
-        tremoloSpeedKnob.setValue(5.0, juce::dontSendNotification);
-        tremoloSpeedKnob.setTextValueSuffix(" Hz");
-        tremoloSpeedKnob.setSkewFactorFromMidPoint(4.0);
-        tremoloSpeedKnob.setDoubleClickReturnValue(true, 5.0);
-        tremoloSpeedKnob.onValueChange = [this] {
-            processorRef.getTremoloSpeedHz().store(
-                static_cast<float>(tremoloSpeedKnob.getValue()), std::memory_order_relaxed);
-        };
-        tremoloSpeedKnob.setEnabled(false);
-        panel.addAndMakeVisible(tremoloSpeedKnob);
-
-        tremoloSpeedLabel.setText("Speed", juce::dontSendNotification);
-        tremoloSpeedLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(tremoloSpeedLabel);
-
-        tremoloDepthKnob.setSliderStyle(juce::Slider::Rotary);
-        tremoloDepthKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-        tremoloDepthKnob.setRange(0.0, 100.0, 1.0);
-        tremoloDepthKnob.setValue(100.0, juce::dontSendNotification);
-        tremoloDepthKnob.setTextValueSuffix("%");
-        tremoloDepthKnob.setDoubleClickReturnValue(true, 100.0);
-        tremoloDepthKnob.onValueChange = [this] {
-            processorRef.getTremoloDepth().store(
-                static_cast<float>(tremoloDepthKnob.getValue() / 100.0), std::memory_order_relaxed);
-        };
-        tremoloDepthKnob.setEnabled(false);
-        panel.addAndMakeVisible(tremoloDepthKnob);
-
-        tremoloDepthLabel.setText("Depth", juce::dontSendNotification);
-        tremoloDepthLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(tremoloDepthLabel);
-
-        tremoloCurveButton.onClick = [this] {
-            bool isLinear = (tremoloCurveButton.getButtonText() == "Linear");
-            if (isLinear) {
-                tremoloCurveButton.setButtonText("Exponential");
-                processorRef.getTremoloCurve().store(1, std::memory_order_relaxed);
-            } else {
-                tremoloCurveButton.setButtonText("Linear");
-                processorRef.getTremoloCurve().store(0, std::memory_order_relaxed);
+        // Shared Rate knob (routes to correct atomic based on mode)
+        fxRateKnob.setSliderStyle(juce::Slider::Rotary);
+        fxRateKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        fxRateKnob.setRange(0.5, 19.0, 0.1);
+        fxRateKnob.setValue(2.0, juce::dontSendNotification);
+        fxRateKnob.setTextValueSuffix(" Hz");
+        fxRateKnob.setSkewFactorFromMidPoint(4.0);
+        fxRateKnob.setDoubleClickReturnValue(true, 2.0);
+        fxRateKnob.onValueChange = [this] {
+            float val = static_cast<float>(fxRateKnob.getValue());
+            int mode = effectModeBox.getSelectedId();
+            switch (mode) {
+                case 1: processorRef.getAutoPanSpeedHz().store(val, std::memory_order_relaxed); break;
+                case 2: processorRef.getTremoloSpeedHz().store(val, std::memory_order_relaxed); break;
+                case 3: processorRef.getAmRateHz().store(val, std::memory_order_relaxed); break;
+                case 4: processorRef.getRingModRateHz().store(val, std::memory_order_relaxed); break;
+                default: break;
             }
         };
-        tremoloCurveButton.setEnabled(false);
-        panel.addAndMakeVisible(tremoloCurveButton);
+        panel.addAndMakeVisible(fxRateKnob);
 
-        tremoloRatioKnob.setSliderStyle(juce::Slider::Rotary);
-        tremoloRatioKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-        tremoloRatioKnob.setRange(0.5, 4.0, 0.1);
-        tremoloRatioKnob.setValue(1.0, juce::dontSendNotification);
-        tremoloRatioKnob.setDoubleClickReturnValue(true, 1.0);
-        tremoloRatioKnob.textFromValueFunction = [](double value) {
+        fxRateLabel.setText("Rate", juce::dontSendNotification);
+        fxRateLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(fxRateLabel);
+
+        // Shared Depth knob
+        fxDepthKnob.setSliderStyle(juce::Slider::Rotary);
+        fxDepthKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        fxDepthKnob.setRange(0.0, 100.0, 1.0);
+        fxDepthKnob.setValue(100.0, juce::dontSendNotification);
+        fxDepthKnob.setTextValueSuffix("%");
+        fxDepthKnob.setDoubleClickReturnValue(true, 100.0);
+        fxDepthKnob.onValueChange = [this] {
+            float val = static_cast<float>(fxDepthKnob.getValue() / 100.0);
+            int mode = effectModeBox.getSelectedId();
+            switch (mode) {
+                case 1: processorRef.getAutoPanDepth().store(val, std::memory_order_relaxed); break;
+                case 2: processorRef.getTremoloDepth().store(val, std::memory_order_relaxed); break;
+                case 3: processorRef.getAmDepth().store(val, std::memory_order_relaxed); break;
+                case 4: processorRef.getRingModDepth().store(val, std::memory_order_relaxed); break;
+                default: break;
+            }
+        };
+        panel.addAndMakeVisible(fxDepthKnob);
+
+        fxDepthLabel.setText("Depth", juce::dontSendNotification);
+        fxDepthLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(fxDepthLabel);
+
+        // Shape dropdown (Triangle/Saw Down/Saw Up)
+        fxShapeBox.addItem("Triangle", 1);
+        fxShapeBox.addItem("Saw Down", 2);
+        fxShapeBox.addItem("Saw Up", 3);
+        fxShapeBox.setSelectedId(1, juce::dontSendNotification);
+        fxShapeBox.onChange = [this] {
+            int sel = fxShapeBox.getSelectedId();
+            if (sel >= 1 && sel <= 3)
+                processorRef.getSweepShape().store(sel - 1, std::memory_order_relaxed);
+        };
+        panel.addAndMakeVisible(fxShapeBox);
+
+        fxShapeLabel.setText("Shape", juce::dontSendNotification);
+        fxShapeLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(fxShapeLabel);
+
+        // Lin/Exp curve toggle
+        fxCurveButton.onClick = [this] {
+            bool isLinear = (fxCurveButton.getButtonText() == "Linear");
+            int newCurve = isLinear ? 1 : 0;
+            fxCurveButton.setButtonText(isLinear ? "Exponential" : "Linear");
+            int mode = effectModeBox.getSelectedId();
+            switch (mode) {
+                case 2: processorRef.getTremoloCurve().store(newCurve, std::memory_order_relaxed); break;
+                case 3: processorRef.getAmCurve().store(newCurve, std::memory_order_relaxed); break;
+                case 4: processorRef.getRingModCurve().store(newCurve, std::memory_order_relaxed); break;
+                default: break; // Auto-Pan has no separate curve atomic
+            }
+        };
+        panel.addAndMakeVisible(fxCurveButton);
+
+        // L/R Ratio knob (visible in Auto-Pan and Tremolo modes)
+        fxRatioKnob.setSliderStyle(juce::Slider::Rotary);
+        fxRatioKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        fxRatioKnob.setRange(0.5, 4.0, 0.1);
+        fxRatioKnob.setValue(1.0, juce::dontSendNotification);
+        fxRatioKnob.setDoubleClickReturnValue(true, 1.0);
+        fxRatioKnob.textFromValueFunction = [](double value) {
             return juce::String("1:") + juce::String(value, 1);
         };
-        tremoloRatioKnob.onValueChange = [this] {
-            processorRef.getTremoloRatio().store(
-                static_cast<float>(tremoloRatioKnob.getValue()), std::memory_order_relaxed);
+        fxRatioKnob.onValueChange = [this] {
+            float val = static_cast<float>(fxRatioKnob.getValue());
+            int mode = effectModeBox.getSelectedId();
+            if (mode == 1)
+                processorRef.getAutoPanRatio().store(val, std::memory_order_relaxed);
+            else if (mode == 2)
+                processorRef.getTremoloRatio().store(val, std::memory_order_relaxed);
         };
-        tremoloRatioKnob.setEnabled(false);
-        panel.addAndMakeVisible(tremoloRatioKnob);
+        panel.addAndMakeVisible(fxRatioKnob);
 
-        tremoloRatioLabel.setText("L/R Ratio", juce::dontSendNotification);
-        tremoloRatioLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(tremoloRatioLabel);
+        fxRatioLabel.setText("L/R Ratio", juce::dontSendNotification);
+        fxRatioLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(fxRatioLabel);
 
-        // Auto-Pan section (Phase 45: opposition-phase stereo movement via retrigger)
-        autoPanSectionLabel.setText("Auto-Pan", juce::dontSendNotification);
-        autoPanSectionLabel.setJustificationType(juce::Justification::centredLeft);
-        autoPanSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
-        autoPanSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
-        panel.addAndMakeVisible(autoPanSectionLabel);
-
-        autoPanEnableToggle.setColour(juce::ToggleButton::tickColourId, juce::Colour(0xFF3CBBB1));
-        autoPanEnableToggle.onStateChange = [this] {
-            bool enabled = autoPanEnableToggle.getToggleState();
-            processorRef.getAutoPanEnabled().store(enabled, std::memory_order_relaxed);
-            autoPanSpeedKnob.setEnabled(enabled);
-            autoPanDepthKnob.setEnabled(enabled);
-            autoPanRatioKnob.setEnabled(enabled);
-            // Mutual exclusion: disable tremolo toggle, AM, phase mod, duck, and VCA ramp ARM when auto-pan is active
-            tremoloEnableToggle.setEnabled(!enabled);
-            amEnableToggle.setEnabled(!enabled);
-            ringModEnableToggle.setEnabled(!enabled);
-            duckSourceBox.setEnabled(!enabled);
-            if (enabled)
-                rampArmButton.setEnabled(false);
-            else if (!tremoloEnableToggle.getToggleState() && !amEnableToggle.getToggleState()
-                     && !ringModEnableToggle.getToggleState() && duckSourceBox.getSelectedId() == 1)
-                rampArmButton.setEnabled(true);
-        };
-        panel.addAndMakeVisible(autoPanEnableToggle);
-
-        autoPanSpeedKnob.setSliderStyle(juce::Slider::Rotary);
-        autoPanSpeedKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-        autoPanSpeedKnob.setRange(0.5, 19.0, 0.1);
-        autoPanSpeedKnob.setValue(2.0, juce::dontSendNotification);
-        autoPanSpeedKnob.setTextValueSuffix(" Hz");
-        autoPanSpeedKnob.setSkewFactorFromMidPoint(4.0);
-        autoPanSpeedKnob.setDoubleClickReturnValue(true, 2.0);
-        autoPanSpeedKnob.onValueChange = [this] {
-            processorRef.getAutoPanSpeedHz().store(
-                static_cast<float>(autoPanSpeedKnob.getValue()), std::memory_order_relaxed);
-        };
-        autoPanSpeedKnob.setEnabled(false);
-        panel.addAndMakeVisible(autoPanSpeedKnob);
-
-        autoPanSpeedLabel.setText("Speed", juce::dontSendNotification);
-        autoPanSpeedLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(autoPanSpeedLabel);
-
-        autoPanDepthKnob.setSliderStyle(juce::Slider::Rotary);
-        autoPanDepthKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-        autoPanDepthKnob.setRange(0.0, 100.0, 1.0);
-        autoPanDepthKnob.setValue(100.0, juce::dontSendNotification);
-        autoPanDepthKnob.setTextValueSuffix("%");
-        autoPanDepthKnob.setDoubleClickReturnValue(true, 100.0);
-        autoPanDepthKnob.onValueChange = [this] {
-            processorRef.getAutoPanDepth().store(
-                static_cast<float>(autoPanDepthKnob.getValue() / 100.0), std::memory_order_relaxed);
-        };
-        autoPanDepthKnob.setEnabled(false);
-        panel.addAndMakeVisible(autoPanDepthKnob);
-
-        autoPanDepthLabel.setText("Depth", juce::dontSendNotification);
-        autoPanDepthLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(autoPanDepthLabel);
-
-        autoPanRatioKnob.setSliderStyle(juce::Slider::Rotary);
-        autoPanRatioKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-        autoPanRatioKnob.setRange(0.5, 4.0, 0.1);
-        autoPanRatioKnob.setValue(1.0, juce::dontSendNotification);
-        autoPanRatioKnob.setDoubleClickReturnValue(true, 1.0);
-        autoPanRatioKnob.textFromValueFunction = [](double value) {
-            return juce::String("1:") + juce::String(value, 1);
-        };
-        autoPanRatioKnob.onValueChange = [this] {
-            processorRef.getAutoPanRatio().store(
-                static_cast<float>(autoPanRatioKnob.getValue()), std::memory_order_relaxed);
-        };
-        autoPanRatioKnob.setEnabled(false);
-        panel.addAndMakeVisible(autoPanRatioKnob);
-
-        autoPanRatioLabel.setText("L/R Ratio", juce::dontSendNotification);
-        autoPanRatioLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(autoPanRatioLabel);
-
-        // Sidechain Duck section (Phase 46: event-triggered VCA duck via KON detection)
-        duckSectionLabel.setText("Sidechain Duck", juce::dontSendNotification);
-        duckSectionLabel.setJustificationType(juce::Justification::centredLeft);
-        duckSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
-        duckSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
-        panel.addAndMakeVisible(duckSectionLabel);
-
-        duckSourceBox.addItem("None", 1);
+        // --- Ducking-specific controls ---
+        fxDuckSourceBox.addItem("None", 1);
         for (int i = 0; i < 24; ++i)
-            duckSourceBox.addItem("Voice " + juce::String(i), i + 2);
-        duckSourceBox.setSelectedId(1, juce::dontSendNotification);
-        duckSourceBox.onChange = [this] {
-            int sel = duckSourceBox.getSelectedId();
-            // Clamp to valid range (T-46-04 threat mitigation)
+            fxDuckSourceBox.addItem("Voice " + juce::String(i), i + 2);
+        fxDuckSourceBox.setSelectedId(1, juce::dontSendNotification);
+        fxDuckSourceBox.onChange = [this] {
+            int sel = fxDuckSourceBox.getSelectedId();
             if (sel < 1) sel = 1;
             if (sel > 25) sel = 25;
-            int source = sel - 2; // -1 = None, 0-23 = voice index
+            int source = sel - 2; // -1=None, 0-23=voice
             processorRef.getDuckSource(0).store(source, std::memory_order_relaxed);
-            // Mutual exclusion: duck active disables tremolo/auto-pan/AM/phase mod toggles
-            bool duckActive = (source >= 0);
-            tremoloEnableToggle.setEnabled(!duckActive);
-            autoPanEnableToggle.setEnabled(!duckActive);
-            amEnableToggle.setEnabled(!duckActive);
-            ringModEnableToggle.setEnabled(!duckActive);
-            if (duckActive)
-                rampArmButton.setEnabled(false);
-            else if (!tremoloEnableToggle.getToggleState() && !autoPanEnableToggle.getToggleState()
-                     && !amEnableToggle.getToggleState() && !ringModEnableToggle.getToggleState())
-                rampArmButton.setEnabled(true);
         };
-        panel.addAndMakeVisible(duckSourceBox);
+        panel.addAndMakeVisible(fxDuckSourceBox);
 
-        duckSourceLabel.setText("Source", juce::dontSendNotification);
-        duckSourceLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(duckSourceLabel);
+        fxDuckSourceLabel.setText("Source", juce::dontSendNotification);
+        fxDuckSourceLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(fxDuckSourceLabel);
 
-        duckReleaseKnob.setSliderStyle(juce::Slider::Rotary);
-        duckReleaseKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-        duckReleaseKnob.setRange(0.03, 6.8, 0.01);
-        duckReleaseKnob.setValue(0.4, juce::dontSendNotification);
-        duckReleaseKnob.setTextValueSuffix(" s");
-        duckReleaseKnob.setSkewFactorFromMidPoint(1.0);
-        duckReleaseKnob.setDoubleClickReturnValue(true, 0.4);
-        duckReleaseKnob.onValueChange = [this] {
+        fxDuckAttackKnob.setSliderStyle(juce::Slider::Rotary);
+        fxDuckAttackKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        fxDuckAttackKnob.setRange(0.001, 0.5, 0.001);
+        fxDuckAttackKnob.setValue(0.01, juce::dontSendNotification);
+        fxDuckAttackKnob.setTextValueSuffix(" s");
+        fxDuckAttackKnob.setSkewFactorFromMidPoint(0.05);
+        fxDuckAttackKnob.setDoubleClickReturnValue(true, 0.01);
+        fxDuckAttackKnob.onValueChange = [this] {
+            processorRef.getDuckAttack(0).store(
+                static_cast<float>(fxDuckAttackKnob.getValue()), std::memory_order_relaxed);
+        };
+        panel.addAndMakeVisible(fxDuckAttackKnob);
+
+        fxDuckAttackLabel.setText("Attack", juce::dontSendNotification);
+        fxDuckAttackLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(fxDuckAttackLabel);
+
+        fxDuckReleaseKnob.setSliderStyle(juce::Slider::Rotary);
+        fxDuckReleaseKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        fxDuckReleaseKnob.setRange(0.03, 6.8, 0.01);
+        fxDuckReleaseKnob.setValue(0.4, juce::dontSendNotification);
+        fxDuckReleaseKnob.setTextValueSuffix(" s");
+        fxDuckReleaseKnob.setSkewFactorFromMidPoint(1.0);
+        fxDuckReleaseKnob.setDoubleClickReturnValue(true, 0.4);
+        fxDuckReleaseKnob.onValueChange = [this] {
             processorRef.getDuckRelease(0).store(
-                static_cast<float>(duckReleaseKnob.getValue()), std::memory_order_relaxed);
+                static_cast<float>(fxDuckReleaseKnob.getValue()), std::memory_order_relaxed);
         };
-        panel.addAndMakeVisible(duckReleaseKnob);
+        panel.addAndMakeVisible(fxDuckReleaseKnob);
 
-        duckReleaseLabel.setText("Release", juce::dontSendNotification);
-        duckReleaseLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(duckReleaseLabel);
+        fxDuckReleaseLabel.setText("Release", juce::dontSendNotification);
+        fxDuckReleaseLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(fxDuckReleaseLabel);
 
-        duckDepthKnob.setSliderStyle(juce::Slider::Rotary);
-        duckDepthKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-        duckDepthKnob.setRange(0.0, 100.0, 1.0);
-        duckDepthKnob.setValue(100.0, juce::dontSendNotification);
-        duckDepthKnob.setTextValueSuffix("%");
-        duckDepthKnob.setDoubleClickReturnValue(true, 100.0);
-        duckDepthKnob.onValueChange = [this] {
+        fxDuckDepthKnob.setSliderStyle(juce::Slider::Rotary);
+        fxDuckDepthKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        fxDuckDepthKnob.setRange(0.0, 100.0, 1.0);
+        fxDuckDepthKnob.setValue(100.0, juce::dontSendNotification);
+        fxDuckDepthKnob.setTextValueSuffix("%");
+        fxDuckDepthKnob.setDoubleClickReturnValue(true, 100.0);
+        fxDuckDepthKnob.onValueChange = [this] {
             processorRef.getDuckDepth(0).store(
-                static_cast<float>(duckDepthKnob.getValue() / 100.0), std::memory_order_relaxed);
+                static_cast<float>(fxDuckDepthKnob.getValue() / 100.0), std::memory_order_relaxed);
         };
-        panel.addAndMakeVisible(duckDepthKnob);
+        panel.addAndMakeVisible(fxDuckDepthKnob);
 
-        duckDepthLabel.setText("Depth", juce::dontSendNotification);
-        duckDepthLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(duckDepthLabel);
+        fxDuckDepthLabel.setText("Depth", juce::dontSendNotification);
+        fxDuckDepthLabel.setJustificationType(juce::Justification::centred);
+        panel.addAndMakeVisible(fxDuckDepthLabel);
 
-        // AM Synthesis section (Phase 48: audio-rate metallic sidebands via retrigger)
-        amSectionLabel.setText("AM Synthesis", juce::dontSendNotification);
-        amSectionLabel.setJustificationType(juce::Justification::centredLeft);
-        amSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
-        amSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
-        panel.addAndMakeVisible(amSectionLabel);
-
-        amEnableToggle.setColour(juce::ToggleButton::tickColourId, juce::Colour(0xFF3CBBB1));
-        amEnableToggle.onStateChange = [this] {
-            bool enabled = amEnableToggle.getToggleState();
-            processorRef.getAmEnabled().store(enabled, std::memory_order_relaxed);
-            amRateKnob.setEnabled(enabled);
-            amDepthKnob.setEnabled(enabled);
-            amCurveButton.setEnabled(enabled);
-            // Mutual exclusion: AM disables tremolo, auto-pan, and phase mod toggles
-            tremoloEnableToggle.setEnabled(!enabled);
-            autoPanEnableToggle.setEnabled(!enabled);
-            ringModEnableToggle.setEnabled(!enabled);
-            if (enabled)
-                rampArmButton.setEnabled(false);
-            else if (!tremoloEnableToggle.getToggleState() && !autoPanEnableToggle.getToggleState()
-                     && !ringModEnableToggle.getToggleState() && duckSourceBox.getSelectedId() == 1)
-                rampArmButton.setEnabled(true);
-        };
-        panel.addAndMakeVisible(amEnableToggle);
-
-        amRateKnob.setSliderStyle(juce::Slider::Rotary);
-        amRateKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-        amRateKnob.setRange(37.0, 7350.0, 1.0);
-        amRateKnob.setValue(440.0, juce::dontSendNotification);
-        amRateKnob.setTextValueSuffix(" Hz");
-        amRateKnob.setSkewFactorFromMidPoint(500.0);
-        amRateKnob.setDoubleClickReturnValue(true, 440.0);
-        amRateKnob.onValueChange = [this] {
-            processorRef.getAmRateHz().store(
-                static_cast<float>(amRateKnob.getValue()), std::memory_order_relaxed);
-        };
-        amRateKnob.setEnabled(false);
-        panel.addAndMakeVisible(amRateKnob);
-
-        amRateLabel.setText("Rate", juce::dontSendNotification);
-        amRateLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(amRateLabel);
-
-        amDepthKnob.setSliderStyle(juce::Slider::Rotary);
-        amDepthKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-        amDepthKnob.setRange(0.0, 100.0, 1.0);
-        amDepthKnob.setValue(100.0, juce::dontSendNotification);
-        amDepthKnob.setTextValueSuffix("%");
-        amDepthKnob.setDoubleClickReturnValue(true, 100.0);
-        amDepthKnob.onValueChange = [this] {
-            processorRef.getAmDepth().store(
-                static_cast<float>(amDepthKnob.getValue() / 100.0), std::memory_order_relaxed);
-        };
-        amDepthKnob.setEnabled(false);
-        panel.addAndMakeVisible(amDepthKnob);
-
-        amDepthLabel.setText("Depth", juce::dontSendNotification);
-        amDepthLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(amDepthLabel);
-
-        amCurveButton.onClick = [this] {
-            bool isLinear = (amCurveButton.getButtonText() == "Linear");
-            if (isLinear) {
-                amCurveButton.setButtonText("Exponential");
-                processorRef.getAmCurve().store(1, std::memory_order_relaxed);
-            } else {
-                amCurveButton.setButtonText("Linear");
-                processorRef.getAmCurve().store(0, std::memory_order_relaxed);
-            }
-        };
-        amCurveButton.setEnabled(false);
-        panel.addAndMakeVisible(amCurveButton);
-
-        // Ring Mod section (Phase 52: bipolar sweep for phase-inversion ring mod effect)
-        ringModSectionLabel.setText("Ring Mod", juce::dontSendNotification);
-        ringModSectionLabel.setJustificationType(juce::Justification::centredLeft);
-        ringModSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
-        ringModSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
-        panel.addAndMakeVisible(ringModSectionLabel);
-
-        ringModEnableToggle.setColour(juce::ToggleButton::tickColourId, juce::Colour(0xFF3CBBB1));
-        ringModEnableToggle.onStateChange = [this] {
-            bool enabled = ringModEnableToggle.getToggleState();
-            processorRef.getRingModEnabled().store(enabled, std::memory_order_relaxed);
-            ringModRateKnob.setEnabled(enabled);
-            ringModDepthKnob.setEnabled(enabled);
-            // Mutual exclusion: ring mod disables tremolo, auto-pan, AM toggles
-            tremoloEnableToggle.setEnabled(!enabled);
-            autoPanEnableToggle.setEnabled(!enabled);
-            amEnableToggle.setEnabled(!enabled);
-            if (enabled)
-                rampArmButton.setEnabled(false);
-            else if (!tremoloEnableToggle.getToggleState() && !autoPanEnableToggle.getToggleState()
-                     && !amEnableToggle.getToggleState() && duckSourceBox.getSelectedId() == 1)
-                rampArmButton.setEnabled(true);
-        };
-        panel.addAndMakeVisible(ringModEnableToggle);
-
-        ringModRateKnob.setSliderStyle(juce::Slider::Rotary);
-        ringModRateKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-        ringModRateKnob.setRange(21.5, 9647.0, 1.0);
-        ringModRateKnob.setValue(440.0, juce::dontSendNotification);
-        ringModRateKnob.setTextValueSuffix(" Hz");
-        ringModRateKnob.setSkewFactorFromMidPoint(440.0);
-        ringModRateKnob.setDoubleClickReturnValue(true, 440.0);
-        ringModRateKnob.onValueChange = [this] {
-            processorRef.getRingModRateHz().store(
-                static_cast<float>(ringModRateKnob.getValue()), std::memory_order_relaxed);
-        };
-        ringModRateKnob.setEnabled(false);
-        panel.addAndMakeVisible(ringModRateKnob);
-
-        ringModRateLabel.setText("Rate", juce::dontSendNotification);
-        ringModRateLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(ringModRateLabel);
-
-        ringModDepthKnob.setSliderStyle(juce::Slider::Rotary);
-        ringModDepthKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-        ringModDepthKnob.setRange(0.0, 100.0, 1.0);
-        ringModDepthKnob.setValue(100.0, juce::dontSendNotification);
-        ringModDepthKnob.setTextValueSuffix("%");
-        ringModDepthKnob.setDoubleClickReturnValue(true, 100.0);
-        ringModDepthKnob.onValueChange = [this] {
-            processorRef.getRingModDepth().store(
-                static_cast<float>(ringModDepthKnob.getValue() / 100.0), std::memory_order_relaxed);
-        };
-        ringModDepthKnob.setEnabled(false);
-        panel.addAndMakeVisible(ringModDepthKnob);
-
-        ringModDepthLabel.setText("Depth", juce::dontSendNotification);
-        ringModDepthLabel.setJustificationType(juce::Justification::centred);
-        panel.addAndMakeVisible(ringModDepthLabel);
+        // Set initial visibility (Auto-Pan mode by default)
+        updateEffectControlVisibility();
 
         // Internal Mod Bus section (Phase 50: noise-to-pitch/vol/pan per voice)
         modBusSectionLabel.setText("Mod Bus", juce::dontSendNotification);
@@ -1410,65 +1257,73 @@ void SPU94AudioProcessorEditor::timerCallback()
         }
     }
 
-    // Phase 46: Sync duck controls from processor state (voice 0).
+    // Phase 54: Sync duck controls from processor state (voice 0).
     {
         int src = processorRef.getDuckSource(0).load(std::memory_order_relaxed);
         int expectedId = src + 2; // -1 -> 1 (None), 0 -> 2 (Voice 0), etc.
-        if (duckSourceBox.getSelectedId() != expectedId)
-            duckSourceBox.setSelectedId(expectedId, juce::dontSendNotification);
+        if (fxDuckSourceBox.getSelectedId() != expectedId)
+            fxDuckSourceBox.setSelectedId(expectedId, juce::dontSendNotification);
 
         float rel = processorRef.getDuckRelease(0).load(std::memory_order_relaxed);
-        if (std::abs(static_cast<float>(duckReleaseKnob.getValue()) - rel) > 0.005f)
-            duckReleaseKnob.setValue(static_cast<double>(rel), juce::dontSendNotification);
+        if (std::abs(static_cast<float>(fxDuckReleaseKnob.getValue()) - rel) > 0.005f)
+            fxDuckReleaseKnob.setValue(static_cast<double>(rel), juce::dontSendNotification);
 
         float dep = processorRef.getDuckDepth(0).load(std::memory_order_relaxed);
         float depPct = dep * 100.0f;
-        if (std::abs(static_cast<float>(duckDepthKnob.getValue()) - depPct) > 0.5f)
-            duckDepthKnob.setValue(static_cast<double>(depPct), juce::dontSendNotification);
+        if (std::abs(static_cast<float>(fxDuckDepthKnob.getValue()) - depPct) > 0.5f)
+            fxDuckDepthKnob.setValue(static_cast<double>(depPct), juce::dontSendNotification);
+
+        float atk = processorRef.getDuckAttack(0).load(std::memory_order_relaxed);
+        if (std::abs(static_cast<float>(fxDuckAttackKnob.getValue()) - atk) > 0.0005f)
+            fxDuckAttackKnob.setValue(static_cast<double>(atk), juce::dontSendNotification);
     }
 
-    // Phase 49: Mutual exclusion visual for phase mod toggle.
-    // Phase mod has lowest priority — grey out when tremolo, auto-pan, or AM is active.
-    // Bidirectional: when phase mod is active, grey out tremolo/auto-pan/AM toggles.
-    {
-        bool tremOn = tremoloEnableToggle.getToggleState();
-        bool panOn  = autoPanEnableToggle.getToggleState();
-        bool amOn   = amEnableToggle.getToggleState();
-        bool pmOn   = ringModEnableToggle.getToggleState();
+}
 
-        bool higherActive = tremOn || panOn || amOn;
-        ringModEnableToggle.setEnabled(!higherActive);
-        ringModEnableToggle.setAlpha(higherActive ? 0.4f : 1.0f);
-        ringModRateKnob.setAlpha(higherActive ? 0.4f : 1.0f);
-        ringModDepthKnob.setAlpha(higherActive ? 0.4f : 1.0f);
+void SPU94AudioProcessorEditor::updateEffectControlVisibility()
+{
+    int mode = effectModeBox.getSelectedId(); // 1=AutoPan, 2=Tremolo, 3=AM, 4=RingMod, 5=Ducking
 
-        // Bidirectional: phase mod active greys out tremolo/auto-pan/AM
-        if (pmOn && !higherActive)
-        {
-            tremoloEnableToggle.setEnabled(false);
-            autoPanEnableToggle.setEnabled(false);
-            amEnableToggle.setEnabled(false);
-            tremoloEnableToggle.setAlpha(0.4f);
-            autoPanEnableToggle.setAlpha(0.4f);
-            amEnableToggle.setAlpha(0.4f);
-        }
-        else if (!pmOn && !higherActive)
-        {
-            // Restore when nothing blocks (duck may still block — check)
-            int duckSrc = processorRef.getDuckSource(0).load(std::memory_order_relaxed);
-            bool duckActive = (duckSrc >= 0);
-            if (!duckActive)
-            {
-                tremoloEnableToggle.setEnabled(true);
-                autoPanEnableToggle.setEnabled(true);
-                amEnableToggle.setEnabled(true);
-            }
-            tremoloEnableToggle.setAlpha(1.0f);
-            autoPanEnableToggle.setAlpha(1.0f);
-            amEnableToggle.setAlpha(1.0f);
-        }
+    // Shared VCA ramp controls: visible for modes 1-4
+    bool showShared = (mode >= 1 && mode <= 4);
+    fxRateKnob.setVisible(showShared);
+    fxRateLabel.setVisible(showShared);
+    fxDepthKnob.setVisible(showShared);
+    fxDepthLabel.setVisible(showShared);
+    fxShapeBox.setVisible(showShared);
+    fxShapeLabel.setVisible(showShared);
+    fxCurveButton.setVisible(showShared);
+
+    // L/R Ratio: only Auto-Pan (1) and Tremolo (2)
+    bool showRatio = (mode == 1 || mode == 2);
+    fxRatioKnob.setVisible(showRatio);
+    fxRatioLabel.setVisible(showRatio);
+
+    // Ducking controls: only mode 5
+    bool showDuck = (mode == 5);
+    fxDuckSourceBox.setVisible(showDuck);
+    fxDuckSourceLabel.setVisible(showDuck);
+    fxDuckAttackKnob.setVisible(showDuck);
+    fxDuckAttackLabel.setVisible(showDuck);
+    fxDuckReleaseKnob.setVisible(showDuck);
+    fxDuckReleaseLabel.setVisible(showDuck);
+    fxDuckDepthKnob.setVisible(showDuck);
+    fxDuckDepthLabel.setVisible(showDuck);
+
+    // Update Rate knob range dynamically based on selected mode
+    if (mode == 1 || mode == 2) {
+        // Auto-Pan / Tremolo: 0.5-19 Hz
+        fxRateKnob.setRange(0.5, 19.0, 0.1);
+        fxRateKnob.setSkewFactorFromMidPoint(4.0);
+    } else if (mode == 3) {
+        // AM: 37-7350 Hz
+        fxRateKnob.setRange(37.0, 7350.0, 1.0);
+        fxRateKnob.setSkewFactorFromMidPoint(500.0);
+    } else if (mode == 4) {
+        // Ring Mod: 21.5-9647 Hz
+        fxRateKnob.setRange(21.5, 9647.0, 1.0);
+        fxRateKnob.setSkewFactorFromMidPoint(440.0);
     }
-
 }
 
 void SPU94AudioProcessorEditor::refreshAdsrDisplay()
@@ -1670,73 +1525,43 @@ void SPU94AudioProcessorEditor::resized()
             rampSpeedKnob.setBounds(200, rampy + 16, 80, 70);
             rampArmButton.setBounds(300, rampy + 20, 80, 36);
 
-            // === Effects area: two columns below VCA Ramp ===
-            // Left column (x=20): Tremolo, Auto-Pan
-            // Right column (x=410): Sidechain Duck, AM Synthesis, Phase Mod, Mod Bus
-            constexpr int fx_y = rampy + 100;
-            constexpr int col_left = 20;
+            // === Unified VCA Effects section (Phase 54: right half, y=142) ===
+            constexpr int fx_x = 410;
+            constexpr int fx_start_y = 142;
+
+            fxSectionLabel.setBounds(fx_x, fx_start_y, 100, 16);
+            effectModeBox.setBounds(fx_x + 105, fx_start_y, 140, 24);
+
+            // Row 1: Rate + Depth (y = fx_start_y + 30)
+            constexpr int row1y = fx_start_y + 30;
+            fxRateLabel.setBounds(fx_x, row1y, 80, 16);
+            fxRateKnob.setBounds(fx_x, row1y + 16, 80, 70);
+            fxDepthLabel.setBounds(fx_x + 90, row1y, 80, 16);
+            fxDepthKnob.setBounds(fx_x + 90, row1y + 16, 80, 70);
+
+            // Row 1 continued: Shape + Curve
+            fxShapeLabel.setBounds(fx_x + 180, row1y, 80, 16);
+            fxShapeBox.setBounds(fx_x + 180, row1y + 20, 100, 24);
+            fxCurveButton.setBounds(fx_x + 180, row1y + 50, 100, 28);
+
+            // Row 2: L/R Ratio (y = row1y + 95)
+            constexpr int row2y = row1y + 95;
+            fxRatioLabel.setBounds(fx_x, row2y, 80, 16);
+            fxRatioKnob.setBounds(fx_x, row2y + 16, 80, 70);
+
+            // Ducking controls (same area, shown only in Duck mode)
+            fxDuckSourceLabel.setBounds(fx_x, row1y, 80, 16);
+            fxDuckSourceBox.setBounds(fx_x, row1y + 16, 140, 24);
+            fxDuckAttackLabel.setBounds(fx_x, row1y + 46, 80, 16);
+            fxDuckAttackKnob.setBounds(fx_x, row1y + 62, 80, 70);
+            fxDuckReleaseLabel.setBounds(fx_x + 90, row1y + 46, 80, 16);
+            fxDuckReleaseKnob.setBounds(fx_x + 90, row1y + 62, 80, 70);
+            fxDuckDepthLabel.setBounds(fx_x + 180, row1y + 46, 80, 16);
+            fxDuckDepthKnob.setBounds(fx_x + 180, row1y + 62, 80, 70);
+
+            // Mod Bus (Phase 50) — below unified effects
+            constexpr int mody = row2y + 100;
             constexpr int col_right = 410;
-            constexpr int fx_spacing = 110;
-
-            // --- LEFT COLUMN ---
-
-            // Tremolo (Phase 44)
-            constexpr int tremy = fx_y;
-            tremoloSectionLabel.setBounds(col_left, tremy, 120, 16);
-            tremoloEnableToggle.setBounds(col_left + 120, tremy, 80, 20);
-            tremoloSpeedLabel.setBounds(col_left, tremy + 20, 80, 16);
-            tremoloSpeedKnob.setBounds(col_left, tremy + 36, 80, 70);
-            tremoloDepthLabel.setBounds(col_left + 90, tremy + 20, 80, 16);
-            tremoloDepthKnob.setBounds(col_left + 90, tremy + 36, 80, 70);
-            tremoloCurveButton.setBounds(col_left + 180, tremy + 40, 90, 28);
-            tremoloRatioLabel.setBounds(col_left + 280, tremy + 20, 80, 16);
-            tremoloRatioKnob.setBounds(col_left + 280, tremy + 36, 80, 70);
-
-            // Auto-Pan (Phase 45)
-            constexpr int pany = tremy + fx_spacing;
-            autoPanSectionLabel.setBounds(col_left, pany, 120, 16);
-            autoPanEnableToggle.setBounds(col_left + 120, pany, 80, 20);
-            autoPanSpeedLabel.setBounds(col_left, pany + 20, 80, 16);
-            autoPanSpeedKnob.setBounds(col_left, pany + 36, 80, 70);
-            autoPanDepthLabel.setBounds(col_left + 90, pany + 20, 80, 16);
-            autoPanDepthKnob.setBounds(col_left + 90, pany + 36, 80, 70);
-            autoPanRatioLabel.setBounds(col_left + 180, pany + 20, 80, 16);
-            autoPanRatioKnob.setBounds(col_left + 180, pany + 36, 80, 70);
-
-            // --- RIGHT COLUMN ---
-
-            // Sidechain Duck (Phase 46)
-            constexpr int ducky = fx_y;
-            duckSectionLabel.setBounds(col_right, ducky, 120, 16);
-            duckSourceLabel.setBounds(col_right, ducky + 20, 80, 16);
-            duckSourceBox.setBounds(col_right, ducky + 36, 120, 24);
-            duckReleaseLabel.setBounds(col_right + 140, ducky + 20, 80, 16);
-            duckReleaseKnob.setBounds(col_right + 140, ducky + 36, 80, 70);
-            duckDepthLabel.setBounds(col_right + 240, ducky + 20, 80, 16);
-            duckDepthKnob.setBounds(col_right + 240, ducky + 36, 80, 70);
-
-            // AM Synthesis (Phase 48) — right half of panel
-            constexpr int rh = 410;
-            constexpr int amy = 142;
-            amSectionLabel.setBounds(rh, amy, 120, 16);
-            amEnableToggle.setBounds(rh + 120, amy, 80, 20);
-            amRateLabel.setBounds(rh, amy + 20, 80, 16);
-            amRateKnob.setBounds(rh, amy + 36, 80, 70);
-            amDepthLabel.setBounds(rh + 90, amy + 20, 80, 16);
-            amDepthKnob.setBounds(rh + 90, amy + 36, 80, 70);
-            amCurveButton.setBounds(rh + 180, amy + 40, 90, 28);
-
-            // Phase Mod (Phase 49) — below AM on right half
-            constexpr int phasy = amy + fx_spacing;
-            ringModSectionLabel.setBounds(rh, phasy, 120, 16);
-            ringModEnableToggle.setBounds(rh + 120, phasy, 80, 20);
-            ringModRateLabel.setBounds(rh, phasy + 20, 80, 16);
-            ringModRateKnob.setBounds(rh, phasy + 36, 80, 70);
-            ringModDepthLabel.setBounds(rh + 90, phasy + 20, 80, 16);
-            ringModDepthKnob.setBounds(rh + 90, phasy + 36, 80, 70);
-
-            // Mod Bus (Phase 50)
-            constexpr int mody = ducky + fx_spacing;
             modBusSectionLabel.setBounds(col_right, mody, 120, 16);
             modBusPitchLabel.setBounds(col_right, mody + 20, 80, 16);
             modBusPitchKnob.setBounds(col_right, mody + 36, 80, 70);

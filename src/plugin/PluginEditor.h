@@ -148,52 +148,21 @@ private:
     juce::TextButton rampCurveButton{"Linear"};
     juce::TextButton rampArmButton{"ARM"};
 
-    // Tremolo controls (Phase 44: continuous VCA oscillation)
-    juce::Label tremoloSectionLabel;
-    juce::ToggleButton tremoloEnableToggle{"Enable"};
-    juce::Slider tremoloSpeedKnob;
-    juce::Label tremoloSpeedLabel;
-    juce::Slider tremoloDepthKnob;
-    juce::Label tremoloDepthLabel;
-    juce::TextButton tremoloCurveButton{"Linear"};
-    juce::Slider tremoloRatioKnob;
-    juce::Label tremoloRatioLabel;
+    // Unified VCA Effects section (Phase 54: dropdown + adaptive controls)
+    juce::Label fxSectionLabel;
+    juce::ComboBox effectModeBox;
+    juce::Slider fxRateKnob;        juce::Label fxRateLabel;
+    juce::Slider fxDepthKnob;       juce::Label fxDepthLabel;
+    juce::ComboBox fxShapeBox;      juce::Label fxShapeLabel;
+    juce::TextButton fxCurveButton{"Linear"};
+    juce::Slider fxRatioKnob;       juce::Label fxRatioLabel;
+    // Ducking-specific controls
+    juce::ComboBox fxDuckSourceBox;  juce::Label fxDuckSourceLabel;
+    juce::Slider fxDuckAttackKnob;   juce::Label fxDuckAttackLabel;
+    juce::Slider fxDuckReleaseKnob;  juce::Label fxDuckReleaseLabel;
+    juce::Slider fxDuckDepthKnob;    juce::Label fxDuckDepthLabel;
 
-    // Auto-Pan controls (Phase 45: opposition-phase stereo movement)
-    juce::Label autoPanSectionLabel;
-    juce::ToggleButton autoPanEnableToggle{"Enable"};
-    juce::Slider autoPanSpeedKnob;
-    juce::Label autoPanSpeedLabel;
-    juce::Slider autoPanDepthKnob;
-    juce::Label autoPanDepthLabel;
-    juce::Slider autoPanRatioKnob;
-    juce::Label autoPanRatioLabel;
-
-    // Sidechain Duck controls (Phase 46: event-triggered VCA duck via KON detection)
-    juce::Label duckSectionLabel;
-    juce::ComboBox duckSourceBox;
-    juce::Label duckSourceLabel;
-    juce::Slider duckReleaseKnob;
-    juce::Label duckReleaseLabel;
-    juce::Slider duckDepthKnob;
-    juce::Label duckDepthLabel;
-
-    // AM Synthesis controls (Phase 48: audio-rate metallic sidebands)
-    juce::Label amSectionLabel;
-    juce::ToggleButton amEnableToggle{"Enable"};
-    juce::Slider amRateKnob;
-    juce::Label amRateLabel;
-    juce::Slider amDepthKnob;
-    juce::Label amDepthLabel;
-    juce::TextButton amCurveButton{"Linear"};
-
-    // Ring Mod controls (Phase 52: bipolar sweep for phase-inversion ring mod effect)
-    juce::Label ringModSectionLabel;
-    juce::ToggleButton ringModEnableToggle{"Enable"};
-    juce::Slider ringModRateKnob;
-    juce::Label ringModRateLabel;
-    juce::Slider ringModDepthKnob;
-    juce::Label ringModDepthLabel;
+    void updateEffectControlVisibility();
 
     // Internal Mod Bus (Phase 50: noise-to-pitch/vol/pan modulation)
     juce::Label modBusSectionLabel;
