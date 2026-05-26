@@ -942,29 +942,15 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 tremoloWasActive = false;
             }
 
-            // Depth scaling: after sweep tick writes vol_l/vol_r, reduce the
-            // modulation range proportionally. At depth=1.0 vol ranges 0..0x7FFF.
-            // At depth=0.5 vol ranges 0x3FFF..0x7FFF (half modulation).
-            // T-44-02: clamp depth 0.0-1.0 at point of use.
             if (tremEn)
             {
                 auto* mx = spu94_get_voice_mixer();
                 float depth = tremoloDepth.load(std::memory_order_relaxed);
                 if (depth < 0.0f) depth = 0.0f;
                 if (depth > 1.0f) depth = 1.0f;
-
-                if (mx->voices[0].sweep_l.active) {
-                    int16_t sweep_lvl = mx->voices[0].sweep_l.level;
-                    mx->voices[0].vol_l = static_cast<int16_t>(
-                        0x7FFF - static_cast<int16_t>(
-                            static_cast<float>(0x7FFF - sweep_lvl) * depth));
-                }
-                if (mx->voices[0].sweep_r.active) {
-                    int16_t sweep_lvl = mx->voices[0].sweep_r.level;
-                    mx->voices[0].vol_r = static_cast<int16_t>(
-                        0x7FFF - static_cast<int16_t>(
-                            static_cast<float>(0x7FFF - sweep_lvl) * depth));
-                }
+                int16_t dq = static_cast<int16_t>(depth * 0x7FFF);
+                mx->voices[0].sweep_depth_l = dq;
+                mx->voices[0].sweep_depth_r = dq;
             }
         }
 
@@ -973,10 +959,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // PAN-04: Always linear (mode=0) -- no equal-power, no exponential.
         // PAN-01: L direction=1 (decrease), R direction=0 (increase) -- OPPOSITION.
         {
-            bool tremEn = tremoloEnabled.load(std::memory_order_relaxed);
             bool panEn  = autoPanEnabled.load(std::memory_order_relaxed);
-            // Mutual exclusion: tremolo has priority
-            if (tremEn) panEn = false;
 
             if (panEn && !autoPanWasActive)
             {
@@ -1098,22 +1081,9 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 float depth = autoPanDepth.load(std::memory_order_relaxed);
                 if (depth < 0.0f) depth = 0.0f;
                 if (depth > 1.0f) depth = 1.0f;
-
-                int16_t base_l = mx->voices[0].vol_l;
-                int16_t base_r = mx->voices[0].vol_r;
-
-                if (mx->voices[0].sweep_l.active) {
-                    int16_t sweep_lvl = mx->voices[0].sweep_l.level;
-                    float t = static_cast<float>(sweep_lvl) / 0x7FFF;
-                    mx->voices[0].vol_l = static_cast<int16_t>(
-                        base_l * (1.0f - depth + depth * t));
-                }
-                if (mx->voices[0].sweep_r.active) {
-                    int16_t sweep_lvl = mx->voices[0].sweep_r.level;
-                    float t = static_cast<float>(sweep_lvl) / 0x7FFF;
-                    mx->voices[0].vol_r = static_cast<int16_t>(
-                        base_r * (1.0f - depth + depth * t));
-                }
+                int16_t dq = static_cast<int16_t>(depth * 0x7FFF);
+                mx->voices[0].sweep_depth_l = dq;
+                mx->voices[0].sweep_depth_r = dq;
             }
         }
 
@@ -1121,11 +1091,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // AM-04: Mutual exclusion -- AM has LOWEST priority (tremolo and auto-pan both win).
         // Both L and R run at the same rate (no ratio) -- AM produces sidebands, not stereo movement.
         {
-            bool tremEn = tremoloEnabled.load(std::memory_order_relaxed);
-            bool panEn  = autoPanEnabled.load(std::memory_order_relaxed);
             bool amEn   = amEnabled.load(std::memory_order_relaxed);
-            // Mutual exclusion: tremolo and auto-pan have priority over AM
-            if (tremEn || panEn) amEn = false;
 
             if (amEn && !amWasActive)
             {
@@ -1203,27 +1169,15 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 amWasActive = false;
             }
 
-            // AM depth scaling: same formula as tremolo.
-            // T-48-02: clamp depth 0.0-1.0 at point of use.
             if (amEn)
             {
                 auto* mx = spu94_get_voice_mixer();
                 float depth = amDepth.load(std::memory_order_relaxed);
                 if (depth < 0.0f) depth = 0.0f;
                 if (depth > 1.0f) depth = 1.0f;
-
-                if (mx->voices[0].sweep_l.active) {
-                    int16_t sweep_lvl = mx->voices[0].sweep_l.level;
-                    mx->voices[0].vol_l = static_cast<int16_t>(
-                        0x7FFF - static_cast<int16_t>(
-                            static_cast<float>(0x7FFF - sweep_lvl) * depth));
-                }
-                if (mx->voices[0].sweep_r.active) {
-                    int16_t sweep_lvl = mx->voices[0].sweep_r.level;
-                    mx->voices[0].vol_r = static_cast<int16_t>(
-                        0x7FFF - static_cast<int16_t>(
-                            static_cast<float>(0x7FFF - sweep_lvl) * depth));
-                }
+                int16_t dq = static_cast<int16_t>(depth * 0x7FFF);
+                mx->voices[0].sweep_depth_l = dq;
+                mx->voices[0].sweep_depth_r = dq;
             }
         }
 
@@ -1234,12 +1188,7 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // volume naturally at high depth.
         // Mutual exclusion: ring mod has LOWEST priority (tremolo, auto-pan, AM all win).
         {
-            bool tremEn = tremoloEnabled.load(std::memory_order_relaxed);
-            bool panEn  = autoPanEnabled.load(std::memory_order_relaxed);
-            bool amEn   = amEnabled.load(std::memory_order_relaxed);
             bool rmEn   = ringModEnabled.load(std::memory_order_relaxed);
-            // Mutual exclusion: tremolo, auto-pan, and AM all have priority over ring mod
-            if (tremEn || panEn || amEn) rmEn = false;
 
             if (rmEn && !ringModWasActive)
             {
@@ -1315,34 +1264,15 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 ringModWasActive = false;
             }
 
-            // Ring mod depth scaling: same formula as tremolo/AM.
-            // When sweep_lvl is negative (bipolar sweep in negative territory),
-            // (0x7FFF - sweep_lvl) exceeds 0x7FFF, producing negative volume at
-            // depth > ~0.5. This IS the ring mod effect: phase inversion.
-            // Clamp result to int16_t range for safety.
             if (rmEn)
             {
                 auto* mx = spu94_get_voice_mixer();
                 float depth = ringModDepth.load(std::memory_order_relaxed);
                 if (depth < 0.0f) depth = 0.0f;
                 if (depth > 1.0f) depth = 1.0f;
-
-                if (mx->voices[0].sweep_l.active) {
-                    int16_t sweep_lvl = mx->voices[0].sweep_l.level;
-                    int32_t vol = 0x7FFF - static_cast<int32_t>(
-                        static_cast<float>(0x7FFF - sweep_lvl) * depth);
-                    if (vol > 0x7FFF) vol = 0x7FFF;
-                    if (vol < -0x7FFF) vol = -0x7FFF;
-                    mx->voices[0].vol_l = static_cast<int16_t>(vol);
-                }
-                if (mx->voices[0].sweep_r.active) {
-                    int16_t sweep_lvl = mx->voices[0].sweep_r.level;
-                    int32_t vol = 0x7FFF - static_cast<int32_t>(
-                        static_cast<float>(0x7FFF - sweep_lvl) * depth);
-                    if (vol > 0x7FFF) vol = 0x7FFF;
-                    if (vol < -0x7FFF) vol = -0x7FFF;
-                    mx->voices[0].vol_r = static_cast<int16_t>(vol);
-                }
+                int16_t dq = static_cast<int16_t>(depth * 0x7FFF);
+                mx->voices[0].sweep_depth_l = dq;
+                mx->voices[0].sweep_depth_r = dq;
             }
         }
 

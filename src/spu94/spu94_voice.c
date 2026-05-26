@@ -37,6 +37,8 @@ void spu94_voice_init(spu94_voice_t *v) {
     spu94_adsr_init(&v->adsr);
     spu94_sweep_init(&v->sweep_l);
     spu94_sweep_init(&v->sweep_r);
+    v->sweep_depth_l = 0x7FFF;
+    v->sweep_depth_r = 0x7FFF;
 }
 
 void spu94_voice_key_on(spu94_voice_t *v, uint32_t start_addr,
@@ -121,11 +123,23 @@ void spu94_voice_tick(spu94_voice_t *v,
      * --------------------------------------------------------------- */
     if (v->sweep_l.active) {
         spu94_sweep_tick(&v->sweep_l);
-        v->vol_l = v->sweep_l.level;
+        int16_t d = v->sweep_depth_l;
+        if (d >= 0x7FFF) {
+            v->vol_l = v->sweep_l.level;
+        } else {
+            int32_t range = 0x7FFF - (int32_t)v->sweep_l.level;
+            v->vol_l = (int16_t)(0x7FFF - ((range * (int32_t)d) >> 15));
+        }
     }
     if (v->sweep_r.active) {
         spu94_sweep_tick(&v->sweep_r);
-        v->vol_r = v->sweep_r.level;
+        int16_t d = v->sweep_depth_r;
+        if (d >= 0x7FFF) {
+            v->vol_r = v->sweep_r.level;
+        } else {
+            int32_t range = 0x7FFF - (int32_t)v->sweep_r.level;
+            v->vol_r = (int16_t)(0x7FFF - ((range * (int32_t)d) >> 15));
+        }
     }
 
     /* ---------------------------------------------------------------

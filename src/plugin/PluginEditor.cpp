@@ -495,46 +495,47 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         fxSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
         panel.addAndMakeVisible(fxSectionLabel);
 
-        // Effect mode dropdown: single selector enforces mutual exclusion
-        effectModeBox.addItem("Auto-Pan", 1);
-        effectModeBox.addItem("Tremolo", 2);
-        effectModeBox.addItem("AM", 3);
-        effectModeBox.addItem("Ring Mod", 4);
-        effectModeBox.addItem("Ducking", 5);
+        // Effect mode dropdown: Off + 5 modes, single selector enforces mutual exclusion
+        effectModeBox.addItem("Off", 1);
+        effectModeBox.addItem("Auto-Pan", 2);
+        effectModeBox.addItem("Tremolo", 3);
+        effectModeBox.addItem("AM", 4);
+        effectModeBox.addItem("Ring Mod", 5);
+        effectModeBox.addItem("Ducking", 6);
         effectModeBox.setSelectedId(1, juce::dontSendNotification);
         effectModeBox.onChange = [this] {
             int mode = effectModeBox.getSelectedId();
-            // T-54-01: clamp selectedId to valid range
             if (mode < 1) mode = 1;
-            if (mode > 5) mode = 5;
+            if (mode > 6) mode = 6;
 
-            // Disable ALL effects first (mutual exclusion via dropdown)
+            // Disable ALL effects first
             processorRef.getTremoloEnabled().store(false, std::memory_order_relaxed);
             processorRef.getAutoPanEnabled().store(false, std::memory_order_relaxed);
             processorRef.getAmEnabled().store(false, std::memory_order_relaxed);
             processorRef.getRingModEnabled().store(false, std::memory_order_relaxed);
             processorRef.getDuckSource(0).store(-1, std::memory_order_relaxed);
 
-            // Enable the selected effect
+            // Reset depth to full when Off is selected
+            auto* mx = spu94_get_voice_mixer();
+            mx->voices[0].sweep_depth_l = 0x7FFF;
+            mx->voices[0].sweep_depth_r = 0x7FFF;
+
             switch (mode) {
-                case 1: processorRef.getAutoPanEnabled().store(true, std::memory_order_relaxed); break;
-                case 2: processorRef.getTremoloEnabled().store(true, std::memory_order_relaxed); break;
-                case 3: processorRef.getAmEnabled().store(true, std::memory_order_relaxed); break;
-                case 4: processorRef.getRingModEnabled().store(true, std::memory_order_relaxed); break;
-                case 5: {
-                    // Restore last duck source (or default to Voice 1 if none was set)
+                case 1: break; // Off — all disabled
+                case 2: processorRef.getAutoPanEnabled().store(true, std::memory_order_relaxed); break;
+                case 3: processorRef.getTremoloEnabled().store(true, std::memory_order_relaxed); break;
+                case 4: processorRef.getAmEnabled().store(true, std::memory_order_relaxed); break;
+                case 5: processorRef.getRingModEnabled().store(true, std::memory_order_relaxed); break;
+                case 6: {
                     int sel = fxDuckSourceBox.getSelectedId();
-                    int source = sel - 2; // -1=None, 0-23=voice
+                    int source = sel - 2;
                     processorRef.getDuckSource(0).store(source, std::memory_order_relaxed);
                     break;
                 }
             }
 
-            // Store GUI state
             processorRef.getEffectMode().store(mode - 1, std::memory_order_relaxed);
-
-            // Disable rampArmButton when any effect is active
-            rampArmButton.setEnabled(false);
+            rampArmButton.setEnabled(mode == 1);
 
             updateEffectControlVisibility();
         };
@@ -552,10 +553,10 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             float val = static_cast<float>(fxRateKnob.getValue());
             int mode = effectModeBox.getSelectedId();
             switch (mode) {
-                case 1: processorRef.getAutoPanSpeedHz().store(val, std::memory_order_relaxed); break;
-                case 2: processorRef.getTremoloSpeedHz().store(val, std::memory_order_relaxed); break;
-                case 3: processorRef.getAmRateHz().store(val, std::memory_order_relaxed); break;
-                case 4: processorRef.getRingModRateHz().store(val, std::memory_order_relaxed); break;
+                case 2: processorRef.getAutoPanSpeedHz().store(val, std::memory_order_relaxed); break;
+                case 3: processorRef.getTremoloSpeedHz().store(val, std::memory_order_relaxed); break;
+                case 4: processorRef.getAmRateHz().store(val, std::memory_order_relaxed); break;
+                case 5: processorRef.getRingModRateHz().store(val, std::memory_order_relaxed); break;
                 default: break;
             }
         };
@@ -576,10 +577,10 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             float val = static_cast<float>(fxDepthKnob.getValue() / 100.0);
             int mode = effectModeBox.getSelectedId();
             switch (mode) {
-                case 1: processorRef.getAutoPanDepth().store(val, std::memory_order_relaxed); break;
-                case 2: processorRef.getTremoloDepth().store(val, std::memory_order_relaxed); break;
-                case 3: processorRef.getAmDepth().store(val, std::memory_order_relaxed); break;
-                case 4: processorRef.getRingModDepth().store(val, std::memory_order_relaxed); break;
+                case 2: processorRef.getAutoPanDepth().store(val, std::memory_order_relaxed); break;
+                case 3: processorRef.getTremoloDepth().store(val, std::memory_order_relaxed); break;
+                case 4: processorRef.getAmDepth().store(val, std::memory_order_relaxed); break;
+                case 5: processorRef.getRingModDepth().store(val, std::memory_order_relaxed); break;
                 default: break;
             }
         };
@@ -612,9 +613,9 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             fxCurveButton.setButtonText(isLinear ? "Exponential" : "Linear");
             int mode = effectModeBox.getSelectedId();
             switch (mode) {
-                case 2: processorRef.getTremoloCurve().store(newCurve, std::memory_order_relaxed); break;
-                case 3: processorRef.getAmCurve().store(newCurve, std::memory_order_relaxed); break;
-                case 4: processorRef.getRingModCurve().store(newCurve, std::memory_order_relaxed); break;
+                case 3: processorRef.getTremoloCurve().store(newCurve, std::memory_order_relaxed); break;
+                case 4: processorRef.getAmCurve().store(newCurve, std::memory_order_relaxed); break;
+                case 5: processorRef.getRingModCurve().store(newCurve, std::memory_order_relaxed); break;
                 default: break; // Auto-Pan has no separate curve atomic
             }
         };
@@ -632,9 +633,9 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         fxRatioKnob.onValueChange = [this] {
             float val = static_cast<float>(fxRatioKnob.getValue());
             int mode = effectModeBox.getSelectedId();
-            if (mode == 1)
+            if (mode == 2)
                 processorRef.getAutoPanRatio().store(val, std::memory_order_relaxed);
-            else if (mode == 2)
+            else if (mode == 3)
                 processorRef.getTremoloRatio().store(val, std::memory_order_relaxed);
         };
         panel.addAndMakeVisible(fxRatioKnob);
@@ -1282,10 +1283,9 @@ void SPU94AudioProcessorEditor::timerCallback()
 
 void SPU94AudioProcessorEditor::updateEffectControlVisibility()
 {
-    int mode = effectModeBox.getSelectedId(); // 1=AutoPan, 2=Tremolo, 3=AM, 4=RingMod, 5=Ducking
+    int mode = effectModeBox.getSelectedId(); // 1=Off, 2=AutoPan, 3=Tremolo, 4=AM, 5=RingMod, 6=Ducking
 
-    // Shared VCA ramp controls: visible for modes 1-4
-    bool showShared = (mode >= 1 && mode <= 4);
+    bool showShared = (mode >= 2 && mode <= 5);
     fxRateKnob.setVisible(showShared);
     fxRateLabel.setVisible(showShared);
     fxDepthKnob.setVisible(showShared);
@@ -1294,13 +1294,11 @@ void SPU94AudioProcessorEditor::updateEffectControlVisibility()
     fxShapeLabel.setVisible(showShared);
     fxCurveButton.setVisible(showShared);
 
-    // L/R Ratio: only Auto-Pan (1) and Tremolo (2)
-    bool showRatio = (mode == 1 || mode == 2);
+    bool showRatio = (mode == 2 || mode == 3);
     fxRatioKnob.setVisible(showRatio);
     fxRatioLabel.setVisible(showRatio);
 
-    // Ducking controls: only mode 5
-    bool showDuck = (mode == 5);
+    bool showDuck = (mode == 6);
     fxDuckSourceBox.setVisible(showDuck);
     fxDuckSourceLabel.setVisible(showDuck);
     fxDuckAttackKnob.setVisible(showDuck);
@@ -1310,17 +1308,13 @@ void SPU94AudioProcessorEditor::updateEffectControlVisibility()
     fxDuckDepthKnob.setVisible(showDuck);
     fxDuckDepthLabel.setVisible(showDuck);
 
-    // Update Rate knob range dynamically based on selected mode
-    if (mode == 1 || mode == 2) {
-        // Auto-Pan / Tremolo: 0.5-19 Hz
+    if (mode == 2 || mode == 3) {
         fxRateKnob.setRange(0.5, 19.0, 0.1);
         fxRateKnob.setSkewFactorFromMidPoint(4.0);
-    } else if (mode == 3) {
-        // AM: 37-7350 Hz
+    } else if (mode == 4) {
         fxRateKnob.setRange(37.0, 7350.0, 1.0);
         fxRateKnob.setSkewFactorFromMidPoint(500.0);
-    } else if (mode == 4) {
-        // Ring Mod: 21.5-9647 Hz
+    } else if (mode == 5) {
         fxRateKnob.setRange(21.5, 9647.0, 1.0);
         fxRateKnob.setSkewFactorFromMidPoint(440.0);
     }

@@ -58,6 +58,8 @@ typedef struct {
     spu94_adsr_state_t adsr;     /* Phase 28: per-voice ADSR envelope state */
     spu94_sweep_t sweep_l;       /* Phase 37: per-voice left volume sweep */
     spu94_sweep_t sweep_r;       /* Phase 37: per-voice right volume sweep */
+    int16_t sweep_depth_l;       /* Q15 depth for L sweep (0x7FFF=full, 0=no modulation). Host sets before process. */
+    int16_t sweep_depth_r;       /* Q15 depth for R sweep */
     /* Phase 50: Internal mod bus -- per-voice noise-to-pitch/vol/pan routing (MOD-01..05) */
     int16_t noise_mod_pitch_depth; /* bipolar (-0x7FFF..+0x7FFF): noise -> pitch offset. 0 = off */
     int16_t noise_mod_vol_depth;   /* unipolar (0..0x7FFF): noise -> volume offset. 0 = off */
