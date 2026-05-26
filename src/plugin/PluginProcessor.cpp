@@ -843,6 +843,10 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // Configures both L/R sweeps with retrigger_enable=1 at Hz-derived shift/step.
         {
             bool tremEn = tremoloEnabled.load(std::memory_order_relaxed);
+            if (tremEn && tremoloWasActive) {
+                auto* mx = spu94_get_voice_mixer();
+                if (!mx->voices[0].sweep_l.active) tremoloWasActive = false;
+            }
             if (tremEn && !tremoloWasActive)
             {
                 // Tremolo just enabled: configure sweeps for continuous oscillation
@@ -971,7 +975,10 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // PAN-01: L direction=1 (decrease), R direction=0 (increase) -- OPPOSITION.
         {
             bool panEn  = autoPanEnabled.load(std::memory_order_relaxed);
-
+            if (panEn && autoPanWasActive) {
+                auto* mx = spu94_get_voice_mixer();
+                if (!mx->voices[0].sweep_l.active) autoPanWasActive = false;
+            }
             if (panEn && !autoPanWasActive)
             {
                 // Auto-pan just enabled: configure L/R sweeps in opposition
@@ -1104,9 +1111,12 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         {
             bool amEn   = amEnabled.load(std::memory_order_relaxed);
 
+            if (amEn && amWasActive) {
+                auto* mx = spu94_get_voice_mixer();
+                if (!mx->voices[0].sweep_l.active) amWasActive = false;
+            }
             if (amEn && !amWasActive)
             {
-                // AM just enabled: configure sweeps for audio-rate oscillation
                 float hz   = amRateHz.load(std::memory_order_relaxed);
                 int   curve = amCurve.load(std::memory_order_relaxed);
                 int   shape = sweepShape.load(std::memory_order_relaxed);
@@ -1200,6 +1210,10 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // Mutual exclusion: ring mod has LOWEST priority (tremolo, auto-pan, AM all win).
         {
             bool rmEn   = ringModEnabled.load(std::memory_order_relaxed);
+            if (rmEn && ringModWasActive) {
+                auto* mx = spu94_get_voice_mixer();
+                if (!mx->voices[0].sweep_l.active) ringModWasActive = false;
+            }
 
             if (rmEn && !ringModWasActive)
             {
@@ -1237,7 +1251,6 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             }
             else if (rmEn && ringModWasActive)
             {
-                // Ring mod already active: check if parameters changed
                 float hz   = ringModRateHz.load(std::memory_order_relaxed);
                 int   curve = ringModCurve.load(std::memory_order_relaxed);
                 int   shape = sweepShape.load(std::memory_order_relaxed);
