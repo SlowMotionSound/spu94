@@ -131,6 +131,7 @@ None.
 | GUI cleanup | Remove old VCA ramp controls (direction/speed/curve/ARM) — superseded by unified effects dropdown | 2026-05-25 |
 | GUI cleanup | Organize Noise section in sampler panel | 2026-05-25 |
 | UI | Musical divisions for effects Speed encoder (note values, BPM sync) | 2026-05-25 |
+| Bug | Pan inaccessible during effects — sweep overwrites vol_l/vol_r, ignoring pan position. Fix: depth formula should use pan-set volume as ceiling, not hardcoded 0x7FFF | 2026-05-25 |
 
 ## Performance Metrics
 
