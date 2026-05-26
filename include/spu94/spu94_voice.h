@@ -54,6 +54,8 @@ typedef struct {
     uint8_t   gauss_ring_pos;     /* write head in gauss_ring (0..3) */
     int16_t   vol_l;              /* per-voice left volume (-0x4000..+0x3FFF, signed; negative = phase inversion per SVOL-01) */
     int16_t   vol_r;              /* per-voice right volume (-0x4000..+0x3FFF, signed; negative = phase inversion per SVOL-01) */
+    int16_t   base_vol_l;        /* pan/level ceiling for sweep depth scaling; sweep modulates relative to this */
+    int16_t   base_vol_r;
     int16_t   outx;              /* Phase 34/SVOL-04: post-ADSR, pre-volume output for PMON (Phase 35). Stored every tick. */
     spu94_adsr_state_t adsr;     /* Phase 28: per-voice ADSR envelope state */
     spu94_sweep_t sweep_l;       /* Phase 37: per-voice left volume sweep */

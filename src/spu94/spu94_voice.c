@@ -39,6 +39,8 @@ void spu94_voice_init(spu94_voice_t *v) {
     spu94_sweep_init(&v->sweep_r);
     v->sweep_depth_l = 0x7FFF;
     v->sweep_depth_r = 0x7FFF;
+    v->base_vol_l = 0x3FFF;
+    v->base_vol_r = 0x3FFF;
 }
 
 void spu94_voice_key_on(spu94_voice_t *v, uint32_t start_addr,
@@ -56,6 +58,8 @@ void spu94_voice_key_on(spu94_voice_t *v, uint32_t start_addr,
     v->sample_start_addr = start_addr;
     v->vol_l = vol_l;
     v->vol_r = vol_r;
+    v->base_vol_l = vol_l;
+    v->base_vol_r = vol_r;
 
     /* Reset decoder state */
     v->adpcm_state.old = 0;
@@ -119,27 +123,36 @@ void spu94_voice_tick(spu94_voice_t *v,
 
     /* ---------------------------------------------------------------
      * STEP 0 — Volume sweep (SWEEP-05: sweep IS the volume register)
-     * Tick L/R sweep; if active, write back to vol_l/vol_r.
+     * Tick L/R sweep; if active, scale relative to base_vol (pan ceiling).
+     * If inactive, vol tracks base_vol so pan knob changes take effect.
      * --------------------------------------------------------------- */
     if (v->sweep_l.active) {
         spu94_sweep_tick(&v->sweep_l);
         int16_t d = v->sweep_depth_l;
+        int16_t ceiling = v->base_vol_l;
         if (d >= 0x7FFF) {
-            v->vol_l = v->sweep_l.level;
+            v->vol_l = (int16_t)(((int32_t)v->sweep_l.level * (int32_t)ceiling) >> 15);
         } else {
-            int32_t range = 0x7FFF - (int32_t)v->sweep_l.level;
-            v->vol_l = (int16_t)(0x7FFF - ((range * (int32_t)d) >> 15));
+            int32_t sweep_scaled = ((int32_t)v->sweep_l.level * (int32_t)ceiling) >> 15;
+            int32_t range = (int32_t)ceiling - sweep_scaled;
+            v->vol_l = (int16_t)((int32_t)ceiling - ((range * (int32_t)d) >> 15));
         }
+    } else {
+        v->vol_l = v->base_vol_l;
     }
     if (v->sweep_r.active) {
         spu94_sweep_tick(&v->sweep_r);
         int16_t d = v->sweep_depth_r;
+        int16_t ceiling = v->base_vol_r;
         if (d >= 0x7FFF) {
-            v->vol_r = v->sweep_r.level;
+            v->vol_r = (int16_t)(((int32_t)v->sweep_r.level * (int32_t)ceiling) >> 15);
         } else {
-            int32_t range = 0x7FFF - (int32_t)v->sweep_r.level;
-            v->vol_r = (int16_t)(0x7FFF - ((range * (int32_t)d) >> 15));
+            int32_t sweep_scaled = ((int32_t)v->sweep_r.level * (int32_t)ceiling) >> 15;
+            int32_t range = (int32_t)ceiling - sweep_scaled;
+            v->vol_r = (int16_t)((int32_t)ceiling - ((range * (int32_t)d) >> 15));
         }
+    } else {
+        v->vol_r = v->base_vol_r;
     }
 
     /* ---------------------------------------------------------------
@@ -639,11 +652,15 @@ void spu94_voice_mixer_tick(spu94_voice_mixer_t *m,
             spu94_sweep_t save_r = m->voices[v].sweep_r;
             int16_t save_depth_l = m->voices[v].sweep_depth_l;
             int16_t save_depth_r = m->voices[v].sweep_depth_r;
+            int16_t save_base_l = m->voices[v].base_vol_l;
+            int16_t save_base_r = m->voices[v].base_vol_r;
             m->voices[v] = *cfg;
             m->voices[v].sweep_l = save_l;
             m->voices[v].sweep_r = save_r;
             m->voices[v].sweep_depth_l = save_depth_l;
             m->voices[v].sweep_depth_r = save_depth_r;
+            m->voices[v].base_vol_l = save_base_l;
+            m->voices[v].base_vol_r = save_base_r;
 
             /* Update eon_flags from pending config's reverb_on intent
              * (stored in pending_config.endx as a temporary flag) */

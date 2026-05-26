@@ -779,11 +779,11 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         spu94_voice_mixer_set_pitch(spu94_get_voice_mixer(), 0,
             guiVoicePitch.load(std::memory_order_relaxed));
 
-        // Apply Pan/Level continuously (not just on key-on)
+        // Apply Pan/Level continuously — writes base_vol so sweep scales relative to pan position
         {
             auto* mx = spu94_get_voice_mixer();
-            mx->voices[0].vol_l = guiVoiceVolL.load(std::memory_order_relaxed);
-            mx->voices[0].vol_r = guiVoiceVolR.load(std::memory_order_relaxed);
+            mx->voices[0].base_vol_l = guiVoiceVolL.load(std::memory_order_relaxed);
+            mx->voices[0].base_vol_r = guiVoiceVolR.load(std::memory_order_relaxed);
         }
 
         // Apply NON/PMON toggles on voice 0 (Phase 40: voice feature toggles)

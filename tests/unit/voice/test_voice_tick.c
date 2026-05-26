@@ -2092,12 +2092,16 @@ void test_int01_processing_order_sweep_before_decode(void) {
     make_loud_sample(sample, 16);
     spu94_voice_mixer_load_sample(&s_test_mixer, 0, sample, 256);
 
-    /* Key on voice 0 with vol_l=0x100, ADSR disabled (level stays 0x7FFF) */
+    /* Key on voice 0 with vol_l=0x100, ADSR disabled (level stays 0x7FFF). */
     spu94_voice_mixer_key_on(&s_test_mixer, 0, 0, 0x1000, 0x0100, 0x0100, 0, NULL);
 
     /* Apply KON first */
     int16_t dry_l, dry_r, rev_l, rev_r;
     spu94_voice_mixer_tick(&s_test_mixer, &dry_l, &dry_r, &rev_l, &rev_r);
+
+    /* Set base_vol high AFTER KON apply so sweep has headroom to demonstrate vol_l changes. */
+    s_test_mixer.voices[0].base_vol_l = 0x7FFF;
+    s_test_mixer.voices[0].base_vol_r = 0x7FFF;
 
     /* Now configure sweep on the live voice (linear increase, shift=0, step=0 = max rate) */
     spu94_voice_mixer_set_sweep_l(&s_test_mixer, 0, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -2127,7 +2131,7 @@ void test_int01_processing_order_sweep_before_decode(void) {
     }
     int16_t unswerpt_output = dry_l;
 
-    /* vol_l should still be 0x100 (no sweep) */
+    /* vol_l should still be base_vol (no sweep, but base_vol tracks) */
     TEST_ASSERT_EQUAL_HEX16_MESSAGE(0x0100, s_test_mixer.voices[0].vol_l,
         "INT-01: control voice vol_l should remain 0x100 without sweep");
 
