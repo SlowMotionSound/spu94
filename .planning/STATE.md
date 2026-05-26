@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.10.0
 milestone_name: Voice Dynamics & Stereo Effects
-status: in_progress
-stopped_at: v1.10.0 revised scope — unified VCA ramp effects
-last_updated: "2026-05-25T00:25:00Z"
-last_activity: 2026-05-25
+status: executing
+stopped_at: v1.10.0 effects UAT — fixing bugs found during live testing
+last_updated: "2026-05-26T00:16:03.003Z"
+last_activity: 2026-05-26 -- Phase 54 execution started
 progress:
-  total_phases: 9
-  completed_phases: 9
-  total_plans: 16
-  completed_plans: 16
-  percent: 100
+  total_phases: 13
+  completed_phases: 11
+  total_plans: 20
+  completed_plans: 19
+  percent: 85
 ---
 
 # Project State
@@ -21,13 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-24)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.10.0 Voice Dynamics & Stereo Effects -- REVISED SCOPE (unified VCA ramp effects rework)
+**Current focus:** Phase 54 — unified-effects-gui
 
 ## Current Position
 
-Phase: 52 of 55 — revised scope in progress
-Status: In progress
-Last activity: 2026-05-25
+Phase: 54 (unified-effects-gui) — EXECUTING
+Plan: 1 of 1
+Status: Executing Phase 54
+Last activity: 2026-05-26 -- Phase 54 execution started
 
 Progress: [██████░░░░] 60%
 
@@ -127,6 +128,9 @@ None.
 | Creative effect | "Bit Corrupt" mode | 2026-05-11 |
 | Creative extension | Pitch quantizer on mod bus — quantize LFSR noise to musical intervals before pitch modulation | 2026-05-25 |
 | Eurorack | Raw LFSR CV output — expose noise generator as a patchable output alongside audio outs | 2026-05-25 |
+| GUI cleanup | Remove old VCA ramp controls (direction/speed/curve/ARM) — superseded by unified effects dropdown | 2026-05-25 |
+| GUI cleanup | Organize Noise section in sampler panel | 2026-05-25 |
+| UI | Musical divisions for effects Speed encoder (note values, BPM sync) | 2026-05-25 |
 
 ## Performance Metrics
 
@@ -153,10 +157,13 @@ fix requires splitting spu94_process output into voice and reverb buses so the h
 can side-limit reverb only.
 
 **Scope:**
+
 1. C core API: add `spu94_process_split()` — writes voice (dry+adpcm+sampler) and
    reverb to separate buffer pairs. Existing `spu94_process` unchanged.
+
 2. spu94_process.c: at the 4-bus mix (lines 267-276), write two sums instead of one.
    DAC model application is a design decision (combined or per-bus).
+
 3. PluginProcessor.cpp: call split variant, side-limit reverb bus only, sum for output.
    Voice stereo effects pass through clean.
 
