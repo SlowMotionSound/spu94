@@ -122,6 +122,7 @@ public:
     // Unified effect mode selector (Phase 54: GUI state only, does not affect DSP routing)
     // 0=Auto-Pan, 1=Tremolo, 2=AM, 3=Ring Mod, 4=Ducking
     std::atomic<int>&   getEffectMode() { return effectMode; }
+    std::atomic<bool>&  getEffectModeChanged() { return effectModeChanged; }
 
     // Internal mod bus controls (Phase 50: per-voice noise-to-pitch/vol/pan routing)
     std::atomic<float>& getModBusPitchDepth() { return modBusPitchDepth; }
@@ -521,6 +522,7 @@ private:
     // Unified effect mode selector (Phase 54: GUI state only)
     // 0=Auto-Pan, 1=Tremolo, 2=AM, 3=Ring Mod, 4=Ducking
     std::atomic<int> effectMode{0};
+    std::atomic<bool> effectModeChanged{false};
 
     // Internal mod bus controls (Phase 50: per-voice noise-to-pitch/vol/pan routing)
     // Each 0.0..1.0, converted to int16_t depth in processBlock before passing to C core.

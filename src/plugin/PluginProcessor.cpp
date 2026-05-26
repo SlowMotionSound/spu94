@@ -800,6 +800,17 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         spu94_voice_mixer_set_pmon(spu94_get_voice_mixer(), 0,
             guiVoicePmon.load(std::memory_order_relaxed) ? 1 : 0);
 
+        if (effectModeChanged.exchange(false, std::memory_order_acquire))
+        {
+            auto* mx = spu94_get_voice_mixer();
+            mx->voices[0].sweep_l.active = 0;
+            mx->voices[0].sweep_r.active = 0;
+            tremoloWasActive = false;
+            autoPanWasActive = false;
+            amWasActive = false;
+            ringModWasActive = false;
+        }
+
         // VCA ramp activation (Phase 41: volume sweep GUI surface)
         // One-shot: GUI sets rampArm=true, audio thread reads and resets to false.
         // Tremolo, auto-pan, AM, ring mod, and VCA ramp are mutually exclusive.

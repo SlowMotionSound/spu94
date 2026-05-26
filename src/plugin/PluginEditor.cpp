@@ -535,6 +535,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             }
 
             processorRef.getEffectMode().store(mode - 1, std::memory_order_relaxed);
+            processorRef.getEffectModeChanged().store(true, std::memory_order_release);
             rampArmButton.setEnabled(mode == 1);
 
             updateEffectControlVisibility();
