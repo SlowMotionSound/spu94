@@ -86,31 +86,23 @@ void spu94_sweep_tick(spu94_sweep_t *sw) {
         if (sw->level == boundary) {
             switch (sw->shape) {
             case SPU94_SWEEP_SHAPE_SAW_DOWN:
-                /* Reset to max (start of downward ramp). Direction stays decrease.
-                 * For unipolar: reset to +0x7FFF.
-                 * For bipolar: reset to +0x7FFF (full bipolar saw traverses
-                 * +0x7FFF -> 0 -> -0x7FFF then resets). */
                 if (sw->bipolar) {
                     sw->level = 0x7FFF;
                     sw->phase = 0;
-                    sw->direction = 1;
-                } else {
+                }  else {
                     sw->level = 0x7FFF;
                 }
+                sw->direction = 1;
                 sw->counter = 0;
                 break;
             case SPU94_SWEEP_SHAPE_SAW_UP:
-                /* Reset to min (start of upward ramp). Direction stays increase.
-                 * For unipolar: reset to 0.
-                 * For bipolar: reset to -0x7FFF (full bipolar saw traverses
-                 * -0x7FFF -> 0 -> +0x7FFF then resets). */
                 if (sw->bipolar) {
                     sw->level = -0x7FFF;
                     sw->phase = 1;
-                    sw->direction = 0;
                 } else {
                     sw->level = 0;
                 }
+                sw->direction = 0;
                 sw->counter = 0;
                 break;
             default: /* SPU94_SWEEP_SHAPE_TRIANGLE */

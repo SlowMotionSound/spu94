@@ -635,7 +635,15 @@ void spu94_voice_mixer_tick(spu94_voice_mixer_t *m,
             /* Copy pending_config into live voice, then key_on the live struct.
              * The pending_config carries staged ADSR and parameters. */
             spu94_voice_t *cfg = &m->pending_config[v];
+            spu94_sweep_t save_l = m->voices[v].sweep_l;
+            spu94_sweep_t save_r = m->voices[v].sweep_r;
+            int16_t save_depth_l = m->voices[v].sweep_depth_l;
+            int16_t save_depth_r = m->voices[v].sweep_depth_r;
             m->voices[v] = *cfg;
+            m->voices[v].sweep_l = save_l;
+            m->voices[v].sweep_r = save_r;
+            m->voices[v].sweep_depth_l = save_depth_l;
+            m->voices[v].sweep_depth_r = save_depth_r;
 
             /* Update eon_flags from pending config's reverb_on intent
              * (stored in pending_config.endx as a temporary flag) */
