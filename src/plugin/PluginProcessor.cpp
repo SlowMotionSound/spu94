@@ -1873,33 +1873,90 @@ void SPU94AudioProcessor::stopVoice()
     pendingGuiStop.store(true, std::memory_order_release);
 }
 
+namespace {
+
+struct AdsrRate { uint8_t shift; uint8_t step; float seconds; };
+
+// All 84 shift+step combos sorted by attack time (0->0x7FFF, linear, 44.1kHz).
+static constexpr AdsrRate kAttackTable[] = {
+    { 0,0, 0.0001f}, { 0,1, 0.0001f}, { 0,2, 0.0001f}, { 0,3, 0.0001f},
+    { 1,0, 0.0001f}, { 1,1, 0.0001f}, { 1,2, 0.0002f}, { 1,3, 0.0002f},
+    { 2,0, 0.0002f}, { 2,1, 0.0002f}, { 2,2, 0.0003f}, { 2,3, 0.0004f},
+    { 3,0, 0.0004f}, { 3,1, 0.0005f}, { 3,2, 0.0006f}, { 3,3, 0.0007f},
+    { 4,0, 0.0008f}, { 4,1, 0.0010f}, { 4,2, 0.0012f}, { 4,3, 0.0015f},
+    { 5,0, 0.0017f}, { 5,1, 0.0020f}, { 5,2, 0.0023f}, { 5,3, 0.0029f},
+    { 6,0, 0.0033f}, { 6,1, 0.0039f}, { 6,2, 0.0046f}, { 6,3, 0.0058f},
+    { 7,0, 0.0066f}, { 7,1, 0.0078f}, { 7,2, 0.0093f}, { 7,3, 0.0116f},
+    { 8,0, 0.0133f}, { 8,1, 0.0155f}, { 8,2, 0.0186f}, { 8,3, 0.0232f},
+    { 9,0, 0.0266f}, { 9,1, 0.0310f}, { 9,2, 0.0372f}, { 9,3, 0.0464f},
+    {10,0, 0.0531f}, {10,1, 0.0619f}, {10,2, 0.0743f}, {10,3, 0.0929f},
+    {11,0, 0.1061f}, {11,1, 0.1239f}, {11,2, 0.1486f}, {11,3, 0.1858f},
+    {12,0, 0.2123f}, {12,1, 0.2477f}, {12,2, 0.2972f}, {12,3, 0.3715f},
+    {13,0, 0.4246f}, {13,1, 0.4954f}, {13,2, 0.5945f}, {13,3, 0.7430f},
+    {14,0, 0.8492f}, {14,1, 0.9908f}, {14,2, 1.1889f}, {14,3, 1.4861f},
+    {15,0, 1.6983f}, {15,1, 1.9817f}, {15,2, 2.3779f}, {15,3, 2.9722f},
+    {16,0, 3.3966f}, {16,1, 3.9634f}, {16,2, 4.7557f}, {16,3, 5.9443f},
+    {17,0, 6.7933f}, {17,1, 7.9267f}, {17,2, 9.5115f}, {17,3,11.8886f},
+    {18,0,13.5866f}, {18,1,15.8534f}, {18,2,19.0229f}, {18,3,23.7772f},
+    {19,0,27.1732f}, {19,1,31.7068f}, {19,2,38.0459f}, {19,3,47.5545f},
+    {20,0,54.3463f}, {20,1,63.4137f}, {20,2,76.0918f}, {20,3,95.1089f},
+};
+static constexpr int kAttackTableSize = sizeof(kAttackTable) / sizeof(kAttackTable[0]);
+
+// Decay/release use decrease direction (step base=8 vs attack's 7), step_index always 0.
+// Only shift matters — 21 entries.
+static constexpr AdsrRate kDecayTable[] = {
+    { 0,0, 0.00005f}, { 1,0, 0.0001f}, { 2,0, 0.0002f}, { 3,0, 0.0004f},
+    { 4,0, 0.0007f}, { 5,0, 0.0015f}, { 6,0, 0.0029f}, { 7,0, 0.0058f},
+    { 8,0, 0.0116f}, { 9,0, 0.0232f}, {10,0, 0.0464f}, {11,0, 0.0929f},
+    {12,0, 0.1858f}, {13,0, 0.3715f}, {14,0, 0.7430f}, {15,0, 1.4861f},
+    {16,0, 2.9722f}, {17,0, 5.9443f}, {18,0,11.8886f}, {19,0,23.7772f},
+    {20,0,47.5545f},
+};
+static constexpr int kDecayTableSize = sizeof(kDecayTable) / sizeof(kDecayTable[0]);
+
+// Map a 0..1 knob to the nearest shift+step pair.
+// Logarithmic interpolation across the full time range: knob=0 → fastest,
+// knob=1 → slowest. The log scale means the first half of the knob covers
+// instant to ~100ms (percussion) and the second half covers 100ms to 95s.
+AdsrRate knobToRate(float knob, const AdsrRate* table, int tableSize) {
+    if (knob <= 0.0f) return table[0];
+    if (knob >= 1.0f) return table[tableSize - 1];
+
+    // Clamp: first entry might be 0.0s, use a floor for log
+    auto safeLog = [](float s) { return std::log(s < 1e-6f ? 1e-6f : s); };
+
+    float minLog = safeLog(table[0].seconds);
+    float maxLog = safeLog(table[tableSize - 1].seconds);
+    float shaped = std::pow(knob, 0.38f);
+    float targetLog = minLog + shaped * (maxLog - minLog);
+
+    int best = 0;
+    float bestDist = 1e30f;
+    for (int i = 0; i < tableSize; i++) {
+        float dist = std::abs(safeLog(table[i].seconds) - targetLog);
+        if (dist < bestDist) { bestDist = dist; best = i; }
+    }
+    return table[best];
+}
+
+} // anon namespace
+
 spu94_adsr_state_t SPU94AudioProcessor::buildAdsrConfig() const
 {
     spu94_adsr_state_t cfg;
     spu94_adsr_init(&cfg);
     cfg.enabled = 1;
 
-    // Power-curve knob mapping: knob^0.55 concentrates the musical sweet
-    // spot (50ms-3s) in the middle 40% of the knob sweep, compresses the
-    // instant and extreme-slow ranges into the first/last 10%.
-    // Attack/release: 0..20 (52us to 54s). Decay: 0..15 (45us to 2.4s).
-    // Rise/Fall: 0..20 (inverted — full magnitude = fastest drift).
-    auto powerMap = [](float knob, float maxShift) -> uint8_t {
-        if (knob <= 0.0f) return 0;
-        if (knob >= 1.0f) return static_cast<uint8_t>(maxShift);
-        float s = maxShift * std::pow(knob, 0.55f);
-        int v = static_cast<int>(s + 0.5f);
-        if (v > static_cast<int>(maxShift)) v = static_cast<int>(maxShift);
-        return static_cast<uint8_t>(v);
-    };
-
     float atk = adsrAttack.load(std::memory_order_relaxed);
-    cfg.attack_shift = powerMap(atk, 20.0f);
-    cfg.attack_step  = 0;
+    auto ar = knobToRate(atk, kAttackTable, kAttackTableSize);
+    cfg.attack_shift = ar.shift;
+    cfg.attack_step  = ar.step;
     cfg.attack_exp   = adsrAttackExp.load(std::memory_order_relaxed) ? 1 : 0;
 
     float dec = adsrDecay.load(std::memory_order_relaxed);
-    cfg.decay_shift = powerMap(dec, 20.0f);
+    auto dr = knobToRate(dec, kDecayTable, kDecayTableSize);
+    cfg.decay_shift = dr.shift;
 
     float sl = adsrSustainLvl.load(std::memory_order_relaxed);
     cfg.sustain_level = static_cast<uint8_t>(sl * 15.0f + 0.5f);
@@ -1911,13 +1968,15 @@ spu94_adsr_state_t SPU94AudioProcessor::buildAdsrConfig() const
         cfg.sustain_shift = 31;
         cfg.sustain_step  = 3;
     } else {
-        cfg.sustain_shift = powerMap(1.0f - mag, 20.0f);
-        cfg.sustain_step  = 0;
+        auto srr = knobToRate(1.0f - mag, kAttackTable, kAttackTableSize);
+        cfg.sustain_shift = srr.shift;
+        cfg.sustain_step  = srr.step;
     }
     cfg.sustain_exp   = adsrSustainExp.load(std::memory_order_relaxed) ? 1 : 0;
 
     float rel = adsrRelease.load(std::memory_order_relaxed);
-    cfg.release_shift = powerMap(rel, 20.0f);
+    auto rr = knobToRate(rel, kDecayTable, kDecayTableSize);
+    cfg.release_shift = rr.shift;
     cfg.release_exp   = adsrReleaseExp.load(std::memory_order_relaxed) ? 1 : 0;
 
     return cfg;

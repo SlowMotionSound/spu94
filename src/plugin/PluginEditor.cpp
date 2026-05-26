@@ -1263,36 +1263,14 @@ void SPU94AudioProcessorEditor::refreshAdsrDisplay()
 {
     float atk = static_cast<float>(adsrAttackKnob.getValue());
     float dec = static_cast<float>(adsrDecayKnob.getValue());
-    float sl  = static_cast<float>(adsrSustainLvlKnob.getValue());
-    float sr  = static_cast<float>(adsrSustainRateKnob.getValue());
     float rel = static_cast<float>(adsrReleaseKnob.getValue());
 
-    auto powerMap = [](float knob, float maxShift) -> uint8_t {
-        if (knob <= 0.0f) return 0;
-        if (knob >= 1.0f) return static_cast<uint8_t>(maxShift);
-        float s = maxShift * std::pow(knob, 0.55f);
-        int v = static_cast<int>(s + 0.5f);
-        if (v > static_cast<int>(maxShift)) v = static_cast<int>(maxShift);
-        return static_cast<uint8_t>(v);
-    };
+    auto cfg = processorRef.buildAdsrConfig();
 
-    uint8_t aShift = powerMap(atk, 20.0f);
-    uint8_t aExp   = adsrAttackExpToggle.getToggleState() ? 1 : 0;
-    uint8_t dShift = powerMap(dec, 15.0f);
-    uint8_t sLevel = static_cast<uint8_t>(sl * 15.0f + 0.5f);
-    uint8_t sDir   = sr < 0.0f ? 1 : 0;
-    float   mag    = sr < 0.0f ? -sr : sr;
-    uint8_t sShift;
-    if (mag < 0.01f) {
-        sShift = 31;
-    } else {
-        sShift = powerMap(1.0f - mag, 20.0f);
-    }
-    uint8_t sExp   = adsrSustainExpToggle.getToggleState() ? 1 : 0;
-    uint8_t rShift = powerMap(rel, 20.0f);
-    uint8_t rExp   = adsrReleaseExpToggle.getToggleState() ? 1 : 0;
-
-    adsrDisplay.update(aShift, aExp, dShift, sLevel, sShift, sExp, sDir, rShift, rExp,
+    adsrDisplay.update(cfg.attack_shift, cfg.attack_exp,
+                       cfg.decay_shift, cfg.sustain_level,
+                       cfg.sustain_shift, cfg.sustain_exp, cfg.sustain_dir,
+                       cfg.release_shift, cfg.release_exp,
                        atk, dec, rel);
 }
 
