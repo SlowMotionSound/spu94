@@ -1459,9 +1459,14 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     duckOrigLevel_l[v] = mx->voices[v].vol_l;
                     duckOrigLevel_r[v] = mx->voices[v].vol_r;
 
-                    // Configure exponential decrease (fast attack: shift=10, one-shot)
-                    spu94_voice_mixer_set_sweep_l(mx, v, 1, 1, 0, 10, 0, 0, 0, 0);
-                    spu94_voice_mixer_set_sweep_r(mx, v, 1, 1, 0, 10, 0, 0, 0, 0);
+                    // Configure exponential decrease using configurable attack time
+                    // T-54-02: clamp minimum to 0.001s to prevent division by zero
+                    float atkSec = duckAttack[v].load(std::memory_order_relaxed);
+                    if (atkSec < 0.001f) atkSec = 0.001f;
+                    if (atkSec > 0.5f) atkSec = 0.5f;
+                    auto atkSS = speedToShift(atkSec);
+                    spu94_voice_mixer_set_sweep_l(mx, v, 1, 1, 0, atkSS.shift, atkSS.step, 0, 0, 0);
+                    spu94_voice_mixer_set_sweep_r(mx, v, 1, 1, 0, atkSS.shift, atkSS.step, 0, 0, 0);
                     duckState[v] = DUCK_DECREASING;
                 }
             }
