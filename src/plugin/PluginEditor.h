@@ -4,7 +4,6 @@
 #include "RegisterPanel.h"
 #include "MorphPanel.h"
 #include "SamplerWindow.h"
-#include "AdsrDisplay.h"
 #include <memory>
 
 class SPU94AudioProcessorEditor : public juce::AudioProcessorEditor,
@@ -114,7 +113,6 @@ private:
     juce::Label  endPosLabel;
 
     // ADSR controls (standalone-only)
-    AdsrDisplay adsrDisplay;
     juce::Slider adsrAttackKnob;      juce::Label adsrAttackLabel;
     juce::Slider adsrDecayKnob;       juce::Label adsrDecayLabel;
     juce::Slider adsrSustainLvlKnob;  juce::Label adsrSustainLvlLabel;
@@ -123,7 +121,6 @@ private:
     juce::ToggleButton adsrAttackExpToggle{"Exp"};
     juce::ToggleButton adsrSustainExpToggle{"Exp"};
     juce::ToggleButton adsrReleaseExpToggle{"Exp"};
-    void refreshAdsrDisplay();
 
     // Voice pan/level controls (Phase 39: replaces raw Vol L/R)
     juce::Slider voicePanKnob;

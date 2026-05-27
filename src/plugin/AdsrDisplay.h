@@ -12,25 +12,27 @@ public:
                 uint8_t dShift, uint8_t sLevel,
                 uint8_t sShift, uint8_t sExp, uint8_t sDir,
                 uint8_t rShift, uint8_t rExp,
-                float atkKnob = 0.0f, float decKnob = 0.0f, float relKnob = 0.2f)
+                float atkSec = 0.001f, float decSec = 0.001f, float relSec = 0.1f)
     {
-        sustainTarget = static_cast<int16_t>(
-            std::min(((int32_t)sLevel + 1) * 0x800, (int32_t)0x7FFF));
+        if (sLevel == 0)
+            sustainTarget = 0;
+        else
+            sustainTarget = static_cast<int16_t>(
+                std::min(((int32_t)sLevel + 1) * 0x800, (int32_t)0x7FFF));
 
         constexpr int kTotal = 380;
-        constexpr double kScale = 0.05;
-        constexpr double kSusW = 0.02;
+        constexpr double kSusW = 0.15;
 
-        double wA = (double)atkKnob * kScale;
-        double wD = (double)decKnob * kScale;
+        double wA = std::max(0.01, (double)atkSec);
+        double wD = std::max(0.01, (double)decSec);
         double wS = kSusW;
-        double wR = (double)relKnob * kScale;
+        double wR = std::max(0.01, (double)relSec);
         double wT = wA + wD + wS + wR;
 
-        int nA = std::max(2, (int)(kTotal * wA / wT));
-        int nD = std::max(2, (int)(kTotal * wD / wT));
+        int nA = std::max(1, (int)(kTotal * wA / wT));
+        int nD = std::max(1, (int)(kTotal * wD / wT));
         int nS = std::max(8, (int)(kTotal * wS / wT));
-        int nR = std::max(2, (int)(kTotal * wR / wT));
+        int nR = std::max(1, (int)(kTotal * wR / wT));
 
         levels.clear();
         levels.reserve(nA + nD + nS + nR + 8);

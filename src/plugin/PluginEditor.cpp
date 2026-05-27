@@ -262,17 +262,13 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         };
 
         // ADSR section
-        panel.addAndMakeVisible(adsrDisplay);
-
-        auto knobTimeText = [](double val) -> juce::String {
-            return juce::String(static_cast<int>(val * 100.0 + 0.5));
-        };
+        // ADSR display removed — faders show ms/s values directly
 
         auto setupAdsrKnob = [&](juce::Slider& knob, juce::Label& label,
                                   const char* name, double init,
                                   double lo, double hi) {
-            knob.setSliderStyle(juce::Slider::Rotary);
-            knob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 14);
+            knob.setSliderStyle(juce::Slider::LinearVertical);
+            knob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 14);
             knob.setRange(lo, hi, 0.01);
             knob.setValue(init, juce::dontSendNotification);
             panel.addAndMakeVisible(knob);
@@ -282,12 +278,26 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             panel.addAndMakeVisible(label);
         };
         setupAdsrKnob(adsrAttackKnob,      adsrAttackLabel,      "Atk",  0.0,  0.0, 1.0);
-        adsrAttackKnob.textFromValueFunction = knobTimeText;
+        adsrAttackKnob.textFromValueFunction = [this](double val) -> juce::String {
+            float s = processorRef.adsrAttackSecondsForKnob(static_cast<float>(val));
+            return s < 1.0f ? juce::String(static_cast<int>(s * 1000.0f + 0.5f)) + " ms"
+                            : juce::String(s, 2) + " s";
+        };
         setupAdsrKnob(adsrDecayKnob,       adsrDecayLabel,       "Dec",  0.0,  0.0, 1.0);
-        adsrDecayKnob.textFromValueFunction = knobTimeText;
-        setupAdsrKnob(adsrSustainLvlKnob,  adsrSustainLvlLabel,  "Sus",  1.0,  0.0, 1.0);
+        adsrDecayKnob.textFromValueFunction = [this](double val) -> juce::String {
+            float s = processorRef.adsrDecaySecondsForKnob(static_cast<float>(val));
+            return s < 1.0f ? juce::String(static_cast<int>(s * 1000.0f + 0.5f)) + " ms"
+                            : juce::String(s, 2) + " s";
+        };
+        setupAdsrKnob(adsrSustainLvlKnob,  adsrSustainLvlLabel,  "Sus",  15.0,  0.0, 15.0);
+        adsrSustainLvlKnob.setRange(0.0, 15.0, 1.0);
         adsrSustainLvlKnob.textFromValueFunction = [](double val) -> juce::String {
-            return juce::String(static_cast<int>(val * 100.0 + 0.5)) + "%";
+            int lv = static_cast<int>(val + 0.5);
+            if (lv == 0) return "0%";
+            int target = (lv + 1) * 0x800;
+            if (target > 0x7FFF) target = 0x7FFF;
+            int pct = static_cast<int>(target * 100.0 / 0x7FFF + 0.5);
+            return juce::String(pct) + "%";
         };
         setupAdsrKnob(adsrSustainRateKnob, adsrSustainRateLabel,  "Rise/Fall", 0.0, -1.0, 1.0);
 
@@ -295,22 +305,23 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         adsrSustainLvlKnob.setColour(juce::Slider::thumbColourId, sustainTint);
         adsrSustainRateKnob.setColour(juce::Slider::thumbColourId, sustainTint);
         setupAdsrKnob(adsrReleaseKnob,     adsrReleaseLabel,     "Rel",  0.0,  0.0, 1.0);
-        adsrReleaseKnob.textFromValueFunction = knobTimeText;
+        adsrReleaseKnob.textFromValueFunction = [this](double val) -> juce::String {
+            float s = processorRef.adsrReleaseSecondsForKnob(static_cast<float>(val));
+            return s < 1.0f ? juce::String(static_cast<int>(s * 1000.0f + 0.5f)) + " ms"
+                            : juce::String(s, 2) + " s";
+        };
 
         adsrAttackKnob.onValueChange = [this] {
             processorRef.getAdsrAttack().store(
                 static_cast<float>(adsrAttackKnob.getValue()), std::memory_order_relaxed);
-            refreshAdsrDisplay();
         };
         adsrDecayKnob.onValueChange = [this] {
             processorRef.getAdsrDecay().store(
                 static_cast<float>(adsrDecayKnob.getValue()), std::memory_order_relaxed);
-            refreshAdsrDisplay();
         };
         adsrSustainLvlKnob.onValueChange = [this] {
             processorRef.getAdsrSustainLvl().store(
                 static_cast<float>(adsrSustainLvlKnob.getValue()), std::memory_order_relaxed);
-            refreshAdsrDisplay();
         };
         adsrSustainRateKnob.onValueChange = [this] {
             double v = adsrSustainRateKnob.getValue();
@@ -321,12 +332,10 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             }
             processorRef.getAdsrSustainRate().store(
                 static_cast<float>(v), std::memory_order_relaxed);
-            refreshAdsrDisplay();
         };
         adsrReleaseKnob.onValueChange = [this] {
             processorRef.getAdsrRelease().store(
                 static_cast<float>(adsrReleaseKnob.getValue()), std::memory_order_relaxed);
-            refreshAdsrDisplay();
         };
 
         panel.addAndMakeVisible(adsrAttackExpToggle);
@@ -334,14 +343,12 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         adsrAttackExpToggle.onClick = [this] {
             processorRef.getAdsrAttackExp().store(
                 adsrAttackExpToggle.getToggleState(), std::memory_order_relaxed);
-            refreshAdsrDisplay();
         };
         panel.addAndMakeVisible(adsrSustainExpToggle);
         adsrSustainExpToggle.setClickingTogglesState(true);
         adsrSustainExpToggle.onClick = [this] {
             processorRef.getAdsrSustainExp().store(
                 adsrSustainExpToggle.getToggleState(), std::memory_order_relaxed);
-            refreshAdsrDisplay();
         };
         panel.addAndMakeVisible(adsrReleaseExpToggle);
         adsrReleaseExpToggle.setClickingTogglesState(true);
@@ -349,10 +356,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         adsrReleaseExpToggle.onClick = [this] {
             processorRef.getAdsrReleaseExp().store(
                 adsrReleaseExpToggle.getToggleState(), std::memory_order_relaxed);
-            refreshAdsrDisplay();
         };
-
-        refreshAdsrDisplay();
 
         // Pan + Level + INV controls (Phase 39: replaces raw Vol L/R).
         // Pan: rotary encoder with center detent at 0.
@@ -1269,19 +1273,6 @@ void SPU94AudioProcessorEditor::updateEffectControlVisibility()
     }
 }
 
-void SPU94AudioProcessorEditor::refreshAdsrDisplay()
-{
-    auto cfg = processorRef.buildAdsrConfig();
-    float atkSec = processorRef.getAdsrAttackSeconds();
-    float decSec = processorRef.getAdsrDecaySeconds();
-    float relSec = processorRef.getAdsrReleaseSeconds();
-
-    adsrDisplay.update(cfg.attack_shift, cfg.attack_exp,
-                       cfg.decay_shift, cfg.sustain_level,
-                       cfg.sustain_shift, cfg.sustain_exp, cfg.sustain_dir,
-                       cfg.release_shift, cfg.release_exp,
-                       atkSec, decSec, relSec);
-}
 
 void SPU94AudioProcessorEditor::updateVoiceVolumes()
 {
@@ -1397,10 +1388,7 @@ void SPU94AudioProcessorEditor::resized()
             endPosKnob.setBounds(320, 264, 70, 54);
 
             // ADSR section — directly below marker knobs
-            constexpr int adsrDispY = 322;
-            adsrDisplay.setBounds(10, adsrDispY, 380, 55);
-
-            constexpr int aky = 382, akw = 65, akh = 54;
+            constexpr int aky = 322, akw = 65, akh = 110;
             adsrAttackLabel.setBounds(15, aky, akw, 12);
             adsrAttackKnob.setBounds(15, aky + 12, akw, akh);
             adsrDecayLabel.setBounds(91, aky, akw, 12);

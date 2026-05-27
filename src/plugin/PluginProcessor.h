@@ -137,6 +137,9 @@ public:
     float getAdsrAttackSeconds() const;
     float getAdsrDecaySeconds() const;
     float getAdsrReleaseSeconds() const;
+    float adsrAttackSecondsForKnob(float knob) const;
+    float adsrDecaySecondsForKnob(float knob) const;
+    float adsrReleaseSecondsForKnob(float knob) const;
 
     // Waveform display data — stashed on load for the GUI thumbnail
     const std::vector<int16_t>& getWaveformData() const { return waveformData; }

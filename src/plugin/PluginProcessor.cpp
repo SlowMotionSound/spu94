@@ -1974,24 +1974,8 @@ static constexpr int kReleaseExpTableSize = sizeof(kReleaseExpTable) / sizeof(kR
 // Knob curve: 0%=1ms, 50%=2s, 100%=10s
 // time = 0.001 * 10000^(knob^0.277)
 AdsrRate knobToRate(float knob, const AdsrRate* table, int tableSize) {
-    knob = std::clamp(knob, 0.0f, 1.0f);
-    float targetSec;
-    if (knob < 0.001f) {
-        targetSec = table[0].seconds;
-    } else if (knob <= 0.25f) {
-        float t = knob / 0.25f;
-        targetSec = std::exp(std::log(0.001f) + t * (std::log(0.335f) - std::log(0.001f)));
-    } else {
-        targetSec = 0.001f * std::pow(10000.0f, std::pow(knob, 0.277f));
-    }
-
-    int best = 0;
-    float bestDist = 1e30f;
-    for (int i = 0; i < tableSize; i++) {
-        float dist = std::abs(std::log(table[i].seconds) - std::log(targetSec));
-        if (dist < bestDist) { bestDist = dist; best = i; }
-    }
-    return table[best];
+    int idx = static_cast<int>(knob * (tableSize - 1) + 0.5f);
+    return table[std::clamp(idx, 0, tableSize - 1)];
 }
 
 } // anon namespace
@@ -2016,7 +2000,7 @@ spu94_adsr_state_t SPU94AudioProcessor::buildAdsrConfig() const
     cfg.decay_step  = dr.step;
 
     float sl = adsrSustainLvl.load(std::memory_order_relaxed);
-    cfg.sustain_level = static_cast<uint8_t>(sl * 15.0f + 0.5f);
+    cfg.sustain_level = static_cast<uint8_t>(std::clamp(sl, 0.0f, 15.0f) + 0.5f);
 
     float sr = adsrSustainRate.load(std::memory_order_relaxed);
     cfg.sustain_dir  = sr < 0.0f ? 1 : 0;
@@ -2056,6 +2040,22 @@ float SPU94AudioProcessor::getAdsrDecaySeconds() const {
 
 float SPU94AudioProcessor::getAdsrReleaseSeconds() const {
     float knob = adsrRelease.load(std::memory_order_relaxed);
+    bool exp = adsrReleaseExp.load(std::memory_order_relaxed);
+    return knobToRate(knob, exp ? kReleaseExpTable : kReleaseLinTable,
+                            exp ? kReleaseExpTableSize : kReleaseLinTableSize).seconds;
+}
+
+float SPU94AudioProcessor::adsrAttackSecondsForKnob(float knob) const {
+    bool exp = adsrAttackExp.load(std::memory_order_relaxed);
+    return knobToRate(knob, exp ? kAttackExpTable : kAttackLinTable,
+                            exp ? kAttackExpTableSize : kAttackLinTableSize).seconds;
+}
+
+float SPU94AudioProcessor::adsrDecaySecondsForKnob(float knob) const {
+    return knobToRate(knob, kDecayTable, kDecayTableSize).seconds;
+}
+
+float SPU94AudioProcessor::adsrReleaseSecondsForKnob(float knob) const {
     bool exp = adsrReleaseExp.load(std::memory_order_relaxed);
     return knobToRate(knob, exp ? kReleaseExpTable : kReleaseLinTable,
                             exp ? kReleaseExpTableSize : kReleaseLinTableSize).seconds;
