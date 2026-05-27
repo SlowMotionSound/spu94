@@ -46,12 +46,14 @@ void spu94_adsr_init(spu94_adsr_state_t *a) {
     a->attack_step = 0;
     a->attack_exp = 0;
     a->decay_shift = 0;
+    a->decay_step = 0;
     a->sustain_level = 0;
     a->sustain_shift = 0;
     a->sustain_step = 0;
     a->sustain_exp = 0;
     a->sustain_dir = 0;
     a->release_shift = 0;
+    a->release_step = 0;
     a->release_exp = 0;
     a->phase = ADSR_OFF;
     a->level = 0;
@@ -109,19 +111,21 @@ int16_t spu94_adsr_tick(spu94_adsr_state_t *a) {
     }
 
     case ADSR_DECAY: {
-        /* Decay is always exponential, step_index=0 (base 8) */
-        spu94_envelope_step(&env, a->decay_shift, 0 /* step_index */,
+        spu94_envelope_step(&env, a->decay_shift, a->decay_step,
                             1 /* decrease */, 1 /* exponential */,
                             0 /* phase_negative */);
         level = (int32_t)env.level;
 
-        /* Sustain target: (sustain_level + 1) * 0x800 (M2: never zero) */
-        int32_t sustain_target = ((int32_t)a->sustain_level + 1) * 0x800;
+        int32_t sustain_target = (a->sustain_level == 0) ? 0
+            : ((int32_t)a->sustain_level + 1) * 0x800;
         if (level <= sustain_target) {
             level = sustain_target;
-            /* Clamp to max level if target exceeds it */
             if (level > 0x7FFF) level = 0x7FFF;
-            a->phase = ADSR_SUSTAIN;
+            if (sustain_target == 0) {
+                a->phase = ADSR_OFF;
+            } else {
+                a->phase = ADSR_SUSTAIN;
+            }
             env.counter = 0;
         }
 
@@ -144,8 +148,7 @@ int16_t spu94_adsr_tick(spu94_adsr_state_t *a) {
     }
 
     case ADSR_RELEASE: {
-        /* Release: step_index=0 (base 8, nocash: release step value is always 0) */
-        spu94_envelope_step(&env, a->release_shift, 0 /* step_index */,
+        spu94_envelope_step(&env, a->release_shift, a->release_step,
                             1 /* decrease */, a->release_exp,
                             0 /* phase_negative */);
         level = (int32_t)env.level;

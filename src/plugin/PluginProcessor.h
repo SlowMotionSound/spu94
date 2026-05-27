@@ -134,6 +134,9 @@ public:
     std::atomic<float>& getAdsrRelease()     { return adsrRelease; }
     std::atomic<bool>&  getAdsrReleaseExp()  { return adsrReleaseExp; }
     spu94_adsr_state_t buildAdsrConfig() const;
+    float getAdsrAttackSeconds() const;
+    float getAdsrDecaySeconds() const;
+    float getAdsrReleaseSeconds() const;
 
     // Waveform display data — stashed on load for the GUI thumbnail
     const std::vector<int16_t>& getWaveformData() const { return waveformData; }

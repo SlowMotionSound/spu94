@@ -1314,12 +1314,14 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     ad.attack_step   = cfg.attack_step;
                     ad.attack_exp    = cfg.attack_exp;
                     ad.decay_shift   = cfg.decay_shift;
+                    ad.decay_step    = cfg.decay_step;
                     ad.sustain_level = cfg.sustain_level;
                     ad.sustain_shift = cfg.sustain_shift;
                     ad.sustain_step  = cfg.sustain_step;
                     ad.sustain_exp   = cfg.sustain_exp;
                     ad.sustain_dir   = cfg.sustain_dir;
                     ad.release_shift = cfg.release_shift;
+                    ad.release_step  = cfg.release_step;
                     ad.release_exp   = cfg.release_exp;
                 }
             }
@@ -1877,64 +1879,116 @@ namespace {
 
 struct AdsrRate { uint8_t shift; uint8_t step; float seconds; };
 
-// All 84 shift+step combos sorted by attack time (0->0x7FFF, linear, 44.1kHz).
-static constexpr AdsrRate kAttackTable[] = {
-    { 0,0, 0.0001f}, { 0,1, 0.0001f}, { 0,2, 0.0001f}, { 0,3, 0.0001f},
-    { 1,0, 0.0001f}, { 1,1, 0.0001f}, { 1,2, 0.0002f}, { 1,3, 0.0002f},
-    { 2,0, 0.0002f}, { 2,1, 0.0002f}, { 2,2, 0.0003f}, { 2,3, 0.0004f},
-    { 3,0, 0.0004f}, { 3,1, 0.0005f}, { 3,2, 0.0006f}, { 3,3, 0.0007f},
-    { 4,0, 0.0008f}, { 4,1, 0.0010f}, { 4,2, 0.0012f}, { 4,3, 0.0015f},
-    { 5,0, 0.0017f}, { 5,1, 0.0020f}, { 5,2, 0.0023f}, { 5,3, 0.0029f},
-    { 6,0, 0.0033f}, { 6,1, 0.0039f}, { 6,2, 0.0046f}, { 6,3, 0.0058f},
-    { 7,0, 0.0066f}, { 7,1, 0.0078f}, { 7,2, 0.0093f}, { 7,3, 0.0116f},
-    { 8,0, 0.0133f}, { 8,1, 0.0155f}, { 8,2, 0.0186f}, { 8,3, 0.0232f},
-    { 9,0, 0.0266f}, { 9,1, 0.0310f}, { 9,2, 0.0372f}, { 9,3, 0.0464f},
-    {10,0, 0.0531f}, {10,1, 0.0619f}, {10,2, 0.0743f}, {10,3, 0.0929f},
-    {11,0, 0.1061f}, {11,1, 0.1239f}, {11,2, 0.1486f}, {11,3, 0.1858f},
-    {12,0, 0.2123f}, {12,1, 0.2477f}, {12,2, 0.2972f}, {12,3, 0.3715f},
-    {13,0, 0.4246f}, {13,1, 0.4954f}, {13,2, 0.5945f}, {13,3, 0.7430f},
-    {14,0, 0.8492f}, {14,1, 0.9908f}, {14,2, 1.1889f}, {14,3, 1.4861f},
-    {15,0, 1.6983f}, {15,1, 1.9817f}, {15,2, 2.3779f}, {15,3, 2.9722f},
-    {16,0, 3.3966f}, {16,1, 3.9634f}, {16,2, 4.7557f}, {16,3, 5.9443f},
-    {17,0, 6.7933f}, {17,1, 7.9267f}, {17,2, 9.5115f}, {17,3,11.8886f},
-    {18,0,13.5866f}, {18,1,15.8534f}, {18,2,19.0229f}, {18,3,23.7772f},
-    {19,0,27.1732f}, {19,1,31.7068f}, {19,2,38.0459f}, {19,3,47.5545f},
-    {20,0,54.3463f}, {20,1,63.4137f}, {20,2,76.0918f}, {20,3,95.1089f},
-};
-static constexpr int kAttackTableSize = sizeof(kAttackTable) / sizeof(kAttackTable[0]);
+// All tables: measured from real engine, perceptually deduplicated (>5.7% spacing).
+// All tables: measured from real engine, perceptually deduplicated (>5.7% spacing).
 
-// Decay/release use decrease direction (step base=8 vs attack's 7), step_index always 0.
-// Only shift matters — 21 entries.
+// Attack linear: 53 entries
+static constexpr AdsrRate kAttackLinTable[] = {
+    { 4,2, 0.0012f}, { 4,3, 0.0015f}, { 5,0, 0.0017f}, { 5,1, 0.0019f},
+    { 5,2, 0.0023f}, { 5,3, 0.0029f}, { 6,0, 0.0033f}, { 6,1, 0.0039f},
+    { 6,2, 0.0046f}, { 6,3, 0.0058f}, { 7,0, 0.0066f}, { 7,1, 0.0078f},
+    { 7,2, 0.0093f}, { 7,3, 0.0116f}, { 8,0, 0.0133f}, { 8,1, 0.0155f},
+    { 8,2, 0.0186f}, { 8,3, 0.0232f}, { 9,0, 0.0266f}, { 9,1, 0.0310f},
+    { 9,2, 0.0372f}, { 9,3, 0.0464f}, {10,0, 0.0531f}, {10,1, 0.0619f},
+    {10,2, 0.0743f}, {10,3, 0.0929f}, {11,0, 0.1061f}, {11,1, 0.1239f},
+    {11,2, 0.1486f}, {11,3, 0.1858f}, {12,0, 0.2123f}, {12,1, 0.2477f},
+    {12,2, 0.2972f}, {12,3, 0.3715f}, {13,0, 0.4246f}, {13,1, 0.4954f},
+    {13,2, 0.5945f}, {13,3, 0.7430f}, {14,0, 0.8492f}, {14,1, 0.9908f},
+    {14,2, 1.1889f}, {14,3, 1.4861f}, {15,0, 1.6983f}, {15,1, 1.9817f},
+    {15,2, 2.3779f}, {15,3, 2.9722f}, {16,0, 3.3966f}, {16,1, 3.9634f},
+    {16,2, 4.7557f}, {16,3, 5.9443f}, {17,0, 6.7933f}, {17,1, 7.9267f},
+    {17,2, 9.5115f},
+};
+static constexpr int kAttackLinTableSize = sizeof(kAttackLinTable) / sizeof(kAttackLinTable[0]);
+
+// Attack exponential: 52 entries
+static constexpr AdsrRate kAttackExpTable[] = {
+    { 3,3, 0.0012f}, { 4,0, 0.0015f}, { 4,1, 0.0017f}, { 4,2, 0.0021f},
+    { 4,3, 0.0025f}, { 5,0, 0.0030f}, { 5,1, 0.0034f}, { 5,2, 0.0041f},
+    { 5,3, 0.0050f}, { 6,0, 0.0059f}, { 6,1, 0.0067f}, { 6,2, 0.0081f},
+    { 6,3, 0.0101f}, { 7,0, 0.0116f}, { 7,1, 0.0135f}, { 7,2, 0.0162f},
+    { 7,3, 0.0202f}, { 8,0, 0.0233f}, { 8,1, 0.0271f}, { 8,2, 0.0325f},
+    { 8,3, 0.0406f}, { 9,0, 0.0465f}, { 9,1, 0.0542f}, { 9,2, 0.0651f},
+    { 9,3, 0.0812f}, {10,0, 0.0929f}, {10,1, 0.1083f}, {10,2, 0.1300f},
+    {10,3, 0.1625f}, {11,0, 0.1857f}, {11,1, 0.2167f}, {11,2, 0.2600f},
+    {11,3, 0.3250f}, {12,0, 0.3715f}, {12,1, 0.4334f}, {12,2, 0.5201f},
+    {12,3, 0.6500f}, {13,0, 0.7429f}, {13,1, 0.8668f}, {13,2, 1.0402f},
+    {13,3, 1.3000f}, {14,0, 1.4859f}, {14,1, 1.7337f}, {14,2, 2.0804f},
+    {14,3, 2.6001f}, {15,0, 2.9718f}, {15,1, 3.4674f}, {15,2, 4.1607f},
+    {15,3, 5.2002f}, {16,0, 5.9436f}, {16,1, 6.9348f}, {16,2, 8.3215f},
+};
+static constexpr int kAttackExpTableSize = sizeof(kAttackExpTable) / sizeof(kAttackExpTable[0]);
+
+// Decay (always exponential): 48 entries
 static constexpr AdsrRate kDecayTable[] = {
-    { 0,0, 0.00005f}, { 1,0, 0.0001f}, { 2,0, 0.0002f}, { 3,0, 0.0004f},
-    { 4,0, 0.0007f}, { 5,0, 0.0015f}, { 6,0, 0.0029f}, { 7,0, 0.0058f},
-    { 8,0, 0.0116f}, { 9,0, 0.0232f}, {10,0, 0.0464f}, {11,0, 0.0929f},
-    {12,0, 0.1858f}, {13,0, 0.3715f}, {14,0, 0.7430f}, {15,0, 1.4861f},
-    {16,0, 2.9722f}, {17,0, 5.9443f}, {18,0,11.8886f}, {19,0,23.7772f},
-    {20,0,47.5545f},
+    { 6,2, 0.0109f}, { 6,3, 0.0131f}, { 7,0, 0.0164f},
+    { 7,1, 0.0188f}, { 7,2, 0.0221f}, { 7,3, 0.0266f}, { 8,0, 0.0336f},
+    { 8,1, 0.0388f}, { 8,2, 0.0454f}, { 8,3, 0.0558f}, { 9,0, 0.0702f},
+    { 9,1, 0.0833f}, { 9,2, 0.1001f}, { 9,3, 0.1225f}, {10,0, 0.1541f},
+    {10,1, 0.1754f}, {10,2, 0.2024f}, {10,3, 0.2380f}, {11,0, 0.2872f},
+    {11,1, 0.3197f}, {11,2, 0.3601f}, {11,3, 0.4117f}, {12,0, 0.5745f},
+    {12,1, 0.6395f}, {12,2, 0.7203f}, {12,3, 0.8235f}, {13,0, 1.1489f},
+    {13,1, 1.2789f}, {13,2, 1.4405f}, {13,3, 1.6470f}, {14,0, 2.2979f},
+    {14,1, 2.5578f}, {14,2, 2.8811f}, {14,3, 3.2940f}, {15,0, 4.5957f},
+    {15,1, 5.1156f}, {15,2, 5.7622f}, {15,3, 6.5879f}, {16,0, 9.1915f},
 };
 static constexpr int kDecayTableSize = sizeof(kDecayTable) / sizeof(kDecayTable[0]);
 
-// Map a 0..1 knob to the nearest shift+step pair.
-// Logarithmic interpolation across the full time range: knob=0 → fastest,
-// knob=1 → slowest. The log scale means the first half of the knob covers
-// instant to ~100ms (percussion) and the second half covers 100ms to 95s.
+// Release linear: 49 entries
+static constexpr AdsrRate kReleaseLinTable[] = {
+    { 5,3, 0.0023f}, { 6,0, 0.0029f}, { 6,1, 0.0033f}, { 6,2, 0.0039f},
+    { 6,3, 0.0046f}, { 7,0, 0.0058f}, { 7,1, 0.0066f}, { 7,2, 0.0078f},
+    { 7,3, 0.0093f}, { 8,0, 0.0116f}, { 8,1, 0.0133f}, { 8,2, 0.0155f},
+    { 8,3, 0.0186f}, { 9,0, 0.0232f}, { 9,1, 0.0266f}, { 9,2, 0.0310f},
+    { 9,3, 0.0372f}, {10,0, 0.0464f}, {10,1, 0.0531f}, {10,2, 0.0619f},
+    {10,3, 0.0743f}, {11,0, 0.0929f}, {11,1, 0.1061f}, {11,2, 0.1239f},
+    {11,3, 0.1486f}, {12,0, 0.1858f}, {12,1, 0.2123f}, {12,2, 0.2477f},
+    {12,3, 0.2972f}, {13,0, 0.3715f}, {13,1, 0.4246f}, {13,2, 0.4954f},
+    {13,3, 0.5945f}, {14,0, 0.7430f}, {14,1, 0.8492f}, {14,2, 0.9908f},
+    {14,3, 1.1889f}, {15,0, 1.4861f}, {15,1, 1.6983f}, {15,2, 1.9817f},
+    {15,3, 2.3779f}, {16,0, 2.9722f}, {16,1, 3.3966f}, {16,2, 3.9634f},
+    {16,3, 4.7557f}, {17,0, 5.9443f}, {17,1, 6.7933f}, {17,2, 7.9267f},
+    {17,3, 9.5115f},
+};
+static constexpr int kReleaseLinTableSize = sizeof(kReleaseLinTable) / sizeof(kReleaseLinTable[0]);
+
+// Release exponential: 54 entries
+static constexpr AdsrRate kReleaseExpTable[] = {
+    { 2,2, 0.0022f}, { 2,3, 0.0026f}, { 3,0, 0.0032f}, { 3,1, 0.0037f},
+    { 3,2, 0.0042f}, { 3,3, 0.0050f}, { 4,0, 0.0061f}, { 4,1, 0.0069f},
+    { 4,2, 0.0079f}, { 4,3, 0.0093f}, { 5,0, 0.0112f}, { 5,1, 0.0127f},
+    { 5,2, 0.0145f}, { 5,3, 0.0170f}, { 6,0, 0.0206f}, { 6,1, 0.0231f},
+    { 6,2, 0.0264f}, { 6,3, 0.0308f}, { 7,0, 0.0372f}, { 7,1, 0.0417f},
+    { 7,2, 0.0474f}, { 7,3, 0.0552f}, { 8,0, 0.0664f}, { 8,1, 0.0742f},
+    { 8,2, 0.0841f}, { 8,3, 0.0976f}, { 9,0, 0.1167f}, { 9,1, 0.1298f},
+    { 9,2, 0.1465f}, { 9,3, 0.1689f}, {10,0, 0.2005f}, {10,1, 0.2218f},
+    {10,2, 0.2489f}, {10,3, 0.2845f}, {11,0, 0.3337f}, {11,1, 0.3662f},
+    {11,2, 0.4066f}, {11,3, 0.4582f}, {12,0, 0.6673f}, {12,1, 0.7323f},
+    {12,2, 0.8132f}, {12,3, 0.9164f}, {13,0, 1.3347f}, {13,1, 1.4647f},
+    {13,2, 1.6263f}, {13,3, 1.8327f}, {14,0, 2.6694f}, {14,1, 2.9293f},
+    {14,2, 3.2526f}, {14,3, 3.6655f}, {15,0, 5.3388f}, {15,1, 5.8587f},
+    {15,2, 6.5052f}, {15,3, 7.3310f},
+};
+static constexpr int kReleaseExpTableSize = sizeof(kReleaseExpTable) / sizeof(kReleaseExpTable[0]);
+
+// Knob curve: 0%=1ms, 50%=2s, 100%=10s
+// time = 0.001 * 10000^(knob^0.277)
 AdsrRate knobToRate(float knob, const AdsrRate* table, int tableSize) {
-    if (knob <= 0.0f) return table[0];
-    if (knob >= 1.0f) return table[tableSize - 1];
-
-    // Clamp: first entry might be 0.0s, use a floor for log
-    auto safeLog = [](float s) { return std::log(s < 1e-6f ? 1e-6f : s); };
-
-    float minLog = safeLog(table[0].seconds);
-    float maxLog = safeLog(table[tableSize - 1].seconds);
-    float shaped = std::pow(knob, 0.38f);
-    float targetLog = minLog + shaped * (maxLog - minLog);
+    knob = std::clamp(knob, 0.0f, 1.0f);
+    float targetSec;
+    if (knob < 0.001f) {
+        targetSec = table[0].seconds;
+    } else if (knob <= 0.25f) {
+        float t = knob / 0.25f;
+        targetSec = std::exp(std::log(0.001f) + t * (std::log(0.335f) - std::log(0.001f)));
+    } else {
+        targetSec = 0.001f * std::pow(10000.0f, std::pow(knob, 0.277f));
+    }
 
     int best = 0;
     float bestDist = 1e30f;
     for (int i = 0; i < tableSize; i++) {
-        float dist = std::abs(safeLog(table[i].seconds) - targetLog);
+        float dist = std::abs(std::log(table[i].seconds) - std::log(targetSec));
         if (dist < bestDist) { bestDist = dist; best = i; }
     }
     return table[best];
@@ -1949,14 +2003,17 @@ spu94_adsr_state_t SPU94AudioProcessor::buildAdsrConfig() const
     cfg.enabled = 1;
 
     float atk = adsrAttack.load(std::memory_order_relaxed);
-    auto ar = knobToRate(atk, kAttackTable, kAttackTableSize);
+    bool atkExp = adsrAttackExp.load(std::memory_order_relaxed);
+    auto ar = knobToRate(atk, atkExp ? kAttackExpTable : kAttackLinTable,
+                              atkExp ? kAttackExpTableSize : kAttackLinTableSize);
     cfg.attack_shift = ar.shift;
     cfg.attack_step  = ar.step;
-    cfg.attack_exp   = adsrAttackExp.load(std::memory_order_relaxed) ? 1 : 0;
+    cfg.attack_exp   = atkExp ? 1 : 0;
 
     float dec = adsrDecay.load(std::memory_order_relaxed);
     auto dr = knobToRate(dec, kDecayTable, kDecayTableSize);
     cfg.decay_shift = dr.shift;
+    cfg.decay_step  = dr.step;
 
     float sl = adsrSustainLvl.load(std::memory_order_relaxed);
     cfg.sustain_level = static_cast<uint8_t>(sl * 15.0f + 0.5f);
@@ -1968,18 +2025,40 @@ spu94_adsr_state_t SPU94AudioProcessor::buildAdsrConfig() const
         cfg.sustain_shift = 31;
         cfg.sustain_step  = 3;
     } else {
-        auto srr = knobToRate(1.0f - mag, kAttackTable, kAttackTableSize);
+        auto srr = knobToRate(1.0f - mag, kAttackLinTable, kAttackLinTableSize);
         cfg.sustain_shift = srr.shift;
         cfg.sustain_step  = srr.step;
     }
     cfg.sustain_exp   = adsrSustainExp.load(std::memory_order_relaxed) ? 1 : 0;
 
     float rel = adsrRelease.load(std::memory_order_relaxed);
-    auto rr = knobToRate(rel, kDecayTable, kDecayTableSize);
+    bool relExp = adsrReleaseExp.load(std::memory_order_relaxed);
+    auto rr = knobToRate(rel, relExp ? kReleaseExpTable : kReleaseLinTable,
+                              relExp ? kReleaseExpTableSize : kReleaseLinTableSize);
     cfg.release_shift = rr.shift;
-    cfg.release_exp   = adsrReleaseExp.load(std::memory_order_relaxed) ? 1 : 0;
+    cfg.release_step  = rr.step;
+    cfg.release_exp   = relExp ? 1 : 0;
 
     return cfg;
+}
+
+float SPU94AudioProcessor::getAdsrAttackSeconds() const {
+    float knob = adsrAttack.load(std::memory_order_relaxed);
+    bool exp = adsrAttackExp.load(std::memory_order_relaxed);
+    return knobToRate(knob, exp ? kAttackExpTable : kAttackLinTable,
+                            exp ? kAttackExpTableSize : kAttackLinTableSize).seconds;
+}
+
+float SPU94AudioProcessor::getAdsrDecaySeconds() const {
+    float knob = adsrDecay.load(std::memory_order_relaxed);
+    return knobToRate(knob, kDecayTable, kDecayTableSize).seconds;
+}
+
+float SPU94AudioProcessor::getAdsrReleaseSeconds() const {
+    float knob = adsrRelease.load(std::memory_order_relaxed);
+    bool exp = adsrReleaseExp.load(std::memory_order_relaxed);
+    return knobToRate(knob, exp ? kReleaseExpTable : kReleaseLinTable,
+                            exp ? kReleaseExpTableSize : kReleaseLinTableSize).seconds;
 }
 
 uint32_t SPU94AudioProcessor::posToBlockAddr(double pos) const

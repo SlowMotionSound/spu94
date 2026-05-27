@@ -264,11 +264,15 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         // ADSR section
         panel.addAndMakeVisible(adsrDisplay);
 
+        auto knobTimeText = [](double val) -> juce::String {
+            return juce::String(static_cast<int>(val * 100.0 + 0.5));
+        };
+
         auto setupAdsrKnob = [&](juce::Slider& knob, juce::Label& label,
                                   const char* name, double init,
                                   double lo, double hi) {
             knob.setSliderStyle(juce::Slider::Rotary);
-            knob.setTextBoxStyle(juce::Slider::NoTextBox, true, 0, 0);
+            knob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 14);
             knob.setRange(lo, hi, 0.01);
             knob.setValue(init, juce::dontSendNotification);
             panel.addAndMakeVisible(knob);
@@ -278,14 +282,20 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             panel.addAndMakeVisible(label);
         };
         setupAdsrKnob(adsrAttackKnob,      adsrAttackLabel,      "Atk",  0.0,  0.0, 1.0);
+        adsrAttackKnob.textFromValueFunction = knobTimeText;
         setupAdsrKnob(adsrDecayKnob,       adsrDecayLabel,       "Dec",  0.0,  0.0, 1.0);
+        adsrDecayKnob.textFromValueFunction = knobTimeText;
         setupAdsrKnob(adsrSustainLvlKnob,  adsrSustainLvlLabel,  "Sus",  1.0,  0.0, 1.0);
+        adsrSustainLvlKnob.textFromValueFunction = [](double val) -> juce::String {
+            return juce::String(static_cast<int>(val * 100.0 + 0.5)) + "%";
+        };
         setupAdsrKnob(adsrSustainRateKnob, adsrSustainRateLabel,  "Rise/Fall", 0.0, -1.0, 1.0);
 
         auto sustainTint = juce::Colour(0xFFD49EBF);
         adsrSustainLvlKnob.setColour(juce::Slider::thumbColourId, sustainTint);
         adsrSustainRateKnob.setColour(juce::Slider::thumbColourId, sustainTint);
         setupAdsrKnob(adsrReleaseKnob,     adsrReleaseLabel,     "Rel",  0.0,  0.0, 1.0);
+        adsrReleaseKnob.textFromValueFunction = knobTimeText;
 
         adsrAttackKnob.onValueChange = [this] {
             processorRef.getAdsrAttack().store(
@@ -1261,17 +1271,16 @@ void SPU94AudioProcessorEditor::updateEffectControlVisibility()
 
 void SPU94AudioProcessorEditor::refreshAdsrDisplay()
 {
-    float atk = static_cast<float>(adsrAttackKnob.getValue());
-    float dec = static_cast<float>(adsrDecayKnob.getValue());
-    float rel = static_cast<float>(adsrReleaseKnob.getValue());
-
     auto cfg = processorRef.buildAdsrConfig();
+    float atkSec = processorRef.getAdsrAttackSeconds();
+    float decSec = processorRef.getAdsrDecaySeconds();
+    float relSec = processorRef.getAdsrReleaseSeconds();
 
     adsrDisplay.update(cfg.attack_shift, cfg.attack_exp,
                        cfg.decay_shift, cfg.sustain_level,
                        cfg.sustain_shift, cfg.sustain_exp, cfg.sustain_dir,
                        cfg.release_shift, cfg.release_exp,
-                       atk, dec, rel);
+                       atkSec, decSec, relSec);
 }
 
 void SPU94AudioProcessorEditor::updateVoiceVolumes()

@@ -59,12 +59,14 @@ typedef struct {
     uint8_t  attack_step;         /* 0..3 (maps to +7, +6, +5, +4) */
     uint8_t  attack_exp;          /* 1 = fake exponential above 0x6000 */
     uint8_t  decay_shift;         /* 0..15 */
+    uint8_t  decay_step;          /* 0..3 (maps to -8, -7, -6, -5) */
     uint8_t  sustain_level;       /* 0..15; target = (val+1)*0x800 */
     uint8_t  sustain_shift;       /* 0..31 */
     uint8_t  sustain_step;        /* 0..3 */
     uint8_t  sustain_exp;         /* 1 = exponential */
     uint8_t  sustain_dir;         /* 0 = increase, 1 = decrease */
     uint8_t  release_shift;       /* 0..31 */
+    uint8_t  release_step;        /* 0..3 (maps to -8, -7, -6, -5) */
     uint8_t  release_exp;         /* 1 = exponential */
 
     /* Runtime state */
