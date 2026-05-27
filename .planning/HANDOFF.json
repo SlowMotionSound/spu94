@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-26T22:30:00Z",
+  "timestamp": "2026-05-27T20:45:00Z",
   "phase": "55",
   "phase_name": "effects-uat",
   "phase_dir": ".planning/phases/55-effects-uat",
@@ -12,46 +12,38 @@
     {"id": "phase-52", "name": "Ring Mod — bipolar sweep crossing zero in C core", "status": "done"},
     {"id": "phase-53", "name": "Sweep Shapes — Triangle/Saw Down/Saw Up", "status": "done"},
     {"id": "phase-54", "name": "Unified Effects GUI — dropdown + adaptive controls", "status": "done"},
-    {"id": "fix-depth", "name": "Per-sample depth scaling via sweep_depth_l/r in voice struct", "status": "done"},
-    {"id": "fix-off-mode", "name": "Off mode in dropdown, effects start disabled", "status": "done"},
-    {"id": "fix-mutex", "name": "Remove redundant mutual exclusion from processBlock", "status": "done"},
-    {"id": "fix-saw-dir", "name": "Saw shapes set direction on retrigger", "status": "done"},
-    {"id": "fix-bipolar-saw", "name": "Bipolar zero crossing + saw up direction fix", "status": "done"},
-    {"id": "fix-mode-switch", "name": "Reset wasActive flags on dropdown mode change", "status": "done"},
-    {"id": "fix-sweep-resume", "name": "Re-activate sweeps when effect outlives voice restart", "status": "done"},
+    {"id": "fix-pan", "name": "Pan preserved during effects — base_vol_l/r ceiling", "status": "done"},
+    {"id": "fix-anticlick", "name": "8-sample anti-click ramp on saw retrigger", "status": "done"},
+    {"id": "gui-remove-ramp", "name": "Remove old VCA ramp controls from GUI", "status": "done"},
+    {"id": "adsr-calibration", "name": "ADSR calibration — 5 measured tables, direct PS1 rate indexing", "status": "done"},
+    {"id": "adsr-faders", "name": "Vertical faders with ms/s readout replace rotary encoders", "status": "done"},
+    {"id": "adsr-sustain-zero", "name": "Sustain level 0 = true zero (ADSR_OFF)", "status": "done"},
+    {"id": "adsr-visualizer-removed", "name": "ADSR curve visualizer removed", "status": "done"},
     {"id": "uat-trem", "name": "Tremolo UAT — all shapes, mode switching", "status": "done"},
     {"id": "uat-autopan", "name": "Auto-Pan UAT — verified", "status": "done"},
     {"id": "uat-am", "name": "AM UAT — all shapes work", "status": "done"},
     {"id": "uat-ringmod", "name": "Ring Mod UAT — bipolar works, resume after restart works", "status": "done"},
-    {"id": "uat-modbus", "name": "Mod Bus UAT — noise-to-pitch verified", "status": "done"},
-    {"id": "fix-pan", "name": "Pan preserved during effects — base_vol_l/r ceiling", "status": "done"},
-    {"id": "fix-anticlick", "name": "8-sample anti-click ramp on saw retrigger", "status": "done"},
-    {"id": "gui-remove-ramp", "name": "Remove old VCA ramp controls from GUI", "status": "done"},
-    {"id": "adsr-tables", "name": "Separate attack/decay timing tables with correct step math", "status": "done"},
-    {"id": "adsr-display-unify", "name": "Display calls buildAdsrConfig for unified mapping", "status": "done"}
+    {"id": "uat-modbus", "name": "Mod Bus UAT — noise-to-pitch verified", "status": "done"}
   ],
   "remaining_tasks": [
-    {"id": "adsr-calibration", "name": "ADSR knob calibration — release still not feeling right", "status": "in_progress"},
+    {"id": "adsr-attack-direct", "name": "Attack still uses piecewise knob curve — consider switching to direct indexing like decay/release", "status": "not_started"},
     {"id": "one-shot-trigger", "name": "Single-click trigger plays full ADSR without holding", "status": "not_started"},
     {"id": "gui-noise", "name": "Organize Noise section in sampler panel", "status": "not_started"},
     {"id": "gui-speed-divisions", "name": "Musical divisions for Speed encoder", "status": "not_started"},
     {"id": "uat-duck", "name": "Sidechain Duck UAT (needs MIDI)", "status": "blocked"}
   ],
   "blockers": [
-    {"description": "ADSR calibration unsatisfactory — 21 discrete PS1 release rates with log+power curve don't feel like standard synth", "type": "design"},
     {"description": "Sidechain duck needs MIDI input to test live", "type": "external"}
   ],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "Five VCA ramp effects locked: Auto-Pan, Tremolo, AM, Ring Mod, Ducking", "rationale": "All configurations of the same VCA ramp state machine", "phase": "54"},
-    {"decision": "Stereo widener dropped", "rationale": "SPU has no native stereo decorrelation mechanism", "phase": "47"},
-    {"decision": "Phase Mod subsumed by Ring Mod", "rationale": "Same mechanism — bipolar sweep is cleaner than host-layer depth remapping", "phase": "52"},
-    {"decision": "Pan fix via base_vol_l/r ceiling in sweep formula", "rationale": "Sweep modulates within pan position, not overwriting it", "phase": "55"},
-    {"decision": "8-sample anti-click ramp on saw retrigger", "rationale": "Retrigger is our creative extension — design freedom on reset behavior", "phase": "55"},
-    {"decision": "Hold-to-play gate restored", "rationale": "PS1 ADSR requires explicit KOFF; auto-KOFF skips D/S phases", "phase": "55"},
-    {"decision": "Separate attack vs decay/release timing tables", "rationale": "Attack uses step 7-idx (increase), decay/release uses step 8-idx (decrease); step_index always 0 for decay/release", "phase": "55"}
+    {"decision": "Direct PS1 rate indexing for ADSR", "rationale": "Each fader position = one hardware rate, no interpolation — most faithful and eliminates all knob curve issues", "phase": "55"},
+    {"decision": "5 separate measured tables per ADSR mode", "rationale": "Each mode (atk lin/exp, decay, rel lin/exp) produces different actual times; separate tables eliminate pre-warping math", "phase": "55"},
+    {"decision": "Sustain level 0 = true zero → ADSR_OFF", "rationale": "PS1 spec gives 6.25% at level 0 but that prevents percussive hits; deliberate divergence for musical utility", "phase": "55"},
+    {"decision": "Vertical faders replace rotary encoders for ADSR", "rationale": "Long throw gives better resolution for stepping through discrete rates", "phase": "55"},
+    {"decision": "ADSR visualizer removed", "rationale": "Display was inaccurate; fader readouts give direct feedback", "phase": "55"}
   ],
-  "uncommitted_files": ["src/plugin/PluginEditor.cpp", "src/plugin/PluginProcessor.cpp"],
-  "next_action": "Fix ADSR knob calibration — test each stage with timing printouts before GUI. Then solve one-shot trigger and GUI cleanup.",
-  "context_notes": "Pan fix and anti-click committed. ADSR calibration rework in progress across uncommitted changes. Multiple iterations: single powerMap → 84-entry table → separate attack/decay tables → power curve 0.78 → 0.38. Core constraint: PS1 has only 21 discrete release rates (each shift doubles time). Current power=0.38 is closer but Anthony still finds release undercalibrated."
+  "uncommitted_files": [],
+  "next_action": "Continue ADSR slope tuning if needed. Then one-shot trigger, GUI cleanup, remaining UAT.",
+  "context_notes": "Major ADSR rework this session. Root cause was timing tables using linear calculations while engine runs exponential (3-4x discrepancy). External AI reviews provided key insight: measure actual engine times, build separate tables per mode. Final architecture: 5 measured tables + direct index mapping + vertical faders. Attack still uses a piecewise knob curve for 0-25% percussive range while decay/release use pure direct indexing. Anthony approved attack and decay feel. Release got same curve as decay. Session paused mid-afternoon."
 }
