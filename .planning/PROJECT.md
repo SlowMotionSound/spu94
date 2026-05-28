@@ -26,9 +26,20 @@
 
 **Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`, `v1.5`, `v1.6`, `v1.7`, `v1.8`, `v1.9`, `v1.10.0`.
 
-## Current Milestone: None — planning next
+## Current Milestone: v1.11.0 Live Input Sampling
 
-**Last shipped:** v1.10.0 Voice Dynamics & Stereo Effects (2026-05-28)
+**Goal:** Record real-time audio input directly into the sampler's 512KB RAM buffer, ADPCM-encoded on intake, with variable sample rate control and sample export.
+
+**Target features:**
+- Input source selection
+- Manual record button (start/stop)
+- Threshold-triggered auto-record
+- ADPCM encoding on intake (bakes in PS1 character)
+- Records until 512KB buffer full, then stops
+- Four standard PS1 sample rates (44.1 / 22.05 / 11.025 / 5.5125 kHz) as presets
+- Variable sample rate for arbitrary rates (full pitch register range)
+- Waveform display updates with recorded audio
+- Save Sample export for building sample libraries
 
 ## What This Is
 
@@ -207,4 +218,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-28 after v1.10.0 milestone*
+*Last updated: 2026-05-28 after v1.11.0 milestone start*

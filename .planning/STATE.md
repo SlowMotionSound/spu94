@@ -1,11 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: none
-milestone_name: Planning next milestone
-status: idle
-stopped_at: v1.10.0 milestone archived
-last_updated: "2026-05-28T00:00:00.000Z"
-last_activity: 2026-05-28 -- v1.10.0 Voice Dynamics milestone closed and archived
+milestone: v1.11.0
+milestone_name: Live Input Sampling
+status: planning
+last_updated: "2026-05-28T19:22:18.841Z"
+last_activity: 2026-05-28
 progress:
   total_phases: 0
   completed_phases: 0
@@ -25,7 +24,10 @@ See: .planning/PROJECT.md (updated 2026-05-28)
 
 ## Current Position
 
-No active milestone. v1.10.0 shipped 2026-05-28.
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-28 — Milestone v1.11.0 started
 
 ## Milestone History
 
