@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-28T22:00:00Z",
+  "timestamp": "2026-05-28T18:54:25Z",
   "phase": "none",
   "phase_name": "between milestones",
   "phase_dir": "",
@@ -9,20 +9,18 @@
   "total_tasks": 0,
   "status": "paused",
   "completed_tasks": [
-    {"id": "milestone-close", "name": "v1.10.0 Voice Dynamics milestone archived", "status": "done"},
-    {"id": "github-sync", "name": "All 262+ commits pushed to GitHub", "status": "done"},
-    {"id": "todo-list", "name": "Created TODO.md — living to-do list replacing carried deferred items", "status": "done"},
-    {"id": "per-voice-drive", "name": "Drive moved per-voice and upstream (post-Gauss, pre-ADSR)", "status": "done"}
+    {"id": "sampler-layout", "name": "Reorganized sampler window layout — single-column, VCA/Mod Bus at bottom", "status": "done", "commit": "0f8a14a"}
   ],
   "remaining_tasks": [],
   "blockers": [],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "Close v1.10.0 with 4 items deferred to TODO.md", "rationale": "Those items (one-shot trigger, noise section, speed divisions, duck UAT) aren't voice dynamics or stereo effects", "phase": "55"},
-    {"decision": "Create TODO.md as living to-do list", "rationale": "Stop carrying deferred items through every milestone and phase doc — dump them in one file, mention only when asked", "phase": "none"},
-    {"decision": "Per-voice drive moved upstream before ADSR", "rationale": "Drive should work like input drive on the reverb side — push signal into the pipeline, everything downstream responds", "phase": "none"}
+    {"decision": "VCA Effects and Mod Bus moved below Level fader in sampler window", "rationale": "Frees the right column, narrows window from 800px to 400px, cleaner vertical flow", "phase": "none"},
+    {"decision": "Gauss/NON/PMON stacked as column next to Loop/Latch/Lock", "rationale": "Groups voice feature toggles together in top toolbar, balanced two-column layout", "phase": "none"},
+    {"decision": "L/R Ratio placed inline with Shape/Curve row", "rationale": "Eliminates a dedicated row, brings Mod Bus up to avoid screen cutoff", "phase": "none"},
+    {"decision": "Noise Color moved to right column below INV", "rationale": "Freed from old Voice Mode section, stays near voice output controls", "phase": "none"}
   ],
   "uncommitted_files": [],
   "next_action": "/gsd:new-milestone to plan the next milestone, or pick items from TODO.md",
-  "context_notes": "Session covered milestone close-out (v1.10.0 tagged and pushed), workflow improvement (TODO.md replaces carried deferred items), and a structural DSP change (per-voice drive). No active milestone — ready for next chapter."
+  "context_notes": "Ad-hoc GUI layout cleanup session. No active milestone. Sampler window reorganized from two-column (controls left, VCA right) to single-column (everything stacked, VCA/Mod Bus at bottom). Window narrowed to 400px. All changes committed and pushed to GitHub."
 }
