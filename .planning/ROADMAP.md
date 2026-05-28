@@ -31,63 +31,87 @@
 ## Phase Details
 
 ### Phase 56: Core Recording Pipeline
+
 **Goal**: User can record live audio input into the sampler and hear it back as a PS1 ADPCM sample
 **Depends on**: Nothing (first phase of v1.11.0; builds on existing v1.8+ sampler infrastructure)
 **Requirements**: REC-01, REC-02, REC-03, REC-04, REC-05, REC-06
 **Success Criteria** (what must be TRUE):
+
   1. User can press a record button to start capturing live audio, and press it again to stop
   2. Recording automatically stops when the 512KB voice RAM buffer is full
   3. After recording stops, the captured audio appears in the waveform display as an ADPCM-encoded sample ready for playback
   4. An input level meter shows the live signal strength while recording is active
   5. A RAM usage display shows bytes used, seconds recorded, and time remaining that update during recording
+
 **Plans**: 2 plans
 Plans:
+**Wave 1**
+
 - [ ] 56-01-PLAN.md — Recording engine backend (state machine, staging buffer, encode-on-stop)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 56-02-PLAN.md — GUI integration (record button, input meter, RAM display, waveform wiring)
+
 **UI hint**: yes
 
 ### Phase 57: Sample Rate Selection
+
 **Goal**: User can choose the recording sample rate to trade fidelity for recording time, matching the four PS1 native rates or any custom rate
 **Depends on**: Phase 56 (core recording pipeline must exist to add rate selection)
 **Requirements**: RATE-01, RATE-02, RATE-03, RATE-04
 **Success Criteria** (what must be TRUE):
+
   1. User can select from four PS1 preset sample rates (44.1 / 22.05 / 11.025 / 5.5125 kHz) and the recording captures at that rate
   2. User can dial a variable sample rate knob to select any rate across the full pitch register range
   3. Input audio is sample-rate-converted to the selected target rate (lower rates produce longer recording times with more lo-fi character)
   4. The recording time display updates immediately when the sample rate changes, showing the new maximum duration
+
 **Plans**: 2 plans
 Plans:
+
 - [ ] 56-01-PLAN.md — Recording engine backend (state machine, staging buffer, encode-on-stop)
 - [ ] 56-02-PLAN.md — GUI integration (record button, input meter, RAM display, waveform wiring)
+
 **UI hint**: yes
 
 ### Phase 58: Threshold Trigger
+
 **Goal**: User can arm the recorder to start automatically when the input signal exceeds a threshold, enabling hands-free capture
 **Depends on**: Phase 56 (core recording state machine extended with ARMED state)
 **Requirements**: TRIG-01, TRIG-02, TRIG-03, TRIG-04
 **Success Criteria** (what must be TRUE):
+
   1. User can arm threshold-triggered recording, putting the sampler into a waiting state
   2. Recording starts automatically when the input signal crosses the user-set threshold level
   3. User can adjust the threshold level to control trigger sensitivity
   4. The sampler clearly displays whether it is idle, armed, or recording
+
 **Plans**: 2 plans
 Plans:
+
 - [ ] 56-01-PLAN.md — Recording engine backend (state machine, staging buffer, encode-on-stop)
 - [ ] 56-02-PLAN.md — GUI integration (record button, input meter, RAM display, waveform wiring)
+
 **UI hint**: yes
 
 ### Phase 59: Sample Export
+
 **Goal**: User can save recorded samples as WAV files for building sample libraries or loading into other tools
 **Depends on**: Phase 56 (recorded sample must exist in voice RAM to export)
 **Requirements**: EXP-01, EXP-02, EXP-03
 **Success Criteria** (what must be TRUE):
+
   1. User can save the current sample as a 16-bit mono WAV file via a save/export action
   2. The exported WAV respects the current start/end marker positions, exporting only the trimmed region
   3. The WAV file is written at the sample rate the recording was made at (not resampled to 44.1 kHz)
+
 **Plans**: 2 plans
 Plans:
+
 - [ ] 56-01-PLAN.md — Recording engine backend (state machine, staging buffer, encode-on-stop)
 - [ ] 56-02-PLAN.md — GUI integration (record button, input meter, RAM display, waveform wiring)
+
 **UI hint**: yes
 
 ## Progress
