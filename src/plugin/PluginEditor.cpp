@@ -439,7 +439,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         voiceModeLabel.setJustificationType(juce::Justification::centredLeft);
         voiceModeLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
         voiceModeLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
-        panel.addAndMakeVisible(voiceModeLabel);
+        panel.addChildComponent(voiceModeLabel);
 
         // ===== Unified VCA Effects section (Phase 54: dropdown + adaptive controls) =====
         fxSectionLabel.setText("VCA Effects", juce::dontSendNotification);
@@ -1377,18 +1377,20 @@ void SPU94AudioProcessorEditor::resized()
             loopToggle.setBounds(300, 50, 85, 26);
             latchToggle.setBounds(300, 76, 65, 26);
             markerLockToggle.setBounds(300, 102, 65, 26);
-            samplerAAToggle.setBounds(180, 82, 70, 26);
-            ramMeterLabel.setBounds(10, 128, 380, 12);
-            samplerWindow->getWaveformDisplay().setBounds(10, 142, 380, 108);
-            startPosLabel.setBounds(15, 252, 70, 14);
-            startPosKnob.setBounds(15, 264, 70, 54);
-            loopPosLabel.setBounds(160, 252, 70, 14);
-            loopPosKnob.setBounds(160, 264, 70, 54);
-            endPosLabel.setBounds(320, 252, 70, 14);
-            endPosKnob.setBounds(320, 264, 70, 54);
+            samplerAAToggle.setBounds(235, 50, 63, 26);
+            voiceNonToggle.setBounds(235, 76, 55, 26);
+            voicePmonToggle.setBounds(235, 102, 63, 26);
+            ramMeterLabel.setBounds(10, 160, 380, 12);
+            samplerWindow->getWaveformDisplay().setBounds(10, 174, 380, 108);
+            startPosLabel.setBounds(15, 284, 70, 14);
+            startPosKnob.setBounds(15, 296, 70, 54);
+            loopPosLabel.setBounds(160, 284, 70, 14);
+            loopPosKnob.setBounds(160, 296, 70, 54);
+            endPosLabel.setBounds(320, 284, 70, 14);
+            endPosKnob.setBounds(320, 296, 70, 54);
 
             // ADSR section — directly below marker knobs
-            constexpr int aky = 322, akw = 65, akh = 110;
+            constexpr int aky = 354, akw = 65, akh = 110;
             adsrAttackLabel.setBounds(15, aky, akw, 12);
             adsrAttackKnob.setBounds(15, aky + 12, akw, akh);
             adsrDecayLabel.setBounds(91, aky, akw, 12);
@@ -1417,38 +1419,30 @@ void SPU94AudioProcessorEditor::resized()
             voiceInvToggle.setBounds(160, voly + 20, 70, 30);
             voiceInvIndicator.setBounds(160, voly + 52, 70, 16);
 
-            // Voice Mode section — NON and PMON toggles below INV (Phase 40)
-            voiceModeLabel.setBounds(160, voly + 80, 100, 16);
-            voiceNonToggle.setBounds(160, voly + 98, 70, 30);
-            voicePmonToggle.setBounds(160, voly + 132, 70, 30);
-            noiseColorLabel.setBounds(260, voly + 80, 100, 16);
-            noiseColorKnob.setBounds(270, voly + 96, 80, 70);
+            // Noise Color — right column below INV
+            noiseColorLabel.setBounds(160, voly + 76, 100, 16);
+            noiseColorKnob.setBounds(170, voly + 92, 80, 70);
 
-            // === Unified VCA Effects section (Phase 54: right half, y=142) ===
-            constexpr int fx_x = 410;
-            constexpr int fx_start_y = 142;
+            // === Unified VCA Effects section — below Level fader ===
+            constexpr int fx_x = 15;
+            constexpr int fx_start_y = voly + 220;
 
             fxSectionLabel.setBounds(fx_x, fx_start_y, 100, 16);
             effectModeBox.setBounds(fx_x + 105, fx_start_y, 140, 24);
 
-            // Row 1: Rate + Depth (y = fx_start_y + 30)
             constexpr int row1y = fx_start_y + 30;
             fxRateLabel.setBounds(fx_x, row1y, 80, 16);
             fxRateKnob.setBounds(fx_x, row1y + 16, 80, 70);
             fxDepthLabel.setBounds(fx_x + 90, row1y, 80, 16);
             fxDepthKnob.setBounds(fx_x + 90, row1y + 16, 80, 70);
 
-            // Row 1 continued: Shape + Curve
             fxShapeLabel.setBounds(fx_x + 180, row1y, 80, 16);
             fxShapeBox.setBounds(fx_x + 180, row1y + 20, 100, 24);
             fxCurveButton.setBounds(fx_x + 180, row1y + 50, 100, 28);
 
-            // Row 2: L/R Ratio (y = row1y + 95)
-            constexpr int row2y = row1y + 95;
-            fxRatioLabel.setBounds(fx_x, row2y, 80, 16);
-            fxRatioKnob.setBounds(fx_x, row2y + 16, 80, 70);
+            fxRatioLabel.setBounds(fx_x + 285, row1y, 80, 16);
+            fxRatioKnob.setBounds(fx_x + 285, row1y + 16, 80, 70);
 
-            // Ducking controls (same area, shown only in Duck mode)
             fxDuckSourceLabel.setBounds(fx_x, row1y, 80, 16);
             fxDuckSourceBox.setBounds(fx_x, row1y + 16, 140, 24);
             fxDuckAttackLabel.setBounds(fx_x, row1y + 46, 80, 16);
@@ -1458,16 +1452,14 @@ void SPU94AudioProcessorEditor::resized()
             fxDuckDepthLabel.setBounds(fx_x + 180, row1y + 46, 80, 16);
             fxDuckDepthKnob.setBounds(fx_x + 180, row1y + 62, 80, 70);
 
-            // Mod Bus (Phase 50) — below unified effects
-            constexpr int mody = row2y + 100;
-            constexpr int col_right = 410;
-            modBusSectionLabel.setBounds(col_right, mody, 120, 16);
-            modBusPitchLabel.setBounds(col_right, mody + 20, 80, 16);
-            modBusPitchKnob.setBounds(col_right, mody + 36, 80, 70);
-            modBusVolLabel.setBounds(col_right + 90, mody + 20, 80, 16);
-            modBusVolKnob.setBounds(col_right + 90, mody + 36, 80, 70);
-            modBusPanLabel.setBounds(col_right + 180, mody + 20, 80, 16);
-            modBusPanKnob.setBounds(col_right + 180, mody + 36, 80, 70);
+            constexpr int mody = row1y + 100;
+            modBusSectionLabel.setBounds(fx_x, mody, 120, 16);
+            modBusPitchLabel.setBounds(fx_x, mody + 20, 80, 16);
+            modBusPitchKnob.setBounds(fx_x, mody + 36, 80, 70);
+            modBusVolLabel.setBounds(fx_x + 90, mody + 20, 80, 16);
+            modBusVolKnob.setBounds(fx_x + 90, mody + 36, 80, 70);
+            modBusPanLabel.setBounds(fx_x + 180, mody + 20, 80, 16);
+            modBusPanKnob.setBounds(fx_x + 180, mody + 36, 80, 70);
         }
     }
 
