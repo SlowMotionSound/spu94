@@ -40,7 +40,10 @@
   3. After recording stops, the captured audio appears in the waveform display as an ADPCM-encoded sample ready for playback
   4. An input level meter shows the live signal strength while recording is active
   5. A RAM usage display shows bytes used, seconds recorded, and time remaining that update during recording
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 56-01-PLAN.md — Recording engine backend (state machine, staging buffer, encode-on-stop)
+- [ ] 56-02-PLAN.md — GUI integration (record button, input meter, RAM display, waveform wiring)
 **UI hint**: yes
 
 ### Phase 57: Sample Rate Selection
@@ -52,7 +55,10 @@
   2. User can dial a variable sample rate knob to select any rate across the full pitch register range
   3. Input audio is sample-rate-converted to the selected target rate (lower rates produce longer recording times with more lo-fi character)
   4. The recording time display updates immediately when the sample rate changes, showing the new maximum duration
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 56-01-PLAN.md — Recording engine backend (state machine, staging buffer, encode-on-stop)
+- [ ] 56-02-PLAN.md — GUI integration (record button, input meter, RAM display, waveform wiring)
 **UI hint**: yes
 
 ### Phase 58: Threshold Trigger
@@ -64,7 +70,10 @@
   2. Recording starts automatically when the input signal crosses the user-set threshold level
   3. User can adjust the threshold level to control trigger sensitivity
   4. The sampler clearly displays whether it is idle, armed, or recording
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 56-01-PLAN.md — Recording engine backend (state machine, staging buffer, encode-on-stop)
+- [ ] 56-02-PLAN.md — GUI integration (record button, input meter, RAM display, waveform wiring)
 **UI hint**: yes
 
 ### Phase 59: Sample Export
@@ -75,7 +84,10 @@
   1. User can save the current sample as a 16-bit mono WAV file via a save/export action
   2. The exported WAV respects the current start/end marker positions, exporting only the trimmed region
   3. The WAV file is written at the sample rate the recording was made at (not resampled to 44.1 kHz)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 56-01-PLAN.md — Recording engine backend (state machine, staging buffer, encode-on-stop)
+- [ ] 56-02-PLAN.md — GUI integration (record button, input meter, RAM display, waveform wiring)
 **UI hint**: yes
 
 ## Progress
@@ -85,7 +97,7 @@ Phases execute in numeric order: 56 -> 57 -> 58 -> 59
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 56. Core Recording Pipeline | v1.11.0 | 0/? | Not started | - |
+| 56. Core Recording Pipeline | v1.11.0 | 0/2 | Planned | - |
 | 57. Sample Rate Selection | v1.11.0 | 0/? | Not started | - |
 | 58. Threshold Trigger | v1.11.0 | 0/? | Not started | - |
 | 59. Sample Export | v1.11.0 | 0/? | Not started | - |
