@@ -1,0 +1,28 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-28T22:00:00Z",
+  "phase": "none",
+  "phase_name": "between milestones",
+  "phase_dir": "",
+  "plan": 0,
+  "task": 0,
+  "total_tasks": 0,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": "milestone-close", "name": "v1.10.0 Voice Dynamics milestone archived", "status": "done"},
+    {"id": "github-sync", "name": "All 262+ commits pushed to GitHub", "status": "done"},
+    {"id": "todo-list", "name": "Created TODO.md — living to-do list replacing carried deferred items", "status": "done"},
+    {"id": "per-voice-drive", "name": "Drive moved per-voice and upstream (post-Gauss, pre-ADSR)", "status": "done"}
+  ],
+  "remaining_tasks": [],
+  "blockers": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {"decision": "Close v1.10.0 with 4 items deferred to TODO.md", "rationale": "Those items (one-shot trigger, noise section, speed divisions, duck UAT) aren't voice dynamics or stereo effects", "phase": "55"},
+    {"decision": "Create TODO.md as living to-do list", "rationale": "Stop carrying deferred items through every milestone and phase doc — dump them in one file, mention only when asked", "phase": "none"},
+    {"decision": "Per-voice drive moved upstream before ADSR", "rationale": "Drive should work like input drive on the reverb side — push signal into the pipeline, everything downstream responds", "phase": "none"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "/gsd:new-milestone to plan the next milestone, or pick items from TODO.md",
+  "context_notes": "Session covered milestone close-out (v1.10.0 tagged and pushed), workflow improvement (TODO.md replaces carried deferred items), and a structural DSP change (per-voice drive). No active milestone — ready for next chapter."
+}

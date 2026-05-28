@@ -59,5 +59,6 @@ See `.planning/TODO.md` — to-do list. Not carried in STATE.md.
 ## Session Continuity
 
 Last session: 2026-05-28
-Stopped at: v1.10.0 milestone archived
-Next action: /gsd:new-milestone to plan the next milestone
+Stopped at: Per-voice drive built (post-Gauss, pre-ADSR), v1.10.0 archived, GitHub synced
+Resume file: .planning/.continue-here.md
+Next action: /gsd:new-milestone or pick from TODO.md
