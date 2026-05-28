@@ -47,7 +47,7 @@
 Plans:
 **Wave 1**
 
-- [ ] 56-01-PLAN.md — Recording engine backend (state machine, staging buffer, encode-on-stop)
+- [x] 56-01-PLAN.md — Recording engine backend (state machine, staging buffer, encode-on-stop)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -121,7 +121,7 @@ Phases execute in numeric order: 56 -> 57 -> 58 -> 59
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 56. Core Recording Pipeline | v1.11.0 | 0/2 | Planned | - |
+| 56. Core Recording Pipeline | v1.11.0 | 1/2 | Executing | - |
 | 57. Sample Rate Selection | v1.11.0 | 0/? | Not started | - |
 | 58. Threshold Trigger | v1.11.0 | 0/? | Not started | - |
 | 59. Sample Export | v1.11.0 | 0/? | Not started | - |

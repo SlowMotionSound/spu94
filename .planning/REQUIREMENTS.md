@@ -7,12 +7,12 @@
 
 ### Recording Core
 
-- [ ] **REC-01**: User can start and stop recording live audio input with a record button
-- [ ] **REC-02**: Recording auto-stops when the 512KB voice RAM buffer is full
-- [ ] **REC-03**: Recorded audio is ADPCM-encoded into voice RAM on recording stop
-- [ ] **REC-04**: Waveform display updates with the recorded sample after encoding completes
-- [ ] **REC-05**: Input level meter shows live input signal strength during recording
-- [ ] **REC-06**: RAM usage display shows bytes used, seconds recorded, and time remaining at current rate
+- [x] **REC-01**: User can start and stop recording live audio input with a record button
+- [x] **REC-02**: Recording auto-stops when the 512KB voice RAM buffer is full
+- [x] **REC-03**: Recorded audio is ADPCM-encoded into voice RAM on recording stop
+- [x] **REC-04**: Waveform display updates with the recorded sample after encoding completes
+- [x] **REC-05**: Input level meter shows live input signal strength during recording
+- [x] **REC-06**: RAM usage display shows bytes used, seconds recorded, and time remaining at current rate
 
 ### Sample Rate
 
@@ -60,12 +60,12 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REC-01 | Phase 56 | Pending |
-| REC-02 | Phase 56 | Pending |
-| REC-03 | Phase 56 | Pending |
-| REC-04 | Phase 56 | Pending |
-| REC-05 | Phase 56 | Pending |
-| REC-06 | Phase 56 | Pending |
+| REC-01 | Phase 56 | Complete |
+| REC-02 | Phase 56 | Complete |
+| REC-03 | Phase 56 | Complete |
+| REC-04 | Phase 56 | Complete |
+| REC-05 | Phase 56 | Complete |
+| REC-06 | Phase 56 | Complete |
 | RATE-01 | Phase 57 | Pending |
 | RATE-02 | Phase 57 | Pending |
 | RATE-03 | Phase 57 | Pending |
