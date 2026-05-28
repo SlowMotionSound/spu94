@@ -1,259 +1,346 @@
-# Feature Landscape: v1.9 Complete Voice
+# Feature Landscape: v1.11.0 Live Input Sampling
 
-**Domain:** PS1 SPU voice modulation features -- PMON, NON, Volume Sweep, Signed Volume
-**Researched:** 2026-05-21
-**Primary source:** nocash psx-spx (problemkaputt.de / psx-spx.consoledev.net)
-**Cross-checked:** DuckStation spu.cpp (pitch modulation factor source, noise LFSR, volume sweep)
-**Overall confidence:** HIGH -- register layouts and formulas explicit in spec; emulator consensus on gray areas
+**Domain:** Hardware-faithful PSX sampler with live audio recording into 512KB ADPCM voice RAM
+**Researched:** 2026-05-28
+**Overall confidence:** HIGH (hardware sampler patterns well-documented; JUCE audio input verified via Context7; existing codebase integration points confirmed via direct inspection)
 
 ---
 
-## How These Four Features Fit the Existing Voice Path
+## How Live Recording Fits the Existing Sampler
 
-The v1.8 voice tick processes each voice in this order:
-
-1. Decode ADPCM block if needed
-2. Gaussian interpolation (or zero-order-hold bypass)
-3. ADSR envelope multiply (gauss_out * adsr_level)
-4. Per-voice L/R volume multiply
-5. Advance pitch counter
-
-The four v1.9 features inject into specific points in this chain:
+The v1.8-v1.10 sampler path currently works like this:
 
 ```
-                         +---------+
-  [ADPCM decode] ------->|  Gauss  |---+
-                         +---------+   |
-                                       |  <-- NON: noise output REPLACES this tap
-                                       v
-                                  [gauss_out]
-                                       |
-                                       v
-                                  [ADSR multiply]
-                                       |
-                                       v
-                                 [ADSR-scaled out]  <-- PMON reads THIS value
-                                       |                for voice N-1, feeds voice N
-                                       v
-                              [Volume L/R multiply] <-- Signed Volume: negative values
-                                       |                flip waveform polarity here
-                                       |            <-- Volume Sweep: auto-ramps
-                                       v                the volume value itself
-                              [to mixer accumulator]
-                                       |
-                                       v
-                              [pitch counter += step] <-- PMON modulates step HERE
+[WAV file on disk]
+       |
+       v
+[WavLoader: SRC to 44.1kHz int16, channel adapt]
+       |
+       v
+[spu94_sample_encode_to_ram: brute-force ADPCM encode]
+       |
+       v
+[voice_ram: 512KB ADPCM blocks]
+       |
+       v
+[spu94_voice_tick: decode, Gauss interp, ADSR, volume, sweep]
+       |
+       v
+[mixer accumulator -> reverb -> output]
+```
+
+Live recording replaces the top of this chain: instead of loading a WAV file, audio arrives from the JUCE audio input in real time, gets downsampled to the target rate, ADPCM-encoded, and written to voice RAM. Everything below `voice_ram` is unchanged.
+
+```
+[Audio input from processBlock]
+       |
+       v
+[SRC: host rate -> target sample rate]
+       |
+       v
+[PCM staging buffer (accumulates during recording)]
+       |
+       v  (on stop)
+[spu94_sample_encode_to_ram: same encoder as WAV path]
+       |
+       v
+[voice_ram: 512KB ADPCM blocks]  <-- existing playback path unchanged
 ```
 
 ---
 
 ## Table Stakes
 
-Features the PS1 hardware has that a faithful "complete voice" must include. Missing any means
-the voice is not spec-complete.
+Features users expect from any sampler with live recording. Missing = product feels incomplete.
 
-### 1. PMON -- Pitch Modulation
-
-| Aspect | Detail |
-|--------|--------|
-| **What it does** | Voice N-1's post-ADSR amplitude modulates voice N's pitch step, creating FM-style synthesis |
-| **Register** | `1F801D90h` -- 24-bit bitmask; bits 1..23 enable PMON for voices 1..23; bit 0 is unused (voice 0 cannot be modulated) |
-| **Spec formula** | `Factor = VxOUTX(x-1) + 0x8000` (range 0x0000..0xFFFF = 0.00..1.99x); `Step = (Step * Factor) >> 15`; if `Step > 0x3FFF` then `Step = 0x4000`; `Counter += Step` |
-| **VxOUTX source** | The Gauss-interpolated sample AFTER ADSR envelope multiply, BEFORE per-voice volume L/R. Verified in DuckStation: `voice.last_volume = ApplyVolume(sample, voice.regs.adsr_volume)` -- this is the PMON factor source. HIGH confidence. |
-| **Musical meaning** | When voice N-1 outputs silence (0), Factor = 0x8000, Step = Step * 0x8000 >> 15 = Step/2. When voice N-1 outputs max positive (+0x7FFF), Factor = 0xFFFF, Step is approximately 2x. When voice N-1 outputs max negative (-0x8000), Factor = 0x0000, Step = 0 (voice N stops). This means a modulator voice's ADSR directly controls the depth and character of the FM effect. |
-| **Edge case: silent modulator** | When voice N-1 is inactive (output = 0), Factor = 0x8000, which halves the pitch. The modulated voice plays at half its nominal pitch, not at full pitch. This is authentic hardware behavior -- no special-casing. |
-| **Edge case: pitch > 0x7FFF** | The formula includes `SignExpand16to32(Step)` before multiplication -- a "hardware glitch" for VxPitch values above 0x7FFF. In practice, pitch values > 0x3FFF are clamped post-modulation anyway. |
-| **Processing order** | Voices processed sequentially 0..23. Voice N reads voice N-1's last output. Already correct in current mixer loop order. |
-| **Complexity** | Low-Medium |
-| **Dependencies** | Needs a `last_volume` field per voice to store the post-ADSR output for the next voice to read. Existing tick loop already processes voices in order 0..23 -- no reordering needed. |
-
-### 2. NON -- Noise Generator
+### 1. Manual Record (Start/Stop)
 
 | Aspect | Detail |
 |--------|--------|
-| **What it does** | Replaces ADPCM/Gauss output with LFSR pseudo-random noise for selected voices |
-| **Register** | `1F801D94h` -- 24-bit bitmask; bit N set = voice N outputs noise instead of ADPCM |
-| **Noise frequency** | Controlled by SPUCNT (`1F801DAAh`) bits 13..10 (NoiseShift, 0..15) and bits 9..8 (NoiseStep, maps to 4,5,6,7). Per-voice VxPitch is IGNORED for noise voices. |
-| **LFSR algorithm** | `ParityBit = NoiseLevel.Bit15 XOR Bit12 XOR Bit11 XOR Bit10 XOR 1`; when timer underflows: `NoiseLevel = NoiseLevel * 2 + ParityBit`; timer reloaded with `0x20000 >> NoiseShift`. Timer decrements by NoiseStep each 44.1kHz tick. Double-reload if still negative after first reload. |
-| **Output** | Signed 16-bit value (the entire NoiseLevel register). This replaces the Gaussian interpolation output for that voice. ADSR still applies on top. |
-| **Critical constraint** | ALL noise-enabled voices share the SAME noise output at the same frequency. There is exactly ONE noise generator in the SPU, not one per voice. Individual noise frequencies per voice are impossible -- the only workaround is to use ADPCM samples of pre-recorded noise. |
-| **Musical meaning** | Hi-hats, cymbals, snare noise layer, wind/breath textures, white noise pads. The shared-frequency constraint means layering noise voices gives volume but not timbral variety. |
-| **Edge case: ADPCM still fetches?** | Spec is ambiguous. DuckStation skips ADPCM entirely when NON is set (`if noise_enabled: sample = GetVoiceNoiseLevel()`). For SPU-94, skip ADPCM decode when NON is set -- saves cycles and matches emulator consensus. Needs an ADR. |
-| **Edge case: PMON + NON** | A noise voice's output goes through ADSR and can then serve as a PMON factor for the next voice. This is spec-orthogonal -- noise modulating pitch creates random pitch jitter, a valid creative effect. |
-| **Edge case: pitch = 0 + NON** | A zero-pitch ADPCM voice outputs DC (counter frozen). A zero-pitch noise voice still outputs noise at the global noise frequency -- VxPitch is irrelevant for NON voices. |
-| **Complexity** | Medium |
-| **Dependencies** | Needs a global noise generator state (NoiseLevel, NoiseTimer) on the mixer struct, NOT per voice. Needs NoiseShift and NoiseStep fields (from SPUCNT). Needs the NON bitmask as a mixer-level field. |
-
-### 3. Signed Volume / Phase Inversion
-
-| Aspect | Detail |
-|--------|--------|
-| **What it does** | Allows negative per-voice volume values that flip the waveform phase while maintaining amplitude |
-| **Register** | `1F801C00h + N*10h` (VxVolumeLeft), `1F801C02h + N*10h` (VxVolumeRight) -- in fixed mode (bit 15 = 0), bits 0..14 represent volume/2 in range -0x4000..+0x3FFF (effective -0x8000..+0x7FFE) |
-| **How it works** | `output = (sample * (int32_t)volume) >> 15`. When volume is negative, the product is negative, flipping the waveform polarity. Standard signed multiplication -- no special code path needed. |
-| **Musical meaning** | (a) Dolby Pro Logic surround -- flipping phase of one channel creates "rear speaker" placement. (b) Stereo widening -- inverting one channel relative to the other widens the perceived stereo image. (c) Cancellation effects -- two voices playing the same sample with opposite phase cancel. |
-| **Already partially built** | `spu94_voice_t` declares `vol_l` and `vol_r` as `int16_t` with a comment noting "S2: negative = polarity flip, which is correct SPU behavior." The `q15_mul_truncate` function already handles signed values correctly. |
-| **What needs to change** | The GUI/API currently documents "unsigned semantics (0-32767)" and the SamplerWindow knobs enforce positive-only range. The C core already works -- the change is exposing negative values through the API and GUI. |
+| **Why expected** | Every sampler since the Fairlight CMI (1979) has a record button. Akai S1000: press ARM then START. MPC: tap ARM then RECORD. Digitakt: shift-tap SAMPLING. Without this the feature does not exist. |
 | **Complexity** | Low |
-| **Dependencies** | None beyond what exists. The Q15 multiply path is already signed-correct. |
+| **Dependencies** | JUCE audio input callback (already receives input in `processBlock` on both standalone and plugin paths), write path to voice RAM |
+| **What to build** | Recording state machine: IDLE -> RECORDING -> STOPPED. A single button toggles IDLE->RECORDING and RECORDING->STOPPED. Audio thread accumulates incoming PCM into a staging buffer. On STOPPED, run the existing `spu94_sample_encode_to_ram` encoder on a worker thread. |
+| **Hardware reference** | The Akai S1000 has three start modes: INPUT LEVEL (threshold), MIDI, and FOOTSWITCH. Manual start is the simplest -- press the button, recording begins. SPU-94 starts here. |
 
-### 4. Volume Sweep
+### 2. Input Level Meter
 
 | Aspect | Detail |
 |--------|--------|
-| **What it does** | Hardware-driven automatic per-voice volume ramp, independent of ADSR. When bit 15 of VxVolumeL or VxVolumeR is set, the volume register enters sweep mode and auto-increments/decrements. |
-| **Register layout (sweep mode, bit 15 = 1)** | Bit 14: mode (0=linear, 1=exponential). Bit 13: direction (0=increase toward +0x7FFF, 1=decrease toward 0). Bit 12: phase (0=positive, 1=negative/inverted). Bits 6..2: shift (0..31, fast..slow). Bits 1..0: step (0..3). |
-| **Sweep formula** | Identical step/shift/counter mechanism to ADSR: `AdsrCycles = 1 << max(0, Shift - 11)`; `AdsrStep = StepValue << max(0, 11 - Shift)`. Same fake-exponential-above-0x6000 for increase; same proportional-to-level for exponential decrease. |
-| **Step values** | Increase: +7, +6, +5, +4 (step 0..3, formula `7 - step`). Decrease: -8, -7, -6, -5 (step 0..3, formula `-(8 - step)`). NOTE: the increase/decrease step formulas are asymmetric. |
-| **Relationship to ADSR** | Sweep is "another Volume envelope, additionally to the ADSR volume envelope." Both are multiplicative in the signal chain. ADSR shapes the per-voice amplitude envelope (attack/decay/sustain/release). Sweep shapes the per-voice volume itself (fade-in, fade-out, pan automation). The final output = sample * adsr_level * sweep_volume (with Q15 scaling at each stage). |
-| **Independent L/R** | Left and right volume sweep are SEPARATE state machines. Left can be sweeping up while right sweeps down. This enables automatic stereo panning and cross-fade effects without CPU intervention. |
-| **Phase bit** | When phase = 1, sweep operates on negative volume values. Spec notes: "Phase invert causes the step to be positive in decreasing mode." Clamping range changes to -0x8000..0 instead of 0..+0x7FFF. The nocash spec describes this as "not yet tested." LOW confidence on negative-phase behavior. |
-| **Timing caution** | Setting fixed volume (bit 15=0) then immediately setting sweep mode (bit 15=1) requires a 1-tick delay -- the fixed volume write is not applied until the next 44.1kHz cycle. |
-| **Musical meaning** | Auto-fade-in/out per voice, stereo pan automation (left sweep up while right sweeps down), volume tremolo (with CPU re-triggering), stereo-field movement. |
-| **Complexity** | High |
-| **Dependencies** | Needs a `volume_sweep_t` state struct per voice per channel (2 per voice = 48 total). Reuses counter-accumulate pattern from ADSR (can share a helper). Needs mode-detect logic: when volume register is written, bit 15 decides fixed vs sweep. |
+| **Why expected** | The S1000 shows a VU-style meter on its REC screen with the warning "if the signal level touches the top line you may get distortion." The MPC shows level bars. The Digitakt shows input meters. Recording without seeing the level is blind. |
+| **Complexity** | Low |
+| **Dependencies** | Existing `inputLevel` atomic in PluginProcessor; audio data already flows through `processBlock` |
+| **What to build** | Peak-hold meter in the sampler window. Track peak amplitude of the input signal in the audio callback (single `std::atomic<float>`). Display as a vertical bar with clip indicator. No new DSP needed -- just observe what is already there. |
+| **Hardware reference** | Every hardware sampler since the S900 has had an input level display. The S1000 added a REC LEVEL knob for analog gain staging. SPU-94 already has an Input Gain control that serves this purpose. |
+
+### 3. RAM Usage / Remaining Time Display
+
+| Aspect | Detail |
+|--------|--------|
+| **Why expected** | 512KB is finite. The S1000 shows "xx.xx seconds remaining" on its REC page. The MPC shows a sample length counter. The SP-1200 has 10 seconds total. Users need to know how much space is left and how much time they can record. |
+| **Complexity** | Low |
+| **Dependencies** | `ramUsed` atomic already exists in PluginProcessor; sample rate determines time-per-byte conversion |
+| **What to build** | Numeric readout or progress bar showing: (a) bytes used / total bytes, (b) seconds recorded, (c) seconds remaining at current sample rate. Math: ADPCM blocks are 16 bytes for 28 samples. At sample rate R, one second uses R/28 blocks * 16 bytes. At 22.05kHz: 22050/28 * 16 = ~12,600 bytes/second. 512KB / 12,600 = ~41 seconds. |
+| **Recording time at each preset rate** | 44.1kHz: ~20.7s, 22.05kHz: ~41.4s, 11.025kHz: ~82.8s, 5.5125kHz: ~165.6s |
+
+### 4. Auto-Stop on RAM Full
+
+| Aspect | Detail |
+|--------|--------|
+| **Why expected** | When the buffer fills, recording must stop cleanly. The SP-1200 stops at 10 seconds. The S1000 stops at its memory limit. The Digitakt stops at 6:06. Overrunning the buffer would corrupt data or crash. Not optional. |
+| **Complexity** | Low |
+| **Dependencies** | RAM bounds check already in `spu94_sample_encode_to_ram` (returns -1 on overflow) |
+| **What to build** | During recording, track accumulated PCM sample count. Before the next audio callback writes to the staging buffer, check if encoding the accumulated PCM would exceed remaining RAM. If yes, stop recording, encode what fits, transition to STOPPED state. |
+
+### 5. Sample Rate Presets (Four PS1 Native Rates)
+
+| Aspect | Detail |
+|--------|--------|
+| **Why expected** | PS1 SPU pitch register defines playback rate relative to 44.1kHz. The four clean octave-halving rates (44100, 22050, 11025, 5512.5 Hz) correspond to pitch values 0x1000, 0x0800, 0x0400, 0x0200. These are how PS1 game developers authored samples. Users need to select these without doing hex math. |
+| **Complexity** | Low |
+| **Dependencies** | `encodeRate` atomic already exists (defaults to 22050); SRC infrastructure exists via `SrcChain` |
+| **What to build** | Dropdown or radio buttons with four preset rates. Each maps to a pitch register value and determines (a) the SRC target rate for downsampling input, (b) the playback pitch for the recorded sample, (c) the max recording duration display. |
+| **Hardware reference** | The S1000 offered exactly two rates: 44.1kHz and 22.05kHz. The S900 offered variable rates from 7.5kHz to 40kHz. PS1 games typically used 22.05kHz for most instrument samples and 44.1kHz for CD-quality streaming. |
+
+### 6. Waveform Display Updates After Recording
+
+| Aspect | Detail |
+|--------|--------|
+| **Why expected** | After recording stops, the new sample must appear in the existing waveform display with S/L/E markers. Every sampler with a screen does this -- MPC, Digitakt, any DAW sampler. Users expect to see what they just recorded. |
+| **Complexity** | Low |
+| **Dependencies** | `WaveformDisplay::setSample()` already accepts int16 PCM data and a frame count |
+| **What to build** | After encoding completes, decode the ADPCM back to PCM for display (or stash the pre-encode PCM from the staging buffer). Feed to existing `setSample()`. Markers auto-set: S=0.0, E=1.0, L=0.0. The display just works because the existing waveform infrastructure is format-agnostic. |
+
+### 7. Input Source Selection (Standalone)
+
+| Aspect | Detail |
+|--------|--------|
+| **Why expected** | Standalone app must let the user pick which audio input device and channels to record from. Users with multi-input interfaces need to select the right source (mic input 1 vs instrument input 2 vs line input, etc.). |
+| **Complexity** | Low |
+| **Dependencies** | JUCE `AudioDeviceManager` already manages devices in standalone mode; JUCE provides `AudioDeviceSelectorComponent` out of the box |
+| **What to build** | Settings button in the sampler window that opens the existing JUCE audio settings dialog (or a compact version showing only input device/channel selection). The standalone wrapper already initializes `AudioDeviceManager`. |
+| **Plugin context** | In a DAW plugin, the input comes from the DAW's routing. No device selection needed -- the DAW handles it. The feature is standalone-only. |
+
+---
+
+## Table Stakes -- Moderate Complexity
+
+### 8. Threshold-Triggered Auto-Record
+
+| Aspect | Detail |
+|--------|--------|
+| **Why expected** | The Akai S1000 (1988) had INPUT LEVEL trigger mode. The SP-1200 had threshold-based recording via the SAMPLE 4 function. The MPC has a threshold slider. The Digitakt has threshold-based auto-start. This is a 37-year-old expectation for any sampler recording feature. |
+| **Complexity** | Medium |
+| **Dependencies** | Input level tracking (feature 2), recording state machine (feature 1) |
+| **What to build** | Extended state machine: IDLE -> ARMED -> RECORDING -> STOPPED. When ARMED, monitor input level against a user-set threshold (dB or linear). When input exceeds threshold, transition to RECORDING. Need hysteresis to prevent false triggers -- standard approach: dual-threshold (attack threshold higher, release threshold lower) or a hold-off timer (ignore re-triggers for N ms after stop). |
+| **Threshold UX** | Single knob or slider for threshold level. Visual indicator showing the threshold level on the input meter. State display showing "ARMED" vs "RECORDING" vs "IDLE". |
+
+### 9. ADPCM Encoding on Intake
+
+| Aspect | Detail |
+|--------|--------|
+| **Why expected** | This is the entire point of SPU-94's sampler: audio passes through the PS1 codec on the way in, baking in the ADPCM character. The existing WAV loader already does this via `spu94_sample_encode_to_ram`. Live recording must do the same. |
+| **Complexity** | Medium |
+| **Dependencies** | `spu94_adpcm_encode_block`, SRC from host rate to target rate |
+| **Implementation decision** | Two approaches -- see Architectural Constraint section below for detailed analysis. Recommended: buffer raw PCM during recording, encode entire buffer on stop (Approach A). This matches the S1000's workflow where recording and processing were separate operations. |
+| **Why buffer-then-encode** | The brute-force ADPCM encoder tests 65 filter/shift combinations per 28-sample block. At 44.1kHz, that is ~635 blocks/second. While likely fast enough on modern CPUs, encoding on a worker thread after recording eliminates all real-time pressure and simplifies the state machine. The encoding pause is proportional to recording length -- at 512KB max (~29,000 blocks), well under a second on any modern machine. |
+
+### 10. Save/Export Sample to WAV
+
+| Aspect | Detail |
+|--------|--------|
+| **Why expected** | Users record samples to build libraries or share. The S-series saved to floppy. Modern samplers export WAV. Any recording workflow that produces keepable material needs export. |
+| **Complexity** | Medium |
+| **Dependencies** | ADPCM decode path (exists in `spu94_adpcm.c`), WAV writer (JUCE `WavAudioFormat`), trim markers (existing S/E markers) |
+| **What to build** | Save button that: (a) decodes ADPCM from voice RAM to PCM, (b) applies S/E marker trim, (c) writes 16-bit mono WAV at the sample's native rate. Key creative decision: export the ADPCM-degraded version (what the sample actually sounds like during playback), not the original clean input. The degradation IS the character. |
+| **Format** | 16-bit mono WAV at the recording sample rate. This is the universal interchange format. Not 24-bit (ADPCM is 4-bit, upsampled to 16-bit -- 24 bits would be wasted zeros). Not stereo (PS1 voices are mono with per-voice stereo panning). |
 
 ---
 
 ## Differentiators
 
-Features that go beyond basic spec compliance to create unique creative value.
+Features that set SPU-94's live recording apart from other samplers. Not expected, but genuinely valuable.
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| **PMON as FM synth engine** | Allocating voice pairs (modulator+carrier) enables classic 2-op FM synthesis. The PS1 SPU is literally an FM synth when PMON is used -- the modulator voice's sample and ADSR shape the FM timbre. This is a headline creative feature for sound design. | N/A (comes free with PMON implementation) | Consider dedicated FM preset examples showing bell, brass, evolving-pad sounds. |
-| **PMON chain stacking** | Voices 0-1-2 can chain: voice 0 modulates 1, voice 1 modulates 2. This creates 3-operator FM. Up to 12 modulator+carrier pairs, or a 24-voice FM chain for maximum chaos. | N/A (comes free with sequential PMON) | Document this capability prominently -- it is unique to the PS1 architecture. |
-| **Noise + Reverb** | Noise voices sent through the existing reverb engine create atmospheric textures (wind through a PS1 cathedral). The reverb's characteristic PS1 coloration on noise is a distinctive sound no other plugin produces. | N/A (EON gating already built) | Marketing-worthy combination. |
-| **Noise + PMON (random pitch jitter)** | A noise voice feeding PMON into the next voice creates random pitch modulation -- a lo-fi vibrato/detuning effect that sounds unlike any traditional LFO. | N/A (spec-orthogonal) | Document as a creative recipe. |
-| **Signed Volume + Reverb cancellation** | Phase-inverted voices through reverb create unusual spatial artifacts. The reverb sums L+R at input -- phase-inverted voices partially cancel in the reverb while remaining present in the dry bus. | N/A (comes free with signed volume) | Document as an exploitable quirk. |
-| **Volume Sweep as auto-tremolo** | Fast sweep cycling between increase and decrease creates tremolo. Combined with PMON, this automates vibrato depth without CPU intervention. | Medium (requires CPU re-trigger via register write) | The PS1 sweep is one-shot -- oscillation requires re-triggering the sweep when it hits its limit. |
+### D1. Variable Sample Rate (Continuous Pitch Register Control)
+
+| Aspect | Detail |
+|--------|--------|
+| **Value** | Beyond the four PS1 preset rates, the SPU pitch register supports any value from 0x0001 to 0x3FFF, meaning any effective sample rate from ~2.7 Hz to ~176.4 kHz (theoretical). The Akai S900 offered variable rates (7.5-40kHz) and users valued the creative tradeoff. SPU-94 can go further: record at ANY rate, including "wrong" ones that produce aliasing and pitched artifacts as creative texture. |
+| **Complexity** | Medium |
+| **Dependencies** | SRC ratio calculation at arbitrary rates, pitch register mapping |
+| **What to build** | A "Variable" mode with a knob that maps the full pitch register range. The knob displays the resulting Hz value and approximate max recording time. Lower rates = more aliasing = more lo-fi character = longer recording time. This is the S900's bandwidth-vs-duration tradeoff taken to its extreme. |
+
+### D2. Pre-Roll Buffer (Capture Before Threshold Trigger)
+
+| Aspect | Detail |
+|--------|--------|
+| **Value** | When using threshold trigger, the transient that CROSSES the threshold IS the sound you want. Without pre-roll, you chop the attack. The S1000 had adjustable pre-trigger time. Studio One and Bitwig have "retrospective recording." A small circular buffer (50-200ms) captures audio before the threshold fires. |
+| **Complexity** | Medium-High |
+| **Dependencies** | Circular buffer running continuously when ARMED, splice logic when trigger fires |
+| **What to build** | Ring buffer of N milliseconds of raw PCM maintained whenever state is ARMED. When threshold fires, prepend ring buffer contents to the recording. Memory cost: 100ms at 44.1kHz mono 16-bit = ~8.8 KB. Trivial. The complexity is in the state machine splice, not memory. |
+| **UX** | Knob or dropdown for pre-roll time: 0ms (off), 25ms, 50ms, 100ms, 200ms. |
+
+### D3. Input Monitoring with ADPCM Preview
+
+| Aspect | Detail |
+|--------|--------|
+| **Value** | Standard input monitoring lets you hear yourself. SPU-94's twist: route the input through the ADPCM codec and PS1 reverb in real time so you hear what the recorded sample WILL sound like, not the clean input. "What you hear is what you get." No other sampler does this because no other sampler has a PS1 reverb engine inline. |
+| **Complexity** | Medium |
+| **Dependencies** | Real-time ADPCM encode+decode on monitor path (existing codec functions), reverb engine routing |
+| **Caution** | The monitoring path must not interfere with the recording path (both use the same input signal). ADPCM block latency: 28 samples = ~0.6ms at 44.1kHz. Acceptable. Total round-trip monitoring latency depends on audio buffer size (typically 128-512 samples = 3-12ms). |
+
+### D4. Normalize After Recording
+
+| Aspect | Detail |
+|--------|--------|
+| **Value** | Scale the recorded sample to full 16-bit range. The MPC added normalize in firmware 1.3. The Digitakt normalizes automatically. For SPU-94: decode ADPCM, find peak, scale, re-encode. The re-encoding subtly changes the codec artifacts -- double-encoding produces richer distortion texture. |
+| **Complexity** | Medium |
+| **Dependencies** | Decode -> scale -> re-encode pipeline (all functions exist individually) |
+| **What to build** | One-click button post-recording. Operates on voice RAM: decode all blocks, find peak, compute gain factor, scale PCM, re-encode. The ADPCM re-encoding changes artifacts slightly -- document this as a creative feature, not a bug. |
+
+### D5. Auto-Trim Silence
+
+| Aspect | Detail |
+|--------|--------|
+| **Value** | Detect the first non-silent sample and set S marker there. Detect the last non-silent sample and set E marker there. Saves manual trimming of dead air, especially useful after threshold-triggered recordings where there may be pre-roll silence. |
+| **Complexity** | Low |
+| **Dependencies** | Threshold-based scan of decoded waveform (operates on display data, not voice RAM) |
+| **What to build** | Walk from start forward until amplitude exceeds ~-60dB. Walk from end backward until amplitude exceeds ~-60dB. Set S and E markers. Single button. |
 
 ---
 
 ## Anti-Features
 
-Features to explicitly NOT build.
+Features to explicitly NOT build. These would add complexity without serving the product's character.
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| **Per-voice noise frequency** | The PS1 has exactly ONE noise generator shared by all 24 voices. Building per-voice noise frequency is unfaithful and musically misleading -- it implies the PS1 could do something it could not. | Single shared LFSR. For per-voice noise variety, load different ADPCM noise samples. |
-| **Smooth PMON interpolation** | PMON uses the raw per-sample output of voice N-1 as a pitch factor. Adding smoothing hides the characteristic FM aliasing that gives PS1 FM its distinctive character. | Use the raw value. The aliasing IS the sound. |
-| **Volume sweep auto-oscillation** | The PS1 sweep runs in one direction until it hits the limit and stops. It does NOT auto-reverse or oscillate like a DAW LFO. Building auto-oscillation is a non-PS1 feature. | One-directional sweep per spec. If LFO is desired later, build as a separate creative-mode feature clearly labeled as non-PS1. |
-| **ADSR bypass when sweep is active** | Sweep and ADSR are independent. Both run simultaneously and multiply together. Disabling ADSR when sweep controls volume would be wrong. | Apply both: sample * adsr_level * sweep_volume with Q15 scaling at each stage. |
-| **Configurable LFSR taps** | The PS1 LFSR polynomial (bits 15, 12, 11, 10 XOR 1) is fixed hardware. Changing taps changes the noise character away from authentic PS1. | Use the exact tap positions from spec. |
-| **PMON depth/mix parameter** | PS1 PMON is binary: on or off. No "modulation depth" knob exists in hardware. | Toggle only. Depth is controlled by the modulator voice's volume/ADSR, which naturally scales the modulation factor. |
-| **VxOUTX readable register API** | The real PS1 exposes per-voice output at `1F801E00h`. Building a register-mapped read API adds complexity for zero musical benefit in an instrument context. | Store `last_volume` internally for PMON. No need for external API. |
-| **Master volume sweep** | PS1 master volume registers are NOT sweep-capable. Only per-voice volumes have hardware sweep. | Master volume stays as a direct-set control. |
+| **Multi-track recording** | SPU-94 is a sampler, not a DAW. Recording multiple simultaneous tracks into separate voice regions adds DAW-like complexity (track arming, routing matrix, headphone mix). The PS1 never recorded audio in real time at all. | Record mono into one voice slot at a time. For stereo source material, record the left channel. PS1 voices are mono with per-voice stereo panning -- that is the architecture. |
+| **Destructive sample editing (cut/copy/paste/reverse)** | Full waveform editing is a different product. Adding cut/copy/paste turns the sampler window into an audio editor. | Keep the existing marker-based trim. S marker = start, E marker = end, L marker = loop. Markers are non-destructive and already draggable. Export respects markers. |
+| **Time-stretching / pitch-independent stretching** | The PS1 SPU does not time-stretch. It pitch-shifts by changing playback rate (like a turntable). Time-stretching is a modern DSP operation that contradicts the hardware-faithful philosophy. | The pitch register IS the speed control. Lower pitch = slower + lower. Higher pitch = faster + higher. This is the PS1 sound. |
+| **Automatic BPM detection / beat slicing** | MPC/Ableton territory. SPU-94 is about character, not workflow automation. BPM detection requires onset detection algorithms -- significant complexity for marginal value in this context. | Manual loop point placement via L marker. The user sets loop points by ear, which is exactly how PS1 game developers worked. |
+| **Streaming from disk during recording** | Recording always goes to RAM, never to disk. The PS1 had finite RAM and no disk streaming during sample playback. Disk streaming eliminates the creative constraint of 512KB. | Record to RAM. Export to disk after recording completes. The RAM limit IS a feature -- it forces the same economy that defined PS1 game audio. |
+| **Free-form Hz text input** | While the pitch register supports arbitrary values, a free-form Hz input invites confusion. "Recording at 13,847 Hz" is meaningless to a musician. | Four preset rates as primary; a continuous knob for Variable mode. The knob shows Hz and approximate recording time, but the control is tactile, not a text field. |
+| **Stereo recording** | PS1 voices are mono. The SPU has no stereo sampling capability. Adding stereo recording would require allocating two voice slots and keeping them synchronized -- complexity that contradicts the hardware model. | Record mono. Use per-voice L/R volume panning to position in the stereo field after recording. |
+| **Undo/redo for recording** | A single "last recording" undo would require keeping two copies of the sample in RAM (doubling memory). Multiple undo levels would require disk-backed history. Both add significant complexity for a niche workflow. | Record again to overwrite. The recording is fast (press record, play, stop). If you want to keep a take, export it first. |
 
 ---
 
 ## Feature Dependencies
 
 ```
-Signed Volume (independent -- existing Q15 path already handles it)
-  --> only needs API/GUI exposure of negative vol_l/vol_r values
+Input Level Meter -------> Manual Record (start/stop)
+                                |
+                                v
+                      ADPCM Encoding on Intake
+                                |
+                                v
+                      Auto-Stop on RAM Full
+                                |
+                                v
+                      Waveform Display Update
+                                |
+                                +---> Save/Export to WAV
+                                |
+                                +---> Auto-Trim Silence (D5)
+                                |
+                                +---> Normalize (D4)
 
-PMON:
-  --> needs: last_volume stored per voice after ADSR multiply
-  --> needs: sequential voice processing 0..23 (already the case)
-  --> needs: PMON bitmask on mixer struct
-  --> interacts with: pitch counter step calculation in voice tick
+Sample Rate Presets -----> Variable Sample Rate (D1, extends presets)
 
-NON:
-  --> needs: global noise generator (NoiseLevel, NoiseTimer) on mixer
-  --> needs: NoiseShift/NoiseStep from SPUCNT on mixer struct
-  --> needs: NON bitmask on mixer struct
-  --> replaces: ADPCM decode + Gaussian interpolation output for flagged voices
-  --> interacts with: ADSR (still applies to noise output)
-  --> interacts with: PMON (noise voice output can feed PMON factor)
+Threshold Trigger -------> Pre-Roll Buffer (D2, enhances trigger)
+       |
+       +---> requires Input Level Meter
 
-Volume Sweep:
-  --> needs: volume_sweep_t state per voice per channel (L and R separate)
-  --> needs: sweep tick function (reuses ADSR counter-accumulate mechanism)
-  --> needs: mode-detect on volume register write (bit 15 = fixed vs sweep)
-  --> needs: current_volume tracking per channel (sweep modifies this)
-  --> interacts with: ADSR (multiplicative, both apply)
-  --> interacts with: Signed Volume (sweep phase bit controls sign)
-```
+Input Source Selection --- independent, standalone-only
 
-No circular dependencies. Recommended build order driven by complexity and payoff:
+RAM Usage Display -------- required by Manual Record (progress feedback)
 
-```
-1. Signed Volume (near-free -- expose what already works)
-     |
-2. PMON (low-medium complexity, highest musical payoff)
-     |
-3. NON (medium complexity, self-contained new module)
-     |
-4. Volume Sweep (high complexity, reuses ADSR mechanism)
+Input Monitoring (D3) ---- independent, enhances recording experience
 ```
 
 ---
 
-## Interaction Matrix
+## Key Architectural Constraint: Encoding Timing
 
-How the four features interact with each other and existing systems:
+The existing `spu94_sample_encode_to_ram` takes a complete PCM buffer and encodes it all at once. For live recording, two approaches exist:
 
-| | PMON | NON | Signed Vol | Vol Sweep | ADSR | Gauss | Reverb |
-|---|---|---|---|---|---|---|---|
-| **PMON** | -- | Noise output can be PMON factor | Signed vol does NOT affect PMON factor (reads pre-volume) | Sweep does NOT affect PMON factor (reads pre-volume) | ADSR output IS the PMON factor | PMON modifies pitch step which drives Gauss index | No direct interaction |
-| **NON** | See above | -- | Signed vol applies to noise output | Sweep applies to noise volume | ADSR applies to noise output | Noise REPLACES Gauss output | Noise sent to reverb via EON |
-| **Signed Vol** | No interaction | See above | -- | Sweep phase bit = sign of volume | Multiplicative with ADSR | No interaction | Phase-inverted voices partially cancel in reverb L+R sum |
-| **Vol Sweep** | No interaction | See above | See above | -- | Both apply multiplicatively | No interaction | Swept volume affects reverb send level |
+**Approach A -- Buffer then Encode (RECOMMENDED):**
+Accumulate raw PCM in a `std::vector<int16_t>` during recording. When recording stops, call `spu94_sample_encode_to_ram` with the complete buffer on a worker thread. Simple, always works, brief pause after stop. This is how the Akai S1000 worked -- recording and encoding were separate operations.
 
----
+- Pro: No real-time encoder pressure. Reuses existing code path exactly.
+- Pro: Can check total encoded size before writing (no partial-buffer corruption risk).
+- Con: Brief pause after stop while encoding runs (~200ms for a full 512KB at worst).
+- Con: Needs a staging buffer large enough for raw PCM (at 44.1kHz, full 512KB ADPCM = ~14.5 million PCM samples = ~27.5 MB of int16). In practice, max recording time at 44.1kHz is ~20 seconds = ~1.7 MB.
 
-## Gray Areas Needing ADR Documentation
+**Approach B -- Encode Incrementally:**
+Encode each 28-sample block as it arrives and write directly to voice RAM. Eliminates post-record pause but requires encoder to keep up with incoming rate in real time.
 
-1. **VxOUTX tap point for PMON**: nocash does not explicitly state whether VxOUTX is post-ADSR or post-volume. DuckStation uses post-ADSR, pre-volume. Document as ADR with DuckStation as behavioral witness. HIGH confidence in the DuckStation approach.
+- Pro: No post-record pause. RAM usage updates in real-time during recording.
+- Con: Brute-force encoder tests 65 filter/shift combinations per block. Needs profiling.
+- Con: If encoder falls behind, audio drops out or recording corrupts.
+- Con: Encoder state must persist across audio callbacks (currently single-shot).
 
-2. **ADPCM fetch during NON**: Spec is ambiguous on whether ADPCM blocks are still read from RAM when NON is enabled. DuckStation skips ADPCM entirely. Document decision to skip. MEDIUM confidence.
-
-3. **Noise initial state**: NoiseLevel initial value at power-on is undocumented. DuckStation initializes to 0. Document the choice. LOW confidence.
-
-4. **Volume sweep phase bit in exponential decrease**: nocash notes "no effect in Exponential Decrease mode." Document this edge case in the implementation. MEDIUM confidence.
-
-5. **Volume sweep negative-phase clamping**: nocash says negative-phase sweep clamps to -0x8000..0 but notes "not yet tested." Document with LOW confidence; implement positive-phase path first.
-
-6. **Step value asymmetry (increase vs decrease)**: Increase uses `7 - step` (+7,+6,+5,+4). Decrease uses `-(8 - step)` (-8,-7,-6,-5). The existing ADSR sustain-decrease code uses `-(7 - step)` which produces -7,-6,-5,-4 -- off by 1 from the spec's stated values. Volume Sweep must use the correct `-(8 - step)` formula. The ADSR discrepancy should be audited separately as a pre-existing concern. HIGH confidence in the spec's stated values.
+**Recommendation: Approach A for v1.11.0.** The pause is proportional to recording length. At 512KB max (~29,000 ADPCM blocks), the entire buffer encodes in well under a second on modern hardware. Incremental encoding can be explored later if the pause bothers users.
 
 ---
 
-## Complexity Summary
+## PS1 Hardware Context
 
-| Feature | Implementation Complexity | Test Complexity | Musical Impact |
-|---------|--------------------------|-----------------|----------------|
-| Signed Volume | Low (already works in C core) | Low (sign-flip golden test) | Medium (stereo/spatial tricks) |
-| PMON | Low-Medium (formula + last_vol storage) | Medium (FM accuracy verification) | High (FM synthesis, vibrato, frequency sweep) |
-| NON | Medium (LFSR + timer + global state) | Medium (noise spectral verification) | Medium (percussion, texture, atmospherics) |
-| Volume Sweep | High (second envelope per voice per channel) | High (sweep curve accuracy, mode interactions) | Low-Medium (auto-fade, pan automation) |
+On the real PS1, samples were never "recorded" through the SPU in real time. Game developers pre-encoded ADPCM samples offline using Sony's SDK tools (`AIFF2VAG`, `WAV2VAG`) and uploaded them to SPU RAM via DMA transfer (DMA channel 4). The SPU had capture buffers for voices 1 and 3 (first 4KB of SPU RAM), but these captured the processed output of those voices, not external input audio.
+
+SPU-94's live recording feature is therefore a creative extension beyond what the hardware did -- using the hardware's codec and playback engine in a way the original designers never intended. This is consistent with SPU-94's North Star: "faithful to the algorithm, creative with the instrument."
+
+The four preset sample rates (44.1k, 22.05k, 11.025k, 5.5125k) correspond to clean octave relationships in the pitch register (0x1000, 0x0800, 0x0400, 0x0200). PS1 game developers typically authored instrument samples at 22.05kHz (good quality, reasonable RAM usage) and streaming audio at 44.1kHz.
 
 ---
 
 ## MVP Recommendation
 
-All four features are table stakes for "complete PS1 voice." Prioritize by dependency and payoff:
+Build in this order, with each step producing a usable increment:
 
-1. **Signed Volume** -- near-zero cost; expose negative volume through API and GUI. Unlocks sweep's negative-phase capability and phase-inversion creative effects.
+1. **Manual Record + Auto-Stop + Input Level Meter + RAM Display** -- the core recording pipeline
+   - Record button in sampler window
+   - PCM accumulation in processBlock
+   - ADPCM encode on stop (worker thread)
+   - Auto-stop when RAM full
+   - Waveform display update after encoding completes
+   - Input level meter and remaining-time readout
+   - Addresses: features 1, 2, 3, 4, 6
 
-2. **PMON** -- highest musical payoff; enables FM synthesis, vibrato, frequency sweeps. Add `last_volume` per voice, PMON bitmask, and pitch-step modulation formula in the counter-advance section.
+2. **Sample Rate Presets** -- four PS1 native rates as a dropdown
+   - SRC from host rate to target rate (can reuse libsamplerate from SrcChain)
+   - RAM remaining display updates based on selected rate
+   - Addresses: feature 5
 
-3. **NON** -- enables percussion and texture voices. Add one global LFSR generator on the mixer, NON bitmask, and noise output substitution before the ADSR multiply in voice tick.
+3. **Threshold Trigger** -- arm mode with level detection
+   - State machine extension: IDLE -> ARMED -> RECORDING -> STOPPED
+   - Threshold knob on the sampler window
+   - Addresses: feature 8
 
-4. **Volume Sweep** -- most complex; reuses the proven ADSR counter-accumulate mechanism. Independent L/R sweep state per voice. Build last because it has the lowest musical impact relative to its complexity.
+4. **Save/Export** -- WAV file export with trim markers
+   - Decode ADPCM from voice RAM, apply S/E markers, write 16-bit WAV
+   - Addresses: feature 10
 
-Defer:
-- Volume sweep negative-phase mode: implement positive-phase first; add negative-phase as follow-up. The spec itself says negative phase is "not yet tested."
-- GUI multi-voice sweep editing (only matters when editing multiple voices simultaneously).
-- Volume sweep LFO re-trigger automation (the PS1 sweep is one-shot; oscillation requires CPU-driven re-triggering which is a host-level concern).
+5. **Variable Sample Rate** (differentiator) -- continuous pitch register knob
+   - Addresses: D1
+
+6. **Pre-Roll Buffer** (differentiator) -- circular buffer when armed
+   - Addresses: D2
+
+Defer: Record Into Voice Slot (needs RAM allocator redesign), Input Monitoring with ADPCM Preview (needs careful routing), Auto-Trim (low priority), Normalize (low priority).
 
 ---
 
 ## Sources
 
-- [nocash psx-spx: SPU ADPCM Pitch](https://problemkaputt.de/psxspx-spu-adpcm-pitch.htm) -- PMON formula, pitch counter modulation, VxOUTX factor, 0x3FFF clamping, voice 0 exclusion. HIGH confidence.
-- [nocash psx-spx: SPU Volume and ADSR Generator](https://problemkaputt.de/psxspx-spu-volume-and-adsr-generator.htm) -- volume sweep register layout, step/shift formula, exponential fake, phase bit, signed volume, step value tables (+7..+4 / -8..-5). HIGH confidence.
-- [psx-spx.consoledev.net: Sound Processing Unit](https://psx-spx.consoledev.net/soundprocessingunitspu/) -- NON register, noise LFSR algorithm, SPUCNT noise frequency bits, voice register map, VxOUTX address, signal flow description. HIGH confidence.
-- [DuckStation spu.cpp](https://github.com/stenzek/duckstation/blob/master/src/core/spu.cpp) -- `voice.last_volume = ApplyVolume(sample, voice.regs.adsr_volume)` confirms PMON reads post-ADSR pre-volume; `GetVoiceNoiseLevel()` confirms noise substitution; `VolumeSweep::Tick()` confirms independent L/R sweep; `ApplyVolume()` confirms signed multiply. HIGH confidence (cross-verification).
-- [hitmen SPU docs](https://hitmen.c02.at/files/docs/psx/spu.txt) -- secondary reference; confirms sweep mode, noise mode, volume register layout. MEDIUM confidence.
-- Existing SPU-94 code: `spu94_voice.c` (voice tick processing order, signed vol_l/vol_r declaration), `spu94_adsr.c` (counter-accumulate mechanism to reuse for sweep), `spu94_voice.h` (data structures, mixer struct). HIGH confidence (internal).
+- Akai S1000 manual / Sound On Sound (May 1989): two sample rates (44.1/22.05kHz), INPUT LEVEL threshold trigger, MIDI trigger, footswitch trigger, REC LEVEL monitoring with VU meter, ED1 trim/loop, gain normalization in v2.0 firmware [HIGH confidence -- primary documentation]
+- Akai S900: variable sample rate 7.5kHz-40kHz, 12-bit, 750KB RAM, up to 63 seconds [HIGH confidence]
+- E-MU SP-1200: fixed 26.04kHz, 12-bit, 10 seconds max (2.5s per pad), threshold trigger [HIGH confidence]
+- Akai MPC (current): arm button, threshold slider, "In" monitoring (zero-latency pre-sampler) vs processed monitoring, sample length counter, normalize in firmware 1.3 [HIGH confidence -- Akai support docs]
+- Elektron Digitakt: threshold auto-start, auto-normalize on stop, waveform editor with start/end, up to 6:06 [MEDIUM confidence -- review-sourced]
+- Elektron Tonverk: threshold arming, tempo-synced recording length, post-record trim/loop/normalize [MEDIUM confidence -- synthmagazine.com]
+- Fairlight CMI: variable sample rate (8-100kHz), bandwidth-vs-duration tradeoff, waveform drawing [HIGH confidence]
+- nocash psx-spx: SPU pitch register (0x1000 = 44100Hz base), ADPCM 28-sample blocks, 512KB RAM, DMA channel 4 transfers, capture buffers for voices 1/3 [HIGH confidence]
+- JUCE AudioDeviceManager / AudioProcessor: processBlock receives input audio buffer, AudioDeviceSelectorComponent for device selection [HIGH confidence -- Context7 verified]
+- Existing SPU-94 codebase: `spu94_sample_encode_to_ram`, `WaveformDisplay::setSample()`, `encodeRate` atomic, `ramUsed` atomic, `SrcChain` for sample rate conversion, `inputLevel` atomic [HIGH confidence -- direct code inspection]

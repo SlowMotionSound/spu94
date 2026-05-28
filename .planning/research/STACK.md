@@ -1,256 +1,396 @@
-# Technology Stack
+# Technology Stack: v1.11.0 Live Input Sampling
 
-**Project:** SPU-94 v1.9 Complete Voice (PMON, NON, Volume Sweep, Signed Volume)
-**Researched:** 2026-05-21
+**Project:** SPU-94
+**Researched:** 2026-05-28
+**Mode:** Subsequent milestone -- stack additions only
 
 ## Executive Summary
 
-v1.9 adds four PS1 SPU voice features to the existing 24-voice sampler engine. All four are **pure fixed-point integer math** -- no new external libraries needed. The implementation lives entirely within the existing C99 core (`libspu94`), extending `spu94_voice_t` and `spu94_voice_mixer_t` with new per-voice state fields and a shared noise generator.
+Live input sampling adds zero new external dependencies. Every capability required
+-- real-time ADPCM encoding, input SRC, audio device selection, threshold detection,
+WAV export, and waveform display updates -- is achievable with the existing stack
+(JUCE 8.0.12, libsamplerate, libspu94 C core). The work is architecture and
+integration, not library shopping.
 
-Zero new dependencies. Zero library additions. The "stack" for this milestone is structural changes to existing code, not new technology.
+The one non-trivial technical question is whether the brute-force ADPCM encoder
+(65-combination search per 28-sample block) is fast enough to run inside the audio
+callback. Analysis below concludes YES with comfortable margin.
 
-## Recommended Stack
+## Existing Stack (No Changes Needed)
 
-### Core Framework -- No Changes
+These are already integrated and validated. Listed for completeness and to clarify
+exactly which existing facility covers each v1.11.0 requirement.
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| C99/C11 | gcc 13+ / clang 17+ | DSP core | Already validated; all four features are integer math |
-| JUCE | 8.0.7 (pinned) | GUI + plugin host | Existing; new GUI controls only |
-| CMake | 3.24+ | Build system | Add new .c files to `spu94_obj` OBJECT library |
+| Technology | Version | Existing Role | v1.11.0 Role |
+|------------|---------|---------------|--------------|
+| JUCE | 8.0.12 (SHA-pinned) | GUI, audio I/O, plugin formats | Audio input routing, WAV export, waveform display updates |
+| libsamplerate | HEAD (SHA-pinned) | Host SR <-> 44.1 kHz SRC in plugin wrapper | Input path SRC for recording at sub-44.1 kHz target rates |
+| libspu94 (C core) | current | ADPCM encode/decode, voice RAM, voice engine | Real-time ADPCM encode, voice RAM write target |
+| dr_wav | vendored (CLI only) | CLI WAV I/O | NOT used -- JUCE handles WAV export in plugin/standalone |
 
-### New Source Files (C Core)
+## New Libraries Required
 
-| File | Purpose | Rationale |
-|------|---------|-----------|
-| `src/spu94/spu94_noise_gen.c` | SPU noise LFSR generator | Separate from DAC noise -- different polynomial (Fibonacci XOR vs Galois), different stepping (timer-based countdown), global shared state across all voices |
-| `include/spu94/spu94_noise_gen.h` | Public header for noise generator | Matches existing module-per-header pattern (cf. `spu94_adsr.h`, `spu94_dac_noise.h`) |
-| `src/spu94/spu94_vol_sweep.c` | Volume sweep envelope tick | Same counter-accumulate mechanism as ADSR but applied to volume register, not envelope level |
-| `include/spu94/spu94_vol_sweep.h` | Public header for volume sweep | Keeps sweep logic testable in isolation like ADSR |
+**None.**
 
-### No New Files Needed For
+## Detailed Analysis Per Feature
 
-| Feature | Why No New File |
-|---------|-----------------|
-| PMON (pitch modulation) | ~20 lines added to the voice iteration loop in `spu94_voice_mixer_tick()` |
-| Signed Volume / Phase Inversion | Already supported by `vol_l`/`vol_r` being declared `int16_t`; `q15_mul_truncate` handles negative values correctly; only needs API/GUI surface to expose negative volumes |
+### 1. Real-Time ADPCM Encoding in the Audio Callback
 
-### Supporting Libraries -- No Additions
+**Existing:** `spu94_adpcm_encode_block()` in `src/spu94/spu94_adpcm_encode.c`.
+Brute-force 65-combination (5 filters x 13 shifts) search per 28-sample block.
+Zero heap, integer-only, deterministic. Currently called only from
+`spu94_sample_encode_to_ram()` on the message thread during WAV file load.
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| Unity test framework | vendored | Unit tests for new modules | Test spu94_noise_gen, spu94_vol_sweep, PMON chain behavior |
-| dr_wav | vendored | Golden file I/O | Golden regression tests for voice-with-PMON/NON audio |
-| pytest + numpy | existing | Integration/fuzz tests | Noise frequency verification, sweep trajectory validation |
+**What changes:** Call the same encoder from the audio thread, feeding it live
+input samples instead of pre-loaded PCM.
 
-## Structural Changes to Existing Code
+**CPU budget analysis:**
 
-### 1. `spu94_voice_t` -- New Fields
+The encoder's inner loop is 28 iterations of: one multiply-add prediction
+(2 int32 muls + shift + add), one quantize (shift + clamp), one reconstruction
+(shift + add + clamp), one squared-error accumulate (int64 mul + add), two state
+updates. That is roughly 28 x 12 = 336 integer operations per (filter, shift)
+trial, times 65 trials = ~21,840 integer ops per block of 28 samples.
 
-```c
-/* v1.9 additions to spu94_voice_t (include/spu94/spu94_voice.h) */
+At 44.1 kHz, 28 samples = 0.635 ms of audio. On a modern x86 core at 3+ GHz
+executing 2+ integer ops per cycle, 21,840 ops takes roughly 5-10 us -- well
+under 1% of the available 635 us. Even at the lowest PS1 sample rate
+(5.5125 kHz, meaning the encoder receives 1/8 as many samples after SRC
+decimation), the per-block budget is 8x larger (5.08 ms) while the work per
+block stays the same.
 
-/* Volume Sweep: per-voice automatic volume ramp (independent L/R) */
-spu94_vol_sweep_t sweep_l;    /* left channel volume sweep state */
-spu94_vol_sweep_t sweep_r;    /* right channel volume sweep state */
+**Verdict:** The existing encoder is fast enough for real-time use. No
+optimization, no reduced-search fast path, no background-thread offloading
+needed. The encoder is already rt-safe (no heap, no locks, no syscalls).
+
+**Confidence:** HIGH (verified by reading the source code; integer-only
+arithmetic on a tight loop is dominated by branch prediction and cache
+locality, both favorable for this code pattern).
+
+**Integration point:** Direct use of `spu94_adpcm_encode_block()` from
+the JUCE audio callback, accumulating 28-sample blocks into a small
+stack-local buffer and writing encoded 16-byte blocks directly into
+`voice_ram[]` at the current write offset.
+
+**ADPCM state management:** The encoder carries state (`spu94_adpcm_state`)
+across blocks. For live recording this state lives in the recording context,
+initialized to {0,0} at record start, carried across consecutive blocks
+until record stop.
+
+**Sample accumulation:** The audio callback delivers blocks at the host
+buffer size (commonly 64-1024 samples). After SRC to the target encode
+rate, these arrive in irregular counts. An accumulator buffer of 28
+int16_t samples collects incoming samples, and when full, fires one
+`spu94_adpcm_encode_block()` call. The accumulator is a simple
+stack-local array with an index counter -- no ring buffer, no FIFO, no
+allocation.
+
+### 2. Sample Rate Conversion on the Input Path
+
+**Existing:** Two SRC facilities already in the project:
+
+1. `SrcChain` (plugin path): libsamplerate Sinc-Medium, bidirectional,
+   host SR <-> 44.1 kHz. Runs in processBlock. RT-safe.
+
+2. `loadVoiceSample()`: libsamplerate `src_simple()` with `SRC_SINC_BEST_QUALITY`,
+   44.1 kHz -> target encode rate. Runs on message thread.
+
+**What changes for live recording:**
+
+The input path for recording is: host/device audio (at host SR) -> SRC down to
+target PS1 rate (44.1/22.05/11.025/5.5125 kHz) -> ADPCM encode -> voice RAM.
+
+Two SRC stages may be needed:
+
+- **Stage 1 (already exists):** Host SR -> 44.1 kHz. This is `SrcChain::processIn()`,
+  already running. At 44.1 kHz host SR, this is the fast path (no SRC at all).
+
+- **Stage 2 (new):** 44.1 kHz -> target encode rate. This decimation only runs
+  during recording. For the four standard PS1 rates, the ratios are exact
+  power-of-two divisions (44100/44100=1, 44100/22050=2, 44100/11025=4,
+  44100/5512.5=8). For arbitrary pitch-register rates, ratios are non-integer.
+
+**Recommended approach:** Use libsamplerate (already linked) with a dedicated
+`SRC_STATE` for the recording decimation path. Create it at record-start,
+destroy at record-stop. Use `SRC_SINC_FASTEST` quality because:
+
+- The input is about to be ADPCM-encoded (lossy compression at 4 bits/sample),
+  so Sinc-Medium/Best quality SRC is wasted effort -- the ADPCM quantization
+  noise floor dominates any SRC quality difference.
+- Lower quality = lower latency = less buffering complexity.
+- This matches the PS1's own internal conversion quality.
+
+For exact power-of-two ratios (the four standard PS1 rates), the SRC_SINC_FASTEST
+filter is lightweight enough that there is no benefit to implementing a separate
+box-average decimator. libsamplerate handles all ratios uniformly, including
+arbitrary pitch-register rates, avoiding two code paths.
+
+**SRC_STATE lifecycle:** Create on record-start (non-RT allocation is fine --
+it happens once, on the message thread, before recording begins). Cache the
+handle for the duration of recording. Destroy on record-stop. The existing
+`SrcChain::prepare()` pattern demonstrates this lifecycle.
+
+**Confidence:** HIGH. libsamplerate is already linked, the callback API is
+used identically in the existing SrcChain, and creating additional SRC_STATE
+handles is a documented operation.
+
+### 3. Audio Input Device Selection and Routing
+
+**Existing:** The plugin constructor already declares a stereo input bus:
+
+```cpp
+AudioProcessor(BusesProperties()
+    .withInput("Input", juce::AudioChannelSet::stereo(), true)
+    .withOutput("Output", juce::AudioChannelSet::stereo(), true))
 ```
 
-The `spu94_vol_sweep_t` struct (defined in `spu94_vol_sweep.h`):
+`isBusesLayoutSupported()` accepts mono-in and stereo-in configurations.
+In processBlock, the input buffer already contains live audio from the host
+or standalone audio device.
 
-```c
-typedef struct {
-    /* Register fields -- loaded before activation */
-    uint8_t  mode;       /* 0 = linear, 1 = exponential */
-    uint8_t  direction;  /* 0 = increase, 1 = decrease */
-    uint8_t  phase;      /* 0 = positive, 1 = negative (target polarity) */
-    uint8_t  shift;      /* 0..31 (same semantics as ADSR shift) */
-    uint8_t  step;       /* 0..3 (same semantics as ADSR step) */
+**Standalone vs. Plugin differences:**
 
-    /* Runtime state */
-    uint8_t  active;     /* 0 = sweep disabled (direct volume mode) */
-    uint32_t counter;    /* accumulator -- same counter-accumulate as ADSR */
-} spu94_vol_sweep_t;
+| Aspect | Standalone | DAW Plugin |
+|--------|-----------|------------|
+| Input source | System audio device (mic, interface) | DAW track bus (whatever is routed to the plugin) |
+| Device selection | JUCE `StandalonePluginHolder` -> `AudioDeviceManager` -> system audio settings dialog | Not applicable (DAW handles routing) |
+| Input availability | Always available if device has inputs | Always available (processBlock buffer has input data) |
+| Settings UI | JUCE's built-in audio settings dialog (accessible via StandalonePluginHolder) | None needed |
+
+**What changes:**
+
+Nothing in the audio processing path. The input data is already in the
+processBlock buffer. The recording logic reads from the same buffer that
+currently feeds the reverb engine.
+
+For standalone, the existing audio settings dialog (JUCE provides this
+automatically for standalone plugins) already handles device selection.
+No custom device-picker UI needed.
+
+The one new GUI element: a selector for which input channel(s) to record
+from (left, right, or mono-sum). This is a simple atomic<int> read in the
+audio callback, same pattern as every other GUI control in the project.
+
+**Confidence:** HIGH. The input bus is already declared and functional.
+Verified by reading the constructor and isBusesLayoutSupported() source.
+
+### 4. Threshold-Based Auto-Record Triggering
+
+**No library needed.** This is a trivial DSP operation: compare abs(sample)
+against a threshold value on each audio callback, transition from ARMED to
+RECORDING when threshold is exceeded.
+
+**Implementation pattern:**
+
+```
+State machine: IDLE -> ARMED -> RECORDING -> STOPPED
+Threshold: user-configurable float, 0.0..1.0 (fraction of int16 full scale)
+Detection: per-sample abs() comparison on the post-SRC input signal
 ```
 
-Size: ~12 bytes per sweep instance. Two per voice = ~24 bytes per voice.
-Total mixer growth: 24 voices * 2 config copies * ~24 bytes = ~1152 bytes. Negligible vs the 512 KB voice_ram.
+All state lives in the recording context struct, managed by atomics for
+the IDLE->ARMED and RECORDING->STOPPED transitions (message thread writes,
+audio thread reads/transitions).
 
-Note: `noise_on` does NOT live in the voice struct. NON is a mixer-level bitmask (like `eon_flags`), not per-voice state. This matches the PS1 where NON is a single 24-bit register, not part of the voice configuration.
+**Pre-roll consideration:** A small pre-roll buffer (64-128 samples at the
+target encode rate) would prevent chopping the attack transient. This is a
+fixed-size circular buffer of int16_t, trivially rt-safe, reset on ARM.
+Whether to include pre-roll is a product decision, not a stack decision --
+the implementation cost is a 56-byte array and an index counter.
 
-### 2. `spu94_voice_mixer_t` -- New Fields
+**Confidence:** HIGH. Standard audio recording pattern, no library needed.
 
-```c
-/* v1.9 additions to spu94_voice_mixer_t */
+### 5. WAV File Export (Save Sample)
 
-/* PMON: bitmask -- bit N set = voice N pitch is modulated by voice N-1 output */
-uint32_t  pmon_flags;         /* bits 1..23 valid; bit 0 always ignored (no voice -1) */
+**Existing:** JUCE's `WavAudioFormat` and `AudioFormatWriter` are available
+via `juce_audio_formats` (already linked as part of `juce_audio_utils`).
 
-/* NON: bitmask -- bit N set = voice N outputs noise instead of ADPCM */
-uint32_t  non_flags;          /* bits 0..23 valid */
+**What changes:** Add a "Save Sample" function that:
 
-/* SPU noise generator: GLOBAL shared state (all NON voices read same output per tick) */
-spu94_noise_gen_t noise_gen;  /* LFSR + timer, stepped once per mixer tick */
+1. Reads the current ADPCM data from `voice_ram[]`
+2. Decodes it back to PCM using `spu94_adpcm_decode_block()`
+3. Writes to a WAV file via JUCE's `WavAudioFormat::createWriterFor()`
+
+**Sample rate in the WAV header:** Write the encode rate (e.g., 22050 Hz).
+The WAV file plays back at the rate the sample was recorded at. This is
+the correct behavior -- a sample recorded at 22050 Hz should be a 22050 Hz
+WAV file.
+
+**File format:** 16-bit mono WAV. The ADPCM data in voice_ram is mono (one
+channel recorded at a time). 16-bit matches the int16 PCM output of the
+ADPCM decoder. No reason to upsample or expand to stereo.
+
+**Export runs on the message thread** (triggered by button click, opens
+JUCE native file dialog). No rt-safety concerns. The decode is fast
+(28 integer ops per block, no brute-force search like encoding).
+
+**Decode budget:** 512 KB voice_ram / 16 bytes per block = 32,768 blocks.
+Each block decodes in ~28 integer ops = ~917K total ops. Under 1 ms on
+any modern CPU. The user sees no delay.
+
+**Pattern:**
+
+```cpp
+juce::WavAudioFormat wavFormat;
+auto stream = std::make_unique<juce::FileOutputStream>(outputFile);
+auto writer = wavFormat.createWriterFor(
+    stream.release(), encodeSampleRate, 1, 16, {}, 0);
+// write decoded PCM to writer
 ```
 
-### 3. `spu94_noise_gen_t` -- New Module
+**Confidence:** HIGH. JUCE's WAV writer is well-documented and already
+available in the link target. Verified via JUCE docs and the existing
+WavLoader integration which uses the same `juce_audio_formats` module.
 
-```c
-/* include/spu94/spu94_noise_gen.h */
-typedef struct {
-    int16_t  level;       /* current output level, signed 16-bit */
-    int32_t  timer;       /* countdown timer; steps when < 0 */
-    uint8_t  shift;       /* 0..15: frequency control (SPUCNT bits 13-10) */
-    uint8_t  step;        /* 0..3: maps to actual step 4,5,6,7 (SPUCNT bits 9-8) */
-} spu94_noise_gen_t;
+### 6. Waveform Display Updating After Recording
+
+**Existing:** `WaveformDisplay` uses `juce::AudioThumbnail` with `addBlock()`
+for progressive waveform building. Currently fed once at sample load time via
+`setSample()`.
+
+**What changes:**
+
+**Post-recording update (recommended for v1.11.0):** After recording stops,
+decode the entire voice_ram ADPCM content back to PCM, call `setSample()`
+on the WaveformDisplay. Same pattern as current WAV file load.
+
+The decode is fast: 32,768 ADPCM blocks max = 917,504 decoded samples.
+At 28 integer ops per sample, this completes in under 1 ms. The decoded
+PCM is also the data source for the waveform data vector that drives the
+existing markers (start/end/loop) and playback position display.
+
+**AudioThumbnail::addBlock() integration:**
+
+```cpp
+// After recording stops, on message thread:
+thumbnail.reset(1, encodeSampleRate, totalDecodedFrames);
+thumbnail.addBlock(0, decodedBuffer, 0, totalDecodedFrames);
 ```
 
-Algorithm per tick (directly from nocash psx-spx):
-```
-ParityBit = Level.Bit15 XOR Bit12 XOR Bit11 XOR Bit10 XOR 1
-Timer -= (Step + 4)
-IF Timer < 0:
-    Level = Level * 2 + ParityBit    (left-shift + inject parity)
-    Timer += (0x20000 >> Shift)
-    IF Timer < 0:
-        Timer += (0x20000 >> Shift)   (double-reload clamp)
-```
+This is exactly what the existing `setSample()` method does. The only
+change is the data source (voice_ram decode instead of WAV file load).
 
-This is DIFFERENT from the DAC noise generator in every respect:
-- DAC noise: Galois LFSR, x^32 polynomial, HP-shaped output, models analog noise floor
-- SPU noise: Fibonacci LFSR, XOR of bits 15/12/11/10, timer-gated stepping, raw digital noise for hi-hats/snares/effects
+**Live waveform update during recording (future polish):** Could call
+`thumbnail.addBlock()` from a timer callback, feeding decoded chunks of
+recently-encoded ADPCM. Requires a thread-safe read cursor into voice_ram.
+More complex but gives real-time visualization. Not needed for v1.11.0 --
+the recording fills 512KB RAM in seconds at most, so the post-recording
+update is near-instant.
 
-### 4. `spu94_voice_mixer_tick()` -- Processing Order Change
-
-Current order:
-1. Apply pending KON/KOFF
-2. Iterate 24 voices independently (order preserved but not exploited)
-3. Accumulate dry + reverb sums
-
-New order (PS1-faithful):
-1. Apply pending KON/KOFF
-2. Step the global noise generator one tick
-3. Iterate voices 0..23 IN STRICT ORDER:
-   a. Step volume sweep for this voice (updates vol_l/vol_r if sweep active)
-   b. If `non_flags & bit`: output = noise_gen.level (skip ADPCM decode + Gaussian)
-   c. Else: existing ADPCM decode + Gaussian interpolation
-   d. Apply ADSR envelope (existing)
-   e. Apply current volume (may be sweep-updated, may be negative) (existing q15_mul_truncate)
-   f. Cache mono pre-volume output as `prev_voice_outx` for PMON
-   g. If NEXT voice has PMON bit set: compute modulated pitch for next voice
-   h. Accumulate dry + reverb sums (existing)
-
-Critical: PMON requires sequential voice evaluation (voice N-1 output feeds voice N pitch). The existing loop already runs 0..23 in order. The change is adding the output-tap cache and pitch modulation computation.
-
-### 5. PMON Pitch Modulation Formula
-
-Implemented as ~12 lines inside the mixer tick loop:
-
-```c
-/* After voice N produces its output: */
-int16_t prev_outx = gauss_out;  /* post-ADSR, pre-volume = VxOUTX */
-
-/* Before voice N+1 starts: apply PMON if flagged */
-if (pmon_flags & (1u << (v + 1))) {
-    int32_t factor = (int32_t)prev_outx + 0x8000;  /* normalize to 0..0xFFFF */
-    int32_t base_pitch = (int32_t)(int16_t)m->voices[v+1].pitch;  /* sign-extend */
-    int32_t modulated = (base_pitch * factor) >> 15;
-    modulated &= 0x0000FFFF;
-    if (modulated > 0x3FFF) modulated = 0x4000;  /* PS1 clamp behavior */
-    /* Use modulated pitch for voice v+1's counter advance this tick */
-}
-```
-
-No new function needed. No new source file. This lives in the mixer tick body.
-
-### 6. Signed Volume / Phase Inversion
-
-**Already works at the math level.** `q15_mul_truncate(sample, -volume)` produces a phase-inverted output. The fields `vol_l` and `vol_r` in `spu94_voice_t` are already declared `int16_t`.
-
-What needs to change:
-- `spu94_voice_mixer_key_on()`: remove any implicit clamp to positive (currently the GUI sends 0..32767 but the API accepts int16_t -- it already accepts negatives)
-- Volume sweep: direction=increase with phase=negative targets -0x8000 instead of +0x7FFF
-- GUI: allow volume knobs to go negative (or add a "phase invert" toggle that flips sign)
-
-### 7. GUI Changes (JUCE)
-
-| Component | Change | Scope |
-|-----------|--------|-------|
-| SamplerWindow / PluginEditor | NON toggle (per-voice or global) | Small -- toggle button |
-| SamplerWindow / PluginEditor | PMON toggle (per-voice-pair) | Small -- toggle button |
-| SamplerWindow / PluginEditor | Volume Sweep controls (mode, dir, shift) | Medium -- 3-4 controls |
-| SamplerWindow / PluginEditor | Noise frequency (global shift + step) | Small -- 2 controls |
-| SamplerWindow / PluginEditor | Phase inversion toggle (per-voice L/R) | Small -- 2 toggle buttons |
-
-### 8. `spu94_state` (Reverb Engine State) -- No Changes
-
-The reverb engine state struct does NOT need modification. All v1.9 features live in the voice mixer, which is file-scope static in `spu94_process.c`. The `SPU94_STATE_SIZE_MAX` limit (16384 bytes, currently ~2700 bytes used) is not affected.
+**Confidence:** HIGH. The existing `setSample()` method demonstrates the
+exact pattern needed. Verified by reading WaveformDisplay.h source.
 
 ## What NOT to Add
 
-| Temptation | Why Not |
-|------------|---------|
-| Floating-point math for sweep curves | PS1 uses integer counter-accumulate; float would break bit-faithfulness |
-| Separate LFSR per voice for NON | PS1 has ONE global noise generator; all NON voices hear the same sample simultaneously |
-| Smoothing/interpolation on PMON factor | PS1 applies modulation raw at 44.1 kHz tick rate; smoothing is a modern-DSP departure |
-| New external noise library | The noise gen is ~15 lines of C; the existing DAC noise proves the project's LFSR pattern works |
-| Per-voice noise frequency | PS1 SPU has one global noise frequency (SPUCNT bits 8-13); all NON voices share it |
-| APVTS integration for new params | Existing architecture uses atomic scalar bridge (v1.7 precedent); keep consistent |
-| libsamplerate / resampling for PMON pitch changes | PMON modulates the pitch counter directly, not the audio; no resampling involved |
-| Anti-click/crossfade on NON switching | PS1 has no crossfade; switching noise on/off produces the hardware-authentic pop |
-| Volume smoothing on sweep changes | Sweep itself IS the smoothing; it ramps by design |
+| Library/Approach | Why Not |
+|-----------------|---------|
+| PortAudio / RtAudio | JUCE already handles all audio I/O. Adding another audio backend creates conflicts and doubles the testing surface. |
+| Background thread for ADPCM encoding | The encoder is fast enough for the audio callback (~5-10 us per block vs 635 us budget). A background thread adds ring buffer complexity, latency, and thread sync for no benefit. |
+| libsndfile for WAV export | JUCE's WavAudioFormat handles WAV writing. Adding libsndfile would be a third WAV library alongside dr_wav (CLI) and JUCE (plugin/standalone). |
+| Custom polyphase decimator for SRC | libsamplerate handles all target rates uniformly. A custom decimator only saves CPU for exact power-of-two rates, and the saving is negligible next to ADPCM encoder cost. |
+| FIFO / ring buffer between audio and encode threads | Only needed if encoding moves off the audio thread. Since encoding stays on the audio thread, the write path is voice_ram[offset++] -- no FIFO needed. |
+| AudioFormatWriter::ThreadedWriter | Designed for streaming-to-disk during recording. SPU-94 records into 512KB RAM, not to disk. WAV export happens after recording stops, on the message thread. |
+| APVTS integration | Existing architecture uses atomic scalar bridge (v1.7 precedent). All v1.11.0 controls (threshold, record state, channel select, encode rate) follow the same atomic pattern. |
+| juce::AudioAppComponent | SPU-94 uses AudioProcessor, not AudioAppComponent. Switching would require rewriting the entire audio pipeline. The AudioProcessor processBlock already receives input audio. |
 
-## Integration Points
+## Recording Architecture (No New Components)
 
-### With Existing ADSR
-
-Volume Sweep runs IN ADDITION to ADSR. Signal chain per voice:
 ```
-ADPCM decode (or noise) -> Gaussian interp -> ADSR envelope -> Volume (sweep-updated) -> L/R output
-                                                                         ^
-                                                                         |
-                                                              sweep ticks vol_l/vol_r each sample
+Audio Thread (processBlock):
+  host audio buffer (host SR, float)
+    |
+    v
+  [SrcChain::processIn]  -- existing, host SR -> 44.1 kHz
+    |
+    v
+  core-rate int16 samples (44.1 kHz)
+    |
+    +---> [reverb engine]  -- existing path, unmodified
+    |
+    +---> [record path]    -- NEW, only active when recording
+           |
+           v
+         [input channel select]  -- L / R / mono-sum
+           |
+           v
+         [SRC to encode rate]  -- new SRC_STATE, 44.1k -> target
+           |                      (skipped when target == 44.1k)
+           v
+         [28-sample accumulator]  -- stack-local int16[28] + index
+           |
+           v (fires when 28 samples collected)
+         [spu94_adpcm_encode_block]  -- existing, rt-safe
+           |
+           v
+         [voice_ram[write_offset]]  -- existing buffer
+           |
+           write_offset += 16
+           if write_offset >= SPU94_SPU_RAM_BYTES: stop recording
+
+Message Thread (on record stop):
+  voice_ram ADPCM data
+    |
+    v
+  [spu94_adpcm_decode_block loop]  -- existing decoder
+    |
+    v
+  [WaveformDisplay::setSample()]  -- existing method
 ```
-The volume sweep modifies `vol_l`/`vol_r` every tick (when active); ADSR modifies the envelope level independently. Both are Q15 multiplies in series. This matches the PS1 where sweep and ADSR are independent hardware units.
 
-### With Existing Mixer
+## Recording Context Struct (New, C++ Side)
 
-The mixer tick loop runs voices sequentially (0..23). PMON requires this ordering to be preserved (it already is). The noise generator tick happens once before the voice loop. Volume sweep ticks happen per-voice before the volume multiply. No mixer architecture changes needed -- just additions within the existing loop body.
+All recording state lives in a single struct inside PluginProcessor:
 
-### With DAW Plugin (v1.7)
+```cpp
+struct RecordContext {
+    // State machine: IDLE=0, ARMED=1, RECORDING=2, STOPPED=3
+    std::atomic<int> state {0};
 
-New parameters (PMON flags, NON flags, noise frequency, sweep controls) will need host-automatable parameter entries in `ParameterBridge`. This is the same pattern used for the existing 9 parameters -- atomic scalars read in the audio callback. Likely additions: NON frequency (1 param), possibly PMON/NON/sweep controls exposed per-voice for the active voice.
+    // Configuration (set by message thread before ARMED)
+    int    targetRate;      // encode sample rate in Hz
+    float  threshold;       // auto-record threshold (0.0-1.0)
+    int    channelMode;     // 0=left, 1=right, 2=mono-sum
 
-### With Preset System (v1.4)
+    // Audio-thread-only state (not atomic)
+    spu94_adpcm_state encState;   // encoder filter state
+    int16_t  accumBuf[28];        // 28-sample accumulator
+    int      accumCount;          // samples in accumulator
+    uint32_t writeOffset;         // byte offset into voice_ram
+    SRC_STATE* srcState;          // decimation SRC (null when rate==44100)
 
-The preset serializer (`spu94_preset_io.c`) handles 46 fields currently. New fields (noise_shift, noise_step, pmon_flags, non_flags) will need new key=value entries. The parser ignores unknown keys (existing D-09 contract), so old presets load safely in new code. New presets in old code skip the unknown fields -- graceful degradation by design.
-
-## Build System Changes
-
-```cmake
-# Add to src/spu94/CMakeLists.txt spu94_obj OBJECT library:
-    spu94_noise_gen.c
-    spu94_vol_sweep.c
+    // Result (written by audio thread, read by message thread after STOPPED)
+    uint32_t bytesRecorded;       // total ADPCM bytes written
+};
 ```
 
-No new `find_package`. No new vendored code. No new link dependencies.
+## Build System Impact
 
-## Estimated Code Size
+No changes to CMakeLists.txt dependency declarations. No new FetchContent
+entries. No new link targets.
 
-| Component | New LOC | Changed LOC |
-|-----------|---------|-------------|
-| `spu94_noise_gen.c` + header | ~60 | 0 |
-| `spu94_vol_sweep.c` + header | ~120 | 0 |
-| `spu94_voice.h` struct additions | 0 | ~10 |
-| `spu94_voice.c` tick body (NON path, sweep tick) | 0 | ~40 |
-| `spu94_voice_mixer_tick` (PMON, NON dispatch, sweep) | 0 | ~50 |
-| Mixer API additions (set_pmon, set_non, set_noise_freq) | ~40 | 0 |
-| Unit tests (noise gen, sweep, PMON) | ~300 | 0 |
-| GUI controls | ~80 | ~30 |
-| **Total** | **~600** | **~130** |
+If the recording SRC logic is factored into a separate class (e.g.,
+`RecordSrc.h`), it gets added to `src/plugin/CMakeLists.txt`'s
+`target_sources` list -- a one-line change.
+
+## Version Compatibility
+
+| Dependency | Current Version | v1.11.0 Compatible | Notes |
+|------------|----------------|-------------------|-------|
+| JUCE | 8.0.12 | Yes | Audio input, WAV export, AudioThumbnail all stable since JUCE 5.x |
+| libsamplerate | HEAD (SHA pinned) | Yes | Callback API identical for additional SRC_STATE handles |
+| libspu94 | current | Yes | ADPCM encode_block is rt-safe, voice_ram directly writable |
+| CMake | 3.22+ | Yes | No new CMake features needed |
 
 ## Sources
 
-- nocash psx-spx SPU documentation: https://psx-spx.consoledev.net/soundprocessingunitspu/ -- PMON formula, noise polynomial, sweep mechanism, volume register layout, SPUCNT noise frequency bits -- HIGH confidence
-- Existing codebase: `include/spu94/spu94_voice.h`, `src/spu94/spu94_voice.c`, `src/spu94/spu94_process.c`, `src/spu94/spu94_adsr.c` -- direct code analysis -- HIGH confidence
-- Existing DAC noise implementation (`spu94_dac_noise.c`) -- architectural precedent for LFSR modules -- HIGH confidence
-- v1.8 mixer implementation in `spu94_voice.c` lines 410-482 -- integration point analysis -- HIGH confidence
+- JUCE AudioProcessor bus layout: [JUCE Bus Layouts Tutorial](https://juce.com/tutorials/tutorial_audio_bus_layouts/) -- verified current, HIGH confidence
+- JUCE WavAudioFormat: [JUCE WavAudioFormat Class Reference](https://docs.juce.com/master/classjuce_1_1WavAudioFormat.html) -- verified current, HIGH confidence
+- JUCE AudioThumbnail::addBlock: [JUCE AudioThumbnail Class Reference](https://docs.juce.com/master/classjuce_1_1AudioThumbnail.html) -- verified current, HIGH confidence
+- JUCE AudioRecordingDemo: [JUCE AudioRecordingDemo.h on GitHub](https://github.com/juce-framework/JUCE/blob/master/examples/Audio/AudioRecordingDemo.h) -- reference pattern for ThreadedWriter (not used, but evaluated), HIGH confidence
+- JUCE StandalonePluginHolder: [JUCE StandalonePluginHolder Class Reference](https://docs.juce.com/master/classStandalonePluginHolder.html) -- verified AudioDeviceManager integration, HIGH confidence
+- JUCE AudioDeviceManager: [JUCE AudioDeviceManager Tutorial](https://docs.juce.com/master/tutorial_audio_device_manager.html) -- verified standalone input selection, HIGH confidence
+- libsamplerate API: verified via existing SrcChain.cpp source (lines 115-120, callback mode), HIGH confidence
+- spu94_adpcm_encode_block: verified via source reading of src/spu94/spu94_adpcm_encode.c (65-combination brute force, integer-only), HIGH confidence
+- spu94_sample_encode_to_ram: verified via source reading of src/spu94/spu94_sample_loader.c (message-thread-only loader), HIGH confidence
+- spu94_voice_mixer_t: verified via include/spu94/spu94_voice.h (voice_ram[SPU94_SPU_RAM_BYTES] directly accessible), HIGH confidence
+- Existing loadVoiceSample: verified via src/plugin/PluginProcessor.cpp lines 1918-1992 (SRC + encode + waveform stash pattern), HIGH confidence
