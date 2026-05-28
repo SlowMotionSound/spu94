@@ -1682,7 +1682,65 @@ juce::String SPU94AudioProcessor::savePresetToString(
         description.isNotEmpty() ? description.toRawUTF8() : nullptr,
         buf, sizeof(buf));
     if (written < 0) return {};
-    return juce::String(buf, static_cast<size_t>(written));
+
+    juce::String text(buf, static_cast<size_t>(written));
+
+    char line[128];
+
+    text += "\n[voice]\n";
+    std::snprintf(line, sizeof(line), "pitch=0x%04X\n", (unsigned)voicePitch.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "vol_l=0x%04X\n", (unsigned)(uint16_t)guiVoiceVolL.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "vol_r=0x%04X\n", (unsigned)(uint16_t)guiVoiceVolR.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "loop=%d\n", loopModeEnabled.load(std::memory_order_relaxed) ? 1 : 0); text += line;
+    std::snprintf(line, sizeof(line), "anti_alias=%d\n", samplerAAEnabled.load(std::memory_order_relaxed) ? 1 : 0); text += line;
+    std::snprintf(line, sizeof(line), "non=%d\n", guiVoiceNon.load(std::memory_order_relaxed) ? 1 : 0); text += line;
+    std::snprintf(line, sizeof(line), "pmon=%d\n", guiVoicePmon.load(std::memory_order_relaxed) ? 1 : 0); text += line;
+    std::snprintf(line, sizeof(line), "noise_shift=%d\n", noiseShift.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "fader=%.6f\n", samplerFader.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "send=%.6f\n", samplerSend.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "drive=%.6f\n", samplerDrive.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "encode_rate=%d\n", encodeRate.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "start=%.9f\n", sampleStartPos.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "end=%.9f\n", sampleEndPos.load(std::memory_order_relaxed)); text += line;
+
+    text += "\n[adsr]\n";
+    std::snprintf(line, sizeof(line), "enabled=%d\n", adsrEnabled.load(std::memory_order_relaxed) ? 1 : 0); text += line;
+    std::snprintf(line, sizeof(line), "attack=%.6f\n", adsrAttack.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "attack_exp=%d\n", adsrAttackExp.load(std::memory_order_relaxed) ? 1 : 0); text += line;
+    std::snprintf(line, sizeof(line), "decay=%.6f\n", adsrDecay.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "sustain_lvl=%.6f\n", adsrSustainLvl.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "sustain_rate=%.6f\n", adsrSustainRate.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "sustain_exp=%d\n", adsrSustainExp.load(std::memory_order_relaxed) ? 1 : 0); text += line;
+    std::snprintf(line, sizeof(line), "release=%.6f\n", adsrRelease.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "release_exp=%d\n", adsrReleaseExp.load(std::memory_order_relaxed) ? 1 : 0); text += line;
+
+    text += "\n[effects]\n";
+    std::snprintf(line, sizeof(line), "mode=%d\n", effectMode.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "shape=%d\n", sweepShape.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "trem_speed=%.6f\n", tremoloSpeedHz.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "trem_depth=%.6f\n", tremoloDepth.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "trem_curve=%d\n", tremoloCurve.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "trem_ratio=%.6f\n", tremoloRatio.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "pan_speed=%.6f\n", autoPanSpeedHz.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "pan_depth=%.6f\n", autoPanDepth.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "pan_ratio=%.6f\n", autoPanRatio.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "am_rate=%.6f\n", amRateHz.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "am_depth=%.6f\n", amDepth.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "am_curve=%d\n", amCurve.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "ring_rate=%.6f\n", ringModRateHz.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "ring_depth=%.6f\n", ringModDepth.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "ring_curve=%d\n", ringModCurve.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "duck_source=%d\n", duckSource[0].load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "duck_attack=%.6f\n", duckAttack[0].load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "duck_release=%.6f\n", duckRelease[0].load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "duck_depth=%.6f\n", duckDepth[0].load(std::memory_order_relaxed)); text += line;
+
+    text += "\n[mod_bus]\n";
+    std::snprintf(line, sizeof(line), "pitch=%.6f\n", modBusPitchDepth.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "vol=%.6f\n", modBusVolDepth.load(std::memory_order_relaxed)); text += line;
+    std::snprintf(line, sizeof(line), "pan=%.6f\n", modBusPanDepth.load(std::memory_order_relaxed)); text += line;
+
+    return text;
 }
 
 bool SPU94AudioProcessor::loadPresetFromString(const juce::String& presetText)
@@ -1691,6 +1749,84 @@ bool SPU94AudioProcessor::loadPresetFromString(const juce::String& presetText)
     auto raw = presetText.toRawUTF8();
     auto len = presetText.getNumBytesAsUTF8();
     if (len == 0 || len >= sizeof(pendingPresetBuf)) return false;
+
+    // Parse plugin-layer sections before queuing for the audio thread.
+    // The C core parser will skip these unknown sections harmlessly.
+    enum { SEC_NONE, SEC_VOICE, SEC_ADSR, SEC_EFFECTS, SEC_MOD_BUS } sec = SEC_NONE;
+    for (auto line : juce::StringArray::fromLines(presetText))
+    {
+        line = line.trim();
+        if (line.isEmpty() || line[0] == '#') continue;
+
+        if (line == "[voice]")        { sec = SEC_VOICE;   continue; }
+        if (line == "[adsr]")         { sec = SEC_ADSR;    continue; }
+        if (line == "[effects]")      { sec = SEC_EFFECTS;  continue; }
+        if (line == "[mod_bus]")      { sec = SEC_MOD_BUS;  continue; }
+        if (line[0] == '[')           { sec = SEC_NONE;     continue; }
+
+        auto eq = line.indexOfChar('=');
+        if (eq < 0) continue;
+        auto key = line.substring(0, eq).trim();
+        auto val = line.substring(eq + 1).trim();
+
+        switch (sec) {
+        case SEC_VOICE:
+            if (key == "pitch")        voicePitch.store(val.getHexValue32(), std::memory_order_relaxed);
+            else if (key == "vol_l")   guiVoiceVolL.store(static_cast<int16_t>(val.getHexValue32()), std::memory_order_relaxed);
+            else if (key == "vol_r")   guiVoiceVolR.store(static_cast<int16_t>(val.getHexValue32()), std::memory_order_relaxed);
+            else if (key == "loop")    loopModeEnabled.store(val.getIntValue() != 0, std::memory_order_relaxed);
+            else if (key == "anti_alias") samplerAAEnabled.store(val.getIntValue() != 0, std::memory_order_relaxed);
+            else if (key == "non")     guiVoiceNon.store(val.getIntValue() != 0, std::memory_order_relaxed);
+            else if (key == "pmon")    guiVoicePmon.store(val.getIntValue() != 0, std::memory_order_relaxed);
+            else if (key == "noise_shift") noiseShift.store(val.getIntValue(), std::memory_order_relaxed);
+            else if (key == "fader")   samplerFader.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "send")    samplerSend.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "drive")   samplerDrive.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "encode_rate") encodeRate.store(val.getIntValue(), std::memory_order_relaxed);
+            else if (key == "start")   sampleStartPos.store(val.getDoubleValue(), std::memory_order_relaxed);
+            else if (key == "end")     sampleEndPos.store(val.getDoubleValue(), std::memory_order_relaxed);
+            break;
+        case SEC_ADSR:
+            if (key == "enabled")      adsrEnabled.store(val.getIntValue() != 0, std::memory_order_relaxed);
+            else if (key == "attack")  adsrAttack.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "attack_exp") adsrAttackExp.store(val.getIntValue() != 0, std::memory_order_relaxed);
+            else if (key == "decay")   adsrDecay.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "sustain_lvl") adsrSustainLvl.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "sustain_rate") adsrSustainRate.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "sustain_exp") adsrSustainExp.store(val.getIntValue() != 0, std::memory_order_relaxed);
+            else if (key == "release") adsrRelease.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "release_exp") adsrReleaseExp.store(val.getIntValue() != 0, std::memory_order_relaxed);
+            break;
+        case SEC_EFFECTS:
+            if (key == "mode")         effectMode.store(val.getIntValue(), std::memory_order_relaxed);
+            else if (key == "shape")   sweepShape.store(val.getIntValue(), std::memory_order_relaxed);
+            else if (key == "trem_speed") tremoloSpeedHz.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "trem_depth") tremoloDepth.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "trem_curve") tremoloCurve.store(val.getIntValue(), std::memory_order_relaxed);
+            else if (key == "trem_ratio") tremoloRatio.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "pan_speed") autoPanSpeedHz.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "pan_depth") autoPanDepth.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "pan_ratio") autoPanRatio.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "am_rate") amRateHz.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "am_depth") amDepth.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "am_curve") amCurve.store(val.getIntValue(), std::memory_order_relaxed);
+            else if (key == "ring_rate") ringModRateHz.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "ring_depth") ringModDepth.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "ring_curve") ringModCurve.store(val.getIntValue(), std::memory_order_relaxed);
+            else if (key == "duck_source") duckSource[0].store(val.getIntValue(), std::memory_order_relaxed);
+            else if (key == "duck_attack") duckAttack[0].store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "duck_release") duckRelease[0].store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "duck_depth") duckDepth[0].store(val.getFloatValue(), std::memory_order_relaxed);
+            break;
+        case SEC_MOD_BUS:
+            if (key == "pitch")        modBusPitchDepth.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "vol")     modBusVolDepth.store(val.getFloatValue(), std::memory_order_relaxed);
+            else if (key == "pan")     modBusPanDepth.store(val.getFloatValue(), std::memory_order_relaxed);
+            break;
+        default: break;
+        }
+    }
+
     std::memcpy(pendingPresetBuf.data(), raw, len);
     pendingPresetBuf[len] = '\0';
     pendingPresetLen.store(len, std::memory_order_relaxed);
