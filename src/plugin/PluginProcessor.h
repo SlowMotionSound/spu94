@@ -79,6 +79,16 @@ public:
     std::atomic<bool>& getGuiVoicePmon() { return guiVoicePmon; }
     std::atomic<int>& getNoiseShift() { return noiseShift; }
 
+    // --- Recording control (Phase 56: live input sampling) ---
+    void startRecording();
+    void stopRecording();
+    void encodeRecordedSample();
+    bool isRecording() const { return recordingState.load(std::memory_order_relaxed) == REC_RECORDING; }
+    std::atomic<int>& getRecordingState() { return recordingState; }
+    std::atomic<float>& getInputPeakLevel() { return inputPeakLevel; }
+    std::atomic<uint32_t>& getRecordBytesUsed() { return recordBytesUsed; }
+    std::atomic<bool>& getRecordingJustStopped() { return recordingJustStopped; }
+
     // Tremolo controls (Phase 44: continuous VCA oscillation via retrigger)
     std::atomic<bool>&  getTremoloEnabled()  { return tremoloEnabled; }
     std::atomic<float>& getTremoloSpeedHz()  { return tremoloSpeedHz; }
@@ -407,6 +417,18 @@ private:
     juce::String voiceSampleName;
     uint32_t voiceSampleBytes{0};
     std::vector<spu94_adpcm_state> adpcmStateCache;
+
+    // Recording state machine (Phase 56: live input sampling)
+    enum RecState { REC_IDLE = 0, REC_RECORDING = 1, REC_STOPPED = 2 };
+    std::atomic<int> recordingState{REC_IDLE};
+    std::atomic<float> inputPeakLevel{0.0f};         // peak of mono-summed input, audio thread -> GUI
+    std::atomic<uint32_t> recordBytesUsed{0};         // estimated ADPCM bytes for current staging length
+    std::atomic<bool> recordingJustStopped{false};    // signals GUI timer to call encodeRecordedSample
+
+    // Staging buffer: audio-thread writes, message-thread consumes after stop
+    std::vector<int16_t> recordStagingBuffer;
+    uint64_t recordStagingCount{0};                   // audio-thread-only write index
+    uint64_t recordStagingCapacity{0};                // max samples before auto-stop
     int8_t noteForVoice[24] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
                                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
     int nextVoice{0};

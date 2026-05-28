@@ -711,6 +711,64 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     {
         // === STANDALONE PATH (v1.6 back-compat) =========================
 
+        // --- Recording input capture (Phase 56: live input sampling) ---
+        // Tap the host input buffer BEFORE any processing modifies it.
+        // The standalone path reads WavSource int16 data independently,
+        // so the float buffer is untouched and safe to read here.
+        {
+            const int recState = recordingState.load(std::memory_order_acquire);
+            const float* inL = buffer.getReadPointer(0);
+            const float* inR = (buffer.getNumChannels() > 1)
+                             ? buffer.getReadPointer(1) : inL;
+
+            float peak = 0.0f;
+            if (recState == REC_RECORDING)
+            {
+                for (int i = 0; i < n; ++i)
+                {
+                    // Mono-sum input channels
+                    float mono = (inL[i] + inR[i]) * 0.5f;
+                    float absMono = (mono < 0.0f) ? -mono : mono;
+                    if (absMono > peak) peak = absMono;
+
+                    // Convert to int16: clamp to [-32768, 32767]
+                    float scaled = mono * 32768.0f;
+                    if (scaled > 32767.0f) scaled = 32767.0f;
+                    if (scaled < -32768.0f) scaled = -32768.0f;
+
+                    // T-56-01: bounds check before write
+                    if (recordStagingCount < recordStagingCapacity)
+                        recordStagingBuffer[recordStagingCount] = static_cast<int16_t>(scaled);
+                    ++recordStagingCount;
+                }
+
+                inputPeakLevel.store(peak, std::memory_order_relaxed);
+
+                // Estimated ADPCM bytes: ceil(samples / 28) * 16
+                uint32_t estBytes = static_cast<uint32_t>(
+                    ((recordStagingCount + 27u) / 28u) * 16u);
+                recordBytesUsed.store(estBytes, std::memory_order_relaxed);
+
+                // Auto-stop when staging buffer is full (REC-02)
+                if (recordStagingCount >= recordStagingCapacity)
+                {
+                    recordingState.store(REC_STOPPED, std::memory_order_release);
+                    recordingJustStopped.store(true, std::memory_order_release);
+                }
+            }
+            else
+            {
+                // Not recording — still compute input peak for the level meter (REC-05)
+                for (int i = 0; i < n; ++i)
+                {
+                    float mono = (inL[i] + inR[i]) * 0.5f;
+                    float absMono = (mono < 0.0f) ? -mono : mono;
+                    if (absMono > peak) peak = absMono;
+                }
+                inputPeakLevel.store(peak, std::memory_order_relaxed);
+            }
+        }
+
         // Apply pending GUI commands on the audio thread (CR-01/CR-02 fix)
         if (pendingMixerEnable.exchange(false, std::memory_order_acquire))
         {
@@ -1913,10 +1971,119 @@ bool SPU94AudioProcessor::isLoaded() const
     return wavSource.loaded.load(std::memory_order_relaxed);
 }
 
+// --- Recording methods (Phase 56: live input sampling) ---
+
+void SPU94AudioProcessor::startRecording()
+{
+    // Only start from IDLE state
+    if (recordingState.load(std::memory_order_acquire) != REC_IDLE) return;
+
+    // Max ADPCM blocks that fit in 512KB voice RAM
+    // 32768 blocks * 28 samples/block = 917504 PCM samples
+    constexpr uint64_t maxPcmSamples =
+        (static_cast<uint64_t>(SPU94_SPU_RAM_BYTES) / SPU94_ADPCM_BLOCK_BYTES)
+        * SPU94_ADPCM_BLOCK_SAMPLES;
+
+    // Pre-allocate staging buffer on message thread (safe to allocate)
+    recordStagingBuffer.resize(maxPcmSamples, 0);
+    recordStagingCapacity = maxPcmSamples;
+    recordStagingCount = 0;
+    recordBytesUsed.store(0, std::memory_order_relaxed);
+    inputPeakLevel.store(0.0f, std::memory_order_relaxed);
+
+    // Arm capture — audio thread will begin writing on next processBlock
+    recordingState.store(REC_RECORDING, std::memory_order_release);
+}
+
+void SPU94AudioProcessor::stopRecording()
+{
+    // Only stop from RECORDING state
+    if (recordingState.load(std::memory_order_acquire) != REC_RECORDING) return;
+
+    // Stop capture — audio thread will see this and stop writing
+    recordingState.store(REC_STOPPED, std::memory_order_release);
+    // Signal GUI timer to call encodeRecordedSample on message thread
+    recordingJustStopped.store(true, std::memory_order_release);
+}
+
+void SPU94AudioProcessor::encodeRecordedSample()
+{
+    // Only callable when recording has stopped
+    if (recordingState.load(std::memory_order_acquire) != REC_STOPPED)
+        return;
+
+    // Audio thread has stopped writing — safe to read recordStagingCount
+    const uint64_t count = recordStagingCount;
+
+    if (count == 0)
+    {
+        // Nothing recorded — return to idle
+        recordingState.store(REC_IDLE, std::memory_order_release);
+        recordStagingBuffer.clear();
+        recordStagingBuffer.shrink_to_fit();
+        return;
+    }
+
+    // Clamp to capacity (in case of race, though single-writer guarantees this)
+    const uint64_t safeSamples = (count < recordStagingCapacity)
+                                ? count : recordStagingCapacity;
+
+    auto* mixer = spu94_get_voice_mixer();
+
+    int32_t bytes = spu94_sample_encode_to_ram(
+        recordStagingBuffer.data(),
+        static_cast<uint32_t>(safeSamples),
+        mixer->voice_ram,
+        0,                        // ram_offset
+        SPU94_SPU_RAM_BYTES,      // ram_size
+        loopModeEnabled.load(std::memory_order_relaxed) ? 1 : 0
+    );
+
+    if (bytes > 0)
+    {
+        voiceSampleBytes = static_cast<uint32_t>(bytes);
+        ramUsed.store(voiceSampleBytes, std::memory_order_relaxed);
+
+        // Build adpcmStateCache by decoding each block
+        // (same pattern as loadVoiceSample)
+        uint32_t numBlocks = voiceSampleBytes / SPU94_ADPCM_BLOCK_BYTES;
+        adpcmStateCache.resize(numBlocks);
+        spu94_adpcm_state st = {0, 0};
+        int16_t tmp[SPU94_ADPCM_BLOCK_SAMPLES];
+        for (uint32_t b = 0; b < numBlocks; b++) {
+            adpcmStateCache[b] = st;
+            spu94_adpcm_decode_block(&st, mixer->voice_ram + b * SPU94_ADPCM_BLOCK_BYTES, tmp);
+        }
+
+        // Populate waveformData with fully decoded PCM from ADPCM
+        // (decode all blocks for authentic PS1-degraded waveform display)
+        waveformData.resize(static_cast<size_t>(numBlocks) * SPU94_ADPCM_BLOCK_SAMPLES);
+        spu94_adpcm_state wfSt = {0, 0};
+        for (uint32_t b = 0; b < numBlocks; b++) {
+            spu94_adpcm_decode_block(&wfSt,
+                mixer->voice_ram + b * SPU94_ADPCM_BLOCK_BYTES,
+                waveformData.data() + b * SPU94_ADPCM_BLOCK_SAMPLES);
+        }
+        waveformFrames = waveformData.size();
+
+        pendingMixerEnable.store(true, std::memory_order_release);
+        voiceSampleName = "Recording";
+        voiceSampleLoaded.store(true, std::memory_order_release);
+    }
+
+    // Return to idle and free staging buffer memory
+    recordingState.store(REC_IDLE, std::memory_order_release);
+    recordStagingBuffer.clear();
+    recordStagingBuffer.shrink_to_fit();
+}
+
 // --- Voice engine methods (Phase 31: standalone testbed) ---
 
 void SPU94AudioProcessor::loadVoiceSample(const juce::File& file)
 {
+    // T-56-03: prevent file load while recording is active
+    if (recordingState.load(std::memory_order_acquire) != REC_IDLE) return;
+
     auto result = WavLoader::load(file);
     if (!result.has_value()) return;
 
