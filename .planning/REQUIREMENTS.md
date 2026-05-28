@@ -60,29 +60,29 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REC-01 | — | Pending |
-| REC-02 | — | Pending |
-| REC-03 | — | Pending |
-| REC-04 | — | Pending |
-| REC-05 | — | Pending |
-| REC-06 | — | Pending |
-| RATE-01 | — | Pending |
-| RATE-02 | — | Pending |
-| RATE-03 | — | Pending |
-| RATE-04 | — | Pending |
-| TRIG-01 | — | Pending |
-| TRIG-02 | — | Pending |
-| TRIG-03 | — | Pending |
-| TRIG-04 | — | Pending |
-| EXP-01 | — | Pending |
-| EXP-02 | — | Pending |
-| EXP-03 | — | Pending |
+| REC-01 | Phase 56 | Pending |
+| REC-02 | Phase 56 | Pending |
+| REC-03 | Phase 56 | Pending |
+| REC-04 | Phase 56 | Pending |
+| REC-05 | Phase 56 | Pending |
+| REC-06 | Phase 56 | Pending |
+| RATE-01 | Phase 57 | Pending |
+| RATE-02 | Phase 57 | Pending |
+| RATE-03 | Phase 57 | Pending |
+| RATE-04 | Phase 57 | Pending |
+| TRIG-01 | Phase 58 | Pending |
+| TRIG-02 | Phase 58 | Pending |
+| TRIG-03 | Phase 58 | Pending |
+| TRIG-04 | Phase 58 | Pending |
+| EXP-01 | Phase 59 | Pending |
+| EXP-02 | Phase 59 | Pending |
+| EXP-03 | Phase 59 | Pending |
 
 **Coverage:**
 - v1.11.0 requirements: 17 total
-- Mapped to phases: 0
-- Unmapped: 17 ⚠️
+- Mapped to phases: 17
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-28*
-*Last updated: 2026-05-28 after initial definition*
+*Last updated: 2026-05-28 after roadmap creation*

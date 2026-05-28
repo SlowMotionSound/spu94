@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.11.0
 milestone_name: Live Input Sampling
-status: planning
-last_updated: "2026-05-28T19:22:18.841Z"
+status: ready_to_plan
+last_updated: "2026-05-28"
 last_activity: 2026-05-28
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-28)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Planning next milestone
+**Current focus:** Phase 56 - Core Recording Pipeline
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-05-28 — Milestone v1.11.0 started
+Phase: 56 of 59 (Core Recording Pipeline)
+Plan: --
+Status: Ready to plan
+Last activity: 2026-05-28 -- Roadmap created for v1.11.0 Live Input Sampling (4 phases, 17 requirements)
+
+Progress: [..........] 0%
 
 ## Milestone History
 
@@ -45,6 +47,7 @@ See `.planning/MILESTONES.md` for full history.
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
+Key v1.11.0 architectural decision: buffer-then-encode approach (accumulate raw PCM during recording, ADPCM-encode on stop via existing `spu94_sample_encode_to_ram`). Zero new dependencies.
 
 ### Blockers/Concerns
 
@@ -56,11 +59,11 @@ None.
 
 ## Deferred Items & Ideas
 
-See `.planning/TODO.md` — to-do list. Not carried in STATE.md.
+See `.planning/TODO.md` -- to-do list. Not carried in STATE.md.
 
 ## Session Continuity
 
 Last session: 2026-05-28
-Stopped at: Per-voice drive built (post-Gauss, pre-ADSR), v1.10.0 archived, GitHub synced
-Resume file: .planning/.continue-here.md
-Next action: /gsd:new-milestone or pick from TODO.md
+Stopped at: v1.11.0 roadmap created (4 phases, 17 requirements mapped)
+Resume file: None
+Next action: /gsd:plan-phase 56

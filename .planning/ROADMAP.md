@@ -5,18 +5,90 @@
 
 ## Milestones
 
-- v1.10.0 Voice Dynamics & Stereo Effects -- Phases 43-55 (shipped 2026-05-28, tag `v1.10.0`)
-- v1.9 Complete Voice -- Phases 33-42 (shipped 2026-05-24, tag `v1.9`)
-- v1.8 PSX Voice Engine -- Phases 27-32 (shipped 2026-05-21, tag `v1.8`)
-- v1.7 DAW Plugin Port -- Phases 21-26 (shipped 2026-05-16, tag `v1.7`)
-- v1.6 User Programmable Waypoints -- Phases 18-20 (shipped 2026-05-10, tag `v1.6`)
-- v1.5 Preset Interpolation Engine -- Phases 16-17 (shipped 2026-05-06, tag `v1.5`)
-- v1.4 Preset System -- Phases 13-15 (shipped 2026-05-02, tag `v1.4`)
-- v1.3 True Oversampled DAC -- Phases 10-12 (shipped 2026-05-01, tag `v1.3`)
-- v1.2 DAC Modeling -- Phases 5-9 (shipped 2026-04-30, tag `v1.2`)
-- v1.1 ADPCM -- Phases 1-4 (shipped 2026-04-27, tag `v1.1`)
-- v1.0 Product -- 8 phases (shipped 2026-04-26, standalone GUI)
-- M1 Reverb Core -- 7 phases (shipped 2026-04-25, tag `m1-reverb-core`)
+- [ ] **v1.11.0 Live Input Sampling** -- Phases 56-59 (in progress)
+- [x] v1.10.0 Voice Dynamics & Stereo Effects -- Phases 43-55 (shipped 2026-05-28, tag `v1.10.0`)
+- [x] v1.9 Complete Voice -- Phases 33-42 (shipped 2026-05-24, tag `v1.9`)
+- [x] v1.8 PSX Voice Engine -- Phases 27-32 (shipped 2026-05-21, tag `v1.8`)
+- [x] v1.7 DAW Plugin Port -- Phases 21-26 (shipped 2026-05-16, tag `v1.7`)
+- [x] v1.6 User Programmable Waypoints -- Phases 18-20 (shipped 2026-05-10, tag `v1.6`)
+- [x] v1.5 Preset Interpolation Engine -- Phases 16-17 (shipped 2026-05-06, tag `v1.5`)
+- [x] v1.4 Preset System -- Phases 13-15 (shipped 2026-05-02, tag `v1.4`)
+- [x] v1.3 True Oversampled DAC -- Phases 10-12 (shipped 2026-05-01, tag `v1.3`)
+- [x] v1.2 DAC Modeling -- Phases 5-9 (shipped 2026-04-30, tag `v1.2`)
+- [x] v1.1 ADPCM -- Phases 1-4 (shipped 2026-04-27, tag `v1.1`)
+- [x] v1.0 Product -- 8 phases (shipped 2026-04-26, standalone GUI)
+- [x] M1 Reverb Core -- 7 phases (shipped 2026-04-25, tag `m1-reverb-core`)
+
+## v1.11.0 Live Input Sampling
+
+**Milestone Goal:** Record real-time audio input directly into the sampler's 512KB voice RAM with PS1 ADPCM encoding, variable sample rate control, threshold-triggered auto-record, and sample export. The recording pipeline taps the existing SRC chain, accumulates raw PCM in a staging buffer, and batch-encodes to ADPCM on stop via the existing `spu94_sample_encode_to_ram` path.
+
+- [ ] **Phase 56: Core Recording Pipeline** - Manual record/stop with ADPCM encode, waveform update, input meter, and RAM usage
+- [ ] **Phase 57: Sample Rate Selection** - Four PS1 preset rates, variable rate knob, input SRC to target rate
+- [ ] **Phase 58: Threshold Trigger** - Armed state, auto-start on signal level, adjustable threshold, state display
+- [ ] **Phase 59: Sample Export** - Save recorded sample as trimmed WAV at the recording rate
+
+## Phase Details
+
+### Phase 56: Core Recording Pipeline
+**Goal**: User can record live audio input into the sampler and hear it back as a PS1 ADPCM sample
+**Depends on**: Nothing (first phase of v1.11.0; builds on existing v1.8+ sampler infrastructure)
+**Requirements**: REC-01, REC-02, REC-03, REC-04, REC-05, REC-06
+**Success Criteria** (what must be TRUE):
+  1. User can press a record button to start capturing live audio, and press it again to stop
+  2. Recording automatically stops when the 512KB voice RAM buffer is full
+  3. After recording stops, the captured audio appears in the waveform display as an ADPCM-encoded sample ready for playback
+  4. An input level meter shows the live signal strength while recording is active
+  5. A RAM usage display shows bytes used, seconds recorded, and time remaining that update during recording
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 57: Sample Rate Selection
+**Goal**: User can choose the recording sample rate to trade fidelity for recording time, matching the four PS1 native rates or any custom rate
+**Depends on**: Phase 56 (core recording pipeline must exist to add rate selection)
+**Requirements**: RATE-01, RATE-02, RATE-03, RATE-04
+**Success Criteria** (what must be TRUE):
+  1. User can select from four PS1 preset sample rates (44.1 / 22.05 / 11.025 / 5.5125 kHz) and the recording captures at that rate
+  2. User can dial a variable sample rate knob to select any rate across the full pitch register range
+  3. Input audio is sample-rate-converted to the selected target rate (lower rates produce longer recording times with more lo-fi character)
+  4. The recording time display updates immediately when the sample rate changes, showing the new maximum duration
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 58: Threshold Trigger
+**Goal**: User can arm the recorder to start automatically when the input signal exceeds a threshold, enabling hands-free capture
+**Depends on**: Phase 56 (core recording state machine extended with ARMED state)
+**Requirements**: TRIG-01, TRIG-02, TRIG-03, TRIG-04
+**Success Criteria** (what must be TRUE):
+  1. User can arm threshold-triggered recording, putting the sampler into a waiting state
+  2. Recording starts automatically when the input signal crosses the user-set threshold level
+  3. User can adjust the threshold level to control trigger sensitivity
+  4. The sampler clearly displays whether it is idle, armed, or recording
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 59: Sample Export
+**Goal**: User can save recorded samples as WAV files for building sample libraries or loading into other tools
+**Depends on**: Phase 56 (recorded sample must exist in voice RAM to export)
+**Requirements**: EXP-01, EXP-02, EXP-03
+**Success Criteria** (what must be TRUE):
+  1. User can save the current sample as a 16-bit mono WAV file via a save/export action
+  2. The exported WAV respects the current start/end marker positions, exporting only the trimmed region
+  3. The WAV file is written at the sample rate the recording was made at (not resampled to 44.1 kHz)
+**Plans**: TBD
+**UI hint**: yes
+
+## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 56 -> 57 -> 58 -> 59
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 56. Core Recording Pipeline | v1.11.0 | 0/? | Not started | - |
+| 57. Sample Rate Selection | v1.11.0 | 0/? | Not started | - |
+| 58. Threshold Trigger | v1.11.0 | 0/? | Not started | - |
+| 59. Sample Export | v1.11.0 | 0/? | Not started | - |
 
 ## Previous Milestone Archives
 
@@ -178,4 +250,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-28 -- v1.10.0 milestone archived*
+*Last updated: 2026-05-28 -- v1.11.0 roadmap created*
