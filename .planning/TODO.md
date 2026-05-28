@@ -1,6 +1,6 @@
-# Pool
+# To Do
 
-Living collection of deferred items, ideas, and loose ends. Grab from here when looking for what to work on. Items don't carry through milestones — they live here until done or dropped.
+Items that need to get done at some point. They live here instead of cluttering milestones and phase tracking — pick from here when looking for what to work on next.
 
 ## Outstanding
 

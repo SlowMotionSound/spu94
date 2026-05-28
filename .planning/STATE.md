@@ -54,7 +54,7 @@ None.
 
 ## Deferred Items & Ideas
 
-See `.planning/POOL.md` — living pool of outstanding items and ideas. Not carried in STATE.md.
+See `.planning/TODO.md` — to-do list. Not carried in STATE.md.
 
 ## Session Continuity
 
