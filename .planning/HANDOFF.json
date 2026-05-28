@@ -1,26 +1,32 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-28T18:54:25Z",
-  "phase": "none",
-  "phase_name": "between milestones",
-  "phase_dir": "",
-  "plan": 0,
-  "task": 0,
-  "total_tasks": 0,
+  "timestamp": "2026-05-28T21:24:40Z",
+  "phase": "56",
+  "phase_name": "Core Recording Pipeline",
+  "phase_dir": ".planning/phases/56-core-recording-pipeline",
+  "plan": 2,
+  "task": 2,
+  "total_tasks": 3,
   "status": "paused",
   "completed_tasks": [
-    {"id": "sampler-layout", "name": "Reorganized sampler window layout — single-column, VCA/Mod Bus at bottom", "status": "done", "commit": "0f8a14a"}
+    {"id": "56-01-T1", "name": "Recording engine backend — state machine, staging buffer, processBlock capture, encode-on-stop", "status": "done", "commit": "ee585d1"},
+    {"id": "56-02-T1", "name": "GUI integration — record button, input level meter, RAM display, waveform wiring", "status": "done", "commit": "8f554f2"},
+    {"id": "56-02-T2", "name": "Human verification checkpoint", "status": "pending_verify"}
   ],
-  "remaining_tasks": [],
+  "remaining_tasks": [
+    {"id": "56-02-T2", "name": "Human verification — test recording workflow end to end", "status": "not_verified"}
+  ],
   "blockers": [],
-  "human_actions_pending": [],
+  "human_actions_pending": [
+    {"action": "Launch standalone, test recording: press Record, speak/play into mic, press Stop, verify waveform appears and plays back with ADPCM character", "context": "Phase 56 checkpoint — both plans executed but not yet UAT verified", "blocking": false}
+  ],
   "decisions": [
-    {"decision": "VCA Effects and Mod Bus moved below Level fader in sampler window", "rationale": "Frees the right column, narrows window from 800px to 400px, cleaner vertical flow", "phase": "none"},
-    {"decision": "Gauss/NON/PMON stacked as column next to Loop/Latch/Lock", "rationale": "Groups voice feature toggles together in top toolbar, balanced two-column layout", "phase": "none"},
-    {"decision": "L/R Ratio placed inline with Shape/Curve row", "rationale": "Eliminates a dedicated row, brings Mod Bus up to avoid screen cutoff", "phase": "none"},
-    {"decision": "Noise Color moved to right column below INV", "rationale": "Freed from old Voice Mode section, stays near voice output controls", "phase": "none"}
+    {"decision": "Buffer-then-encode approach for ADPCM recording", "rationale": "Simplest — no threading, no ring buffers, reuses existing spu94_sample_encode_to_ram. ~200ms pause on stop matches Akai S1000 workflow.", "phase": "56"},
+    {"decision": "Record at 44.1 kHz only in Phase 56", "rationale": "SRC and variable rate selection deferred to Phase 57", "phase": "56"},
+    {"decision": "Mono-sum input (L+R * 0.5)", "rationale": "PS1 voices are mono; stereo recording is out of scope", "phase": "56"},
+    {"decision": "Noise Mod label rename", "rationale": "Changed Mod Bus section label to Noise Mod in PluginEditor.cpp", "phase": "none"}
   ],
   "uncommitted_files": [],
-  "next_action": "/gsd:new-milestone to plan the next milestone, or pick items from TODO.md",
-  "context_notes": "Ad-hoc GUI layout cleanup session. No active milestone. Sampler window reorganized from two-column (controls left, VCA right) to single-column (everything stacked, VCA/Mod Bus at bottom). Window narrowed to 400px. All changes committed and pushed to GitHub."
+  "next_action": "Launch standalone, test recording end-to-end. If recording works: advance to Phase 57 (Sample Rate Selection). If issues: fix before advancing.",
+  "context_notes": "Phase 56 code is fully built and compiles clean. Both plans executed (Wave 1: backend engine, Wave 2: GUI). Human verification checkpoint pending — Anthony needs to test the recording workflow. Milestone v1.11.0 Live Input Sampling is 1/4 phases complete (code-wise). Phases 57-59 remain: sample rate selection, threshold trigger, sample export."
 }
