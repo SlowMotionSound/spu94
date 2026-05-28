@@ -1,5 +1,42 @@
 # Milestones
 
+## v1.10.0 Voice Dynamics & Stereo Effects (Shipped: 2026-05-28)
+
+**Phases completed:** 13 phases, 20 plans (Phases 43-55)
+**Tag:** `v1.10.0`
+**Requirements:** 43/48 complete; 4 dropped (WIDE-01..04, stereo widener — no native SPU support); 1 subsumed (PMOD-05, phase modulator GUI → Ring Mod)
+
+**What shipped:**
+
+Five curated VCA ramp effects — Tremolo, Auto-Pan, AM Synthesis, Ring Mod, Sidechain Duck — all configurations of the same L/R sweep state machine, exposed through a unified dropdown GUI with adaptive controls per mode. Three native sweep shapes (Triangle, Saw Up, Saw Down). Per-voice internal mod bus routing global noise to pitch/volume/pan. Split-output bus with reverb-only side limiting. Retrigger engine foundation enabling continuous oscillation from sub-Hz through audio rate. Ring Mod delivers bipolar sweep crossing zero into phase inversion, subsuming the planned Phase Modulator. ADSR calibration rework with direct PS1 rate indexing and vertical faders. Preset format extended with voice, ADSR, effects, and mod bus sections. 100 commits, 120 files changed, +11,323 lines over 5 days.
+
+**Key accomplishments:**
+
+1. Retrigger engine — auto-reversing VCA ramp with independent L/R rates, KON reset, sub-Hz to 7350 Hz range
+2. Five curated effects from one state machine — Tremolo (sync L/R), Auto-Pan (opposition phase), AM (audio-rate unipolar), Ring Mod (audio-rate bipolar with phase inversion), Ducking (KON-triggered one-shot)
+3. Three sweep shapes — Triangle (auto-reverse), Saw Down (reset to max), Saw Up (reset to min), each in linear and exponential curve modes
+4. Internal mod bus — per-voice noise-to-pitch/volume/pan routing in C core voice tick at sample rate
+5. Split-output bus — reverb-only side limiting prevents stereo effects from being crushed
+6. Unified effects GUI — single dropdown selector, shared controls (Rate/Depth/Shape/Lin-Exp) for oscillation modes, swapped controls (Source/Attack/Release/Depth) for Ducking
+7. ADSR calibration — 5 measured tables, direct PS1 rate indexing, vertical faders with ms/s readout, sustain-zero fix
+
+**Key decisions:**
+
+- Effects are curated preconfigurations of VCA ramp state machines (not new DSP)
+- Ring Mod subsumes Phase Modulator — bipolar sweep crossing zero IS polarity oscillation
+- Stereo Widener dropped — SPU has no native stereo decorrelation
+- Pan preserved during effects via base_vol_l/r ceiling formula
+- 8-sample anti-click ramp on saw retrigger
+- FRACT mode removed (PS1 uses integer addressing only)
+- Preset format extended with four new INI sections (backwards compatible)
+- All ADSR modes use direct PS1 rate indexing
+
+Known deferred items at close: 4 (one-shot trigger, GUI noise section cleanup, speed musical divisions, sidechain duck UAT blocked on MIDI)
+
+**Archived to:** `.planning/milestones/v1.10.0-ROADMAP.md`, `.planning/milestones/v1.10.0-REQUIREMENTS.md`
+
+---
+
 ## v1.9 Complete Voice (Shipped: 2026-05-24)
 
 **Phases completed:** 10 phases, 16 plans (Phases 33-42)

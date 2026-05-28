@@ -22,21 +22,13 @@
 
 **Shipped:** v1.9 — Complete Voice (2026-05-24, tag `v1.9`). Every voice feature-complete to PS1 SPU spec: ADSR correction (ADR-0056), signed volume with phase inversion, PMON voice-to-voice pitch modulation (ADR-0057), global LFSR noise generator (ADR-0058), hardware-driven volume sweep with independent L/R (ADR-0059). Musician-facing controls: pan/level, NON/PMON toggles, Noise Color, VCA ramp. 10 phases, 16 plans, 37/37 requirements. 98 voice engine tests, 6 rt_safety gates.
 
-**Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`, `v1.5`, `v1.6`, `v1.7`, `v1.8`, `v1.9`.
-(Adopting semver `MAJOR.MINOR.PATCH` from v1.10.0 onward.)
+**Shipped:** v1.10.0 — Voice Dynamics & Stereo Effects (2026-05-28, tag `v1.10.0`). Five curated VCA ramp effects (Tremolo, Auto-Pan, AM Synthesis, Ring Mod, Sidechain Duck) as configurations of the L/R sweep state machine. Three sweep shapes (Triangle/Saw Up/Saw Down). Per-voice internal mod bus (noise-to-pitch/volume/pan). Split-output bus. Unified dropdown effects GUI. ADSR calibration rework with direct PS1 rate indexing. Preset format extended with full system state. 13 phases, 20 plans, 43/48 requirements (4 dropped, 1 subsumed).
 
-## Current Milestone: v1.10.0 Voice Dynamics & Stereo Effects
+**Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`, `v1.5`, `v1.6`, `v1.7`, `v1.8`, `v1.9`, `v1.10.0`.
 
-**Goal:** Surface the raw VCA ramp architecture as a curated suite of musician-facing modulation, dynamics, and stereo effects — exploiting the PS1's unique independent L/R ramp state machines. Plus a per-voice internal mod bus for self-contained noise-driven sound design.
+## Current Milestone: None — planning next
 
-**Target features:**
-- Tremolo — retriggered VCA ramp, both channels in sync, with L/R rate ratio for polyrhythmic variants
-- Auto-Pan — retriggered, L/R in opposition, with asymmetric rate option
-- Sidechain Duck — voice-to-voice KON-triggered volume drop
-- Stereo Widener — L/R divergence with mono-safety cap
-- AM Synthesis — audio-rate retrigger, metallic sidebands
-- Phase Modulator — polarity oscillation, experimental
-- Internal Mod Bus — route noise to pitch/volume/pan per voice
+**Last shipped:** v1.10.0 Voice Dynamics & Stereo Effects (2026-05-28)
 
 ## What This Is
 
@@ -215,4 +207,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-24 after v1.9 milestone*
+*Last updated: 2026-05-28 after v1.10.0 milestone*
