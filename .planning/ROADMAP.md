@@ -23,7 +23,7 @@
 
 **Milestone Goal:** Record real-time audio input directly into the sampler's 512KB voice RAM with PS1 ADPCM encoding, variable sample rate control, threshold-triggered auto-record, and sample export. The recording pipeline taps the existing SRC chain, accumulates raw PCM in a staging buffer, and batch-encodes to ADPCM on stop via the existing `spu94_sample_encode_to_ram` path.
 
-- [ ] **Phase 56: Core Recording Pipeline** - Manual record/stop with ADPCM encode, waveform update, input meter, and RAM usage
+- [x] **Phase 56: Core Recording Pipeline** - Manual record/stop with ADPCM encode, waveform update, input meter, and RAM usage
 - [ ] **Phase 57: Sample Rate Selection** - Four PS1 preset rates, variable rate knob, input SRC to target rate
 - [ ] **Phase 58: Threshold Trigger** - Armed state, auto-start on signal level, adjustable threshold, state display
 - [ ] **Phase 59: Sample Export** - Save recorded sample as trimmed WAV at the recording rate
@@ -51,7 +51,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 56-02-PLAN.md — GUI integration (record button, input meter, RAM display, waveform wiring)
+- [x] 56-02-PLAN.md — GUI integration (record button, input meter, RAM display, waveform wiring)
 
 **UI hint**: yes
 
