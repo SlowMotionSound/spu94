@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-27T20:45:00Z",
+  "timestamp": "2026-05-27T22:30:00Z",
   "phase": "55",
   "phase_name": "effects-uat",
   "phase_dir": ".planning/phases/55-effects-uat",
@@ -23,7 +23,10 @@
     {"id": "uat-autopan", "name": "Auto-Pan UAT — verified", "status": "done"},
     {"id": "uat-am", "name": "AM UAT — all shapes work", "status": "done"},
     {"id": "uat-ringmod", "name": "Ring Mod UAT — bipolar works, resume after restart works", "status": "done"},
-    {"id": "uat-modbus", "name": "Mod Bus UAT — noise-to-pitch verified", "status": "done"}
+    {"id": "uat-modbus", "name": "Mod Bus UAT — noise-to-pitch verified", "status": "done"},
+    {"id": "remove-fract", "name": "Removed Morph Grit FRACT mode — PS1 uses integer addressing only", "status": "done"},
+    {"id": "fix-oversized-load", "name": "Early bail-out on oversized sample load — prevents GUI freeze", "status": "done"},
+    {"id": "preset-full-state", "name": "Preset save/load extended with voice, ADSR, effects, mod bus sections", "status": "done"}
   ],
   "remaining_tasks": [
     {"id": "one-shot-trigger", "name": "Single-click trigger plays full ADSR without holding", "status": "not_started"},
@@ -36,13 +39,11 @@
   ],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "Direct PS1 rate indexing for ADSR", "rationale": "Each fader position = one hardware rate, no interpolation — most faithful and eliminates all knob curve issues", "phase": "55"},
-    {"decision": "5 separate measured tables per ADSR mode", "rationale": "Each mode (atk lin/exp, decay, rel lin/exp) produces different actual times; separate tables eliminate pre-warping math", "phase": "55"},
-    {"decision": "Sustain level 0 = true zero → ADSR_OFF", "rationale": "PS1 spec gives 6.25% at level 0 but that prevents percussive hits; deliberate divergence for musical utility", "phase": "55"},
-    {"decision": "Vertical faders replace rotary encoders for ADSR", "rationale": "Long throw gives better resolution for stepping through discrete rates", "phase": "55"},
-    {"decision": "ADSR visualizer removed", "rationale": "Display was inaccurate; fader readouts give direct feedback", "phase": "55"}
+    {"decision": "Remove FRACT mode entirely", "rationale": "Linear interpolation between buffer positions was functionally a lowpass filter — dulled morph character without adding value. PS1 hardware uses integer halfword addressing only.", "phase": "55"},
+    {"decision": "Preset saves settings only, not sample audio", "rationale": "Anthony's preference — keep presets lightweight and focused on configuration state", "phase": "55"},
+    {"decision": "Extend existing .spu94 text format with new sections", "rationale": "Four new INI sections ([voice], [adsr], [effects], [mod_bus]) — backwards compatible, old presets still load fine", "phase": "55"}
   ],
   "uncommitted_files": [],
-  "next_action": "One-shot trigger, GUI cleanup, remaining UAT.",
-  "context_notes": "Major ADSR rework this session. Root cause was timing tables using linear calculations while engine runs exponential (3-4x discrepancy). External AI reviews provided key insight: measure actual engine times, build separate tables per mode. Final architecture: 5 measured tables + direct index mapping + vertical faders. All ADSR modes (attack lin/exp, decay, release lin/exp) use direct PS1 rate indexing. Anthony approved attack and decay feel. Release got same curve as decay. Session paused mid-afternoon."
+  "next_action": "One-shot trigger, GUI cleanup (noise section, speed divisions), sidechain duck UAT when MIDI available.",
+  "context_notes": "Session covered three distinct items: (1) removed Morph Grit FRACT mode after Anthony identified it as a cheap lowpass overlay — reverb body now integer-only reads everywhere, (2) fixed GUI freeze on oversized sample load with early size estimate before resampling, (3) extended preset format to save full system state (voice, ADSR, effects, mod bus). All ADSR modes confirmed as direct PS1 rate indexing — stale references cleaned up. Preset extension is save+load complete but not yet UAT tested by Anthony."
 }

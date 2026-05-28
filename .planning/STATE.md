@@ -146,9 +146,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-05-27
-Stopped at: ADSR calibration rework complete, all direct PS1 rate indexing confirmed
+Stopped at: Removed FRACT mode, fixed oversized sample freeze, extended preset save/load with full system state
 Resume file: .planning/.continue-here.md
-Next action: One-shot trigger, GUI cleanup (noise section, speed divisions), sidechain duck UAT (blocked on MIDI)
+Next action: UAT preset save/load, one-shot trigger, GUI cleanup, sidechain duck UAT (blocked on MIDI)
 
 ## UAT Bugs — Resolved
 
