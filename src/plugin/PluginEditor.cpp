@@ -55,6 +55,28 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         samplerWindow = std::make_unique<SamplerWindow>();
         auto& panel = samplerWindow->getPanel();
 
+        // Record button — toggles live input recording on/off.
+        panel.addAndMakeVisible(recordButton);
+        recordButton.onClick = [this]()
+        {
+            if (processorRef.isRecording())
+                processorRef.stopRecording();
+            else
+                processorRef.startRecording();
+        };
+
+        // Input peak meter label — shows live input signal level.
+        panel.addAndMakeVisible(inputPeakMeterLabel);
+        inputPeakMeterLabel.setJustificationType(juce::Justification::centredLeft);
+        inputPeakMeterLabel.setFont(juce::Font(10.0f));
+        inputPeakMeterLabel.setText("Input: --- dB", juce::dontSendNotification);
+
+        // Record stats label — shows seconds recorded and time remaining.
+        panel.addAndMakeVisible(recordStatsLabel);
+        recordStatsLabel.setJustificationType(juce::Justification::centredLeft);
+        recordStatsLabel.setFont(juce::Font(10.0f));
+        recordStatsLabel.setText("", juce::dontSendNotification);
+
         // Load Sample button -- opens async file picker, encodes WAV to ADPCM.
         panel.addAndMakeVisible(loadSampleButton);
         loadSampleButton.onClick = [this]()
@@ -1174,6 +1196,82 @@ void SPU94AudioProcessorEditor::timerCallback()
         syncKnob(reverbKnob,      processorRef.getParamReverbLevel()->get());
     }
 
+    // Phase 56: Encode-on-stop trigger — polls the flag set by audio thread auto-stop.
+    if (processorRef.getRecordingJustStopped().exchange(false, std::memory_order_acquire))
+    {
+        processorRef.encodeRecordedSample();
+        recordButton.setButtonText("Record");
+        recordButton.setColour(juce::TextButton::buttonColourId,
+                               getLookAndFeel().findColour(juce::TextButton::buttonColourId));
+    }
+
+    // Phase 56: Record button visual state — enforced every tick from atomic.
+    {
+        bool recording = processorRef.isRecording();
+        if (recording)
+        {
+            recordButton.setButtonText("Stop");
+            recordButton.setColour(juce::TextButton::buttonColourId,
+                                   juce::Colour(0xFFE06060));
+            loadSampleButton.setEnabled(false);
+        }
+        else
+        {
+            recordButton.setButtonText("Record");
+            recordButton.setColour(juce::TextButton::buttonColourId,
+                                   getLookAndFeel().findColour(juce::TextButton::buttonColourId));
+            loadSampleButton.setEnabled(true);
+        }
+    }
+
+    // Phase 56: Input peak meter — always active, regardless of recording state.
+    {
+        float peak = processorRef.getInputPeakLevel().load(std::memory_order_relaxed);
+        float dB = (peak > 0.0f) ? 20.0f * std::log10(peak) : -60.0f;
+        if (dB < -60.0f) dB = -60.0f;
+        if (dB > 0.0f) dB = 0.0f;
+        int barLen = static_cast<int>((dB + 60.0f) / 60.0f * 12.0f);
+        if (barLen < 0) barLen = 0;
+        if (barLen > 12) barLen = 12;
+        juce::String bar;
+        for (int i = 0; i < barLen; ++i) bar += "|";
+        inputPeakMeterLabel.setText(
+            "In: " + bar + " " + juce::String(dB, 1) + " dB",
+            juce::dontSendNotification);
+        if (peak > 0.95f)
+            inputPeakMeterLabel.setColour(juce::Label::textColourId,
+                                          juce::Colour(0xFFE87461));
+        else
+            inputPeakMeterLabel.setColour(juce::Label::textColourId,
+                                          juce::Colour(0xFFD0D0D0));
+    }
+
+    // Phase 56: Recording stats — seconds recorded and time remaining.
+    if (processorRef.isRecording())
+    {
+        uint32_t bytesUsed = processorRef.getRecordBytesUsed().load(std::memory_order_relaxed);
+        uint32_t samplesRecorded = (bytesUsed / 16u) * 28u;
+        double secondsRecorded = samplesRecorded / 44100.0;
+        uint32_t totalBytes = SPU94_SPU_RAM_BYTES;
+        uint32_t remainBytes = (bytesUsed < totalBytes) ? (totalBytes - bytesUsed) : 0u;
+        uint32_t remainSamples = (remainBytes / 16u) * 28u;
+        double remainSeconds = remainSamples / 44100.0;
+        recordStatsLabel.setText(
+            "Rec: " + juce::String(secondsRecorded, 1) + "s / " +
+            juce::String(remainSeconds, 1) + "s left",
+            juce::dontSendNotification);
+
+        // Live RAM meter update during recording
+        float kb = bytesUsed / 1024.0f;
+        ramMeterLabel.setText(
+            juce::String(kb, 1) + " / 512 KB",
+            juce::dontSendNotification);
+    }
+    else
+    {
+        recordStatsLabel.setText("", juce::dontSendNotification);
+    }
+
     // Phase 31: Update voice sample status label + waveform (standalone only).
     if (processorRef.getVoiceSampleLoaded().load(std::memory_order_acquire))
     {
@@ -1364,11 +1462,12 @@ void SPU94AudioProcessorEditor::resized()
         // Voice engine controls are in the sampler window — lay them out there.
         if (samplerWindow)
         {
-            loadSampleButton.setBounds(10, 10, 110, 30);
-            triggerVoiceButton.setBounds(125, 10, 70, 30);
-            stopVoiceButton.setBounds(200, 10, 90, 30);
-            encodeRateLabel.setBounds(295, 10, 95, 12);
-            encodeRateBox.setBounds(295, 22, 95, 22);
+            recordButton.setBounds(10, 10, 80, 30);
+            loadSampleButton.setBounds(95, 10, 100, 30);
+            triggerVoiceButton.setBounds(200, 10, 55, 30);
+            stopVoiceButton.setBounds(258, 10, 60, 30);
+            encodeRateLabel.setBounds(323, 10, 67, 12);
+            encodeRateBox.setBounds(323, 22, 67, 22);
             voiceEnginePitchLabel.setBounds(10, 50, 80, 16);
             voiceEnginePitchKnob.setBounds(10, 64, 80, 54);
             samplerDriveLabel.setBounds(95, 50, 80, 16);
@@ -1380,17 +1479,19 @@ void SPU94AudioProcessorEditor::resized()
             samplerAAToggle.setBounds(235, 50, 63, 26);
             voiceNonToggle.setBounds(235, 76, 55, 26);
             voicePmonToggle.setBounds(235, 102, 63, 26);
-            ramMeterLabel.setBounds(10, 160, 380, 12);
-            samplerWindow->getWaveformDisplay().setBounds(10, 174, 380, 108);
-            startPosLabel.setBounds(15, 284, 70, 14);
-            startPosKnob.setBounds(15, 296, 70, 54);
-            loopPosLabel.setBounds(160, 284, 70, 14);
-            loopPosKnob.setBounds(160, 296, 70, 54);
-            endPosLabel.setBounds(320, 284, 70, 14);
-            endPosKnob.setBounds(320, 296, 70, 54);
+            inputPeakMeterLabel.setBounds(10, 130, 190, 14);
+            recordStatsLabel.setBounds(200, 130, 190, 14);
+            ramMeterLabel.setBounds(10, 146, 380, 12);
+            samplerWindow->getWaveformDisplay().setBounds(10, 160, 380, 108);
+            startPosLabel.setBounds(15, 270, 70, 14);
+            startPosKnob.setBounds(15, 282, 70, 54);
+            loopPosLabel.setBounds(160, 270, 70, 14);
+            loopPosKnob.setBounds(160, 282, 70, 54);
+            endPosLabel.setBounds(320, 270, 70, 14);
+            endPosKnob.setBounds(320, 282, 70, 54);
 
             // ADSR section — directly below marker knobs
-            constexpr int aky = 354, akw = 65, akh = 110;
+            constexpr int aky = 340, akw = 65, akh = 110;
             adsrAttackLabel.setBounds(15, aky, akw, 12);
             adsrAttackKnob.setBounds(15, aky + 12, akw, akh);
             adsrDecayLabel.setBounds(91, aky, akw, 12);

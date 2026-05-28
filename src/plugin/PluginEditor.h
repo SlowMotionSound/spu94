@@ -86,6 +86,9 @@ private:
     juce::Label voicePitchLabel;
 
     // Voice engine panel (standalone-only, Phase 31)
+    juce::TextButton recordButton{"Record"};
+    juce::Label inputPeakMeterLabel;
+    juce::Label recordStatsLabel;
     juce::TextButton loadSampleButton{"Load Sample"};
     juce::TextButton triggerVoiceButton{"Trigger"};
     juce::TextButton stopVoiceButton{"Stop Voice"};
