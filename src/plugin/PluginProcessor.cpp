@@ -376,7 +376,6 @@ void SPU94AudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     spu94_set_adpcm_send(engines[0], 0x7FFF);
     spu94_set_sampler_fader(engines[0], 0x7FFF);
     spu94_set_sampler_send(engines[0], 0x7FFF);
-    spu94_set_sampler_drive(engines[0], 0x1000);
     spu94_set_dac_enabled(engines[0], 1);
     spu94_set_latency_comp(engines[0], 1);
 
@@ -612,8 +611,13 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         samplerFader.load(std::memory_order_relaxed) * 0x7FFF));
     spu94_set_sampler_send(engines[0], static_cast<int16_t>(
         samplerSend.load(std::memory_order_relaxed) * 0x7FFF));
-    spu94_set_sampler_drive(engines[0], static_cast<int32_t>(
-        samplerDrive.load(std::memory_order_relaxed) * 0x1000));
+    {
+        auto *mx = spu94_get_voice_mixer();
+        int32_t driveQ12 = static_cast<int32_t>(
+            samplerDrive.load(std::memory_order_relaxed) * 0x1000);
+        for (int vi = 0; vi < 24; vi++)
+            spu94_voice_mixer_set_drive(mx, vi, driveQ12);
+    }
     // AA-03: push anti-aliasing toggle to voice mixer. Inverted: AA enabled
     // means Gaussian interpolation ON (gauss_bypass=0); AA disabled means raw
     // zero-order hold (gauss_bypass=1).

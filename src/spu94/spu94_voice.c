@@ -41,6 +41,7 @@ void spu94_voice_init(spu94_voice_t *v) {
     v->sweep_depth_r = 0x7FFF;
     v->base_vol_l = 0x3FFF;
     v->base_vol_r = 0x3FFF;
+    v->drive = 0x1000;
 }
 
 void spu94_voice_key_on(spu94_voice_t *v, uint32_t start_addr,
@@ -279,6 +280,11 @@ void spu94_voice_tick(spu94_voice_t *v,
                     + (int32_t)spu94_gauss_table[0x000 + gi] * (int32_t)s3;
                 gauss_out = sat_s16(interpolated >> 15);
             }
+        }
+
+        /* Per-voice drive: Q12 gain with sat_s16 clipping, pre-ADSR. */
+        if (v->drive != 0x1000) {
+            gauss_out = sat_s16(((int32_t)gauss_out * v->drive) >> 12);
         }
 
         /* ---------------------------------------------------------------
@@ -609,6 +615,17 @@ spu94_result_t spu94_voice_mixer_set_mod_bus(spu94_voice_mixer_t *m, int voice_i
     m->voices[voice_idx].noise_mod_pitch_depth = pitch_depth;
     m->voices[voice_idx].noise_mod_vol_depth   = vol_depth;
     m->voices[voice_idx].noise_mod_pan_depth   = pan_depth;
+
+    return SPU94_OK;
+}
+
+spu94_result_t spu94_voice_mixer_set_drive(spu94_voice_mixer_t *m, int voice_idx,
+    int32_t drive)
+{
+    if (m == NULL || voice_idx < 0 || voice_idx >= 24)
+        return SPU94_INVALID_ARG;
+
+    m->voices[voice_idx].drive = drive;
 
     return SPU94_OK;
 }

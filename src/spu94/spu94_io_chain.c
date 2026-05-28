@@ -313,15 +313,6 @@ int16_t spu94_get_sampler_send(const spu94_state *state) {
     return state->sampler_send;
 }
 
-void spu94_set_sampler_drive(spu94_state *state, int32_t drive) {
-    if (state == NULL) return;
-    state->sampler_drive = drive;
-}
-int32_t spu94_get_sampler_drive(const spu94_state *state) {
-    if (state == NULL) return 0;
-    return state->sampler_send;
-}
-
 /* -----------------------------------------------------------------------
  * Latency compensation (Phase 7, D-07, D-08)
  *

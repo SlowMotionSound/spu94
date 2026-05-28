@@ -63,6 +63,7 @@ typedef struct {
     int16_t sweep_depth_l;       /* Q15 depth for L sweep (0x7FFF=full, 0=no modulation). Host sets before process. */
     int16_t sweep_depth_r;       /* Q15 depth for R sweep */
     /* Phase 50: Internal mod bus -- per-voice noise-to-pitch/vol/pan routing (MOD-01..05) */
+    int32_t   drive;              /* Q12 input drive (0x1000 = unity). Applied post-Gauss, pre-ADSR. */
     int16_t noise_mod_pitch_depth; /* bipolar (-0x7FFF..+0x7FFF): noise -> pitch offset. 0 = off */
     int16_t noise_mod_vol_depth;   /* unipolar (0..0x7FFF): noise -> volume offset. 0 = off */
     int16_t noise_mod_pan_depth;   /* unipolar (0..0x7FFF): noise -> stereo divergence. 0 = off */
@@ -231,6 +232,13 @@ spu94_result_t spu94_voice_mixer_set_pitch(spu94_voice_mixer_t *m, int voice_idx
  * Returns SPU94_INVALID_ARG if voice_idx out of range. */
 spu94_result_t spu94_voice_mixer_set_mod_bus(spu94_voice_mixer_t *m, int voice_idx,
     int16_t pitch_depth, int16_t vol_depth, int16_t pan_depth);
+
+/* Set per-voice input drive (Q12: 0x1000 = unity).
+ * Applied post-Gaussian interpolation, pre-ADSR — same concept as the
+ * input drive on the reverb side. sat_s16 clipping at the boundary.
+ * Returns SPU94_INVALID_ARG if voice_idx out of range. */
+spu94_result_t spu94_voice_mixer_set_drive(spu94_voice_mixer_t *m, int voice_idx,
+    int32_t drive);
 
 /* Load pre-encoded ADPCM blocks into mixer->voice_ram at given byte offset.
  * Validates addr + source_size <= SPU94_SPU_RAM_BYTES.

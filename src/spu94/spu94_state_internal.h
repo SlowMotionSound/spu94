@@ -199,7 +199,6 @@ struct spu94_state {
     int16_t        reverb_fader;      /* reverb return level at master mixer */
     int16_t        sampler_fader;     /* voice engine level at master mixer */
     int16_t        sampler_send;      /* voice engine -> reverb send level */
-    int32_t        sampler_drive;     /* voice engine input drive (Q12: 0x1000=unity) */
 
     /* Latency compensation (D-07, D-08)
      *
