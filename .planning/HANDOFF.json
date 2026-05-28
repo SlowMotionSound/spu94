@@ -26,7 +26,6 @@
     {"id": "uat-modbus", "name": "Mod Bus UAT — noise-to-pitch verified", "status": "done"}
   ],
   "remaining_tasks": [
-    {"id": "adsr-attack-direct", "name": "Attack still uses piecewise knob curve — consider switching to direct indexing like decay/release", "status": "not_started"},
     {"id": "one-shot-trigger", "name": "Single-click trigger plays full ADSR without holding", "status": "not_started"},
     {"id": "gui-noise", "name": "Organize Noise section in sampler panel", "status": "not_started"},
     {"id": "gui-speed-divisions", "name": "Musical divisions for Speed encoder", "status": "not_started"},
@@ -44,6 +43,6 @@
     {"decision": "ADSR visualizer removed", "rationale": "Display was inaccurate; fader readouts give direct feedback", "phase": "55"}
   ],
   "uncommitted_files": [],
-  "next_action": "Continue ADSR slope tuning if needed. Then one-shot trigger, GUI cleanup, remaining UAT.",
-  "context_notes": "Major ADSR rework this session. Root cause was timing tables using linear calculations while engine runs exponential (3-4x discrepancy). External AI reviews provided key insight: measure actual engine times, build separate tables per mode. Final architecture: 5 measured tables + direct index mapping + vertical faders. Attack still uses a piecewise knob curve for 0-25% percussive range while decay/release use pure direct indexing. Anthony approved attack and decay feel. Release got same curve as decay. Session paused mid-afternoon."
+  "next_action": "One-shot trigger, GUI cleanup, remaining UAT.",
+  "context_notes": "Major ADSR rework this session. Root cause was timing tables using linear calculations while engine runs exponential (3-4x discrepancy). External AI reviews provided key insight: measure actual engine times, build separate tables per mode. Final architecture: 5 measured tables + direct index mapping + vertical faders. All ADSR modes (attack lin/exp, decay, release lin/exp) use direct PS1 rate indexing. Anthony approved attack and decay feel. Release got same curve as decay. Session paused mid-afternoon."
 }

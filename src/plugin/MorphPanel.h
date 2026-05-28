@@ -43,14 +43,6 @@ private:
     juce::TextButton speedSlowButton;
     void setSpeedRange(int range); // 0=Fast, 1=Slow
 
-    // Morph Grit: binary radio strip [Int][Fract.].
-    // Coral PS1 palette differentiates from Morph Speed's mauve. The
-    // selected button lights coral; the other sits dark gray.
-    juce::TextButton gritIntButton;
-    juce::TextButton gritFractButton;
-    juce::Label gritLabel;
-    void setMorphGrit(int grit); // syncs button state + processor atomic
-
     // Per-tick action buttons — stacked top-right. All three share an
     // enabled state: lit when the knob is parked on a user-slot detent,
     // dimmed otherwise. EDIT opens the slot for editing; EXPORT writes

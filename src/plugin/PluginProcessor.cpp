@@ -252,22 +252,7 @@ SPU94AudioProcessor::SPU94AudioProcessor()
     addParameter(paramMorphSpeed = new juce::AudioParameterFloat(
         juce::ParameterID{"morph_speed", 1}, "Morph Speed", pctRange, 0.5f, pctAttrs));
 
-    // 6. Morph Grit (two-position: 0=Int, 1=Fract.)
-    addParameter(paramMorphGrit = new juce::AudioParameterFloat(
-        juce::ParameterID{"morph_grit", 1}, "Morph Grit",
-        juce::NormalisableRange<float>(0.0f, 1.0f, 1.0f),  // step=1: two positions
-        0.0f,
-        juce::AudioParameterFloatAttributes()
-            .withLabel("")
-            .withStringFromValueFunction([](float v, int) -> juce::String {
-                return v < 0.5f ? "Int" : "Fract.";
-            })
-            .withValueFromStringFunction([](const juce::String& s) -> float {
-                return s.containsIgnoreCase("fract") ? 1.0f : 0.0f;
-            })
-    ));
-
-    // 7. Dry Level (percent 0-100, default 0.0 = OFF)
+    // 6. Dry Level (percent 0-100, default 0.0 = OFF)
     addParameter(paramDryLevel = new juce::AudioParameterFloat(
         juce::ParameterID{"dry_level", 1}, "Dry Level", pctRange, 0.0f, pctAttrs));
 
@@ -544,8 +529,6 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         dacFirEnabled.store(spu94_get_dac_fir_enabled(engines[0]) != 0, std::memory_order_relaxed);
         dacNoiseEnabled.store(spu94_get_dac_noise_enabled(engines[0]) != 0, std::memory_order_relaxed);
         dacTrueOversample.store(spu94_get_dac_true_oversample(engines[0]) != 0, std::memory_order_relaxed);
-        morphGrit.store(spu94_get_morph_grit(engines[0]), std::memory_order_relaxed);
-
         // Sync AudioParameterFloat values from the freshly-loaded atomics so the
         // host sees the correct values in automation lanes. setValueNotifyingHost
         // takes NORMALIZED 0..1; for mixer params (0..1 real range) normalized == real.
@@ -558,7 +541,6 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             inputLevel.load(std::memory_order_relaxed)));
         paramMorphPosition->setValueNotifyingHost(morphPosition.load(std::memory_order_relaxed));
         paramMorphSpeed->setValueNotifyingHost(morphSpeed.load(std::memory_order_relaxed));
-        paramMorphGrit->setValueNotifyingHost(morphGrit.load(std::memory_order_relaxed) >= 1 ? 1.0f : 0.0f);
     }
 
     // 2. Push register values: morph engine OR register bridge, never both.
@@ -647,9 +629,6 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         dacNoiseEnabled.load(std::memory_order_relaxed) ? 1 : 0);
     spu94_set_dac_true_oversample(engines[0],
         dacTrueOversample.load(std::memory_order_relaxed) ? 1 : 0);
-    spu94_set_morph_grit(engines[0],
-        static_cast<int>(paramMorphGrit->get() + 0.5f));
-
     // Morph position. The Register Behavior knob picks one of two paths:
     //   knob ≈ 0  → direct write (snap): registers latch at next tick.
     //                Same TICK_LATCHED click character as original v1.5.
@@ -1806,6 +1785,13 @@ void SPU94AudioProcessor::loadVoiceSample(const juce::File& file)
     uint64_t pcmFrames = result->numFrames;
     std::vector<int16_t> resampled;
 
+    double ratio = (targetRate < 44100)
+        ? static_cast<double>(targetRate) / 44100.0 : 1.0;
+    auto estOutputFrames = static_cast<uint64_t>(std::ceil(pcmFrames * ratio));
+    uint64_t estBlocks = (estOutputFrames + 27u) / 28u;
+    if (estBlocks * SPU94_ADPCM_BLOCK_BYTES > SPU94_SPU_RAM_BYTES)
+        return;
+
     if (targetRate < 44100) {
         double ratio = static_cast<double>(targetRate) / 44100.0;
         auto outFrames = static_cast<uint64_t>(std::ceil(pcmFrames * ratio));
@@ -1971,8 +1957,6 @@ static constexpr AdsrRate kReleaseExpTable[] = {
 };
 static constexpr int kReleaseExpTableSize = sizeof(kReleaseExpTable) / sizeof(kReleaseExpTable[0]);
 
-// Knob curve: 0%=1ms, 50%=2s, 100%=10s
-// time = 0.001 * 10000^(knob^0.277)
 AdsrRate knobToRate(float knob, const AdsrRate* table, int tableSize) {
     int idx = static_cast<int>(knob * (tableSize - 1) + 0.5f);
     return table[std::clamp(idx, 0, tableSize - 1)];
@@ -2195,7 +2179,7 @@ void SPU94AudioProcessor::getStateInformation(juce::MemoryBlock& destData)
         paramInputGain->get(),
         paramMorphPosition->get(),
         paramMorphSpeed->get(),
-        paramMorphGrit->get(),
+        0.0f,
         0.0f, 0.0f,
         destData);
 }
@@ -2229,7 +2213,6 @@ void SPU94AudioProcessor::setStateInformation(const void* data, int sizeInBytes)
         paramInputGain->getNormalisableRange().convertTo0to1(result.inputGain));
     paramMorphPosition->setValueNotifyingHost(result.morphPosition);  // 0..1 range, normalized==real
     paramMorphSpeed->setValueNotifyingHost(result.morphSpeed);
-    paramMorphGrit->setValueNotifyingHost(result.morphGrit >= 0.5f ? 1.0f : 0.0f);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

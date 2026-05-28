@@ -173,7 +173,6 @@ public:
     juce::AudioParameterFloat* getParamDrySend()      const { return paramDrySend; }
     juce::AudioParameterFloat* getParamMorphPosition() const { return paramMorphPosition; }
     juce::AudioParameterFloat* getParamMorphSpeed()   const { return paramMorphSpeed; }
-    juce::AudioParameterFloat* getParamMorphGrit()    const { return paramMorphGrit; }
     juce::AudioParameterFloat* getParamDryLevel()     const { return paramDryLevel; }
     juce::AudioParameterFloat* getParamAdpcmLevel()   const { return paramAdpcmLevel; }
     juce::AudioParameterFloat* getParamReverbLevel()  const { return paramReverbLevel; }
@@ -215,11 +214,6 @@ public:
     //     1.0 = Glide (full slew duration). In between scales slew duration. ---
     std::atomic<float>& getMorphSpeed() { return morphSpeed; }
     std::atomic<int>& getMorphSpeedRange() { return morphSpeedRange; }
-
-    // --- Morph Grit (binary):
-    //     0 = Int (default — all integer reads, hardware-faithful, "alive")
-    //     1 = Fract (all fractional reads, smoothed) ---
-    std::atomic<int>& getMorphGrit() { return morphGrit; }
 
     // --- User-programmable waypoint slots (8 slots at midpoints between
     //     Sony's 9 anchors; slot N at morph position (2N+1)/16). ---
@@ -284,7 +278,6 @@ private:
     juce::AudioParameterFloat* paramDrySend       = nullptr;
     juce::AudioParameterFloat* paramMorphPosition = nullptr;
     juce::AudioParameterFloat* paramMorphSpeed    = nullptr;
-    juce::AudioParameterFloat* paramMorphGrit     = nullptr;
     juce::AudioParameterFloat* paramDryLevel      = nullptr;
     juce::AudioParameterFloat* paramAdpcmLevel    = nullptr;
     juce::AudioParameterFloat* paramReverbLevel   = nullptr;
@@ -363,11 +356,6 @@ private:
 
     // Morph Speed Range: 0 = Fast (0–0.5s), 1 = Slow (0.5s–60s).
     std::atomic<int> morphSpeedRange{0};
-
-    // Morph Grit (see getMorphGrit for full docs).
-    // Default 0 = Int — all reads integer, PS1 hardware faithful.
-    // Reflects the project's north star: fixed-point quirks are the point.
-    std::atomic<int> morphGrit{0};
 
     // File preset pending load mechanism (message -> audio thread handoff)
     std::array<char, SPU94_PRESET_BUF_SIZE> pendingPresetBuf{};

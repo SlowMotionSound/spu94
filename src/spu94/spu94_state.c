@@ -93,7 +93,6 @@ spu94_state *spu94_init(void *state_buf, size_t state_buf_size,
     spu94_dac_noise_init(&s->dac_noise_l, 0xACE1u);
     spu94_dac_noise_init(&s->dac_noise_r, 0x1ECAu);
     s->dac_true_oversample = 1;  /* v1.3 true 8x ON by default (CMP-01) */
-    s->morph_grit = SPU94_GRIT_INT;  /* all reads integer — PS1 hardware faithful (default) */
 
     s->work_buf       = (unsigned char *)work_buf;
     s->work_buf_size  = work_buf_size;
@@ -133,7 +132,6 @@ void spu94_reset(spu94_state *state) {
     spu94_dac_noise_init(&state->dac_noise_l, 0xACE1u);
     spu94_dac_noise_init(&state->dac_noise_r, 0x1ECAu);
     state->dac_true_oversample = 1;  /* v1.3 true 8x ON by default (CMP-01) */
-    state->morph_grit = SPU94_GRIT_INT;  /* all reads integer — PS1 hardware faithful (default) */
 
     state->work_buf       = saved_work;
     state->work_buf_size  = saved_work_size;

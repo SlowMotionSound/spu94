@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.10.0
 milestone_name: Voice Dynamics & Stereo Effects
 status: executing
-stopped_at: v1.10.0 effects UAT — fixing bugs found during live testing
-last_updated: "2026-05-26T00:16:03.003Z"
-last_activity: 2026-05-26 -- Phase 54 execution started
+stopped_at: Phase 55 effects UAT — ADSR rework done, remaining cleanup items
+last_updated: "2026-05-27T21:00:00.000Z"
+last_activity: 2026-05-27 -- ADSR calibration confirmed, stale references cleaned
 progress:
   total_phases: 13
-  completed_phases: 11
+  completed_phases: 12
   total_plans: 20
   completed_plans: 19
-  percent: 85
+  percent: 92
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-24)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 54 — unified-effects-gui
+**Current focus:** Phase 55 — effects-uat
 
 ## Current Position
 
-Phase: 54 (unified-effects-gui) — EXECUTING
-Plan: 1 of 1
-Status: Executing Phase 54
-Last activity: 2026-05-26 -- Phase 54 execution started
+Phase: 55 (effects-uat) — IN PROGRESS
+Plan: UAT pass (no formal plan file)
+Status: UAT in progress — 5 of 5 effect modes verified, ADSR calibration rework complete
+Last activity: 2026-05-27 -- ADSR calibration rework, attack direct indexing confirmed
 
-Progress: [██████░░░░] 60%
+Progress: [████████░░] 85%
 
 ## Phase Map (v1.10.0 — revised)
 
@@ -45,10 +45,10 @@ Progress: [██████░░░░] 60%
 | 49 | ~~Phase Modulator~~ | Subsumed | Replaced by Ring Mod (Phase 52) |
 | 50 | Internal Mod Bus | Done | UAT verified |
 | 51 | Split-Output Bus | Done | Reverb-only side limiting |
-| 52 | Ring Mod | Not started | Bipolar sweep crossing zero in C core |
-| 53 | Sweep Shapes | Not started | Triangle / Saw Up / Saw Down |
-| 54 | Unified Effects GUI | Not started | Dropdown + adaptive controls |
-| 55 | Effects UAT | Not started | Full pass on all 5 modes |
+| 52 | Ring Mod | Done | Bipolar sweep crossing zero in C core |
+| 53 | Sweep Shapes | Done | Triangle / Saw Down / Saw Up |
+| 54 | Unified Effects GUI | Done | Dropdown + adaptive controls |
+| 55 | Effects UAT | In progress | 5/5 modes verified, ADSR rework done, remaining: one-shot trigger, GUI cleanup |
 
 ## Milestone History
 
@@ -128,7 +128,7 @@ None.
 | Creative effect | "Bit Corrupt" mode | 2026-05-11 |
 | Creative extension | Pitch quantizer on mod bus — quantize LFSR noise to musical intervals before pitch modulation | 2026-05-25 |
 | Eurorack | Raw LFSR CV output — expose noise generator as a patchable output alongside audio outs | 2026-05-25 |
-| GUI cleanup | Remove old VCA ramp controls (direction/speed/curve/ARM) — superseded by unified effects dropdown | 2026-05-25 |
+| GUI cleanup | ~~Remove old VCA ramp controls~~ — done (commit 09e7ff4) | 2026-05-25 |
 | GUI cleanup | Organize Noise section in sampler panel | 2026-05-25 |
 | UI | Musical divisions for effects Speed encoder (note values, BPM sync) | 2026-05-25 |
 | Bug | Pan inaccessible during effects — sweep overwrites vol_l/vol_r, ignoring pan position. Fix: depth formula should use pan-set volume as ceiling, not hardcoded 0x7FFF | 2026-05-25 |
@@ -145,40 +145,15 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-24
-Stopped at: v1.10.0 effects UAT — fixing bugs found during live testing
-Resume file: None
-Next action: Split-output bus fix (see below), then continue UAT
+Last session: 2026-05-27
+Stopped at: ADSR calibration rework complete, all direct PS1 rate indexing confirmed
+Resume file: .planning/.continue-here.md
+Next action: One-shot trigger, GUI cleanup (noise section, speed divisions), sidechain duck UAT (blocked on MIDI)
 
-## Blocking: Split-Output Bus
+## UAT Bugs — Resolved
 
-The side limiter (kSideCeiling=0.06) protects against reverb feedback squeals but
-crushes ALL stereo content including voice effects (auto-pan, widener, etc.). The
-fix requires splitting spu94_process output into voice and reverb buses so the host
-can side-limit reverb only.
-
-**Scope:**
-
-1. C core API: add `spu94_process_split()` — writes voice (dry+adpcm+sampler) and
-   reverb to separate buffer pairs. Existing `spu94_process` unchanged.
-
-2. spu94_process.c: at the 4-bus mix (lines 267-276), write two sums instead of one.
-   DAC model application is a design decision (combined or per-bus).
-
-3. PluginProcessor.cpp: call split variant, side-limit reverb bus only, sum for output.
-   Voice stereo effects pass through clean.
-
-**Files:** spu94.h, spu94_process.c, PluginProcessor.cpp
-**Risk:** Low — additive API, existing function untouched.
-**Size:** ~2 tasks, half a session.
-
-**Until this is done:** stereo widener has no audible effect (side limiter kills it).
-Auto-pan works but is dampened. Tremolo works (volume-only, less affected by side limiting).
-
-## UAT Bugs Found This Session
-
-- [x] Auto-pan: R channel started at same level as L (both swept same direction). Fixed by setting sweep_r.level=0 on enable.
-- [x] Auto-pan: parameter changes reset oscillation state. Fixed by updating shift/step directly instead of calling set_sweep_l/r.
-- [ ] Stereo widener: no audible effect — blocked by side limiter (see Split-Output Bus above).
-- [ ] GUI layout: effects 46-50 were off-screen in original vertical layout. Fixed with two-column layout but spacing needs polish.
-- [ ] Mod bus: not verified yet (needs UAT).
+- [x] Auto-pan: R channel started at same level as L — fixed (sweep_r.level=0 on enable)
+- [x] Auto-pan: parameter changes reset oscillation state — fixed (update shift/step directly)
+- [x] Split-Output Bus: side limiter crushing stereo effects — fixed (Phase 51, reverb-only side limiting)
+- [x] GUI layout: effects off-screen — fixed (two-column layout)
+- [x] Mod Bus: UAT verified (noise-to-pitch working)

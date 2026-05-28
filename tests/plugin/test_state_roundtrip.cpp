@@ -57,14 +57,14 @@ struct EngineFixture {
 // Build a valid binary state blob with custom float appendix values.
 // Returns a filled MemoryBlock, or empty on failure.
 juce::MemoryBlock buildStateBlob(float inputGain, float morphPos,
-                                 float morphSpd, float morphGrit) {
+                                 float morphSpd) {
     EngineFixture fix;
     if (!fix.init()) return {};
 
     juce::MemoryBlock block;
     bool ok = StateSerializer::save(fix.engine,
-                                    inputGain, morphPos, morphSpd, morphGrit,
-                                    0.0f, 0.0f, block);
+                                    inputGain, morphPos, morphSpd,
+                                    0.0f, 0.0f, 0.0f, block);
     if (!ok) return {};
     return block;
 }
@@ -78,9 +78,8 @@ bool test_set_state_restores_params() {
     constexpr float kGain = 2.5f;
     constexpr float kPos  = 0.25f;
     constexpr float kSpd  = 0.8f;
-    constexpr float kGrit = 1.0f;
 
-    auto blob = buildStateBlob(kGain, kPos, kSpd, kGrit);
+    auto blob = buildStateBlob(kGain, kPos, kSpd);
     if (blob.getSize() == 0) {
         std::printf("SKIP (could not build state blob)\n");
         return true;
@@ -109,7 +108,6 @@ bool test_set_state_restores_params() {
     check("inputGain",     kGain, proc->getParamInputGain()->get());
     check("morphPosition", kPos,  proc->getParamMorphPosition()->get());
     check("morphSpeed",    kSpd,  proc->getParamMorphSpeed()->get());
-    check("morphGrit",     kGrit, proc->getParamMorphGrit()->get());
 
     std::printf("%s\n", ok ? "PASSED" : "\nFAILED");
     return ok;
@@ -121,8 +119,8 @@ bool test_set_state_restores_params() {
 bool test_multi_instance_independence() {
     std::printf("test_multi_instance_independence... ");
 
-    auto blobA = buildStateBlob(4.0f, 0.1f, 0.9f, 0.0f);
-    auto blobB = buildStateBlob(0.1f, 0.75f, 0.2f, 1.0f);
+    auto blobA = buildStateBlob(4.0f, 0.1f, 0.9f);
+    auto blobB = buildStateBlob(0.1f, 0.75f, 0.2f);
 
     if (blobA.getSize() == 0 || blobB.getSize() == 0) {
         std::printf("SKIP (could not build state blobs)\n");
@@ -147,13 +145,11 @@ bool test_multi_instance_independence() {
     check("A", "inputGain",     4.0f,  procA->getParamInputGain()->get());
     check("A", "morphPosition", 0.1f,  procA->getParamMorphPosition()->get());
     check("A", "morphSpeed",    0.9f,  procA->getParamMorphSpeed()->get());
-    check("A", "morphGrit",     0.0f,  procA->getParamMorphGrit()->get());
 
     // Instance B
     check("B", "inputGain",     0.1f,  procB->getParamInputGain()->get());
     check("B", "morphPosition", 0.75f, procB->getParamMorphPosition()->get());
     check("B", "morphSpeed",    0.2f,  procB->getParamMorphSpeed()->get());
-    check("B", "morphGrit",     1.0f,  procB->getParamMorphGrit()->get());
 
     // Cross-check: A and B must differ
     if (approxEq(procA->getParamInputGain()->get(),

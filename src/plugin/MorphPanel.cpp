@@ -16,56 +16,6 @@ static const char* kWaypointNames[9] = {
     "Hall", "Space Echo", "Echo", "Delay"
 };
 
-// Custom LookAndFeel that draws the Morph Grit toggle in a focus-stable way.
-// JUCE's LookAndFeel_V4 desaturates buttons that don't have keyboard focus
-// (multipliedSaturation 0.9 vs 1.3), so the Int button's coral would be a
-// lighter shade until the user clicked or tabbed to it. We override the
-// background draw to always use the focused saturation -- consistent on
-// startup, consistent through interaction.
-class GritButtonLookAndFeel : public juce::LookAndFeel_V4 {
-public:
-    void drawButtonBackground(juce::Graphics& g, juce::Button& button,
-                              const juce::Colour& backgroundColour,
-                              bool shouldDrawButtonAsHighlighted,
-                              bool shouldDrawButtonAsDown) override
-    {
-        auto cornerSize = 6.0f;
-        auto bounds = button.getLocalBounds().toFloat().reduced(0.5f, 0.5f);
-
-        auto baseColour = backgroundColour.withMultipliedSaturation(1.3f)
-                                          .withMultipliedAlpha(button.isEnabled() ? 1.0f : 0.5f);
-        if (shouldDrawButtonAsDown || shouldDrawButtonAsHighlighted)
-            baseColour = baseColour.contrasting(shouldDrawButtonAsDown ? 0.2f : 0.05f);
-
-        g.setColour(baseColour);
-
-        const bool flatOnLeft   = button.isConnectedOnLeft();
-        const bool flatOnRight  = button.isConnectedOnRight();
-        const bool flatOnTop    = button.isConnectedOnTop();
-        const bool flatOnBottom = button.isConnectedOnBottom();
-
-        if (flatOnLeft || flatOnRight || flatOnTop || flatOnBottom) {
-            juce::Path path;
-            path.addRoundedRectangle(bounds.getX(), bounds.getY(),
-                                     bounds.getWidth(), bounds.getHeight(),
-                                     cornerSize, cornerSize,
-                                     !(flatOnLeft  || flatOnTop),
-                                     !(flatOnRight || flatOnTop),
-                                     !(flatOnLeft  || flatOnBottom),
-                                     !(flatOnRight || flatOnBottom));
-            g.fillPath(path);
-            g.setColour(button.findColour(juce::ComboBox::outlineColourId));
-            g.strokePath(path, juce::PathStrokeType(1.0f));
-        } else {
-            g.fillRoundedRectangle(bounds, cornerSize);
-            g.setColour(button.findColour(juce::ComboBox::outlineColourId));
-            g.drawRoundedRectangle(bounds, cornerSize, 1.0f);
-        }
-    }
-};
-
-static GritButtonLookAndFeel gritLookAndFeel;
-
 // Full 17-position label table (Sony anchors interleaved with user slots).
 // Index by idx16 = position * 16; even = Sony anchor, odd = user slot.
 static const char* kAllWaypointNames[17] = {
@@ -161,7 +111,6 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
         b.setColour(juce::TextButton::buttonOnColourId, psxMauve);
         b.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
         b.setColour(juce::TextButton::textColourOffId, psxLightGray);
-        b.setLookAndFeel(&gritLookAndFeel);
         addAndMakeVisible(b);
     };
     configureSpeedRangeButton(speedFastButton, "Fast");
@@ -173,42 +122,6 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
     speedFastButton.onClick = [this]() { setSpeedRange(0); };
     speedSlowButton.onClick = [this]() { setSpeedRange(1); };
     setSpeedRange(processorRef.getMorphSpeedRange().load(std::memory_order_relaxed));
-
-    // Morph Grit: binary radio strip [Int][Fract.].
-    // Default Int = all reads integer, hardware-faithful, the project's
-    // north-star setting. Coral PS1 palette to differentiate from the
-    // speed knob's mauve.
-    auto configureGritButton = [this](juce::TextButton& b, const char* label) {
-        b.setClickingTogglesState(true);
-        b.setRadioGroupId(0xC0DE); // shared id makes them mutually exclusive
-        b.setButtonText(label);
-        b.setColour(juce::TextButton::buttonColourId, psxDarkGray);
-        b.setColour(juce::TextButton::buttonOnColourId, psxMauve);
-        b.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
-        b.setColour(juce::TextButton::textColourOffId, psxLightGray);
-        b.setLookAndFeel(&gritLookAndFeel);  // focus-stable saturation
-        addAndMakeVisible(b);
-    };
-    configureGritButton(gritIntButton,   "Int");
-    configureGritButton(gritFractButton, "Fract.");
-    // Connect the two adjacent edges so the strip reads as one control.
-    gritIntButton.setConnectedEdges(juce::Button::ConnectedOnRight);
-    gritFractButton.setConnectedEdges(juce::Button::ConnectedOnLeft);
-
-    gritIntButton.setTooltip("All reads integer — hardware-faithful PS1 character (default)");
-    gritFractButton.setTooltip("All reads fractional — smoothed morph with ADPCM feedback texture");
-
-    gritIntButton.onClick   = [this]() { setMorphGrit(0); };
-    gritFractButton.onClick = [this]() { setMorphGrit(1); };
-
-    // Initialize toggle state from processor (preserves preset/project recall).
-    setMorphGrit(static_cast<int>(processorRef.getParamMorphGrit()->get() + 0.5f));
-
-    gritLabel.setText("Morph Grit", juce::dontSendNotification);
-    gritLabel.setJustificationType(juce::Justification::centred);
-    gritLabel.setColour(juce::Label::textColourId, psxLightGray.withAlpha(0.7f));
-    gritLabel.setFont(juce::FontOptions(11.0f));
-    addAndMakeVisible(gritLabel);
 
     userSlotLabel.setText("User Slot:", juce::dontSendNotification);
     userSlotLabel.setJustificationType(juce::Justification::centred);
@@ -257,10 +170,6 @@ MorphPanel::MorphPanel(SPU94AudioProcessor& processor)
 
 MorphPanel::~MorphPanel()
 {
-    gritIntButton.setLookAndFeel(nullptr);
-    gritFractButton.setLookAndFeel(nullptr);
-    speedFastButton.setLookAndFeel(nullptr);
-    speedSlowButton.setLookAndFeel(nullptr);
 }
 
 //==============================================================================
@@ -304,18 +213,6 @@ void MorphPanel::updateEditButtonState()
 }
 
 //==============================================================================
-void MorphPanel::setMorphGrit(int grit)
-{
-    if (grit != 0 && grit != 1) grit = 0; // fall back to Int (default)
-    gritIntButton  .setToggleState(grit == 0, juce::dontSendNotification);
-    gritFractButton.setToggleState(grit == 1, juce::dontSendNotification);
-    // Phase 24: wire through AudioParameterFloat gesture API.
-    auto* p = processorRef.getParamMorphGrit();
-    p->beginChangeGesture();
-    p->setValueNotifyingHost(grit >= 1 ? 1.0f : 0.0f);
-    p->endChangeGesture();
-}
-
 void MorphPanel::setSpeedRange(int range)
 {
     if (range != 0 && range != 1) range = 0;
@@ -375,14 +272,6 @@ void MorphPanel::updateKnobPosition()
     float speedVal = processorRef.getParamMorphSpeed()->get();
     if (std::abs(static_cast<float>(speedKnob.getValue()) - speedVal) > eps)
         speedKnob.setValue(static_cast<double>(speedVal), juce::dontSendNotification);
-
-    // Sync grit toggle from param (for host automation playback).
-    int gritVal = static_cast<int>(processorRef.getParamMorphGrit()->get() + 0.5f);
-    bool currentInt = gritIntButton.getToggleState();
-    if ((gritVal == 0) != currentInt) {
-        gritIntButton  .setToggleState(gritVal == 0, juce::dontSendNotification);
-        gritFractButton.setToggleState(gritVal == 1, juce::dontSendNotification);
-    }
 
     isUpdatingFromTimer = false;
 }
@@ -469,39 +358,25 @@ void MorphPanel::resized()
     morphKnob.setBounds(startX, startY, knobSize, knobSize);
     morphLabel.setBounds(startX, startY + knobSize + 8, knobSize, labelHeight);
 
-    // Speed knob + Fast/Slow strip + Grit strip: bottom row.
+    // Speed knob + Fast/Slow strip: bottom row.
     constexpr int speedSize = 60;
     constexpr int rangeBtnW = 60;
     constexpr int rangeBtnH = 28;
-    constexpr int gritBtnW = 60;
-    constexpr int gritBtnH = 28;
-    constexpr int gritStripW = gritBtnW * 2;
     constexpr int controlLabelH = 14;
     constexpr int bottomMargin = 36;
-    constexpr int gap = 56;
 
     int rowY = area.getHeight() - speedSize - controlLabelH - bottomMargin;
 
-    int pairW = speedSize + gap + gritStripW;
-    int pairX = (area.getWidth() - pairW) / 2;
-
-    int speedX = pairX;
+    int speedX = (area.getWidth() - speedSize) / 2;
     speedLabel.setBounds(speedX - 20, rowY + speedSize, speedSize + 40, controlLabelH);
 
-    // Grit strip vertically centered on the speed-knob row.
-    int stripX = pairX + speedSize + gap;
-    int stripY = rowY + (speedSize - gritBtnH) / 2;
-
-    // Fast/Slow strip aligned with Grit buttons, encoder above it
+    // Fast/Slow strip centered under the speed knob, encoder above it
     int rangeStripW = rangeBtnW * 2;
     int rangeX = speedX + (speedSize - rangeStripW) / 2;
-    int rangeY = stripY;
+    int rangeY = rowY + (speedSize - rangeBtnH) / 2;
     speedFastButton.setBounds(rangeX,              rangeY, rangeBtnW, rangeBtnH);
     speedSlowButton.setBounds(rangeX + rangeBtnW,  rangeY, rangeBtnW, rangeBtnH);
     speedKnob.setBounds(speedX, rangeY - speedSize - 4, speedSize, speedSize);
-    gritIntButton  .setBounds(stripX,             stripY, gritBtnW, gritBtnH);
-    gritFractButton.setBounds(stripX + gritBtnW,  stripY, gritBtnW, gritBtnH);
-    gritLabel.setBounds(stripX - 20, rowY + speedSize, gritStripW + 40, controlLabelH);
 
     // EDIT / EXPORT / LOAD — stacked top-right corner of the panel. All three
     // buttons share width/height; the stack is anchored just below the morph

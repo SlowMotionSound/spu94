@@ -664,27 +664,6 @@ void spu94_slew_cancel(spu94_state *state);
  * active; samples < 1 is clamped to 1. NULL state is a no-op. */
 void spu94_set_slew_duration(spu94_state *state, int32_t samples);
 
-/* Morph Grit. Controls how the reverb body reads from the work buffer
- * during slewed transitions.
- *
- *   SPU94_GRIT_INT   (0, default): all reads integer. Faithful to PS1
- *     hardware -- no fractional addressing exists in the original
- *     silicon. Halfword stepping during morph excites the comb network
- *     and produces the "alive" character that motivates this project.
- *   SPU94_GRIT_FRACT (1): all reads fractional (linear interpolation
- *     between adjacent halfwords). Smooths morph transitions; the
- *     +-0.5 halfword feedback-loop mismatch also adds a textured coloration.
- *
- * Out-of-range values are clamped to SPU94_GRIT_INT. NULL state is
- * a no-op. */
-#define SPU94_GRIT_INT   0
-#define SPU94_GRIT_FRACT 1
-
-void spu94_set_morph_grit(spu94_state *state, int grit);
-
-/* Returns the current Morph Grit (SPU94_GRIT_INT or SPU94_GRIT_FRACT). */
-int  spu94_get_morph_grit(const spu94_state *state);
-
 #ifdef __cplusplus
 }
 #endif

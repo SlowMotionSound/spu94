@@ -144,17 +144,3 @@ void spu94_slew_tick(spu94_state *state) {
     state->slew_samples_remaining--;
 }
 
-/* Morph Grit (see include/spu94/spu94.h for full docs). Cheap runtime
- * flag — read by reverb body on every tap access. */
-void spu94_set_morph_grit(spu94_state *state, int grit) {
-    if (state == NULL) return;
-    /* Anything other than FRACT clamps to INT (the hardware-faithful default). */
-    state->morph_grit = (grit == SPU94_GRIT_FRACT)
-        ? (uint8_t)SPU94_GRIT_FRACT
-        : (uint8_t)SPU94_GRIT_INT;
-}
-
-int spu94_get_morph_grit(const spu94_state *state) {
-    if (state == NULL) return SPU94_GRIT_INT;
-    return (int)state->morph_grit;
-}

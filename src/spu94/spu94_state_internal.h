@@ -280,18 +280,6 @@ struct spu94_state {
     float          slew_start_frac[SPU94_REG__COUNT];
     int32_t        slew_total_samples;
 
-    /* Morph Grit (binary):
-     *   SPU94_GRIT_INT   (0, default) -- all reverb-body reads use integer
-     *     halfword addressing. Faithful to PS1 hardware (no fractional
-     *     addressing exists in the original silicon). Halfword stepping
-     *     during morph excites the comb network's modes, producing the
-     *     project's "alive" character.
-     *   SPU94_GRIT_FRACT (1) -- all reads use linear interpolation between
-     *     adjacent halfwords. Smoothes morph transitions by reading
-     *     between integer halfword positions; the +-0.5 read/write
-     *     mismatch in feedback loops also produces a textured coloration. */
-    uint8_t        morph_grit;
-
     /* User-programmable waypoints: 8 slots at the midpoints between Sony's
      * 9 anchors (positions 1/16, 3/16, ..., 15/16). When user_slot_filled[k]
      * is non-zero, the morph engine treats position (2k+1)/16 as a real

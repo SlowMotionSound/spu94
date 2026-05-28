@@ -131,11 +131,10 @@ static void test_load_roundtrip_identical()
     const float inGain  = 2.0f;
     const float inMorph = 0.3f;
     const float inSpd   = 0.7f;
-    const float inGrit  = 1.0f;
 
     juce::MemoryBlock block;
     bool ok = StateSerializer::save(
-        f.engine, inGain, inMorph, inSpd, inGrit, 0.0f, 0.0f, block);
+        f.engine, inGain, inMorph, inSpd, 0.0f, 0.0f, 0.0f, block);
     CHECK(ok, "save ok");
 
     auto result = StateSerializer::load(
@@ -146,7 +145,6 @@ static void test_load_roundtrip_identical()
     CHECK_EQ_FLOAT(result.inputGain, inGain, "inputGain round-trip");
     CHECK_EQ_FLOAT(result.morphPosition, inMorph, "morphPosition round-trip");
     CHECK_EQ_FLOAT(result.morphSpeed, inSpd, "morphSpeed round-trip");
-    CHECK_EQ_FLOAT(result.morphGrit, inGrit, "morphGrit round-trip");
 }
 
 /* -----------------------------------------------------------------------

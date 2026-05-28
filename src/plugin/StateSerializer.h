@@ -4,8 +4,8 @@
  *
  * Phase 24 Plan 01 (PLUG-22..27): wraps the existing .spu94 text body
  * from spu94_preset_save in a binary envelope with a 6-float appendix
- * for wrapper-side atomics (inputGain, morphPosition, morphSpeed,
- * morphGrit) that the .spu94 text format does not carry.
+ * for wrapper-side atomics (inputGain, morphPosition, morphSpeed)
+ * that the .spu94 text format does not carry.
  *
  * Container layout (all integers little-endian):
  *   Offset  Size  Field
@@ -15,7 +15,7 @@
  *   9       N     .spu94 text body (from spu94_preset_save)
  *   9+N     24    Float appendix: 6 x float32 LE (IEEE 754)
  *                 [inputGain, morphPosition, morphSpeed,
- *                  morphGrit_as_float, reserved0, reserved1]
+ *                  reserved0, reserved1, reserved2]
  *   Total: 9 + N + 24 bytes
  *
  * Locale safety (PLUG-25): the .spu94 text format uses snprintf %04X
@@ -44,19 +44,18 @@ static constexpr size_t  kFloatAppendixSize  = kFloatAppendixCount * sizeof(floa
 
 /* Save engine + wrapper state into a binary container.
  *
- * engine:      the spu94_state to serialize (35 regs + mixer + DAC + morph grit + user slots)
+ * engine:      the spu94_state to serialize (35 regs + mixer + DAC + user slots)
  * inputGain:   wrapper-side atomic (not in .spu94 text)
  * morphPos:    wrapper-side atomic (not in .spu94 text)
  * morphSpd:    wrapper-side atomic (not in .spu94 text)
- * morphGritF:  wrapper-side atomic cast to float (not in .spu94 text)
- * pad0, pad1:  reserved (written as 0.0f)
+ * pad0..pad2:  reserved (written as 0.0f)
  * dest:        output MemoryBlock (reset + filled)
  *
  * Returns true on success, false if spu94_preset_save fails.
  */
 inline bool save(const spu94_state* engine,
                  float inputGain, float morphPos, float morphSpd,
-                 float morphGritF, float pad0, float pad1,
+                 float pad0, float pad1, float pad2,
                  juce::MemoryBlock& dest)
 {
     char textBuf[SPU94_PRESET_BUF_SIZE];
@@ -80,7 +79,7 @@ inline bool save(const spu94_state* engine,
 
     // Float appendix (IEEE 754 binary -- locale-proof by construction)
     float appendix[kFloatAppendixCount] = {
-        inputGain, morphPos, morphSpd, morphGritF, pad0, pad1
+        inputGain, morphPos, morphSpd, pad0, pad1, pad2
     };
     dest.append(appendix, kFloatAppendixSize);
 
@@ -95,7 +94,6 @@ struct LoadResult {
     float       inputGain     = 0.5f;
     float       morphPosition = 0.625f;
     float       morphSpeed    = 0.5f;
-    float       morphGrit     = 0.0f;
 };
 
 /* Parse a binary state container and extract the .spu94 text body +
@@ -162,8 +160,7 @@ inline LoadResult load(const void* data, int sizeInBytes)
     r.inputGain     = sanitize(appendix[0], 0.0f, 16.0f,  0.5f);
     r.morphPosition = sanitize(appendix[1], 0.0f, 1.0f,   0.625f);
     r.morphSpeed    = sanitize(appendix[2], 0.0f, 1.0f,   0.5f);
-    r.morphGrit     = sanitize(appendix[3], 0.0f, 1.0f,   0.0f);
-    // appendix[4], appendix[5] are reserved padding (ignored on load)
+    // appendix[3..5] are reserved padding (ignored on load)
 
     r.ok = true;
     return r;

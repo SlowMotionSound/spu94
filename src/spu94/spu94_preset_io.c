@@ -104,12 +104,6 @@ int spu94_preset_save(const spu94_state *state,
     EMIT("dac_noise_enabled=%d\n",    spu94_get_dac_noise_enabled(state));
     EMIT("dac_true_oversample=%d\n",  spu94_get_dac_true_oversample(state));
 
-    /* ---- [morph] section ---- */
-    EMIT("\n[morph]\n");
-    EMIT("# Morph Grit: int (default, hardware-faithful) or fract (smoothed)\n");
-    EMIT("grit=%s\n",
-         spu94_get_morph_grit(state) == SPU94_GRIT_FRACT ? "fract" : "int");
-
     /* ---- [user_slot N] sections (one per filled slot) ----
      * Empty slots are omitted entirely so existing presets without user
      * customization stay byte-identical to their pre-feature serializations
@@ -333,14 +327,6 @@ if (strcmp(key, "dac_enabled") == 0) {
             break;
 
         case SECTION_MORPH:
-if (strcmp(key, "grit") == 0) {
-                /* "int" or "fract" (case-sensitive); anything else
-                 * silently falls back to INT via spu94_set_morph_grit. */
-                spu94_set_morph_grit(state,
-                    strcmp(value, "fract") == 0
-                        ? SPU94_GRIT_FRACT : SPU94_GRIT_INT);
-            }
-            /* else: unknown key, silently ignored (D-09) */
             break;
 
         case SECTION_USER_SLOT:
