@@ -52,35 +52,9 @@ None.
 
 None.
 
-## Deferred Items
+## Deferred Items & Ideas
 
-| Category | Item | Status | Deferred At |
-|----------|------|--------|-------------|
-| Cleanup | REVIEW-cli-python.md M/L/N findings | Carried from v1.0 | 2026-04-26 |
-| Paperwork | Phase 6/7 Nyquist validation | Carried from v1.0 | 2026-04-26 |
-| License | MIT vs Apache-2.0 pick | Carried from M1 | 2026-04-25 |
-| Archive cleanup | v1.6 phase file organization | Flagged | 2026-05-10 |
-| UI gate | Hide preset Save/Load in plugin formats | Flagged | 2026-05-11 |
-| UX | One-shot trigger (click to play full ADSR) | From v1.10.0 | 2026-05-28 |
-| GUI | Organize Noise section in sampler panel | From v1.10.0 | 2026-05-28 |
-| GUI | Musical divisions for Speed encoder | From v1.10.0 | 2026-05-28 |
-| UAT | Sidechain Duck UAT (needs MIDI) | From v1.10.0 | 2026-05-28 |
-| UAT | Preset extension save/load round-trip | From v1.10.0 | 2026-05-28 |
-
-## Deferred Ideas
-
-| Category | Item | Deferred At |
-|----------|------|-------------|
-| UI Enhancement | ADPCM filter pair LED indicators | 2026-04-29 |
-| Performance | Memory Flush button -- instant spu94_reset | 2026-04-29 |
-| Creative | Codec re-sync effect | 2026-05-01 |
-| Visualization | Real-time room geometry visualizer | 2026-05-03 |
-| Idea | Unified Morph Control | 2026-05-10 |
-| Creative effect | "Bit Corrupt" mode | 2026-05-11 |
-| Creative extension | Pitch quantizer on mod bus | 2026-05-25 |
-| Eurorack | Raw LFSR CV output | 2026-05-25 |
-| UI | Musical divisions for effects Speed encoder | 2026-05-25 |
-| Bug | Pan inaccessible during effects — fixed in v1.10.0 | 2026-05-25 |
+See `.planning/POOL.md` — living pool of outstanding items and ideas. Not carried in STATE.md.
 
 ## Session Continuity
 
