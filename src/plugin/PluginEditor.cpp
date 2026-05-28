@@ -669,7 +669,7 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         updateEffectControlVisibility();
 
         // Internal Mod Bus section (Phase 50: noise-to-pitch/vol/pan per voice)
-        modBusSectionLabel.setText("Mod Bus", juce::dontSendNotification);
+        modBusSectionLabel.setText("Noise Mod", juce::dontSendNotification);
         modBusSectionLabel.setJustificationType(juce::Justification::centredLeft);
         modBusSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD0D0D0));
         modBusSectionLabel.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
