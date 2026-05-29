@@ -563,6 +563,7 @@ private:
     // Waveform display data (stashed on sample load for GUI thumbnail)
     std::vector<int16_t> waveformData;
     uint64_t waveformFrames = 0;
+    int waveformSampleRate = 44100;
 
     // Voice engine helpers (Phase 31)
     static uint16_t midiNoteToPitch(int note, int baseNote = 60);

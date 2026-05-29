@@ -2204,6 +2204,7 @@ void SPU94AudioProcessor::encodeRecordedSample()
                 waveformData.data() + b * SPU94_ADPCM_BLOCK_SAMPLES);
         }
         waveformFrames = waveformData.size();
+        waveformSampleRate = encodeRate.load(std::memory_order_relaxed);
 
         pendingMixerEnable.store(true, std::memory_order_release);
         voiceSampleName = "Recording";
@@ -2292,6 +2293,7 @@ void SPU94AudioProcessor::loadVoiceSample(const juce::File& file)
 
         waveformData = result->L;
         waveformFrames = result->numFrames;
+        waveformSampleRate = 44100;
 
         voiceSampleLoaded.store(true, std::memory_order_release);
     }
@@ -2303,21 +2305,24 @@ bool SPU94AudioProcessor::exportSampleToWav(const juce::File& destFile)
     if (!voiceSampleLoaded.load(std::memory_order_acquire) || waveformFrames == 0)
         return false;
 
+    const uint64_t safeFrames = std::min(waveformFrames,
+                                         static_cast<uint64_t>(waveformData.size()));
+
     // Read trim region (normalized 0.0-1.0)
     double startPos = sampleStartPos.load(std::memory_order_relaxed);
     double endPos   = sampleEndPos.load(std::memory_order_relaxed);
 
-    auto startFrame = static_cast<uint64_t>(std::floor(startPos * waveformFrames));
-    auto endFrame   = static_cast<uint64_t>(std::ceil(endPos * waveformFrames));
+    auto startFrame = static_cast<uint64_t>(std::floor(startPos * safeFrames));
+    auto endFrame   = static_cast<uint64_t>(std::ceil(endPos * safeFrames));
 
     // Clamp
-    if (startFrame > waveformFrames) startFrame = waveformFrames;
-    if (endFrame > waveformFrames)   endFrame = waveformFrames;
+    if (startFrame > safeFrames) startFrame = safeFrames;
+    if (endFrame > safeFrames)   endFrame = safeFrames;
     if (endFrame <= startFrame)
         return false;
 
     uint64_t numFrames = endFrame - startFrame;
-    uint32_t sr = static_cast<uint32_t>(encodeRate.load(std::memory_order_relaxed));
+    uint32_t sr = static_cast<uint32_t>(waveformSampleRate);
 
     // Build WAV file via raw binary I/O
     destFile.deleteFile();
