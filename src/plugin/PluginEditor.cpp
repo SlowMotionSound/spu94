@@ -1564,7 +1564,7 @@ void SPU94AudioProcessorEditor::resized()
             voiceEnginePitchKnob.setBounds(10, 62, 100, 80);
             samplerDriveLabel.setBounds(115, 48, 100, 16);
             samplerDriveKnob.setBounds(115, 62, 100, 80);
-            voiceSampleLabel.setBounds(220, 48, 110, 30);
+            voiceSampleLabel.setBounds(10, 142, 200, 14);
             // Toggles
             loopToggle.setBounds(335, 48, 85, 26);
             latchToggle.setBounds(335, 74, 65, 26);
@@ -1576,19 +1576,19 @@ void SPU94AudioProcessorEditor::resized()
             encodeRateLabel.setBounds(430, 10, 100, 14);
             encodeRateKnob.setBounds(430, 24, 100, 80);
             encodeRateBox.setBounds(430, 106, 100, 22);
-            inputPeakMeterLabel.setBounds(10, 148, 200, 14);
-            recordStatsLabel.setBounds(220, 148, 310, 14);
-            ramMeterLabel.setBounds(10, 164, 520, 12);
-            samplerWindow->getWaveformDisplay().setBounds(10, 180, 520, 110);
-            startPosLabel.setBounds(15, 294, 80, 14);
-            startPosKnob.setBounds(15, 308, 80, 54);
-            loopPosLabel.setBounds(180, 294, 80, 14);
-            loopPosKnob.setBounds(180, 308, 80, 54);
-            endPosLabel.setBounds(380, 294, 80, 14);
-            endPosKnob.setBounds(380, 308, 80, 54);
+            inputPeakMeterLabel.setBounds(10, 156, 200, 14);
+            recordStatsLabel.setBounds(220, 156, 310, 14);
+            ramMeterLabel.setBounds(10, 170, 520, 12);
+            samplerWindow->getWaveformDisplay().setBounds(10, 186, 520, 110);
+            startPosLabel.setBounds(15, 300, 80, 14);
+            startPosKnob.setBounds(15, 314, 80, 54);
+            loopPosLabel.setBounds(180, 300, 80, 14);
+            loopPosKnob.setBounds(180, 314, 80, 54);
+            endPosLabel.setBounds(380, 300, 80, 14);
+            endPosKnob.setBounds(380, 314, 80, 54);
 
             // ADSR section — directly below marker knobs
-            constexpr int aky = 368, akw = 65, akh = 110;
+            constexpr int aky = 374, akw = 65, akh = 110;
             adsrAttackLabel.setBounds(15, aky, akw, 12);
             adsrAttackKnob.setBounds(15, aky + 12, akw, akh);
             adsrDecayLabel.setBounds(91, aky, akw, 12);
