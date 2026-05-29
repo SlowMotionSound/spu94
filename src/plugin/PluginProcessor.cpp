@@ -2060,22 +2060,19 @@ void SPU94AudioProcessor::stopRecording()
 
     if (state == REC_ARMED)
     {
-        // Disarm without recording — nothing to encode.
-        // Free staging buffer since nothing was captured.
-        recordStagingBuffer.clear();
-        recordStagingBuffer.shrink_to_fit();
-        recordStagingCount = 0;
-        recordStagingCapacity = 0;
+        // Disarm: store IDLE first so the audio thread won't enter the
+        // ARMED capture branch on the next processBlock.  Don't touch
+        // the staging buffer — the audio thread may still be mid-block
+        // with a cached REC_ARMED.  The buffer is reused/reset by the
+        // next armRecording() or startRecording() call.
+        recordingState.store(REC_IDLE, std::memory_order_release);
         recordBytesUsed.store(0, std::memory_order_relaxed);
 
-        // Re-mute standalone input
         if (wrapperType == wrapperType_Standalone)
         {
             if (auto* holder = juce::StandalonePluginHolder::getInstance())
                 holder->getMuteInputValue().setValue(true);
         }
-
-        recordingState.store(REC_IDLE, std::memory_order_release);
         return;
     }
 
