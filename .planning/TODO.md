@@ -6,7 +6,6 @@ Items that need to get done at some point. They live here instead of cluttering 
 
 | Item | Origin | Added |
 |------|--------|-------|
-| One-shot trigger — click plays full ADSR without holding | v1.10.0 UAT | 2026-05-28 |
 | Organize Noise section in sampler panel | v1.10.0 UAT | 2026-05-28 |
 | Musical divisions for Speed encoder (note values, BPM sync) | v1.10.0 UAT | 2026-05-28 |
 | Sidechain Duck UAT (needs MIDI controller) | v1.10.0 UAT | 2026-05-28 |
