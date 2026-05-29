@@ -33,11 +33,11 @@
 
 ## Tier 1 — Dead weight to delete (whole files / orphans)
 
-- [ ] 1. Delete `tests/golden_v1.2/` — 110 orphaned files (~19 MB), referenced by no test [Both ✓]
+- [x] 1. Delete `tests/golden_v1.2/` — 110 orphaned files (~19 MB), referenced by no test [Both ✓]
 - [ ] 2. Delete `src/plugin/AdsrDisplay.h` — 154-line component, never included/instantiated [Both ✓]
-- [ ] 3. Delete `main.sh` — 71-byte scaffold stub from project init [4.6 ✓]
-- [ ] 4. Delete `tests/.gitkeep` — vestigial; dir has 100+ tracked files [4.6 ✓]
-- [ ] 5. Delete orphan `tests/cli/__pycache__/*.pyc` (incl. `test_cli_tempo`, source only on archived branch) [4.6 ✓]
+- [x] 3. Delete `main.sh` — 71-byte scaffold stub from project init [4.6 ✓]
+- [x] 4. Delete `tests/.gitkeep` — vestigial; dir has 100+ tracked files [4.6 ✓]
+- [x] 5. Delete orphan `tests/cli/__pycache__/*.pyc` (incl. `test_cli_tempo`, source only on archived branch) [4.6 ✓]
 
 ## Tier 2 — Dead code compiled into binaries
 
