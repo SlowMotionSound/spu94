@@ -110,7 +110,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 59-01-PLAN.md — WAV export method + Export button with FileChooser
+- [x] 59-01-PLAN.md — WAV export method + Export button with FileChooser
 
 **UI hint**: yes
 
@@ -124,7 +124,7 @@ Phases execute in numeric order: 56 -> 57 -> 58 -> 59
 | 56. Core Recording Pipeline | v1.11.0 | 2/2 | Complete | 2026-05-28 |
 | 57. Sample Rate Selection | v1.11.0 | 1/1 | Complete | 2026-05-29 |
 | 58. Threshold Trigger | v1.11.0 | 1/1 | Complete    | 2026-05-29 |
-| 59. Sample Export | v1.11.0 | 0/1 | Not started | - |
+| 59. Sample Export | v1.11.0 | 1/1 | Complete   | 2026-05-29 |
 
 ## Previous Milestone Archives
 
