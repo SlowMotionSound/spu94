@@ -71,7 +71,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 57-01-PLAN.md — Continuous rate knob with bidirectional dropdown sync and rate-aware time display
+- [x] 57-01-PLAN.md — Continuous rate knob with bidirectional dropdown sync and rate-aware time display
 
 **UI hint**: yes
 
@@ -122,7 +122,7 @@ Phases execute in numeric order: 56 -> 57 -> 58 -> 59
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 56. Core Recording Pipeline | v1.11.0 | 2/2 | Complete | 2026-05-28 |
-| 57. Sample Rate Selection | v1.11.0 | 0/1 | Not started | - |
+| 57. Sample Rate Selection | v1.11.0 | 1/1 | Complete | 2026-05-29 |
 | 58. Threshold Trigger | v1.11.0 | 0/? | Not started | - |
 | 59. Sample Export | v1.11.0 | 0/? | Not started | - |
 
@@ -286,4 +286,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-28 -- Phase 57 planned (1 plan)*
+*Last updated: 2026-05-29 -- Phase 57 complete (1/1 plans)*

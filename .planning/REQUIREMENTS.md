@@ -16,10 +16,10 @@
 
 ### Sample Rate
 
-- [ ] **RATE-01**: User can select from four PS1 preset sample rates (44.1 / 22.05 / 11.025 / 5.5125 kHz)
-- [ ] **RATE-02**: User can dial a variable sample rate across the full pitch register range
-- [ ] **RATE-03**: Input audio is sample-rate-converted to the selected target rate before staging
-- [ ] **RATE-04**: Recording time display updates based on the selected sample rate
+- [x] **RATE-01**: User can select from four PS1 preset sample rates (44.1 / 22.05 / 11.025 / 5.5125 kHz)
+- [x] **RATE-02**: User can dial a variable sample rate across the full pitch register range
+- [x] **RATE-03**: Input audio is sample-rate-converted to the selected target rate before staging
+- [x] **RATE-04**: Recording time display updates based on the selected sample rate
 
 ### Triggering
 
@@ -66,10 +66,10 @@
 | REC-04 | Phase 56 | Complete |
 | REC-05 | Phase 56 | Complete |
 | REC-06 | Phase 56 | Complete |
-| RATE-01 | Phase 57 | Pending |
-| RATE-02 | Phase 57 | Pending |
-| RATE-03 | Phase 57 | Pending |
-| RATE-04 | Phase 57 | Pending |
+| RATE-01 | Phase 57 | Complete |
+| RATE-02 | Phase 57 | Complete |
+| RATE-03 | Phase 57 | Complete |
+| RATE-04 | Phase 57 | Complete |
 | TRIG-01 | Phase 58 | Pending |
 | TRIG-02 | Phase 58 | Pending |
 | TRIG-03 | Phase 58 | Pending |
@@ -85,4 +85,4 @@
 
 ---
 *Requirements defined: 2026-05-28*
-*Last updated: 2026-05-28 after roadmap creation*
+*Last updated: 2026-05-29 after Phase 57 execution*
