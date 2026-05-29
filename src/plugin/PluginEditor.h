@@ -96,6 +96,7 @@ private:
     juce::TextButton loadSampleButton{"Load Sample"};
     juce::TextButton triggerVoiceButton{"Trigger"};
     juce::TextButton stopVoiceButton{"Stop Voice"};
+    juce::TextButton exportSampleButton{"Export"};
     juce::Label voiceSampleLabel;
     juce::ComboBox encodeRateBox;
     juce::Label encodeRateLabel;

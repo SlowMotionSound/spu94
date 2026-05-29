@@ -134,6 +134,46 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             processorRef.stopVoice();
         };
 
+        // Export button -- saves trimmed sample as 16-bit mono WAV (Phase 59).
+        panel.addAndMakeVisible(exportSampleButton);
+        exportSampleButton.setEnabled(false);  // disabled until sample loaded
+        exportSampleButton.onClick = [this]()
+        {
+            juce::String baseName = processorRef.getVoiceSampleName();
+            if (baseName.isEmpty()) baseName = "sample";
+            // Strip existing extension, add .wav
+            if (baseName.contains("."))
+                baseName = baseName.upToLastOccurrenceOf(".", false, false);
+            baseName += ".wav";
+
+            auto suggestedFile = juce::File::getSpecialLocation(
+                juce::File::userMusicDirectory).getChildFile(baseName);
+            if (!suggestedFile.exists())
+                suggestedFile.create();
+
+            fileChooser = std::make_unique<juce::FileChooser>(
+                "Export Sample as WAV",
+                suggestedFile,
+                "*.wav");
+
+            fileChooser->launchAsync(
+                juce::FileBrowserComponent::saveMode |
+                juce::FileBrowserComponent::canSelectFiles |
+                juce::FileBrowserComponent::warnAboutOverwriting,
+                [this, suggestedFile](const juce::FileChooser& fc)
+                {
+                    auto chosen = fc.getResult();
+                    // Clean up touch-created file if user picked a different path or cancelled
+                    if (suggestedFile.getSize() == 0 && suggestedFile != chosen)
+                        suggestedFile.deleteFile();
+                    if (chosen == juce::File()) return;
+                    // Ensure .wav extension
+                    if (chosen.getFileExtension().isEmpty())
+                        chosen = chosen.withFileExtension("wav");
+                    processorRef.exportSampleToWav(chosen);
+                });
+        };
+
         voiceEnginePitchKnob.setSliderStyle(juce::Slider::Rotary);
         voiceEnginePitchKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 80, 18);
         voiceEnginePitchKnob.setRange(-4800.0, 4800.0, 1.0);
@@ -1421,6 +1461,10 @@ void SPU94AudioProcessorEditor::timerCallback()
         }
     }
 
+    // Phase 59: Export button tracks sample-loaded state.
+    exportSampleButton.setEnabled(
+        processorRef.getVoiceSampleLoaded().load(std::memory_order_relaxed));
+
     // Phase 31: Update voice sample status label + waveform (standalone only).
     if (processorRef.getVoiceSampleLoaded().load(std::memory_order_acquire))
     {
@@ -1626,6 +1670,7 @@ void SPU94AudioProcessorEditor::resized()
             loadSampleButton.setBounds(95, 10, 100, 30);
             triggerVoiceButton.setBounds(200, 10, 55, 30);
             stopVoiceButton.setBounds(258, 10, 60, 30);
+            exportSampleButton.setBounds(325, 10, 70, 30);
             // Pitch and Drive — larger knobs
             voiceEnginePitchLabel.setBounds(10, 48, 100, 16);
             voiceEnginePitchKnob.setBounds(10, 62, 100, 80);
