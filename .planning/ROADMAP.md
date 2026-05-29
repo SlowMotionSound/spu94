@@ -106,11 +106,11 @@ Plans:
   2. The exported WAV respects the current start/end marker positions, exporting only the trimmed region
   3. The WAV file is written at the sample rate the recording was made at (not resampled to 44.1 kHz)
 
-**Plans**: 2 plans
+**Plans**: 1 plan
 Plans:
+**Wave 1**
 
-- [ ] 56-01-PLAN.md — Recording engine backend (state machine, staging buffer, encode-on-stop)
-- [ ] 56-02-PLAN.md — GUI integration (record button, input meter, RAM display, waveform wiring)
+- [ ] 59-01-PLAN.md — WAV export method + Export button with FileChooser
 
 **UI hint**: yes
 
@@ -124,7 +124,7 @@ Phases execute in numeric order: 56 -> 57 -> 58 -> 59
 | 56. Core Recording Pipeline | v1.11.0 | 2/2 | Complete | 2026-05-28 |
 | 57. Sample Rate Selection | v1.11.0 | 1/1 | Complete | 2026-05-29 |
 | 58. Threshold Trigger | v1.11.0 | 1/1 | Complete    | 2026-05-29 |
-| 59. Sample Export | v1.11.0 | 0/? | Not started | - |
+| 59. Sample Export | v1.11.0 | 0/1 | Not started | - |
 
 ## Previous Milestone Archives
 
