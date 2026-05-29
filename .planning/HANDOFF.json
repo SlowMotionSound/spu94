@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-29T19:07:36.377Z",
+  "phase": null,
+  "phase_name": null,
+  "phase_dir": null,
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
+  "status": "paused",
+  "completed_tasks": [],
+  "remaining_tasks": [],
+  "blockers": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {"decision": "v1.11.0 shipped and tagged", "rationale": "All 4 phases (56-59) complete, 17/17 requirements satisfied", "phase": "milestone"},
+    {"decision": "SPU-94XA brief written", "rationale": "Captures input module / codec effects vision for future milestone scoping", "phase": "future"},
+    {"decision": "1-Shot trigger implemented", "rationale": "ADSR skips sustain in one-shot mode, goes straight to release after decay", "phase": "post-milestone"},
+    {"decision": "Sustain level default fixed (1.0→15.0)", "rationale": "Processor default didn't match knob default — pre-existing bug found via one-shot diagnostics", "phase": "post-milestone"},
+    {"decision": "TODO pruned — 9 items removed", "rationale": "Removed completed, irrelevant, and no-longer-applicable items", "phase": "housekeeping"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Decide next milestone — SPU-94XA (codec input module), or tackle remaining TODO items (noise section, speed divisions, sidechain duck UAT, preset UAT, hide preset in plugins)",
+  "context_notes": "v1.11.0 Live Input Sampling shipped and tagged. Post-milestone: 1-Shot trigger added, TODO list pruned, SPU-94XA product brief written. No active milestone — between milestones."
+}
