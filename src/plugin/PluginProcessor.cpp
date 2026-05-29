@@ -2,6 +2,7 @@
 #include "BoundaryConverter.h"
 #include "PluginEditor.h"
 #include "WavLoader.h"
+#include <juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h>
 #include <samplerate.h>
 #include <algorithm>
 #include <cmath>
@@ -724,6 +725,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             float peak = 0.0f;
             if (recState == REC_RECORDING)
             {
+
+
                 for (int i = 0; i < n; ++i)
                 {
                     // Mono-sum input channels
@@ -1978,6 +1981,13 @@ void SPU94AudioProcessor::startRecording()
     // Only start from IDLE state
     if (recordingState.load(std::memory_order_acquire) != REC_IDLE) return;
 
+    // Unmute standalone audio input (JUCE mutes by default to prevent feedback)
+    if (wrapperType == wrapperType_Standalone)
+    {
+        if (auto* holder = juce::StandalonePluginHolder::getInstance())
+            holder->getMuteInputValue().setValue(false);
+    }
+
     // Max ADPCM blocks that fit in 512KB voice RAM
     // 32768 blocks * 28 samples/block = 917504 PCM samples
     constexpr uint64_t maxPcmSamples =
@@ -2028,15 +2038,47 @@ void SPU94AudioProcessor::encodeRecordedSample()
     const uint64_t safeSamples = (count < recordStagingCapacity)
                                 ? count : recordStagingCapacity;
 
+    const int16_t* pcmData = recordStagingBuffer.data();
+    uint64_t pcmFrames = safeSamples;
+    std::vector<int16_t> resampled;
+
+    const int targetRate = encodeRate.load(std::memory_order_relaxed);
+    if (targetRate < 44100)
+    {
+        double ratio = static_cast<double>(targetRate) / 44100.0;
+        auto outFrames = static_cast<uint64_t>(std::ceil(pcmFrames * ratio));
+        resampled.resize(outFrames);
+        SRC_DATA src{};
+        std::vector<float> fIn(pcmFrames), fOut(outFrames);
+        for (uint64_t i = 0; i < pcmFrames; i++)
+            fIn[i] = recordStagingBuffer[i] / 32768.0f;
+        src.data_in = fIn.data();
+        src.input_frames = static_cast<long>(pcmFrames);
+        src.data_out = fOut.data();
+        src.output_frames = static_cast<long>(outFrames);
+        src.src_ratio = ratio;
+        src_simple(&src, SRC_SINC_BEST_QUALITY, 1);
+        outFrames = static_cast<uint64_t>(src.output_frames_gen);
+        resampled.resize(outFrames);
+        for (uint64_t i = 0; i < outFrames; i++) {
+            float s = fOut[i] * 32768.0f;
+            if (s > 32767.0f) s = 32767.0f;
+            if (s < -32768.0f) s = -32768.0f;
+            resampled[i] = static_cast<int16_t>(s);
+        }
+        pcmData = resampled.data();
+        pcmFrames = outFrames;
+    }
+
     auto* mixer = spu94_get_voice_mixer();
 
     int32_t bytes = spu94_sample_encode_to_ram(
-        recordStagingBuffer.data(),
-        static_cast<uint32_t>(safeSamples),
+        pcmData,
+        static_cast<uint32_t>(pcmFrames),
         mixer->voice_ram,
         0,                        // ram_offset
         SPU94_SPU_RAM_BYTES,      // ram_size
-        loopModeEnabled.load(std::memory_order_relaxed) ? 1 : 0
+        1                         // loop_enable — always set the flag; GUI toggle controls actual looping
     );
 
     if (bytes > 0)

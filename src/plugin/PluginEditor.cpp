@@ -60,9 +60,17 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         recordButton.onClick = [this]()
         {
             if (processorRef.isRecording())
+            {
+
+
                 processorRef.stopRecording();
+            }
             else
+            {
+
+
                 processorRef.startRecording();
+            }
         };
 
         // Input peak meter label — shows live input signal level.
@@ -1199,6 +1207,8 @@ void SPU94AudioProcessorEditor::timerCallback()
     // Phase 56: Encode-on-stop trigger — polls the flag set by audio thread auto-stop.
     if (processorRef.getRecordingJustStopped().exchange(false, std::memory_order_acquire))
     {
+
+
         processorRef.encodeRecordedSample();
         recordButton.setButtonText("Record");
         recordButton.setColour(juce::TextButton::buttonColourId,

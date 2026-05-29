@@ -83,8 +83,13 @@ public:
             double drawStart = viewStart * totalLen;
             double drawEnd   = viewEnd   * totalLen;
 
+            // Inset the waveform vertically so full-scale peaks are visible
+            // within the display. Clipping shows as flat tops, not edge runoff.
+            int margin = juce::jmax(4, area.getHeight() / 10);
+            auto waveArea = area.reduced(0, margin);
+
             g.setColour(juce::Colour(0xFF5B9279));
-            thumbnail.drawChannel(g, area, drawStart, drawEnd, 0, 1.0f);
+            thumbnail.drawChannel(g, waveArea, drawStart, drawEnd, 0, 1.0f);
 
             drawMarker(g, area, startPos, juce::Colour(0xFFE06060), "S");
             drawMarker(g, area, endPos, juce::Colour(0xFFE06060), "E");
