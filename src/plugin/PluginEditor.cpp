@@ -55,8 +55,18 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         samplerWindow = std::make_unique<SamplerWindow>();
         auto& panel = samplerWindow->getPanel();
 
-        // Record button — tri-state cycle: IDLE -> ARMED -> (auto or manual) RECORDING -> STOP.
-        // Phase 58: IDLE arms threshold trigger; ARMED disarms; RECORDING stops capture.
+        // Record mode selector — Manual (direct record) vs Threshold (arm-then-trigger)
+        panel.addAndMakeVisible(recordModeBox);
+        recordModeBox.addItem("Manual", 1);
+        recordModeBox.addItem("Threshold", 2);
+        recordModeBox.setSelectedId(1, juce::dontSendNotification);
+        recordModeBox.setTooltip("Manual: record immediately on press\nThreshold: arm and wait for signal");
+        panel.addAndMakeVisible(recordModeLabel);
+        recordModeLabel.setText("Rec Mode", juce::dontSendNotification);
+        recordModeLabel.setJustificationType(juce::Justification::centred);
+        recordModeLabel.setFont(juce::Font(10.0f));
+
+        // Record button — behavior depends on record mode selection
         panel.addAndMakeVisible(recordButton);
         recordButton.onClick = [this]()
         {
@@ -71,8 +81,11 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             }
             else
             {
-                // IDLE -> arm threshold trigger
-                processorRef.armRecording();
+                // IDLE: Manual starts immediately, Threshold arms
+                if (recordModeBox.getSelectedId() == 2)
+                    processorRef.armRecording();
+                else
+                    processorRef.startRecording();
             }
         };
 
@@ -216,8 +229,8 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         panel.addAndMakeVisible(encodeRateLabel);
 
         // Phase 58: Threshold knob — sets the input level that triggers auto-recording.
-        thresholdKnob.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-        thresholdKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
+        thresholdKnob.setSliderStyle(juce::Slider::Rotary);
+        thresholdKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 18);
         thresholdKnob.setRange(-60.0, 0.0, 1.0);
         thresholdKnob.setValue(-40.0, juce::dontSendNotification);
         thresholdKnob.textFromValueFunction = [](double val) {
@@ -236,6 +249,16 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         thresholdLabel.setJustificationType(juce::Justification::centred);
         thresholdLabel.setFont(juce::Font(10.0f));
         panel.addAndMakeVisible(thresholdLabel);
+
+        // Hide threshold controls when in Manual mode (default)
+        thresholdKnob.setVisible(false);
+        thresholdLabel.setVisible(false);
+        recordModeBox.onChange = [this]()
+        {
+            bool isThreshold = (recordModeBox.getSelectedId() == 2);
+            thresholdKnob.setVisible(isThreshold);
+            thresholdLabel.setVisible(isThreshold);
+        };
 
         // RAM usage meter label — updated in timerCallback.
         ramMeterLabel.setText("RAM: 0 / 512 KB", juce::dontSendNotification);
@@ -1295,7 +1318,7 @@ void SPU94AudioProcessorEditor::timerCallback()
         processorRef.setGuiVoicePitch(computePitchFromCents());
     }
 
-    // Phase 58: Record button tri-state visual — IDLE/ARMED/RECORDING with distinct colors.
+    // Record button tri-state visual — IDLE/ARMED/RECORDING with distinct colors.
     {
         int recState = processorRef.getRecordingState().load(std::memory_order_relaxed);
         if (recState == 1) // REC_RECORDING
@@ -1307,6 +1330,7 @@ void SPU94AudioProcessorEditor::timerCallback()
             encodeRateKnob.setEnabled(false);
             encodeRateBox.setEnabled(false);
             thresholdKnob.setEnabled(false);
+            recordModeBox.setEnabled(false);
         }
         else if (recState == 3) // REC_ARMED
         {
@@ -1317,6 +1341,7 @@ void SPU94AudioProcessorEditor::timerCallback()
             encodeRateKnob.setEnabled(false);
             encodeRateBox.setEnabled(false);
             thresholdKnob.setEnabled(false);
+            recordModeBox.setEnabled(false);
         }
         else
         {
@@ -1327,6 +1352,7 @@ void SPU94AudioProcessorEditor::timerCallback()
             encodeRateKnob.setEnabled(true);
             encodeRateBox.setEnabled(true);
             thresholdKnob.setEnabled(true);
+            recordModeBox.setEnabled(true);
         }
     }
 
@@ -1613,17 +1639,19 @@ void SPU94AudioProcessorEditor::resized()
             samplerAAToggle.setBounds(265, 48, 63, 26);
             voiceNonToggle.setBounds(265, 74, 55, 26);
             voicePmonToggle.setBounds(265, 100, 63, 26);
-            // Threshold knob — between transport buttons and encode rate knob
-            thresholdLabel.setBounds(330, 10, 90, 14);
-            thresholdKnob.setBounds(330, 24, 90, 80);
-            // Encode rate section — right column, larger knob
-            encodeRateLabel.setBounds(430, 10, 100, 14);
-            encodeRateKnob.setBounds(430, 24, 100, 80);
-            encodeRateBox.setBounds(430, 106, 100, 22);
+            // Record mode + Encode rate — right column
+            recordModeLabel.setBounds(430, 10, 80, 14);
+            recordModeBox.setBounds(430, 26, 80, 22);
+            encodeRateLabel.setBounds(430, 56, 100, 14);
+            encodeRateKnob.setBounds(430, 68, 100, 80);
+            encodeRateBox.setBounds(430, 150, 100, 22);
+            // Threshold knob — far right, only visible in Threshold mode
+            thresholdLabel.setBounds(540, 10, 90, 14);
+            thresholdKnob.setBounds(540, 24, 90, 80);
             inputPeakMeterLabel.setBounds(10, 156, 200, 14);
             recordStatsLabel.setBounds(220, 156, 310, 14);
-            ramMeterLabel.setBounds(10, 170, 520, 12);
-            samplerWindow->getWaveformDisplay().setBounds(10, 186, 520, 110);
+            ramMeterLabel.setBounds(10, 170, 620, 12);
+            samplerWindow->getWaveformDisplay().setBounds(10, 186, 620, 110);
             startPosLabel.setBounds(15, 300, 80, 14);
             startPosKnob.setBounds(15, 314, 80, 54);
             loopPosLabel.setBounds(180, 300, 80, 14);
