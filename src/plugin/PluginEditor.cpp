@@ -126,6 +126,11 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         triggerVoiceButton.addMouseListener(this, false);
         panel.addAndMakeVisible(latchToggle);
         latchToggle.setToggleState(false, juce::dontSendNotification);
+        panel.addAndMakeVisible(oneShotToggle);
+        oneShotToggle.setToggleState(false, juce::dontSendNotification);
+        oneShotToggle.onClick = [this]() {
+            processorRef.setOneShotMode(oneShotToggle.getToggleState());
+        };
 
         // Stop Voice button -- keys off voice 0.
         panel.addAndMakeVisible(stopVoiceButton);
@@ -1634,7 +1639,9 @@ void SPU94AudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
 
 void SPU94AudioProcessorEditor::mouseUp(const juce::MouseEvent& e)
 {
-    if (e.eventComponent == &triggerVoiceButton && !latchToggle.getToggleState())
+    if (e.eventComponent == &triggerVoiceButton
+        && !latchToggle.getToggleState()
+        && !oneShotToggle.getToggleState())
         processorRef.stopVoice();
 }
 
@@ -1681,6 +1688,7 @@ void SPU94AudioProcessorEditor::resized()
             loopToggle.setBounds(335, 48, 85, 26);
             latchToggle.setBounds(335, 74, 65, 26);
             markerLockToggle.setBounds(335, 100, 65, 26);
+            oneShotToggle.setBounds(265, 126, 75, 26);
             samplerAAToggle.setBounds(265, 48, 63, 26);
             voiceNonToggle.setBounds(265, 74, 55, 26);
             voicePmonToggle.setBounds(265, 100, 63, 26);

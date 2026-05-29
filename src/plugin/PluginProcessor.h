@@ -65,6 +65,7 @@ public:
     bool exportSampleToWav(const juce::File& destFile);
     void triggerVoice(uint16_t pitch);
     void stopVoice();
+    void setOneShotMode(bool enabled) { oneShotEnabled.store(enabled, std::memory_order_relaxed); }
     void setGuiVoicePitch(uint16_t pitch) { guiVoicePitch.store(pitch, std::memory_order_relaxed); }
     void setGuiVoiceVolL(int16_t v) { guiVoiceVolL.store(v, std::memory_order_relaxed); }
     void setGuiVoiceVolR(int16_t v) { guiVoiceVolR.store(v, std::memory_order_relaxed); }
@@ -441,6 +442,7 @@ private:
     // Pending GUI trigger/stop — staged on message thread, applied on audio thread
     std::atomic<uint16_t> pendingGuiTriggerPitch{0}; // 0 = no pending trigger
     std::atomic<bool> pendingGuiStop{false};
+    std::atomic<bool> oneShotEnabled{false};
     // Live pitch for GUI-triggered voice 0 — updated every audio callback
     std::atomic<uint16_t> guiVoicePitch{0x800};
     // Per-voice signed volume for GUI trigger path (Phase 34: signed volume).
@@ -552,7 +554,7 @@ private:
     std::atomic<float> adsrAttack{0.0f};
     std::atomic<bool>  adsrAttackExp{false};
     std::atomic<float> adsrDecay{0.0f};
-    std::atomic<float> adsrSustainLvl{1.0f};
+    std::atomic<float> adsrSustainLvl{15.0f};
     std::atomic<float> adsrSustainRate{0.0f};
     std::atomic<bool>  adsrSustainExp{false};
     std::atomic<float> adsrRelease{0.0f};

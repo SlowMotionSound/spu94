@@ -78,6 +78,7 @@ typedef struct {
 
     /* Control */
     uint8_t  enabled;             /* 0 = bypass (level always 0x7FFF) */
+    uint8_t  one_shot;            /* 1 = skip sustain, go straight to release after decay */
 } spu94_adsr_state_t;
 
 /* Initialize ADSR state to defaults (phase=OFF, level=0, enabled=0).

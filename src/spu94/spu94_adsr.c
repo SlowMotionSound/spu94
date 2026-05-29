@@ -60,6 +60,7 @@ void spu94_adsr_init(spu94_adsr_state_t *a) {
     a->counter = 0;
     a->tick_count = 0;
     a->enabled = 0;
+    a->one_shot = 0;
 }
 
 void spu94_adsr_key_on(spu94_adsr_state_t *a) {
@@ -123,6 +124,8 @@ int16_t spu94_adsr_tick(spu94_adsr_state_t *a) {
             if (level > 0x7FFF) level = 0x7FFF;
             if (sustain_target == 0) {
                 a->phase = ADSR_OFF;
+            } else if (a->one_shot) {
+                a->phase = ADSR_RELEASE;
             } else {
                 a->phase = ADSR_SUSTAIN;
             }

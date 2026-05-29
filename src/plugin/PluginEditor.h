@@ -108,6 +108,7 @@ private:
     juce::ToggleButton samplerAAToggle{"Gauss"};
     juce::ToggleButton latchToggle{"Latch"};
     bool latchActive = false;
+    juce::ToggleButton oneShotToggle{"1-Shot"};
     juce::ToggleButton markerLockToggle{"Lock"};
     double lockedLoopOffset = 0.0;
     double lockedEndOffset = 0.0;
