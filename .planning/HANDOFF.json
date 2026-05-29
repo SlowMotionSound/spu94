@@ -1,32 +1,27 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-28T21:24:40Z",
-  "phase": "56",
-  "phase_name": "Core Recording Pipeline",
-  "phase_dir": ".planning/phases/56-core-recording-pipeline",
-  "plan": 2,
+  "timestamp": "2026-05-29T02:51:53.647Z",
+  "phase": "58",
+  "phase_name": "Threshold Trigger",
+  "phase_dir": ".planning/phases/58-threshold-trigger",
+  "plan": 1,
   "task": 2,
-  "total_tasks": 3,
+  "total_tasks": 2,
   "status": "paused",
   "completed_tasks": [
-    {"id": "56-01-T1", "name": "Recording engine backend — state machine, staging buffer, processBlock capture, encode-on-stop", "status": "done", "commit": "ee585d1"},
-    {"id": "56-02-T1", "name": "GUI integration — record button, input level meter, RAM display, waveform wiring", "status": "done", "commit": "8f554f2"},
-    {"id": "56-02-T2", "name": "Human verification checkpoint", "status": "pending_verify"}
+    {"id": "58-01-T1", "name": "Backend — ARMED state and threshold-triggered capture", "status": "done", "commit": "156d406"},
+    {"id": "58-01-T2", "name": "GUI — threshold knob, record button tri-state, armed display", "status": "done", "commit": "15572a2"}
   ],
-  "remaining_tasks": [
-    {"id": "56-02-T2", "name": "Human verification — test recording workflow end to end", "status": "not_verified"}
-  ],
+  "remaining_tasks": [],
   "blockers": [],
   "human_actions_pending": [
-    {"action": "Launch standalone, test recording: press Record, speak/play into mic, press Stop, verify waveform appears and plays back with ADPCM character", "context": "Phase 56 checkpoint — both plans executed but not yet UAT verified", "blocking": false}
+    {"action": "Test threshold-triggered recording in standalone app — 4 items: armed visual, threshold auto-start, disarm, control locking", "context": "Verification passed 4/4 automated must-haves; human UI testing required before phase completion", "blocking": true}
   ],
   "decisions": [
-    {"decision": "Buffer-then-encode approach for ADPCM recording", "rationale": "Simplest — no threading, no ring buffers, reuses existing spu94_sample_encode_to_ram. ~200ms pause on stop matches Akai S1000 workflow.", "phase": "56"},
-    {"decision": "Record at 44.1 kHz only in Phase 56", "rationale": "SRC and variable rate selection deferred to Phase 57", "phase": "56"},
-    {"decision": "Mono-sum input (L+R * 0.5)", "rationale": "PS1 voices are mono; stereo recording is out of scope", "phase": "56"},
-    {"decision": "Noise Mod label rename", "rationale": "Changed Mod Bus section label to Noise Mod in PluginEditor.cpp", "phase": "none"}
+    {"decision": "Store REC_IDLE before buffer manipulation in disarm path", "rationale": "Eliminates race where audio thread writes to freed buffer (CR-01 from code review)", "phase": "58"},
+    {"decision": "Don't free staging buffer on disarm — reuse on next arm/start", "rationale": "1.7MB stays allocated but eliminates all message-thread/audio-thread races on the buffer pointer", "phase": "58"}
   ],
   "uncommitted_files": [],
-  "next_action": "Launch standalone, test recording end-to-end. If recording works: advance to Phase 57 (Sample Rate Selection). If issues: fix before advancing.",
-  "context_notes": "Phase 56 code is fully built and compiles clean. Both plans executed (Wave 1: backend engine, Wave 2: GUI). Human verification checkpoint pending — Anthony needs to test the recording workflow. Milestone v1.11.0 Live Input Sampling is 1/4 phases complete (code-wise). Phases 57-59 remain: sample rate selection, threshold trigger, sample export."
+  "next_action": "Run human UAT: launch standalone, test 4 items (armed visual, threshold trigger, disarm, control lock), then approve or report issues",
+  "context_notes": "All code complete and building. Code review found 1 critical (CR-01 race condition — fixed in fc3531b), 3 warnings (WR-01 missing auto-stop after trigger capture is cosmetic, WR-02 count overcount is cosmetic, WR-03 threshold locked during armed is by design). Verification passed 4/4 must-haves. Standalone app was launched for testing."
 }
