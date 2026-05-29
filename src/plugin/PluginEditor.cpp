@@ -118,52 +118,37 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             processorRef.stopVoice();
         };
 
-        // Voice engine pitch knob -- doubles as continuous sample rate control.
-        // Raw SPU pitch register value (0x0001..0x3FFF), displayed as Hz.
-        // Rate in Hz = pitch * 44100 / 4096. Bidirectional sync with encodeRateBox.
         voiceEnginePitchKnob.setSliderStyle(juce::Slider::Rotary);
         voiceEnginePitchKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 80, 18);
-        voiceEnginePitchKnob.setRange(1.0, 16383.0, 1.0);
-        voiceEnginePitchKnob.setValue(2048.0, juce::dontSendNotification);
-        voiceEnginePitchKnob.textFromValueFunction = [](double value) -> juce::String {
-            int rateHz = static_cast<int>(std::round(value * 44100.0 / 4096.0));
-            if (rateHz >= 10000)
-                return juce::String(rateHz / 1000.0, 1) + " kHz";
-            return juce::String(rateHz) + " Hz";
+        voiceEnginePitchKnob.setRange(-4800.0, 4800.0, 1.0);
+        voiceEnginePitchKnob.setValue(0.0, juce::dontSendNotification);
+        voiceEnginePitchKnob.setDoubleClickReturnValue(true, 0.0);
+        voiceEnginePitchKnob.textFromValueFunction = [](double cents) -> juce::String {
+            int c = static_cast<int>(std::round(cents));
+            if (c == 0) return "Root";
+            int absCents = (c < 0) ? -c : c;
+            int semitones = absCents / 100;
+            int remainder = absCents % 100;
+            juce::String sign = (c > 0) ? "+" : "-";
+            if (remainder == 0)
+                return sign + juce::String(semitones) + " st";
+            if (semitones == 0)
+                return sign + juce::String(remainder) + " ct";
+            return sign + juce::String(semitones) + " st " + juce::String(remainder) + " ct";
         };
         voiceEnginePitchKnob.valueFromTextFunction = [](const juce::String& text) -> double {
-            juce::String cleaned = text.trim().toLowerCase();
-            double hz = 0.0;
-            if (cleaned.endsWith("khz"))
-                hz = cleaned.dropLastCharacters(3).trim().getDoubleValue() * 1000.0;
-            else if (cleaned.endsWith("hz"))
-                hz = cleaned.dropLastCharacters(2).trim().getDoubleValue();
-            else
-                hz = cleaned.getDoubleValue();
-            return std::round(hz * 4096.0 / 44100.0);
+            if (text.trim().equalsIgnoreCase("root")) return 0.0;
+            return text.trim().getDoubleValue();
         };
         voiceEnginePitchKnob.onValueChange = [this] {
-            processorRef.setGuiVoicePitch(
-                static_cast<uint16_t>(voiceEnginePitchKnob.getValue()));
-
-            // Compute encode rate from pitch register value.
-            // T-57-01: clamp to minimum 1000 Hz (below that is subsonic/impractical).
-            int rateHz = static_cast<int>(std::round(
-                voiceEnginePitchKnob.getValue() * 44100.0 / 4096.0));
-            if (rateHz < 1000) rateHz = 1000;
-            processorRef.setEncodeRate(rateHz);
-
-            // Sync dropdown: highlight matching preset, or clear if custom rate.
-            static const int presetRates[] = { 44100, 22050, 11025, 5512 };
-            int matchId = 0; // 0 = no selection
-            for (int i = 0; i < 4; ++i) {
-                if (rateHz == presetRates[i]) { matchId = i + 1; break; }
-            }
-            encodeRateBox.setSelectedId(matchId, juce::dontSendNotification);
+            processorRef.setGuiVoicePitch(computePitchFromCents());
         };
+        pitchKeyListener = std::make_unique<PitchKeyListener>(voiceEnginePitchKnob);
+        voiceEnginePitchKnob.addKeyListener(pitchKeyListener.get());
+        voiceEnginePitchKnob.setWantsKeyboardFocus(true);
         panel.addAndMakeVisible(voiceEnginePitchKnob);
 
-        voiceEnginePitchLabel.setText("Sample Rate", juce::dontSendNotification);
+        voiceEnginePitchLabel.setText("Pitch", juce::dontSendNotification);
         voiceEnginePitchLabel.setJustificationType(juce::Justification::centred);
         panel.addAndMakeVisible(voiceEnginePitchLabel);
 
@@ -172,10 +157,41 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         voiceSampleLabel.setJustificationType(juce::Justification::centredLeft);
         panel.addAndMakeVisible(voiceSampleLabel);
 
-        // Encode rate selector — pre-encode downsample rate (PS1 dev workflow).
-        // Bidirectional: selecting a preset here syncs the pitch knob (which in
-        // turn sets encodeRate via its onValueChange). The pitch knob is the
-        // continuous rate control; this dropdown provides quick preset access.
+        // Encode rate selector — pre-encode downsample rate for recording.
+        // Dropdown for PS1 preset rates, independent from playback pitch.
+        // Continuous encode rate knob — full variable rate control (RATE-02).
+        encodeRateKnob.setSliderStyle(juce::Slider::Rotary);
+        encodeRateKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 70, 18);
+        encodeRateKnob.setRange(1000.0, 44100.0, 1.0);
+        encodeRateKnob.setValue(22050.0, juce::dontSendNotification);
+        encodeRateKnob.setSkewFactorFromMidPoint(11025.0);
+        encodeRateKnob.textFromValueFunction = [](double value) -> juce::String {
+            int hz = static_cast<int>(std::round(value));
+            if (hz >= 10000)
+                return juce::String(hz / 1000.0, 1) + " kHz";
+            return juce::String(hz) + " Hz";
+        };
+        encodeRateKnob.valueFromTextFunction = [](const juce::String& text) -> double {
+            juce::String cleaned = text.trim().toLowerCase();
+            if (cleaned.endsWith("khz"))
+                return cleaned.dropLastCharacters(3).trim().getDoubleValue() * 1000.0;
+            if (cleaned.endsWith("hz"))
+                return cleaned.dropLastCharacters(2).trim().getDoubleValue();
+            return cleaned.getDoubleValue();
+        };
+        encodeRateKnob.onValueChange = [this] {
+            int rateHz = static_cast<int>(std::round(encodeRateKnob.getValue()));
+            processorRef.setEncodeRate(rateHz);
+            processorRef.setGuiVoicePitch(computePitchFromCents());
+            static const int presetRates[] = { 44100, 22050, 11025, 5512 };
+            int matchId = 0;
+            for (int i = 0; i < 4; ++i)
+                if (rateHz == presetRates[i]) { matchId = i + 1; break; }
+            encodeRateBox.setSelectedId(matchId, juce::dontSendNotification);
+        };
+        panel.addAndMakeVisible(encodeRateKnob);
+
+        // Preset dropdown — quick access to PS1 standard rates, syncs the knob.
         encodeRateBox.addItem("44100 Hz", 1);
         encodeRateBox.addItem("22050 Hz", 2);
         encodeRateBox.addItem("11025 Hz", 3);
@@ -186,11 +202,8 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             int idx = encodeRateBox.getSelectedId() - 1;
             if (idx >= 0 && idx < 4) {
                 processorRef.setEncodeRate(rates[idx]);
-                int pitch = static_cast<int>(0x1000 * (rates[idx] / 44100.0) + 0.5);
-                voiceEnginePitchKnob.setValue(pitch, juce::dontSendNotification);
-                // Also sync the voice pitch register since we used dontSendNotification
-                // above (to avoid notification loop with pitch knob's onValueChange).
-                processorRef.setGuiVoicePitch(static_cast<uint16_t>(pitch));
+                encodeRateKnob.setValue(rates[idx], juce::dontSendNotification);
+                processorRef.setGuiVoicePitch(computePitchFromCents());
             }
         };
         panel.addAndMakeVisible(encodeRateBox);
@@ -1252,6 +1265,9 @@ void SPU94AudioProcessorEditor::timerCallback()
         recordButton.setButtonText("Record");
         recordButton.setColour(juce::TextButton::buttonColourId,
                                getLookAndFeel().findColour(juce::TextButton::buttonColourId));
+        // Reset pitch to root so playback matches recorded rate.
+        voiceEnginePitchKnob.setValue(0.0, juce::dontSendNotification);
+        processorRef.setGuiVoicePitch(computePitchFromCents());
     }
 
     // Phase 56: Record button visual state — enforced every tick from atomic.
@@ -1474,6 +1490,19 @@ void SPU94AudioProcessorEditor::updateVoiceVolumes()
     voiceInvIndicator.setVisible(voiceInvToggle.getToggleState());
 }
 
+uint16_t SPU94AudioProcessorEditor::computePitchFromCents() const
+{
+    double cents = voiceEnginePitchKnob.getValue();
+    int rootPitch = static_cast<int>(std::round(
+        processorRef.getEncodeRate() * 4096.0 / 44100.0));
+    if (rootPitch < 1) rootPitch = 1;
+    double ratio = std::pow(2.0, cents / 1200.0);
+    int p = static_cast<int>(std::round(rootPitch * ratio));
+    if (p < 1) p = 1;
+    if (p > 16383) p = 16383;
+    return static_cast<uint16_t>(p);
+}
+
 void SPU94AudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
 {
     if (e.eventComponent == &triggerVoiceButton)
@@ -1483,13 +1512,11 @@ void SPU94AudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
                 processorRef.stopVoice();
                 latchActive = false;
             } else {
-                uint16_t pitch = static_cast<uint16_t>(voiceEnginePitchKnob.getValue());
-                processorRef.triggerVoice(pitch);
+                processorRef.triggerVoice(computePitchFromCents());
                 latchActive = true;
             }
         } else {
-            uint16_t pitch = static_cast<uint16_t>(voiceEnginePitchKnob.getValue());
-            processorRef.triggerVoice(pitch);
+            processorRef.triggerVoice(computePitchFromCents());
         }
     }
 }
@@ -1532,32 +1559,36 @@ void SPU94AudioProcessorEditor::resized()
             loadSampleButton.setBounds(95, 10, 100, 30);
             triggerVoiceButton.setBounds(200, 10, 55, 30);
             stopVoiceButton.setBounds(258, 10, 60, 30);
-            encodeRateLabel.setBounds(323, 10, 67, 12);
-            encodeRateBox.setBounds(323, 22, 67, 22);
-            voiceEnginePitchLabel.setBounds(10, 50, 80, 16);
-            voiceEnginePitchKnob.setBounds(10, 64, 80, 54);
-            samplerDriveLabel.setBounds(95, 50, 80, 16);
-            samplerDriveKnob.setBounds(95, 64, 80, 54);
-            voiceSampleLabel.setBounds(180, 50, 110, 30);
-            loopToggle.setBounds(300, 50, 85, 26);
-            latchToggle.setBounds(300, 76, 65, 26);
-            markerLockToggle.setBounds(300, 102, 65, 26);
-            samplerAAToggle.setBounds(235, 50, 63, 26);
-            voiceNonToggle.setBounds(235, 76, 55, 26);
-            voicePmonToggle.setBounds(235, 102, 63, 26);
-            inputPeakMeterLabel.setBounds(10, 130, 190, 14);
-            recordStatsLabel.setBounds(200, 130, 190, 14);
-            ramMeterLabel.setBounds(10, 146, 380, 12);
-            samplerWindow->getWaveformDisplay().setBounds(10, 160, 380, 108);
-            startPosLabel.setBounds(15, 270, 70, 14);
-            startPosKnob.setBounds(15, 282, 70, 54);
-            loopPosLabel.setBounds(160, 270, 70, 14);
-            loopPosKnob.setBounds(160, 282, 70, 54);
-            endPosLabel.setBounds(320, 270, 70, 14);
-            endPosKnob.setBounds(320, 282, 70, 54);
+            // Pitch and Drive — larger knobs
+            voiceEnginePitchLabel.setBounds(10, 48, 100, 16);
+            voiceEnginePitchKnob.setBounds(10, 62, 100, 80);
+            samplerDriveLabel.setBounds(115, 48, 100, 16);
+            samplerDriveKnob.setBounds(115, 62, 100, 80);
+            voiceSampleLabel.setBounds(220, 48, 110, 30);
+            // Toggles
+            loopToggle.setBounds(335, 48, 85, 26);
+            latchToggle.setBounds(335, 74, 65, 26);
+            markerLockToggle.setBounds(335, 100, 65, 26);
+            samplerAAToggle.setBounds(265, 48, 63, 26);
+            voiceNonToggle.setBounds(265, 74, 55, 26);
+            voicePmonToggle.setBounds(265, 100, 63, 26);
+            // Encode rate section — right column, larger knob
+            encodeRateLabel.setBounds(430, 10, 100, 14);
+            encodeRateKnob.setBounds(430, 24, 100, 80);
+            encodeRateBox.setBounds(430, 106, 100, 22);
+            inputPeakMeterLabel.setBounds(10, 148, 200, 14);
+            recordStatsLabel.setBounds(220, 148, 310, 14);
+            ramMeterLabel.setBounds(10, 164, 520, 12);
+            samplerWindow->getWaveformDisplay().setBounds(10, 180, 520, 110);
+            startPosLabel.setBounds(15, 294, 80, 14);
+            startPosKnob.setBounds(15, 308, 80, 54);
+            loopPosLabel.setBounds(180, 294, 80, 14);
+            loopPosKnob.setBounds(180, 308, 80, 54);
+            endPosLabel.setBounds(380, 294, 80, 14);
+            endPosKnob.setBounds(380, 308, 80, 54);
 
             // ADSR section — directly below marker knobs
-            constexpr int aky = 340, akw = 65, akh = 110;
+            constexpr int aky = 368, akw = 65, akh = 110;
             adsrAttackLabel.setBounds(15, aky, akw, 12);
             adsrAttackKnob.setBounds(15, aky + 12, akw, akh);
             adsrDecayLabel.setBounds(91, aky, akw, 12);

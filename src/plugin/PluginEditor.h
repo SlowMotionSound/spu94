@@ -95,6 +95,7 @@ private:
     juce::Label voiceSampleLabel;
     juce::ComboBox encodeRateBox;
     juce::Label encodeRateLabel;
+    juce::Slider encodeRateKnob;
     juce::Label ramMeterLabel;
     juce::Slider voiceEnginePitchKnob;
     juce::Label voiceEnginePitchLabel;
@@ -187,6 +188,31 @@ private:
     // Separate sampler window (standalone-only)
     std::unique_ptr<SamplerWindow> samplerWindow;
     uint64_t lastWaveformFrames = 0;
+
+    uint16_t computePitchFromCents() const;
+
+    struct PitchKeyListener : public juce::KeyListener {
+        juce::Slider& knob;
+        PitchKeyListener(juce::Slider& k) : knob(k) {}
+        bool keyPressed(const juce::KeyPress& key, juce::Component*) override {
+            if (!key.getModifiers().isShiftDown()) return false;
+            double v = knob.getValue();
+            if (key.getKeyCode() == juce::KeyPress::upKey) {
+                double next = (std::floor(v / 100.0) + 1.0) * 100.0;
+                if (next > knob.getMaximum()) next = knob.getMaximum();
+                knob.setValue(next, juce::sendNotification);
+                return true;
+            }
+            if (key.getKeyCode() == juce::KeyPress::downKey) {
+                double prev = (std::ceil(v / 100.0) - 1.0) * 100.0;
+                if (prev < knob.getMinimum()) prev = knob.getMinimum();
+                knob.setValue(prev, juce::sendNotification);
+                return true;
+            }
+            return false;
+        }
+    };
+    std::unique_ptr<PitchKeyListener> pitchKeyListener;
 
     // Modified-state tracking (D-11, D-12)
     // Baseline snapshot captured on every preset load (factory or custom)
