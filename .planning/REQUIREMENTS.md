@@ -23,10 +23,10 @@
 
 ### Triggering
 
-- [ ] **TRIG-01**: User can arm threshold-triggered recording
-- [ ] **TRIG-02**: Recording starts automatically when input signal exceeds the user-set threshold
-- [ ] **TRIG-03**: User can adjust the threshold level
-- [ ] **TRIG-04**: Sampler displays armed/recording/idle state clearly
+- [x] **TRIG-01**: User can arm threshold-triggered recording
+- [x] **TRIG-02**: Recording starts automatically when input signal exceeds the user-set threshold
+- [x] **TRIG-03**: User can adjust the threshold level
+- [x] **TRIG-04**: Sampler displays armed/recording/idle state clearly
 
 ### Export
 
@@ -70,10 +70,10 @@
 | RATE-02 | Phase 57 | Complete |
 | RATE-03 | Phase 57 | Complete |
 | RATE-04 | Phase 57 | Complete |
-| TRIG-01 | Phase 58 | Pending |
-| TRIG-02 | Phase 58 | Pending |
-| TRIG-03 | Phase 58 | Pending |
-| TRIG-04 | Phase 58 | Pending |
+| TRIG-01 | Phase 58 | Complete |
+| TRIG-02 | Phase 58 | Complete |
+| TRIG-03 | Phase 58 | Complete |
+| TRIG-04 | Phase 58 | Complete |
 | EXP-01 | Phase 59 | Pending |
 | EXP-02 | Phase 59 | Pending |
 | EXP-03 | Phase 59 | Pending |
