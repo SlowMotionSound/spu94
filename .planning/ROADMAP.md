@@ -67,11 +67,11 @@ Plans:
   3. Input audio is sample-rate-converted to the selected target rate (lower rates produce longer recording times with more lo-fi character)
   4. The recording time display updates immediately when the sample rate changes, showing the new maximum duration
 
-**Plans**: 2 plans
+**Plans**: 1 plan
 Plans:
+**Wave 1**
 
-- [ ] 56-01-PLAN.md — Recording engine backend (state machine, staging buffer, encode-on-stop)
-- [ ] 56-02-PLAN.md — GUI integration (record button, input meter, RAM display, waveform wiring)
+- [ ] 57-01-PLAN.md — Continuous rate knob with bidirectional dropdown sync and rate-aware time display
 
 **UI hint**: yes
 
@@ -121,8 +121,8 @@ Phases execute in numeric order: 56 -> 57 -> 58 -> 59
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 56. Core Recording Pipeline | v1.11.0 | 1/2 | Executing | - |
-| 57. Sample Rate Selection | v1.11.0 | 0/? | Not started | - |
+| 56. Core Recording Pipeline | v1.11.0 | 2/2 | Complete | 2026-05-28 |
+| 57. Sample Rate Selection | v1.11.0 | 0/1 | Not started | - |
 | 58. Threshold Trigger | v1.11.0 | 0/? | Not started | - |
 | 59. Sample Export | v1.11.0 | 0/? | Not started | - |
 
@@ -286,4 +286,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-28 -- v1.11.0 roadmap created*
+*Last updated: 2026-05-28 -- Phase 57 planned (1 plan)*
