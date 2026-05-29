@@ -4,8 +4,8 @@ milestone: v1.11.0
 milestone_name: Live Input Sampling
 status: executing
 stopped_at: Completed 57-01-PLAN.md (sample rate selection)
-last_updated: "2026-05-29T02:22:25.426Z"
-last_activity: 2026-05-29 -- Phase 58 planning complete
+last_updated: "2026-05-29T02:25:50.664Z"
+last_activity: 2026-05-29 -- Phase 58 execution started
 progress:
   total_phases: 4
   completed_phases: 2
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-28)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 57 — Sample Rate Selection (complete)
+**Current focus:** Phase 58 — threshold-trigger
 
 ## Current Position
 
-Phase: 57 (Sample Rate Selection) — COMPLETE
-Plan: 1 of 1 (done)
-Status: Ready to execute
-Last activity: 2026-05-29 -- Phase 58 planning complete
+Phase: 58 (threshold-trigger) — EXECUTING
+Plan: 1 of 1
+Status: Executing Phase 58
+Last activity: 2026-05-29 -- Phase 58 execution started
 
 Progress: [#####.....] 50%
 

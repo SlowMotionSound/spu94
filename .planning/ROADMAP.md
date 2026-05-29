@@ -91,7 +91,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 58-01-PLAN.md — Armed state, threshold-triggered auto-start, threshold knob, tri-state record button
+- [x] 58-01-PLAN.md — Armed state, threshold-triggered auto-start, threshold knob, tri-state record button
 
 **UI hint**: yes
 
@@ -123,7 +123,7 @@ Phases execute in numeric order: 56 -> 57 -> 58 -> 59
 |-------|-----------|----------------|--------|-----------|
 | 56. Core Recording Pipeline | v1.11.0 | 2/2 | Complete | 2026-05-28 |
 | 57. Sample Rate Selection | v1.11.0 | 1/1 | Complete | 2026-05-29 |
-| 58. Threshold Trigger | v1.11.0 | 0/1 | Not started | - |
+| 58. Threshold Trigger | v1.11.0 | 1/1 | Complete   | 2026-05-29 |
 | 59. Sample Export | v1.11.0 | 0/? | Not started | - |
 
 ## Previous Milestone Archives
