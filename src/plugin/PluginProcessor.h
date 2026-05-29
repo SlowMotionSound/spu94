@@ -79,15 +79,18 @@ public:
     std::atomic<bool>& getGuiVoicePmon() { return guiVoicePmon; }
     std::atomic<int>& getNoiseShift() { return noiseShift; }
 
-    // --- Recording control (Phase 56: live input sampling) ---
+    // --- Recording control (Phase 56: live input sampling, Phase 58: threshold trigger) ---
     void startRecording();
     void stopRecording();
+    void armRecording();
     void encodeRecordedSample();
     bool isRecording() const { return recordingState.load(std::memory_order_relaxed) == REC_RECORDING; }
+    bool isArmed() const { return recordingState.load(std::memory_order_relaxed) == REC_ARMED; }
     std::atomic<int>& getRecordingState() { return recordingState; }
     std::atomic<float>& getInputPeakLevel() { return inputPeakLevel; }
     std::atomic<uint32_t>& getRecordBytesUsed() { return recordBytesUsed; }
     std::atomic<bool>& getRecordingJustStopped() { return recordingJustStopped; }
+    std::atomic<float>& getRecordingThreshold() { return recordingThreshold; }
 
     // Tremolo controls (Phase 44: continuous VCA oscillation via retrigger)
     std::atomic<bool>&  getTremoloEnabled()  { return tremoloEnabled; }
@@ -418,12 +421,13 @@ private:
     uint32_t voiceSampleBytes{0};
     std::vector<spu94_adpcm_state> adpcmStateCache;
 
-    // Recording state machine (Phase 56: live input sampling)
-    enum RecState { REC_IDLE = 0, REC_RECORDING = 1, REC_STOPPED = 2 };
+    // Recording state machine (Phase 56: live input sampling, Phase 58: threshold trigger)
+    enum RecState { REC_IDLE = 0, REC_RECORDING = 1, REC_STOPPED = 2, REC_ARMED = 3 };
     std::atomic<int> recordingState{REC_IDLE};
     std::atomic<float> inputPeakLevel{0.0f};         // peak of mono-summed input, audio thread -> GUI
     std::atomic<uint32_t> recordBytesUsed{0};         // estimated ADPCM bytes for current staging length
     std::atomic<bool> recordingJustStopped{false};    // signals GUI timer to call encodeRecordedSample
+    std::atomic<float> recordingThreshold{0.01f};     // linear amplitude threshold for auto-start (~-40 dB)
 
     // Staging buffer: audio-thread writes, message-thread consumes after stop
     std::vector<int16_t> recordStagingBuffer;

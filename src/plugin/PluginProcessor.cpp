@@ -725,8 +725,6 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             float peak = 0.0f;
             if (recState == REC_RECORDING)
             {
-
-
                 for (int i = 0; i < n; ++i)
                 {
                     // Mono-sum input channels
@@ -757,6 +755,49 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 {
                     recordingState.store(REC_STOPPED, std::memory_order_release);
                     recordingJustStopped.store(true, std::memory_order_release);
+                }
+            }
+            else if (recState == REC_ARMED)
+            {
+                // Phase 58: Threshold-triggered recording — monitor input level,
+                // auto-start capture from the exact sample that crosses threshold.
+                float thresh = recordingThreshold.load(std::memory_order_relaxed);
+                bool triggered = false;
+                int triggerSample = 0;
+
+                for (int i = 0; i < n; ++i)
+                {
+                    float mono = (inL[i] + inR[i]) * 0.5f;
+                    float absMono = (mono < 0.0f) ? -mono : mono;
+                    if (absMono > peak) peak = absMono;
+                    if (!triggered && absMono > thresh)
+                    {
+                        triggered = true;
+                        triggerSample = i;
+                    }
+                }
+                inputPeakLevel.store(peak, std::memory_order_relaxed);
+
+                if (triggered)
+                {
+                    // Transition to recording and capture FROM the trigger sample onward
+                    // so the attack transient is preserved.
+                    recordingState.store(REC_RECORDING, std::memory_order_release);
+
+                    for (int i = triggerSample; i < n; ++i)
+                    {
+                        float mono = (inL[i] + inR[i]) * 0.5f;
+                        float scaled = mono * 32768.0f;
+                        if (scaled > 32767.0f) scaled = 32767.0f;
+                        if (scaled < -32768.0f) scaled = -32768.0f;
+                        if (recordStagingCount < recordStagingCapacity)
+                            recordStagingBuffer[recordStagingCount] = static_cast<int16_t>(scaled);
+                        ++recordStagingCount;
+                    }
+
+                    uint32_t estBytes = static_cast<uint32_t>(
+                        ((recordStagingCount + 27u) / 28u) * 16u);
+                    recordBytesUsed.store(estBytes, std::memory_order_relaxed);
                 }
             }
             else
@@ -1978,8 +2019,16 @@ bool SPU94AudioProcessor::isLoaded() const
 
 void SPU94AudioProcessor::startRecording()
 {
-    // Only start from IDLE state
-    if (recordingState.load(std::memory_order_acquire) != REC_IDLE) return;
+    const int state = recordingState.load(std::memory_order_acquire);
+
+    if (state == REC_ARMED)
+    {
+        // Transition from ARMED to RECORDING — buffer already allocated by armRecording()
+        recordingState.store(REC_RECORDING, std::memory_order_release);
+        return;
+    }
+
+    if (state != REC_IDLE) return;
 
     // Unmute standalone audio input (JUCE mutes by default to prevent feedback)
     if (wrapperType == wrapperType_Standalone)
@@ -2007,13 +2056,64 @@ void SPU94AudioProcessor::startRecording()
 
 void SPU94AudioProcessor::stopRecording()
 {
-    // Only stop from RECORDING state
-    if (recordingState.load(std::memory_order_acquire) != REC_RECORDING) return;
+    const int state = recordingState.load(std::memory_order_acquire);
+
+    if (state == REC_ARMED)
+    {
+        // Disarm without recording — nothing to encode.
+        // Free staging buffer since nothing was captured.
+        recordStagingBuffer.clear();
+        recordStagingBuffer.shrink_to_fit();
+        recordStagingCount = 0;
+        recordStagingCapacity = 0;
+        recordBytesUsed.store(0, std::memory_order_relaxed);
+
+        // Re-mute standalone input
+        if (wrapperType == wrapperType_Standalone)
+        {
+            if (auto* holder = juce::StandalonePluginHolder::getInstance())
+                holder->getMuteInputValue().setValue(true);
+        }
+
+        recordingState.store(REC_IDLE, std::memory_order_release);
+        return;
+    }
+
+    if (state != REC_RECORDING) return;
 
     // Stop capture — audio thread will see this and stop writing
     recordingState.store(REC_STOPPED, std::memory_order_release);
     // Signal GUI timer to call encodeRecordedSample on message thread
     recordingJustStopped.store(true, std::memory_order_release);
+}
+
+void SPU94AudioProcessor::armRecording()
+{
+    // Only arm from IDLE state
+    if (recordingState.load(std::memory_order_acquire) != REC_IDLE) return;
+
+    // Unmute standalone audio input (JUCE mutes by default to prevent feedback)
+    if (wrapperType == wrapperType_Standalone)
+    {
+        if (auto* holder = juce::StandalonePluginHolder::getInstance())
+            holder->getMuteInputValue().setValue(false);
+    }
+
+    // Max ADPCM blocks that fit in 512KB voice RAM
+    // 32768 blocks * 28 samples/block = 917504 PCM samples
+    constexpr uint64_t maxPcmSamples =
+        (static_cast<uint64_t>(SPU94_SPU_RAM_BYTES) / SPU94_ADPCM_BLOCK_BYTES)
+        * SPU94_ADPCM_BLOCK_SAMPLES;
+
+    // Pre-allocate staging buffer on message thread (safe to allocate)
+    recordStagingBuffer.resize(maxPcmSamples, 0);
+    recordStagingCapacity = maxPcmSamples;
+    recordStagingCount = 0;
+    recordBytesUsed.store(0, std::memory_order_relaxed);
+    inputPeakLevel.store(0.0f, std::memory_order_relaxed);
+
+    // Enter ARMED state — audio thread will monitor threshold and auto-start
+    recordingState.store(REC_ARMED, std::memory_order_release);
 }
 
 void SPU94AudioProcessor::encodeRecordedSample()
