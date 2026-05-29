@@ -62,6 +62,7 @@ public:
 
     // --- Voice engine control (message-thread callers, Phase 31) ---
     void loadVoiceSample(const juce::File& file);
+    bool exportSampleToWav(const juce::File& destFile);
     void triggerVoice(uint16_t pitch);
     void stopVoice();
     void setGuiVoicePitch(uint16_t pitch) { guiVoicePitch.store(pitch, std::memory_order_relaxed); }

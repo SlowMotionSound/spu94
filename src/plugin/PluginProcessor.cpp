@@ -2297,6 +2297,77 @@ void SPU94AudioProcessor::loadVoiceSample(const juce::File& file)
     }
 }
 
+bool SPU94AudioProcessor::exportSampleToWav(const juce::File& destFile)
+{
+    // Guard: nothing to export
+    if (!voiceSampleLoaded.load(std::memory_order_acquire) || waveformFrames == 0)
+        return false;
+
+    // Read trim region (normalized 0.0-1.0)
+    double startPos = sampleStartPos.load(std::memory_order_relaxed);
+    double endPos   = sampleEndPos.load(std::memory_order_relaxed);
+
+    auto startFrame = static_cast<uint64_t>(std::floor(startPos * waveformFrames));
+    auto endFrame   = static_cast<uint64_t>(std::ceil(endPos * waveformFrames));
+
+    // Clamp
+    if (startFrame > waveformFrames) startFrame = waveformFrames;
+    if (endFrame > waveformFrames)   endFrame = waveformFrames;
+    if (endFrame <= startFrame)
+        return false;
+
+    uint64_t numFrames = endFrame - startFrame;
+    uint32_t sr = static_cast<uint32_t>(encodeRate.load(std::memory_order_relaxed));
+
+    // Build WAV file via raw binary I/O
+    destFile.deleteFile();
+    auto out = destFile.createOutputStream();
+    if (!out)
+        return false;
+
+    uint32_t dataSize  = static_cast<uint32_t>(numFrames * 2);  // 16-bit mono
+    uint32_t chunkSize = 36 + dataSize;
+
+    // Helper: write little-endian integers on any platform
+    auto writeU32 = [&](uint32_t v) {
+        v = juce::ByteOrder::swapIfBigEndian(v);
+        out->write(&v, 4);
+    };
+    auto writeU16 = [&](uint16_t v) {
+        v = juce::ByteOrder::swapIfBigEndian(v);
+        out->write(&v, 2);
+    };
+
+    // RIFF header
+    out->write("RIFF", 4);
+    writeU32(chunkSize);
+    out->write("WAVE", 4);
+
+    // fmt subchunk
+    out->write("fmt ", 4);
+    writeU32(16);                           // subchunk size
+    writeU16(1);                            // PCM format
+    writeU16(1);                            // mono
+    writeU32(sr);                           // sample rate
+    writeU32(sr * 2);                       // byte rate (16-bit mono)
+    writeU16(2);                            // block align
+    writeU16(16);                           // bits per sample
+
+    // data subchunk
+    out->write("data", 4);
+    writeU32(dataSize);
+
+    // Write samples — byte-swap each int16 for little-endian WAV
+    for (uint64_t i = 0; i < numFrames; ++i) {
+        int16_t s = waveformData[startFrame + i];
+        s = static_cast<int16_t>(juce::ByteOrder::swapIfBigEndian(static_cast<uint16_t>(s)));
+        out->write(&s, 2);
+    }
+
+    out->flush();
+    return true;
+}
+
 void SPU94AudioProcessor::triggerVoice(uint16_t pitch)
 {
     pendingGuiTriggerPitch.store(pitch, std::memory_order_release);
