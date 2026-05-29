@@ -25,12 +25,11 @@ See: .planning/PROJECT.md (updated 2026-05-28)
 
 ## Current Position
 
-Phase: 59
-Plan: Not started
-Status: Milestone complete
+Milestone: v1.11.0 Live Input Sampling — complete (tagged)
+Status: Between milestones — codebase cleanup audit complete, execution pending
 Last activity: 2026-05-29
 
-Progress: [#####.....] 50%
+Progress: [##########] 100%
 
 ## Milestone History
 
@@ -64,7 +63,7 @@ See `.planning/TODO.md` -- to-do list. Not carried in STATE.md.
 
 ## Session Continuity
 
-Last session: 2026-05-29T21:25:13.000Z
-Stopped at: Paused after completing full-codebase cleanup audit (no fixes applied)
+Last session: 2026-05-29 (resumed)
+Stopped at: Cleanup in progress — Tier 1 complete (items #1-5). Commits: 47ca8c0 (inert bundle) + 37448d9 (AdsrDisplay.h full delete).
 Resume file: .planning/CODEBASE-AUDIT.md
-Next action: Work through CODEBASE-AUDIT.md — start with #39 (run unregistered test_cli_mixer_dac.py), then Tier 1 deletions
+Next action: Continue CODEBASE-AUDIT.md — Tier 2 (disconnected-but-compiled dead code: #6-11 C-core ABI batch, #12-21 JUCE one-at-a-time), Tier 3 hygiene, and #39 test gap all still pending
