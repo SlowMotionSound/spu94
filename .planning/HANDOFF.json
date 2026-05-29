@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-29T19:07:36.377Z",
+  "timestamp": "2026-05-29T21:25:13.000Z",
   "phase": null,
   "phase_name": null,
   "phase_dir": null,
@@ -8,18 +8,27 @@
   "task": null,
   "total_tasks": null,
   "status": "paused",
-  "completed_tasks": [],
-  "remaining_tasks": [],
+  "completed_tasks": [
+    "Full-codebase cleanup audit — two-pass blind methodology (Opus 4.6 then Opus 4.8), reconciled by manual grep",
+    "Master verification & checklist written to .planning/CODEBASE-AUDIT.md (38 cleanup items + 1 test gap)"
+  ],
+  "remaining_tasks": [
+    "Execute CODEBASE-AUDIT.md fixes — NONE applied yet; audit is verification-only at this point"
+  ],
   "blockers": [],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "v1.11.0 shipped and tagged", "rationale": "All 4 phases (56-59) complete, 17/17 requirements satisfied", "phase": "milestone"},
-    {"decision": "SPU-94XA brief written", "rationale": "Captures input module / codec effects vision for future milestone scoping", "phase": "future"},
-    {"decision": "1-Shot trigger implemented", "rationale": "ADSR skips sustain in one-shot mode, goes straight to release after decay", "phase": "post-milestone"},
-    {"decision": "Sustain level default fixed (1.0→15.0)", "rationale": "Processor default didn't match knob default — pre-existing bug found via one-shot diagnostics", "phase": "post-milestone"},
-    {"decision": "TODO pruned — 9 items removed", "rationale": "Removed completed, irrelevant, and no-longer-applicable items", "phase": "housekeeping"}
+    {"decision": "Cleanup audit produced via two-pass blind method", "rationale": "Pass 1 (4.6) + Pass 2 (4.8) audited blind, then every disagreement settled by direct grep. Neither pass alone was complete — 4.8 found 9 verified net-new, 4.6 caught 1 false negative (checkModified is dead). Blind+verify beat either single pass.", "phase": "audit"},
+    {"decision": "DSP math is untouchable during cleanup", "rationale": "Bit-accuracy IS the sound — no changes to truncation, fixed-point, or reverb/voice algorithms. Cleanup only.", "phase": "audit"},
+    {"decision": "Dead C functions in public headers batched on next ABI bump", "rationale": "Items #6-11 (5 dead getters/setters) are exported API — removing them is an ABI change, so bundle as one intentional ABI-bump commit, not piecemeal.", "phase": "audit"},
+    {"decision": "CLI is NOT cuttable", "rationale": "Anthony doesn't use the CLI directly, but scripts/regenerate_goldens.py + scripts/ci/witness_diff.py drive the CLI binary to build/validate the golden regression corpus. Load-bearing infrastructure.", "phase": "audit"},
+    {"decision": "Execution method: one change per build+verify cycle", "rationale": "Release build, verify, commit, then next item. No batching (esp. GUI). Protective code (limiters/guards) is not removed without asking first.", "phase": "audit"}
   ],
-  "uncommitted_files": [],
-  "next_action": "Decide next milestone — SPU-94XA (codec input module), or tackle remaining TODO items (noise section, speed divisions, sidechain duck UAT, preset UAT, hide preset in plugins)",
-  "context_notes": "v1.11.0 Live Input Sampling shipped and tagged. Post-milestone: 1-Shot trigger added, TODO list pruned, SPU-94XA product brief written. No active milestone — between milestones."
+  "uncommitted_files": [
+    ".planning/CODEBASE-AUDIT.md",
+    ".planning/HANDOFF.json",
+    ".planning/.continue-here.md"
+  ],
+  "next_action": "Work through .planning/CODEBASE-AUDIT.md. Start with #39 (wire the unregistered test_cli_mixer_dac.py into tests/cli/CMakeLists.txt and RUN it — only item that can expose a hidden bug). Then Tier 1 pure deletions. One change per build+verify cycle.",
+  "context_notes": "Between milestones (v1.11.0 shipped). User asked to audit + clean the full codebase using ~/.claude/agents/Code Optimization Agent.md as framework. Audit is COMPLETE and verified; NO fixes applied yet. Resume target / required reading: .planning/CODEBASE-AUDIT.md. User prefers Opus 4.6 for the interactive fix work (4.8 was the silent second-pass workhorse). Framework: measure-first, behavior-preserving."
 }
