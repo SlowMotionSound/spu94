@@ -30,9 +30,9 @@
 
 ### Export
 
-- [ ] **EXP-01**: User can save the recorded sample as a 16-bit mono WAV file
-- [ ] **EXP-02**: Export respects the current S/E marker positions (trim)
-- [ ] **EXP-03**: WAV file is written at the recording sample rate
+- [x] **EXP-01**: User can save the recorded sample as a 16-bit mono WAV file
+- [x] **EXP-02**: Export respects the current S/E marker positions (trim)
+- [x] **EXP-03**: WAV file is written at the recording sample rate
 
 ## Future Requirements
 
@@ -74,9 +74,9 @@
 | TRIG-02 | Phase 58 | Complete |
 | TRIG-03 | Phase 58 | Complete |
 | TRIG-04 | Phase 58 | Complete |
-| EXP-01 | Phase 59 | Pending |
-| EXP-02 | Phase 59 | Pending |
-| EXP-03 | Phase 59 | Pending |
+| EXP-01 | Phase 59 | Complete |
+| EXP-02 | Phase 59 | Complete |
+| EXP-03 | Phase 59 | Complete |
 
 **Coverage:**
 - v1.11.0 requirements: 17 total
