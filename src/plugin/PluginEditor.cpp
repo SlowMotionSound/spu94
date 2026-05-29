@@ -118,19 +118,52 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             processorRef.stopVoice();
         };
 
-        // Voice engine pitch knob -- raw SPU pitch register value (0x0001..0x3FFF).
+        // Voice engine pitch knob -- doubles as continuous sample rate control.
+        // Raw SPU pitch register value (0x0001..0x3FFF), displayed as Hz.
+        // Rate in Hz = pitch * 44100 / 4096. Bidirectional sync with encodeRateBox.
         voiceEnginePitchKnob.setSliderStyle(juce::Slider::Rotary);
-        voiceEnginePitchKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+        voiceEnginePitchKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 80, 18);
         voiceEnginePitchKnob.setRange(1.0, 16383.0, 1.0);
         voiceEnginePitchKnob.setValue(2048.0, juce::dontSendNotification);
-        voiceEnginePitchKnob.setTextValueSuffix(" pitch");
+        voiceEnginePitchKnob.textFromValueFunction = [](double value) -> juce::String {
+            int rateHz = static_cast<int>(std::round(value * 44100.0 / 4096.0));
+            if (rateHz >= 10000)
+                return juce::String(rateHz / 1000.0, 1) + " kHz";
+            return juce::String(rateHz) + " Hz";
+        };
+        voiceEnginePitchKnob.valueFromTextFunction = [](const juce::String& text) -> double {
+            juce::String cleaned = text.trim().toLowerCase();
+            double hz = 0.0;
+            if (cleaned.endsWith("khz"))
+                hz = cleaned.dropLastCharacters(3).trim().getDoubleValue() * 1000.0;
+            else if (cleaned.endsWith("hz"))
+                hz = cleaned.dropLastCharacters(2).trim().getDoubleValue();
+            else
+                hz = cleaned.getDoubleValue();
+            return std::round(hz * 4096.0 / 44100.0);
+        };
         voiceEnginePitchKnob.onValueChange = [this] {
             processorRef.setGuiVoicePitch(
                 static_cast<uint16_t>(voiceEnginePitchKnob.getValue()));
+
+            // Compute encode rate from pitch register value.
+            // T-57-01: clamp to minimum 1000 Hz (below that is subsonic/impractical).
+            int rateHz = static_cast<int>(std::round(
+                voiceEnginePitchKnob.getValue() * 44100.0 / 4096.0));
+            if (rateHz < 1000) rateHz = 1000;
+            processorRef.setEncodeRate(rateHz);
+
+            // Sync dropdown: highlight matching preset, or clear if custom rate.
+            static const int presetRates[] = { 44100, 22050, 11025, 5512 };
+            int matchId = 0; // 0 = no selection
+            for (int i = 0; i < 4; ++i) {
+                if (rateHz == presetRates[i]) { matchId = i + 1; break; }
+            }
+            encodeRateBox.setSelectedId(matchId, juce::dontSendNotification);
         };
         panel.addAndMakeVisible(voiceEnginePitchKnob);
 
-        voiceEnginePitchLabel.setText("Voice Pitch", juce::dontSendNotification);
+        voiceEnginePitchLabel.setText("Sample Rate", juce::dontSendNotification);
         voiceEnginePitchLabel.setJustificationType(juce::Justification::centred);
         panel.addAndMakeVisible(voiceEnginePitchLabel);
 
@@ -140,6 +173,9 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         panel.addAndMakeVisible(voiceSampleLabel);
 
         // Encode rate selector — pre-encode downsample rate (PS1 dev workflow).
+        // Bidirectional: selecting a preset here syncs the pitch knob (which in
+        // turn sets encodeRate via its onValueChange). The pitch knob is the
+        // continuous rate control; this dropdown provides quick preset access.
         encodeRateBox.addItem("44100 Hz", 1);
         encodeRateBox.addItem("22050 Hz", 2);
         encodeRateBox.addItem("11025 Hz", 3);
@@ -151,7 +187,10 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             if (idx >= 0 && idx < 4) {
                 processorRef.setEncodeRate(rates[idx]);
                 int pitch = static_cast<int>(0x1000 * (rates[idx] / 44100.0) + 0.5);
-                voiceEnginePitchKnob.setValue(pitch, juce::sendNotification);
+                voiceEnginePitchKnob.setValue(pitch, juce::dontSendNotification);
+                // Also sync the voice pitch register since we used dontSendNotification
+                // above (to avoid notification loop with pitch knob's onValueChange).
+                processorRef.setGuiVoicePitch(static_cast<uint16_t>(pitch));
             }
         };
         panel.addAndMakeVisible(encodeRateBox);
