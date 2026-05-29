@@ -1295,30 +1295,47 @@ void SPU94AudioProcessorEditor::timerCallback()
                                           juce::Colour(0xFFD0D0D0));
     }
 
-    // Phase 56: Recording stats — seconds recorded and time remaining.
-    if (processorRef.isRecording())
+    // Phase 57: Rate-aware recording stats — seconds recorded and time remaining.
+    // T-57-02: guard against encodeRate == 0 to prevent division by zero.
     {
-        uint32_t bytesUsed = processorRef.getRecordBytesUsed().load(std::memory_order_relaxed);
-        uint32_t samplesRecorded = (bytesUsed / 16u) * 28u;
-        double secondsRecorded = samplesRecorded / 44100.0;
-        uint32_t totalBytes = SPU94_SPU_RAM_BYTES;
-        uint32_t remainBytes = (bytesUsed < totalBytes) ? (totalBytes - bytesUsed) : 0u;
-        uint32_t remainSamples = (remainBytes / 16u) * 28u;
-        double remainSeconds = remainSamples / 44100.0;
-        recordStatsLabel.setText(
-            "Rec: " + juce::String(secondsRecorded, 1) + "s / " +
-            juce::String(remainSeconds, 1) + "s left",
-            juce::dontSendNotification);
+        int encRate = std::max(processorRef.getEncodeRate(), 1);
+        // Total ADPCM capacity: (512KB / 16 bytes per block) * 28 samples per block = 917504
+        constexpr double kTotalSamples = (SPU94_SPU_RAM_BYTES / 16.0) * 28.0; // 917504
+        double totalSeconds = kTotalSamples / encRate;
 
-        // Live RAM meter update during recording
-        float kb = bytesUsed / 1024.0f;
-        ramMeterLabel.setText(
-            juce::String(kb, 1) + " / 512 KB",
-            juce::dontSendNotification);
-    }
-    else
-    {
-        recordStatsLabel.setText("", juce::dontSendNotification);
+        if (processorRef.isRecording())
+        {
+            uint32_t bytesUsed = processorRef.getRecordBytesUsed().load(std::memory_order_relaxed);
+            // bytesUsed estimates ADPCM bytes from staging samples at 44100 Hz.
+            // Convert back to staging sample count for wall-clock time.
+            uint32_t samplesAt44100 = (bytesUsed / 16u) * 28u;
+            double secondsRecorded = samplesAt44100 / 44100.0;
+            double remainSeconds = totalSeconds - secondsRecorded;
+            if (remainSeconds < 0.0) remainSeconds = 0.0;
+            recordStatsLabel.setText(
+                "Rec: " + juce::String(secondsRecorded, 1) + "s / " +
+                juce::String(remainSeconds, 1) + "s left",
+                juce::dontSendNotification);
+
+            // Live RAM meter update during recording
+            float kb = bytesUsed / 1024.0f;
+            ramMeterLabel.setText(
+                juce::String(kb, 1) + " / 512 KB",
+                juce::dontSendNotification);
+        }
+        else
+        {
+            // RATE-04: Show max available recording time at current encode rate.
+            // Updates every timer tick, so changing the rate knob updates instantly.
+            juce::String rateStr;
+            if (encRate >= 10000)
+                rateStr = juce::String(encRate / 1000.0, 1) + " kHz";
+            else
+                rateStr = juce::String(encRate) + " Hz";
+            recordStatsLabel.setText(
+                "Max: " + juce::String(totalSeconds, 1) + "s at " + rateStr,
+                juce::dontSendNotification);
+        }
     }
 
     // Phase 31: Update voice sample status label + waveform (standalone only).
