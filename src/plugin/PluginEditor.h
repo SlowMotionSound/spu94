@@ -87,6 +87,8 @@ private:
 
     // Voice engine panel (standalone-only, Phase 31)
     juce::TextButton recordButton{"Record"};
+    juce::Slider thresholdKnob;
+    juce::Label thresholdLabel;
     juce::Label inputPeakMeterLabel;
     juce::Label recordStatsLabel;
     juce::TextButton loadSampleButton{"Load Sample"};

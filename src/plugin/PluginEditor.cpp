@@ -55,21 +55,24 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         samplerWindow = std::make_unique<SamplerWindow>();
         auto& panel = samplerWindow->getPanel();
 
-        // Record button — toggles live input recording on/off.
+        // Record button — tri-state cycle: IDLE -> ARMED -> (auto or manual) RECORDING -> STOP.
+        // Phase 58: IDLE arms threshold trigger; ARMED disarms; RECORDING stops capture.
         panel.addAndMakeVisible(recordButton);
         recordButton.onClick = [this]()
         {
-            if (processorRef.isRecording())
+            int state = processorRef.getRecordingState().load(std::memory_order_relaxed);
+            if (state == 1) // REC_RECORDING
             {
-
-
                 processorRef.stopRecording();
+            }
+            else if (state == 3) // REC_ARMED
+            {
+                processorRef.stopRecording(); // disarm -> IDLE
             }
             else
             {
-
-
-                processorRef.startRecording();
+                // IDLE -> arm threshold trigger
+                processorRef.armRecording();
             }
         };
 
@@ -211,6 +214,28 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         encodeRateLabel.setJustificationType(juce::Justification::centred);
         encodeRateLabel.setFont(juce::Font(10.0f));
         panel.addAndMakeVisible(encodeRateLabel);
+
+        // Phase 58: Threshold knob — sets the input level that triggers auto-recording.
+        thresholdKnob.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+        thresholdKnob.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
+        thresholdKnob.setRange(-60.0, 0.0, 1.0);
+        thresholdKnob.setValue(-40.0, juce::dontSendNotification);
+        thresholdKnob.textFromValueFunction = [](double val) {
+            return juce::String(static_cast<int>(val)) + " dB";
+        };
+        thresholdKnob.valueFromTextFunction = [](const juce::String& text) {
+            return text.getDoubleValue();
+        };
+        thresholdKnob.onValueChange = [this]() {
+            float dB = static_cast<float>(thresholdKnob.getValue());
+            float linear = std::pow(10.0f, dB / 20.0f);
+            processorRef.getRecordingThreshold().store(linear, std::memory_order_relaxed);
+        };
+        panel.addAndMakeVisible(thresholdKnob);
+        thresholdLabel.setText("Threshold", juce::dontSendNotification);
+        thresholdLabel.setJustificationType(juce::Justification::centred);
+        thresholdLabel.setFont(juce::Font(10.0f));
+        panel.addAndMakeVisible(thresholdLabel);
 
         // RAM usage meter label — updated in timerCallback.
         ramMeterLabel.setText("RAM: 0 / 512 KB", juce::dontSendNotification);
@@ -1270,15 +1295,28 @@ void SPU94AudioProcessorEditor::timerCallback()
         processorRef.setGuiVoicePitch(computePitchFromCents());
     }
 
-    // Phase 56: Record button visual state — enforced every tick from atomic.
+    // Phase 58: Record button tri-state visual — IDLE/ARMED/RECORDING with distinct colors.
     {
-        bool recording = processorRef.isRecording();
-        if (recording)
+        int recState = processorRef.getRecordingState().load(std::memory_order_relaxed);
+        if (recState == 1) // REC_RECORDING
         {
             recordButton.setButtonText("Stop");
             recordButton.setColour(juce::TextButton::buttonColourId,
-                                   juce::Colour(0xFFE06060));
+                                   juce::Colour(0xFFE06060)); // coral
             loadSampleButton.setEnabled(false);
+            encodeRateKnob.setEnabled(false);
+            encodeRateBox.setEnabled(false);
+            thresholdKnob.setEnabled(false);
+        }
+        else if (recState == 3) // REC_ARMED
+        {
+            recordButton.setButtonText("Armed");
+            recordButton.setColour(juce::TextButton::buttonColourId,
+                                   juce::Colour(0xFFD4A017)); // amber
+            loadSampleButton.setEnabled(false);
+            encodeRateKnob.setEnabled(false);
+            encodeRateBox.setEnabled(false);
+            thresholdKnob.setEnabled(false);
         }
         else
         {
@@ -1286,6 +1324,9 @@ void SPU94AudioProcessorEditor::timerCallback()
             recordButton.setColour(juce::TextButton::buttonColourId,
                                    getLookAndFeel().findColour(juce::TextButton::buttonColourId));
             loadSampleButton.setEnabled(true);
+            encodeRateKnob.setEnabled(true);
+            encodeRateBox.setEnabled(true);
+            thresholdKnob.setEnabled(true);
         }
     }
 
@@ -1572,6 +1613,9 @@ void SPU94AudioProcessorEditor::resized()
             samplerAAToggle.setBounds(265, 48, 63, 26);
             voiceNonToggle.setBounds(265, 74, 55, 26);
             voicePmonToggle.setBounds(265, 100, 63, 26);
+            // Threshold knob — between transport buttons and encode rate knob
+            thresholdLabel.setBounds(330, 10, 90, 14);
+            thresholdKnob.setBounds(330, 24, 90, 80);
             // Encode rate section — right column, larger knob
             encodeRateLabel.setBounds(430, 10, 100, 14);
             encodeRateKnob.setBounds(430, 24, 100, 80);
