@@ -87,7 +87,7 @@
 
 ## ⚠ Separate from cleanup — real test gap (highest value)
 
-- [ ] 39. **Wire `test_cli_mixer_dac.py` into `tests/cli/CMakeLists.txt` `_cli_tests` and RUN it.** 12 tests unregistered → never executed since 2026-05-21. Guards the `--dac`/`--adpcm`/`--preset` CLI flags that `regenerate_goldens.py` + `witness_diff.py` depend on. May surface real failures. [4.8 ✓]
+- [x] 39. **Wire `test_cli_mixer_dac.py` into `tests/cli/CMakeLists.txt` `_cli_tests` and RUN it.** 12 tests unregistered → never executed since 2026-05-21. Guards the `--dac`/`--adpcm`/`--preset` CLI flags that `regenerate_goldens.py` + `witness_diff.py` depend on. May surface real failures. [4.8 ✓] — **done: registered + run. All 12 PASS — no latent bug in the flags.** Suite now 120 tests (was 119).
 
 ---
 

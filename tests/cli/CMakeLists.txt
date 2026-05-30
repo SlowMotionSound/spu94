@@ -9,6 +9,7 @@ set(_cli_tests
     test_cli_config_and_list
     test_cli_error_paths
     test_cli_adpcm
+    test_cli_mixer_dac
 )
 
 foreach(test_name IN LISTS _cli_tests)
