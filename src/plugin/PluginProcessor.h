@@ -3,7 +3,6 @@
 #include <JuceHeader.h>
 #include "ParameterBridge.h"
 #include "SrcChain.h"
-#include "StateSerializer.h"
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -14,7 +13,6 @@ extern "C" {
 #include <spu94/spu94_adpcm.h>
 #include <spu94/spu94_registers.h>
 #include <spu94/spu94_voice.h>
-#include <spu94/spu94_sample_loader.h>
 }
 
 class SPU94AudioProcessor : public juce::AudioProcessor
@@ -443,8 +441,6 @@ private:
     std::atomic<bool> guiVoiceNon{false};   // NON: replace ADPCM output with noise generator
     std::atomic<bool> guiVoicePmon{false};  // PMON: pitch modulation from previous voice
     std::atomic<int> noiseShift{10};        // noise generator shift (0-15), controls noise color/frequency
-
-    // VCA ramp controls (Phase 41: volume sweep GUI surface)
 
     // Tremolo controls (Phase 44: continuous VCA oscillation via retrigger)
     std::atomic<bool>  tremoloEnabled{false};   // true = sweep configured for retrigger oscillation

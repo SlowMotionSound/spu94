@@ -2,12 +2,17 @@
 #include "BoundaryConverter.h"
 #include "PluginEditor.h"
 #include "WavLoader.h"
+#include "StateSerializer.h"
 #include <juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h>
 #include <samplerate.h>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <memory>
+
+extern "C" {
+#include <spu94/spu94_sample_loader.h>
+}
 
 // Phase 41: Speed-to-shift mapping for VCA ramp controls.
 // Maps a user-facing seconds value to the nearest SPU sweep shift parameter.
@@ -257,11 +262,11 @@ SPU94AudioProcessor::SPU94AudioProcessor()
     addParameter(paramDryLevel = new juce::AudioParameterFloat(
         juce::ParameterID{"dry_level", 1}, "Dry Level", pctRange, 0.0f, pctAttrs));
 
-    // 8. ADPCM Level (percent 0-100, default 0.0 = OFF)
+    // 7. ADPCM Level (percent 0-100, default 0.0 = OFF)
     addParameter(paramAdpcmLevel = new juce::AudioParameterFloat(
         juce::ParameterID{"adpcm_level", 1}, "ADPCM Level", pctRange, 0.0f, pctAttrs));
 
-    // 9. Reverb Level (percent 0-100, default 1.0 = FULL)
+    // 8. Reverb Level (percent 0-100, default 1.0 = FULL)
     addParameter(paramReverbLevel = new juce::AudioParameterFloat(
         juce::ParameterID{"reverb_level", 1}, "Reverb Level", pctRange, 1.0f, pctAttrs));
 
@@ -548,11 +553,8 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         registerBridge.pushPendingRegisterWrites(engines[0]);
     }
 
-    // DIAGNOSTIC: sync shadows directly from engines[0] without rewriting
-    // morph target. If the sliders end up showing the same wrong values as
-    // the Macro audio sounds, that's direct evidence the slew path leaves
-    // engines[0] off-target. If sliders show the right values, the bug is
-    // somewhere else.
+    // One-shot shadow sync: pull the register shadows straight from
+    // engines[0] so the GUI reflects the engine's actual post-slew state.
     if (needShadowSync.exchange(false, std::memory_order_relaxed)) {
         registerBridge.syncShadowsFromSPU(engines[0]);
         shadowSyncCompletedCount.fetch_add(1, std::memory_order_release);
@@ -2384,7 +2386,6 @@ namespace {
 
 struct AdsrRate { uint8_t shift; uint8_t step; float seconds; };
 
-// All tables: measured from real engine, perceptually deduplicated (>5.7% spacing).
 // All tables: measured from real engine, perceptually deduplicated (>5.7% spacing).
 
 // Attack linear: 53 entries
