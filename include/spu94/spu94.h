@@ -231,23 +231,14 @@ int      spu94_get_adpcm_enabled(const spu94_state *state);
  *  Off by default. Only has effect when ADPCM is also enabled. NULL state is a no-op. */
 void     spu94_set_gauss_enabled(spu94_state *state, int enabled);
 
-/** Query Gaussian interpolation state. NULL state returns 0. */
-int      spu94_get_gauss_enabled(const spu94_state *state);
-
 /** Set ADPCM voice pitch (downsample rate). Range 0x005C..0x1000.
  *  0x1000 = 44.1 kHz (no decimation). 0x0800 = 22.05 kHz. 0x005C ≈ 4000 Hz.
  *  Default 0x0800. NULL state is a no-op. */
 void     spu94_set_voice_pitch(spu94_state *state, uint16_t pitch);
 
-/** Query current voice pitch. NULL state returns 0x1000. */
-uint16_t spu94_get_voice_pitch(const spu94_state *state);
-
 /** Enable/disable anti-aliasing filter before downsampling.
  *  Off by default. NULL state is a no-op. */
 void     spu94_set_aa_filter_enabled(spu94_state *state, int enabled);
-
-/** Query anti-alias filter state. NULL state returns 0. */
-int      spu94_get_aa_filter_enabled(const spu94_state *state);
 
 /** Total processing latency in samples at 44.1 kHz.
  *  Base: SPU94_LATENCY_SAMPLES (58).
@@ -649,10 +640,6 @@ void spu94_set_slew_targets(spu94_state *state,
 
 /* Returns 1 while any register has not yet reached its slew target. */
 int  spu94_is_slewing(const spu94_state *state);
-
-/* Disable slewing and leave registers at their current values.
- * Use before preset loads or resets that should apply instantly. */
-void spu94_slew_cancel(spu94_state *state);
 
 /* Override the in-flight slew duration set by spu94_set_slew_targets.
  * Recomputes per-tick increments so all registers still converge

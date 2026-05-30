@@ -186,11 +186,6 @@ void spu94_set_gauss_enabled(spu94_state *state, int enabled) {
     state->gauss_enabled = enabled ? 1 : 0;
 }
 
-int spu94_get_gauss_enabled(const spu94_state *state) {
-    if (state == NULL) return 0;
-    return state->gauss_enabled;
-}
-
 void spu94_set_voice_pitch(spu94_state *state, uint16_t pitch) {
     if (state == NULL) return;
     if (pitch < 0x005C) pitch = 0x005C;
@@ -198,19 +193,9 @@ void spu94_set_voice_pitch(spu94_state *state, uint16_t pitch) {
     state->voice_pitch = pitch;
 }
 
-uint16_t spu94_get_voice_pitch(const spu94_state *state) {
-    if (state == NULL) return 0x1000;
-    return state->voice_pitch ? state->voice_pitch : 0x1000;
-}
-
 void spu94_set_aa_filter_enabled(spu94_state *state, int enabled) {
     if (state == NULL) return;
     state->aa_filter_enabled = enabled ? 1 : 0;
-}
-
-int spu94_get_aa_filter_enabled(const spu94_state *state) {
-    if (state == NULL) return 0;
-    return state->aa_filter_enabled;
 }
 
 /* DAC FIR group delay at 44.1kHz output rate (Phase 11 DSP-07).

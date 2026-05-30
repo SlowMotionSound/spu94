@@ -186,13 +186,6 @@ spu94_result_t spu94_voice_mixer_set_pmon(spu94_voice_mixer_t *m, int voice_idx,
 spu94_result_t spu94_voice_mixer_set_non(spu94_voice_mixer_t *m, int voice_idx,
     int enabled);
 
-/* Set the noise generator frequency parameters.
- * shift: 0..15 (SPUCNT[13:10], NoiseShift). Higher = more frequent LFSR shifts.
- * step_raw: 0..3 (SPUCNT[9:8], NoiseStep raw). Actual step = step_raw + 4.
- * Returns SPU94_INVALID_ARG if shift > 15 or step_raw > 3. */
-spu94_result_t spu94_voice_mixer_set_noise_freq(spu94_voice_mixer_t *m,
-    uint8_t shift, uint8_t step_raw);
-
 /* Configure left volume sweep for a voice. Sets sweep_l parameters and
  * initializes sweep_l.level to the voice's current vol_l. Sets active=1.
  * retrigger_enable: 0=one-shot (v1.9), 1=auto-reverse at limits (RTR-02).

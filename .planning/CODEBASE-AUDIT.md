@@ -42,12 +42,12 @@
 ## Tier 2 — Dead code compiled into binaries
 
 ### C core (ABI change — batch on next ABI bump)
-- [ ] 6. Remove `spu94_dac_noise_step_8x` — `spu94_dac_noise.c:89` + header [Both ✓]
-- [ ] 7. Remove `spu94_get_gauss_enabled` — `spu94_io_chain.c:189` + `spu94.h:235` [4.8 ✓]
-- [ ] 8. Remove `spu94_get_voice_pitch` — `spu94_io_chain.c:201` + `spu94.h:243` [4.8 ✓]
-- [ ] 9. Remove `spu94_get_aa_filter_enabled` — `spu94_io_chain.c:211` + `spu94.h:250` [4.8 ✓]
-- [ ] 10. Remove `spu94_voice_mixer_set_noise_freq` — `spu94_voice.c:544` + `spu94_voice.h:193` [4.8 ✓]
-- [ ] 11. Remove `spu94_slew_cancel` — `spu94_slew.c:75` + `spu94.h:655` [4.8 ✓]
+- [x] 6. Remove `spu94_dac_noise_step_8x` — `spu94_dac_noise.c:89` + header [Both ✓]
+- [x] 7. Remove `spu94_get_gauss_enabled` — `spu94_io_chain.c:189` + `spu94.h:235` [4.8 ✓]
+- [x] 8. Remove `spu94_get_voice_pitch` — `spu94_io_chain.c:201` + `spu94.h:243` [4.8 ✓]
+- [x] 9. Remove `spu94_get_aa_filter_enabled` — `spu94_io_chain.c:211` + `spu94.h:250` [4.8 ✓]
+- [x] 10. Remove `spu94_voice_mixer_set_noise_freq` — `spu94_voice.c:544` + `spu94_voice.h:193` [4.8 ✓]
+- [x] 11. Remove `spu94_slew_cancel` — `spu94_slew.c:75` + `spu94.h:655` [4.8 ✓]
 
 ### JUCE plugin / standalone
 - [ ] 12. Remove `checkModified()` + `PresetSnapshot`/`baseline`/`modifiedState` cluster — `PluginEditor.cpp:1933` + `PluginEditor.h:237`. (Half-wired feature: baseline captured, never compared. Alternative: finish it by wiring a title-bar modified indicator.) [4.6 ✓]

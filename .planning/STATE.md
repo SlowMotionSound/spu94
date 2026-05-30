@@ -4,8 +4,8 @@ milestone: v1.11.0
 milestone_name: Live Input Sampling
 status: completed
 stopped_at: context exhaustion at 76% (2026-05-29)
-last_updated: "2026-05-29T21:23:02.223Z"
-last_activity: 2026-05-29
+last_updated: "2026-05-30T00:00:00.000Z"
+last_activity: 2026-05-30
 progress:
   total_phases: 4
   completed_phases: 4
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-05-28)
 ## Current Position
 
 Milestone: v1.11.0 Live Input Sampling — complete (tagged)
-Status: Between milestones — codebase cleanup audit complete, execution pending
-Last activity: 2026-05-29
+Status: Between milestones — cleanup in progress (Tier 1 + Tier 2 C-core #6-11 done; plug15 alloc bug fixed)
+Last activity: 2026-05-30
 
 Progress: [##########] 100%
 
@@ -63,7 +63,7 @@ See `.planning/TODO.md` -- to-do list. Not carried in STATE.md.
 
 ## Session Continuity
 
-Last session: 2026-05-29 (resumed)
-Stopped at: Cleanup in progress — Tier 1 complete (items #1-5). Commits: 47ca8c0 (inert bundle) + 37448d9 (AdsrDisplay.h full delete).
+Last session: 2026-05-30
+Stopped at: Tier 2 C-core #6-11 removed as one ABI-bump commit (6 dead public fns + orphaned DAC_NOISE_SHIFT_8X constant). Also fixed plug15 null-test self-recursive alloc (was hanging the whole suite ~25 min). Tier 1 (#1-5) done earlier.
 Resume file: .planning/CODEBASE-AUDIT.md
-Next action: Continue CODEBASE-AUDIT.md — Tier 2 (disconnected-but-compiled dead code: #6-11 C-core ABI batch, #12-21 JUCE one-at-a-time), Tier 3 hygiene, and #39 test gap all still pending
+Next action: Continue CODEBASE-AUDIT.md — Tier 2 JUCE #12-21 (10 GUI leftovers, one-at-a-time per build+verify), then Tier 3 hygiene (#22-32), Tier 4 dup-code (#33-38), and #39 test gap. Pre-existing test reds logged in TODO.md (adsr calibration WIP, CLI init-preset mismatch, packaging timeouts).

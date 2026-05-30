@@ -30,8 +30,7 @@
 
 /* Post-decimation noise scaling for 352.8kHz injection (Phase 11).
  *
- * The last of 8 int16 noise samples (from spu94_dac_noise_step_8x,
- * SHIFT_8X=10, raw white, range approx +/-32) is scaled by this
+ * The last of 8 int16 noise samples is scaled by this
  * constant and then right-shifted by 8 bits before being added to
  * the decimated signal at int32 precision. The sum is then <<3 gain-
  * compensated and saturated to int16.

@@ -541,20 +541,6 @@ spu94_result_t spu94_voice_mixer_set_non(spu94_voice_mixer_t *m, int voice_idx,
     return SPU94_OK;
 }
 
-spu94_result_t spu94_voice_mixer_set_noise_freq(spu94_voice_mixer_t *m,
-    uint8_t shift, uint8_t step_raw)
-{
-    /* T-36-02: validate shift (0-15) and step_raw (0-3) */
-    if (m == NULL || shift > 15 || step_raw > 3)
-        return SPU94_INVALID_ARG;
-
-    /* NON-03: noise frequency from SPUCNT register fields */
-    m->noise_gen.shift = shift;
-    m->noise_gen.step = step_raw + 4;  /* SPUCNT[9:8] + 4 = 4..7 */
-
-    return SPU94_OK;
-}
-
 spu94_result_t spu94_voice_mixer_set_sweep_l(spu94_voice_mixer_t *m, int voice_idx,
     uint8_t mode, uint8_t direction, uint8_t phase,
     uint8_t shift, uint8_t step, uint8_t retrigger_enable,

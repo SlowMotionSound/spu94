@@ -44,19 +44,6 @@
  * Validated by tests/unit/dac_noise/test_dac_noise_amplitude.c. */
 #define DAC_NOISE_SHIFT  14
 
-/* 352.8kHz noise amplitude scaling (Phase 11 DSP-05, revised Phase 12).
- * The LFSR advances 8 times per output sample for L/R decorrelation.
- * After all 8 ticks, the last raw sample is HP-shaped by the same
- * 2nd-order NTF as the v1.2 path: y = x - 2*x_prev + x_prev2.
- *
- * This models the delta-sigma NTF correctly: quantization noise is
- * shaped OUT of the audio band. Without HP shaping, flat white noise
- * in the 1-5kHz hearing-sensitive range was audible as digital artifacts.
- *
- * SHIFT_8X determines the raw noise amplitude before HP shaping.
- * Validated by tests/unit/dac_noise/test_dac_noise_8x.c. */
-#define DAC_NOISE_SHIFT_8X  10
-
 void spu94_dac_noise_init(spu94_dac_noise_state *state, uint32_t seed) {
     memset(state, 0, sizeof(*state));
     state->lfsr = seed ? seed : DAC_NOISE_LFSR_SEED;
@@ -84,18 +71,4 @@ int16_t spu94_dac_noise_step(spu94_dac_noise_state *state) {
     state->x_prev = x;
 
     return sat_s16(y);
-}
-
-int16_t spu94_dac_noise_step_8x(spu94_dac_noise_state *state) {
-    /* Raw LFSR tick at converter clock rate. Used by the noise-only path
-     * (DAC on, FIR off, noise on, 8x on) in spu94_process.c. The 8x
-     * with-FIR path now calls spu94_dac_noise_step (v1.2 HP-shaped)
-     * once per output sample instead. */
-    uint32_t lfsr = state->lfsr;
-    uint32_t bit = lfsr & 1u;
-    lfsr >>= 1;
-    if (bit) lfsr ^= DAC_NOISE_LFSR_FEEDBACK;
-    state->lfsr = lfsr;
-
-    return (int16_t)(((int32_t)(lfsr >> 16) - 32768) >> DAC_NOISE_SHIFT_8X);
 }

@@ -11,6 +11,9 @@ Items that need to get done at some point. They live here instead of cluttering 
 | Sidechain Duck UAT (needs MIDI controller) | v1.10.0 UAT | 2026-05-28 |
 | Preset extension UAT — save/load round-trip verification | v1.10.0 UAT | 2026-05-28 |
 | Hide preset Save/Load in plugin formats | v1.6 | 2026-05-11 |
+| `adsr_unit` test fails — `test_sustain_level_zero` expects 3, gets 0 (ADSR calibration WIP; see ADSR-CALIBRATION-BRIEF.md) | cleanup test run | 2026-05-30 |
+| 2 CLI tests fail — binary lists 11 presets (`init`) but `test_cli_config_and_list` / `test_cli_error_paths` hardcode the 10 Sony presets; reconcile (update tests or drop `init` from the list) | cleanup test run | 2026-05-30 |
+| 2 packaging tests time out (`test_packaging_editable_install`, `test_packaging_wheel_tag`) — pip/wheel build; likely environmental, verify | cleanup test run | 2026-05-30 |
 
 ## Ideas
 
@@ -27,4 +30,4 @@ Items that need to get done at some point. They live here instead of cluttering 
 
 | Item | Completed |
 |------|-----------|
-| *(nothing yet)* | |
+| plug15 null-test self-recursive `aligned_alloc` fix (hung the suite in Release; broken since 1c6dfa7 / 2026-05-14) | 2026-05-30 |

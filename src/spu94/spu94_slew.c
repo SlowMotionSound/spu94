@@ -72,17 +72,6 @@ void spu94_set_slew_duration(spu94_state *state, int32_t samples) {
     state->slew_total_samples     = samples;
 }
 
-void spu94_slew_cancel(spu94_state *state) {
-    if (!state) return;
-    state->slew_active = 0;
-    state->slew_max_delta = 0;
-    /* Snap fractional positions to current integer values */
-    for (int r = 0; r < (int)SPU94_REG__COUNT; r++) {
-        if (spu94_reg_type((spu94_reg_t)r) == SPU94_REG_TYPE_U16)
-            state->slew_frac[r] = (float)(uint16_t)state->reg_values[r];
-    }
-}
-
 void spu94_slew_tick(spu94_state *state) {
     if (!state->slew_active) return;
 
