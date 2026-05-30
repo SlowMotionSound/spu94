@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-30T19:55:34.970Z",
+  "phase": null,
+  "phase_name": "Between milestones — post-v1.11.0 cleanup COMPLETE (nothing in progress)",
+  "phase_dir": null,
+  "plan": null,
+  "task": null,
+  "total_tasks": 39,
+  "status": "complete",
+  "completed_tasks": [
+    {"id": "tier1-2", "name": "Tier 1+2 dead code/weight (#1-21)", "status": "done", "commit": "prior session (7c24767 and earlier)"},
+    {"id": "tier3-ccore", "name": "Tier 3 C-core hygiene (#22, #25, #29; #24 deliberately kept)", "status": "done", "commit": "6019925"},
+    {"id": "tier3-python", "name": "Tier 3 Python hygiene (#26, #27, #28)", "status": "done", "commit": "16b1427"},
+    {"id": "tier3-plugin", "name": "Tier 3 plugin header/comments (#23, #30, #31, #32)", "status": "done", "commit": "247cec8"},
+    {"id": "test-gap-39", "name": "#39 wire + run test_cli_mixer_dac (12 tests, all green; suite now 120)", "status": "done", "commit": "d3034cb"},
+    {"id": "bookkeeping", "name": "Cleanup close-out: STATE/AUDIT/TODO updated, stale handoff removed, Tier 4 deferred", "status": "done", "commit": "c226bdf"}
+  ],
+  "remaining_tasks": [],
+  "blockers": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {"decision": "Tier 4 dup-code consolidation (#33-38) DEFERRED, not declined — future critical-listening session; tracked in TODO.md and CODEBASE-AUDIT.md", "rationale": "Sound-shaping plugin code (tremolo/auto-pan/ring-mod/AM) with NO automated test coverage; a behaviour-preserving merge can only be verified by ear, effect by effect; user has no bandwidth right now. Do not re-suggest doing it silently.", "phase": "cleanup"},
+    {"decision": "Kept 3 things the audit flagged for removal/change", "rationale": "spu94_zero_bytes (documented no-libc/MCU-link invariant), spu94_voice.h stays in PluginProcessor.h (header uses spu94_adsr_state_t — build caught it), 3 `from __future__ import annotations` lines (load-bearing). Audit labels are a starting point, not gospel — verify with own eyes / the build.", "phase": "cleanup"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "NOTHING TO RESUME — cleanup is complete, working tree clean, full suite 118/118 green (ctest -E packaging). Next move is a NEW MILESTONE (/gsd:new-milestone) or pick an item from .planning/TODO.md. Do NOT re-run the cleanup audit; the 6 open items (Tier 4 #33-38) are intentionally deferred.",
+  "context_notes": "Session resumed mid-cleanup and finished it: Tier 1+2 were already done; this session completed Tier 3 (#22-32) in 3 commits, wired the #39 test gap, and closed out bookkeeping. The 2 packaging tests (test_packaging_editable_install, test_packaging_wheel_tag) remain environmental timeouts (network pip install) — logged in TODO.md, skippable via SPU94_SKIP_PIP_INSTALL / SPU94_SKIP_WHEEL_BUILD. Build dir build/ is warm CMake Release. Tooling lesson this session: a piped `cmd | tail` reports tail's exit code (0), masking a real build failure — capture the real status (PIPESTATUS / write-log-then-echo-$?). User is a recording/broadcast engineer, not a coder: handle invisible internals and report progress; surface only sound/interface decisions, in plain language."
+}
