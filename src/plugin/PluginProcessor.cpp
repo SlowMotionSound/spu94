@@ -2590,6 +2590,14 @@ uint16_t SPU94AudioProcessor::midiNoteToPitch(int note, int baseNote)
     return static_cast<uint16_t>(pitch);
 }
 
+void SPU94AudioProcessor::setActiveVoiceCount(int n)
+{
+    // Clamp to [1, 24] (CONTEXT: count range; also guarantees % count != 0 in
+    // the allocator). Store with release so the audio-thread acquire load sees it.
+    n = juce::jlimit(1, 24, n);
+    activeVoiceCount.store(n, std::memory_order_release);
+}
+
 int SPU94AudioProcessor::allocateVoice(int note)
 {
     int voice = nextVoice;

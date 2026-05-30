@@ -274,7 +274,18 @@ public:
     bool loadUserSlotFromString(int target_slot,
                                 const juce::String& presetText);
 
+    // Phase 60 (VCOUNT-02 / VALLOC-01..03): set the active sampler-voice count.
+    // Message-thread setter; clamps n to [1, 24] and stores realtime-safely for
+    // the audio-thread allocator to read. Default count is 24 (see activeVoiceCount).
+    // The future Phase 62 GUI selector calls this; Phase 60 tests call it directly.
+    void setActiveVoiceCount(int n);
+
 private:
+    // Phase 60 test seam: grants the headless allocation test (test_voice_alloc.cpp)
+    // access to the private allocateVoice / findVoiceForNote / noteForVoice / nextVoice
+    // without widening the public ABI (60-RESEARCH.md Pitfall 4).
+    friend struct VoiceAllocTest;
+
     // --- Host-automatable AudioParameterFloat pointers (Phase 24 PLUG-28).
     //     Non-owning: JUCE owns the params after addParameter.
     //     Registration order is FROZEN per PLUG-30 (AU index stability).
@@ -420,6 +431,10 @@ private:
     int8_t noteForVoice[24] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
                                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
     int nextVoice{0};
+    // Phase 60: active sampler-voice count (1..24). Default 24 reproduces today's
+    // behavior exactly. Written by setActiveVoiceCount (message thread, release),
+    // read by allocateVoice (audio thread, acquire) as the round-robin modulus.
+    std::atomic<int> activeVoiceCount{24};
 
     // Pending GUI trigger/stop — staged on message thread, applied on audio thread
     std::atomic<uint16_t> pendingGuiTriggerPitch{0}; // 0 = no pending trigger
