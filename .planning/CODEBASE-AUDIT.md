@@ -77,6 +77,18 @@
 
 ## Tier 4 — Duplicate code (needs its own focused pass + test guard)
 
+> **DECISION (2026-05-30) — DEFERRED, not declined. Keep as an optimization
+> target; revisit as a dedicated critical-listening session.** Tracked in TODO.md.
+> The consolidation (4 VCA-effect blocks → one shared helper, ~460→120 ln) is a
+> legitimate future optimization. Deferred only because (a) this code shapes the
+> sound and has **no automated test coverage**, so a "behaviour-preserving" merge
+> can only be verified by ear, effect by effect, and (b) Anthony doesn't have
+> bandwidth for that listening session right now. When picked up, treat as a
+> focused pass: extract the shared math first (#34 ratio→shift, #35 shape-clamp,
+> #36 depth→Q15), A/B each effect (tremolo / auto-pan / ring-mod / AM) by ear, and
+> ideally add plugin-level tests first. #37 resample + #38 GUI dedup ride along in
+> the same deferred pass.
+
 - [ ] 33. Consolidate four VCA-effect activation blocks into one helper — ~460 ln → ~120 — `PluginProcessor.cpp:900-1359` [Both ✓]
 - [ ] 34. Extract `ratioToRShift()` log2 block (4× copies) — within #33 [Both ✓]
 - [ ] 35. Extract shape-clamp (8× copies) — within #33 [4.6]
