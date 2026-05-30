@@ -349,12 +349,13 @@ int v2 = p.allocateVoice(64);   // expect 0; key_off bit for the prior note set 
 convention count, singleton location, pending-bitmask semantics, the `voiceSampleLoaded` gate, private
 access levels) was verified by direct file inspection this session.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Friend declaration vs. public accessor for the test seam?**
    - What we know: members are private; both seams are one-line, non-invasive.
    - What's unclear: project style preference (no existing friend declarations found in the header).
    - Recommendation: planner picks; `friend` keeps the public ABI clean. Either works.
+   - **RESOLVED (plan 60-01):** `friend struct VoiceAllocTest;`.
 
 2. **Does the plan want a `count=24` regression case only, or also a full `processBlock` integration test?**
    - What we know: the direct seam covers all four criteria deterministically and fast; a `processBlock`
@@ -362,6 +363,7 @@ access levels) was verified by direct file inspection this session.
    - Recommendation: ship the **direct** unit test for all four criteria (required); optionally add one
      light `processBlock` smoke test that a note-on at default count produces a non-silent block (reuses
      `test_mono_sum`'s harness) if integration confidence is wanted. Not required for the criteria.
+   - **RESOLVED (plan 60-01):** direct unit test only, all five cases; no processBlock integration test.
 
 ## Environment Availability
 
