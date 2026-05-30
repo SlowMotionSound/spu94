@@ -4,7 +4,7 @@
 
 static const char *const expected_names[SPU94_PRESET__COUNT] = {
     "Off", "Room", "Studio A", "Studio B", "Studio C",
-    "Hall", "Half Echo", "Space Echo", "Echo", "Delay", "Init"
+    "Hall", "Half Echo", "Space Echo", "Echo", "Delay"
 };
 
 /* Off-preset m-prefix (buffer-address) register indices that carry the
@@ -32,14 +32,13 @@ _Static_assert(SPU94_PRESET_HALF_ECHO  == 6, "HALF_ECHO id stable");
 _Static_assert(SPU94_PRESET_SPACE_ECHO == 7, "SPACE_ECHO id stable");
 _Static_assert(SPU94_PRESET_ECHO       == 8, "ECHO id stable");
 _Static_assert(SPU94_PRESET_DELAY      == 9, "DELAY id stable");
-_Static_assert(SPU94_PRESET_INIT  == 10, "MONO_HALL id stable");
-_Static_assert(SPU94_PRESET__COUNT     == 11, "count == 11");
+_Static_assert(SPU94_PRESET__COUNT     == 10, "count == 10");
 
 void setUp(void)    {}
 void tearDown(void) {}
 
 static void test_count(void) {
-    TEST_ASSERT_EQUAL_INT(11, (int)SPU94_PRESET__COUNT);
+    TEST_ASSERT_EQUAL_INT(10, (int)SPU94_PRESET__COUNT);
 }
 
 static void test_names_present_and_match(void) {

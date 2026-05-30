@@ -66,4 +66,4 @@ See `.planning/TODO.md` -- to-do list. Not carried in STATE.md.
 Last session: 2026-05-30
 Stopped at: Tier 2 C-core #6-11 removed as one ABI-bump commit (6 dead public fns + orphaned DAC_NOISE_SHIFT_8X constant). Also fixed plug15 null-test self-recursive alloc (was hanging the whole suite ~25 min). Tier 1 (#1-5) done earlier.
 Resume file: .planning/CODEBASE-AUDIT.md
-Next action: Continue CODEBASE-AUDIT.md — Tier 2 JUCE #12-21 (10 GUI leftovers, one-at-a-time per build+verify), then Tier 3 hygiene (#22-32), Tier 4 dup-code (#33-38), and #39 test gap. Remaining pre-existing test reds in TODO.md (CLI init-preset mismatch, packaging timeouts); adsr sustain-zero red resolved this session.
+Next action: Continue CODEBASE-AUDIT.md — Tier 2 JUCE #12-21 (10 GUI leftovers, one-at-a-time per build+verify), then Tier 3 hygiene (#22-32), Tier 4 dup-code (#33-38), and #39 test gap. Remaining pre-existing test reds in TODO.md (packaging timeouts only — environmental); adsr sustain-zero and the stale init-preset/CLI reds resolved this session. Full suite 117/117 green excluding packaging.

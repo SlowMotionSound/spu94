@@ -400,8 +400,7 @@ typedef enum {
     SPU94_PRESET_SPACE_ECHO = 7,
     SPU94_PRESET_ECHO       = 8,
     SPU94_PRESET_DELAY      = 9,
-    SPU94_PRESET_INIT  = 10,
-    SPU94_PRESET__COUNT     = 11
+    SPU94_PRESET__COUNT     = 10
 } spu94_preset_id_t;
 
 /* A factory preset: human-readable name + 35-register value vector.

@@ -447,46 +447,6 @@ const spu94_preset_t spu94_presets[SPU94_PRESET__COUNT] = {
             (int16_t)0x8000,  /* [33] vLIN */
             (int16_t)0x8000   /* [34] vRIN */
         }
-    },
-    [SPU94_PRESET_INIT] = {
-        .name = "Init",
-        .regs = {
-            (int16_t)0x7FFF,  /* [ 0] vLOUT */
-            (int16_t)0x7FFF,  /* [ 1] vROUT */
-            (int16_t)0x0000,  /* [ 2] mBASE */
-            (int16_t)0x01A5,  /* [ 3] dAPF1 */
-            (int16_t)0x0139,  /* [ 4] dAPF2 */
-            (int16_t)0x6000,  /* [ 5] vIIR */
-            (int16_t)0x5000,  /* [ 6] vCOMB1 */
-            (int16_t)0x4C00,  /* [ 7] vCOMB2 */
-            (int16_t)0xB800,  /* [ 8] vCOMB3 */
-            (int16_t)0xBC00,  /* [ 9] vCOMB4 */
-            (int16_t)0xC000,  /* [10] vWALL */
-            (int16_t)0x6000,  /* [11] vAPF1 */
-            (int16_t)0x5C00,  /* [12] vAPF2 */
-            (int16_t)0x15BA,  /* [13] mLSAME */
-            (int16_t)0x15BA,  /* [14] mRSAME  = mLSAME */
-            (int16_t)0x14C2,  /* [15] mLCOMB1 */
-            (int16_t)0x14C2,  /* [16] mRCOMB1 = mLCOMB1 */
-            (int16_t)0x11BC,  /* [17] mLCOMB2 */
-            (int16_t)0x11BC,  /* [18] mRCOMB2 = mLCOMB2 */
-            (int16_t)0x11C0,  /* [19] dLSAME */
-            (int16_t)0x11C0,  /* [20] dRSAME  = dLSAME */
-            (int16_t)0x0DC0,  /* [21] mLDIFF */
-            (int16_t)0x0DC0,  /* [22] mRDIFF  = mLDIFF */
-            (int16_t)0x0BC4,  /* [23] mLCOMB3 */
-            (int16_t)0x0BC4,  /* [24] mRCOMB3 = mLCOMB3 */
-            (int16_t)0x0A00,  /* [25] mLCOMB4 */
-            (int16_t)0x0A00,  /* [26] mRCOMB4 = mLCOMB4 */
-            (int16_t)0x09C2,  /* [27] dLDIFF */
-            (int16_t)0x09C2,  /* [28] dRDIFF  = dLDIFF */
-            (int16_t)0x05C0,  /* [29] mLAPF1 */
-            (int16_t)0x05C0,  /* [30] mRAPF1  = mLAPF1 */
-            (int16_t)0x0274,  /* [31] mLAPF2 */
-            (int16_t)0x0274,  /* [32] mRAPF2  = mLAPF2 */
-            (int16_t)0x8000,  /* [33] vLIN */
-            (int16_t)0x8000   /* [34] vRIN */
-        }
     }
 };
 
