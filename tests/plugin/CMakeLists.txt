@@ -224,3 +224,63 @@ target_link_libraries(test_mono_sum PRIVATE
 
 add_test(NAME mono_sum
          COMMAND test_mono_sum)
+
+# Phase 60 (VCOUNT-02 / VALLOC-01..03): active-voice-count allocation tests.
+# Headless SPU94AudioProcessor; drives allocateVoice via the friend struct
+# VoiceAllocTest and observes the voice mixer's pending_kon / pending_koff
+# bitmasks. One CTest case per argv selector (argv[1] == case name).
+juce_add_console_app(test_voice_alloc
+    PRODUCT_NAME "SPU-94 Voice Alloc Test"
+)
+juce_generate_juce_header(test_voice_alloc)
+
+target_sources(test_voice_alloc PRIVATE
+    test_voice_alloc.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/PluginProcessor.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/PluginEditor.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/ParameterBridge.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/RegisterPanel.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/MorphPanel.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/SrcChain.cpp
+)
+
+if(EXISTS ${CMAKE_SOURCE_DIR}/src/standalone/WavLoader.cpp)
+    target_sources(test_voice_alloc PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/standalone/WavLoader.cpp
+    )
+    target_include_directories(test_voice_alloc PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/standalone
+    )
+endif()
+
+target_include_directories(test_voice_alloc PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/plugin
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_compile_definitions(test_voice_alloc PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_VST3_CAN_REPLACE_VST2=0
+)
+
+include(${CMAKE_SOURCE_DIR}/cmake/libsamplerate.cmake)
+
+target_link_libraries(test_voice_alloc PRIVATE
+    spu94_static
+    samplerate
+    juce::juce_audio_utils
+    juce::juce_recommended_config_flags
+)
+
+# One add_test per case so `ctest -R voice_alloc_<case>` resolves to exactly that case.
+add_test(NAME voice_alloc_mono_vs_poly
+         COMMAND test_voice_alloc voice_alloc_mono_vs_poly)
+add_test(NAME voice_alloc_only_active
+         COMMAND test_voice_alloc voice_alloc_only_active)
+add_test(NAME voice_alloc_steal_oldest
+         COMMAND test_voice_alloc voice_alloc_steal_oldest)
+add_test(NAME voice_alloc_mono_takeover
+         COMMAND test_voice_alloc voice_alloc_mono_takeover)
+add_test(NAME voice_alloc_default24_regression
+         COMMAND test_voice_alloc voice_alloc_default24_regression)
