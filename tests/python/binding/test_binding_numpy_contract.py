@@ -13,7 +13,6 @@ Plan 6-02 delivers:
   - ``cli.main()`` missing-binary error path.
   - ``self_test`` end-to-end smoke.
 """
-import ctypes
 import numpy as np
 import pytest
 

@@ -13,8 +13,6 @@ import subprocess
 import wave
 from pathlib import Path
 
-import pytest
-
 
 def test_legacy_reverb_backward_compat(spu94_cli_path, sample_wav_file, tmp_wav_out):
     """No subcommand: `spu94 --preset hall in.wav out.wav` still works."""

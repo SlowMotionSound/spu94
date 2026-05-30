@@ -134,7 +134,7 @@ class SPU94:
         ``SPU94_OK`` / ``SPU94_UNKNOWN_REG``."""
         return api.load_preset(self.state, preset)
 
-    def _reg_type(self, reg) -> int:
+    def _reg_type(self, reg) -> Tuple[int, int]:
         """Look up a register's signedness family. Returns 0 for i16,
         1 for u16. Accepts Register enum, name string, or int."""
         from ._binding import _lib

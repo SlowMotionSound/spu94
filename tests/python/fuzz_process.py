@@ -67,8 +67,6 @@ from spu94 import (  # noqa: E402 — after sys.path prepend
     SPU94_STATE_SIZE_MAX,
     SPU94_STATE_ALIGN_MAX,
     SPU94_OK,
-    SPU94_UNKNOWN_REG,
-    SPU94_TYPE_MISMATCH,
 )
 from spu94._binding import _lib  # noqa: E402
 

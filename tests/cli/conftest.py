@@ -4,7 +4,6 @@ The spu94 binary + fixture WAV + JSON configs all live in the CMake build
 tree. pytest runs under ctest (`ctest -L cli`) so the binary is guaranteed
 to be fresh — build-time `add_dependencies` / DEPENDS wiring handles that.
 """
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -51,13 +50,3 @@ def sample_flat_json():
 def tmp_wav_out(tmp_path):
     """A tmp path for the CLI to write its output WAV to."""
     return str(tmp_path / "out.wav")
-
-
-def run_cli(spu94_cli_path, *args, check=False):
-    """Run the CLI, returning the CompletedProcess."""
-    return subprocess.run(
-        [spu94_cli_path, *args],
-        capture_output=True,
-        text=True,
-        check=check,
-    )

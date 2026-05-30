@@ -125,7 +125,6 @@ def test_silent_input_through_hall_is_silent(spu94_cli_path, tmp_path):
     residue is bleeding through the delay lines, output will be non-zero
     at the start as the garbage decays through the reverb's feedback loop.
     """
-    import struct
     n_frames = 88200  # 2 seconds
     silence = bytearray(b"\x00" * n_frames * 4)  # stereo int16 zeros
     input_wav = tmp_path / "silent_in.wav"

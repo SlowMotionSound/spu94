@@ -13,7 +13,6 @@ import os
 import sys
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 # Match fuzz_*.py / test_benchmark.py convention: prepend python/ to sys.path
@@ -32,7 +31,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from spu94 import Register  # noqa: E402 — after sys.path prepend
 from modulation_harness import (  # noqa: E402
     RATES_HZ,
-    ModulationResult,
     classify_modulation_cost,
     run_one_case,
 )

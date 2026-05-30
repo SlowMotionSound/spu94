@@ -8,7 +8,6 @@ harnesses have used since Phase 2 Plan 05.
 """
 
 import os
-import sys
 from pathlib import Path
 
 import pytest
