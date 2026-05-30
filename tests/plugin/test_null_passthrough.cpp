@@ -36,7 +36,7 @@
 static void* portableAlignedAlloc(size_t alignment, size_t size) { return _aligned_malloc(size, alignment); }
 static void  portableAlignedFree(void* ptr) { _aligned_free(ptr); }
 #else
-static void* portableAlignedAlloc(size_t alignment, size_t size) { return portableAlignedAlloc(alignment, size); }
+static void* portableAlignedAlloc(size_t alignment, size_t size) { return aligned_alloc(alignment, size); }
 static void  portableAlignedFree(void* ptr) { std::free(ptr); }
 #endif
 
