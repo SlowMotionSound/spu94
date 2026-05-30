@@ -170,9 +170,6 @@ public:
     // --- Input level (pre-SPU gain staging) ---
     std::atomic<float>& getInputLevel() { return inputLevel; }
 
-    // --- ADPCM coloration toggle (ADPCM-IO-06, D-06) ---
-    std::atomic<bool>& getAdpcmEnabled() { return adpcmEnabled; }
-
     // --- Mixer faders (0.0-1.0 float, converted to Q15 at processBlock boundary) ---
     std::atomic<float>& getDryLevel() { return dryLevel; }
     std::atomic<float>& getAdpcmLevel() { return adpcmLevel; }
@@ -204,10 +201,6 @@ public:
     std::atomic<float>& getSamplerFader() { return samplerFader; }
     std::atomic<float>& getSamplerSend() { return samplerSend; }
     std::atomic<float>& getSamplerDrive() { return samplerDrive; }
-
-    // --- GUI voice volume (Phase 34: signed volume for GUI trigger path) ---
-    std::atomic<int16_t>& getGuiVoiceVolL() { return guiVoiceVolL; }
-    std::atomic<int16_t>& getGuiVoiceVolR() { return guiVoiceVolR; }
 
     // --- Voice engine state (Phase 31: standalone testbed) ---
     std::atomic<bool>& getVoiceSampleLoaded() { return voiceSampleLoaded; }
@@ -308,21 +301,12 @@ private:
     // `spu94_set_input_gain` is pinned at 0x7FFF on both paths.
     std::atomic<float> inputLevel{0.50f};
 
-    // Public anchors for Phase 24 (AudioProcessorParameter wiring).
-    // These are documentation anchors -- NOT used to re-initialize the
-    // atomic (would tempt drift). Phase 24 will consume them when wiring
-    // the AudioProcessorParameter range.
-    static constexpr float kInputGainDefault = 0.5f;
-    static constexpr float kInputGainMax     = 16.0f;
-
     // Per-channel host-rate float scratch for the pre-clamp Input Gain
     // multiply on the plugin path. Allocated in prepareToPlay to
     // kMaxBlock=4096 samples. Standalone path applies the same pre-clamp
     // gain inline (per-sample int16 -> toFloat -> applyInputGain -> toInt16)
     // and does not need this scratch.
     juce::HeapBlock<float> inputGainScratch_[2];
-
-    std::atomic<bool> adpcmEnabled{false}; // ADPCM coloration toggle (D-06)
 
     // Mixer faders (0.0-1.0 float, converted to Q15 at processBlock boundary)
     std::atomic<float> dryLevel{0.0f};        // dry bus level (default OFF)

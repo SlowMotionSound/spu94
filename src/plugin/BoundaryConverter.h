@@ -88,17 +88,4 @@ namespace spu94::plugin::boundary
     //                                  result of casting -65536.0f)
     //   toInt16(+0.5f) -> 16384       (clean, in-range)
     //   toInt16(-1.0f) -> -32768      (exact lower boundary)
-    //
-    // The functions above are not constexpr (C++17 doesn't permit a
-    // constexpr static_cast<int16_t> on a non-constant-evaluable float),
-    // so we exercise the corners at namespace-scope via a one-shot
-    // [[maybe_unused]] runtime check. Folded into a no-op at -O2 on
-    // every toolchain we ship to.
-    [[maybe_unused]] inline bool saturationSelfCheck() noexcept
-    {
-        return toInt16( 1.5f) ==  32767
-            && toInt16(-2.0f) == -32768
-            && toInt16( 0.5f) ==  16384
-            && toInt16(-1.0f) == -32768;
-    }
 }

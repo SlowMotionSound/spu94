@@ -159,15 +159,6 @@ void SrcChain::release()
     measuredLatencyHostSamples_  = 0;
 }
 
-void SrcChain::reset()
-{
-    for (int ch = 0; ch < 2; ++ch)
-    {
-        if (srcIn_ [ch] != nullptr) src_reset(srcIn_ [ch]);
-        if (srcOut_[ch] != nullptr) src_reset(srcOut_[ch]);
-    }
-}
-
 // ============================================================================
 // Group-delay measurement (called from prepare(), non-fast-path only)
 // ============================================================================
@@ -277,7 +268,6 @@ void SrcChain::processIn(const float* const* hostIn, int hostN,
 
     const long n = std::min(nL, nR);
     jassert(n <= coreScratchN_);   // R5 mitigation
-    srcCallbacksThisBlock_.fetch_add(1, std::memory_order_relaxed);
 
     const float* fL = scratchCoreFloatIn_[0].getData();
     const float* fR = scratchCoreFloatIn_[1].getData();
@@ -335,7 +325,6 @@ void SrcChain::processOut(const int16_t* coreInL, const int16_t* coreInR, int co
 
     const long n = std::min(nL, nR);
     jassert(n <= hostScratchN_);
-    srcCallbacksThisBlock_.fetch_add(1, std::memory_order_relaxed);
 
     float* outL = hostOut[0];
     float* outR = (hostOut[1] != nullptr) ? hostOut[1] : nullptr;

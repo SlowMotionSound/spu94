@@ -46,12 +46,6 @@ public:
     // buffers.
     void release();
 
-    // Soft reset between transport stops. Calls src_reset on each
-    // SRC_STATE; does NOT reallocate. Safe from prepareToPlay only — NOT
-    // RT-safe (libsamplerate's src_reset implementation may touch heap on
-    // some platforms; we don't rely on it from processBlock).
-    void reset();
-
     // RT-safe. Consumes hostN host-rate float samples per channel, writes
     // coreNOut core-rate int16 samples per channel into coreOutL/R. In
     // fast-path mode hostN == coreNOut and no libsamplerate call runs.
@@ -66,18 +60,6 @@ public:
 
     bool isFastPath() const noexcept { return isFastPath_; }
     int  getMeasuredLatencyHostSamples() const noexcept { return measuredLatencyHostSamples_; }
-
-    // RT-safe debug accessor: how many times did a non-fast-path
-    // src_callback_read fire in the most recent block? Used by Task 3's
-    // verify step at 44.1 kHz host SR to confirm fast-path engagement.
-    int  getSrcCallbacksThisBlock() const noexcept
-    {
-        return srcCallbacksThisBlock_.load(std::memory_order_relaxed);
-    }
-    void resetSrcCallbacksCounter() noexcept
-    {
-        srcCallbacksThisBlock_.store(0, std::memory_order_relaxed);
-    }
 
 private:
     // Per-channel libsamplerate callback userdata. The pull-callback walks
@@ -108,8 +90,6 @@ private:
     int    hostScratchN_     = 0;    // maxHostBlockSize * 5 + 32 (up to 192 kHz)
     bool   isFastPath_       = false;
     int    measuredLatencyHostSamples_ = 0;
-
-    std::atomic<int> srcCallbacksThisBlock_ { 0 };
 
     // Called once from prepare() (non-fast-path only). Pushes a Kronecker
     // delta through each direction's SRC and locates the centre-of-energy

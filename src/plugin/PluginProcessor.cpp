@@ -441,10 +441,6 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // MUST be the first statement of processBlock.
     juce::ScopedNoDenormals noDenormals;
 
-    // R4 (fast-path slip verification): clear the SRC-call counter so the
-    // Task-3 verify step can read a clean per-block number.
-    srcChain_.resetSrcCallbacksCounter();
-
     // Check if new WAV data is ready from the message thread.
     // Double-buffer swap (CR-01): read from whichever slot the message
     // thread last wrote.  Old wavSource vectors are moved into the
