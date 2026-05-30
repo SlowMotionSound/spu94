@@ -28,6 +28,16 @@
 
 **Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`, `v1.5`, `v1.6`, `v1.7`, `v1.8`, `v1.9`, `v1.10.0`, `v1.11.0`.
 
+## Current Milestone: v1.12.0 Voice Count
+
+**Goal:** Let the player choose how many of the 24 sampler voices are active, and make the whole sampler play correctly at that count.
+
+**Target features:**
+- Voice-count selector (1–24 active voices) in the sampler — 1 = the mono single-module voice, 24 = the full rig
+- Per-voice controls (Level, Pan, envelope, NON/PMON toggles) apply across all active voices, not just voice 0
+- Note allocation respects the count; playing past the limit steals the oldest-sounding voice
+- Selector and controls stay in sync as the count changes
+
 ## What This Is
 
 SPU-94 is a bit-faithful software reimplementation of the Sony PlayStation 1 SPU, built from the spec (nocash psx-spx) rather than ported from any existing emulator. It includes the complete reverb network, a 24-voice ADPCM sampler engine with PS1-faithful ADSR envelopes and loop mechanics, ADPCM codec coloration, AK4309 DAC modeling, and a preset interpolation engine. It ships as a plain C library with Python bindings, a native CLI, a DAW plugin (VST3/AU/LV2/CLAP), and a standalone application with a sampler GUI. SPU-94 is designed as a *living instrument*, not a static bank of presets — every parameter that moves in the original algorithm is designed to be controllable at runtime, smoothly and glitch-free, in service of performance, modulation, and CV control. The immediate audience is the author and a small circle of musicians who want the recognizable character of the PS1 sound available as a modern, playable tool.

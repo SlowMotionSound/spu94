@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.11.0
-milestone_name: Live Input Sampling
-status: Awaiting next milestone
-stopped_at: "CODEBASE-AUDIT cleanup COMPLETE. This session finished Tier 3 (#22–32) in four commits — C-core hygiene, Python hygiene, plugin header/comments — and wired + ran the #39 test gap (test_cli_mixer_dac: 12 tests, all green; suite now 120). Tier 4 dup-code (#33–38) declined by user: keep the 4 VCA effects (tremolo/pan/ring-mod/AM) in separate blocks. Notable keeps where the audit was wrong: spu94_zero_bytes (documented no-libc/MCU invariant), spu94_voice.h stays in PluginProcessor.h (header uses spu94_adsr_state_t), and 3 `__future__` imports."
-last_updated: "2026-05-30T21:11:51.138Z"
-last_activity: 2026-05-30 — Milestone v1.11.0 completed and archived
+milestone: v1.12.0
+milestone_name: Voice Count
+status: planning
+last_updated: "2026-05-30T22:09:16.245Z"
+last_activity: 2026-05-30
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 5
-  completed_plans: 5
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-05-28)
 
 ## Current Position
 
-Phase: Milestone v1.11.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-05-30 — Milestone v1.11.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-05-30 — Milestone v1.12.0 started
 
 ## Milestone History
 
