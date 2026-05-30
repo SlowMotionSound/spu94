@@ -1,0 +1,62 @@
+# Requirements: SPU-94 v1.12.0 Voice Count
+
+**Defined:** 2026-05-30
+**Core Value:** Reproduce the PS1 SPU reverb algorithm from spec — sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't — in a form that ports cleanly from desktop to hardware without a rewrite.
+
+## v1.12.0 Requirements
+
+### Voice Count Selection
+
+- [ ] **VCOUNT-01**: User can set the number of active sampler voices (1–24) from a control in the sampler window
+- [ ] **VCOUNT-02**: Setting the count to 1 makes the sampler monophonic; higher counts add polyphony up to 24
+- [ ] **VCOUNT-03**: Changing the voice count takes effect immediately, with the controls and note allocation following the new count
+- [ ] **VCOUNT-04**: The active voice count is saved to and restored from presets/system state
+
+### Coherent Controls
+
+- [ ] **VCTRL-01**: The Level control applies to all active voices, not just voice 0
+- [ ] **VCTRL-02**: The Pan control applies to all active voices
+- [ ] **VCTRL-03**: The envelope (ADSR) and per-voice toggles (noise/NON, pitch-mod/PMON, phase-invert) apply to all active voices
+
+### Note Allocation
+
+- [ ] **VALLOC-01**: Played notes are allocated only among the active voices
+- [ ] **VALLOC-02**: Playing more simultaneous notes than the active count steals the oldest-sounding voice
+- [ ] **VALLOC-03**: In monophonic mode (count = 1), each new note takes over the single active voice
+
+## Out of Scope
+
+Explicitly excluded for v1.12.0. Documented to prevent scope creep.
+
+| Feature | Reason |
+|---------|--------|
+| Per-voice independent settings (different sample / tuning / pan / level per voice) | Active voices share the sampler's controls in this milestone; independent per-voice patches are a future direction (tied to the Eurorack per-module vision) |
+| Alternate voice-stealing strategies (quietest, lowest-priority, etc.) | Oldest-sounding-voice stealing is the v1.12.0 behavior; other strategies can follow if needed |
+| Hardware daisy-chain voice-linking | A Eurorack-hardware concern, not this desktop milestone |
+| Per-voice note display / voice-activity meter | Visualization of which voices are sounding is a possible later polish item, not core to this milestone |
+
+## Traceability
+
+Which phases cover which requirements. Populated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| VCOUNT-01 | — | Pending |
+| VCOUNT-02 | — | Pending |
+| VCOUNT-03 | — | Pending |
+| VCOUNT-04 | — | Pending |
+| VCTRL-01 | — | Pending |
+| VCTRL-02 | — | Pending |
+| VCTRL-03 | — | Pending |
+| VALLOC-01 | — | Pending |
+| VALLOC-02 | — | Pending |
+| VALLOC-03 | — | Pending |
+
+**Coverage:**
+- v1.12.0 requirements: 10 total
+- Mapped to phases: 0 (roadmap pending)
+- Unmapped: 10 ⚠️
+
+---
+*Requirements defined: 2026-05-30*
+*Last updated: 2026-05-30 after initial definition*
