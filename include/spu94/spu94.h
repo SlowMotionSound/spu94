@@ -156,13 +156,13 @@ void          spu94_destroy(spu94_state *state);
 /* Per-tick processing entry point (D-19, ADR-0004)                          */
 /* ------------------------------------------------------------------------- */
 
-/* The atomic per-22.05 kHz-tick processing entry point. Phase 3 implements
- * the reverb algorithm inside this function. Phase 5's spu94_process is
- * built as a loop calling spu94_tick per stereo tick.
+/* The atomic per-22.05 kHz-tick processing entry point. Implements the
+ * reverb algorithm; spu94_process is a loop calling spu94_tick per stereo
+ * tick.
  *
- * Plan 02 ships a no-op stub body. The observability contract is:
- * between two spu94_tick calls, any public accessor (snapshot_registers,
- * buffer_address, etc.) observes a consistent instantaneous state.
+ * The observability contract is: between two spu94_tick calls, any public
+ * accessor (snapshot_registers, buffer_address, etc.) observes a consistent
+ * instantaneous state.
  *
  * Null-safe: spu94_tick(NULL) is a no-op. */
 void          spu94_tick(spu94_state *state);

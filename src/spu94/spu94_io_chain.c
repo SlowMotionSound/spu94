@@ -23,11 +23,6 @@
  *     emit phase-0 now; cache phase-1; set fir_interpolate_phase=1
  *   else (discarded phase):
  *     dec_valid=0; emit cached phase-1; set fir_interpolate_phase=0
- *
- * Phase-5 stitching note: spu94_tick runs the Phase-3 reverb body with
- * the current register state. The reverb body reads zero mix-bus inputs
- * in Phase 4 -- Phase 5 will wire vLIN/vRIN into the mix-bus path so the
- * FIR decimator outputs feed the reverb indirectly.
  */
 #include "spu94_fir_internal.h"
 #include "spu94_state_internal.h"
@@ -37,12 +32,8 @@
 #include <spu94/spu94_dac_noise.h>
 #include <stdint.h>
 
-/* Forward decl: spu94_tick lives in spu94_tick.c. Phase 4 calls it as the
- * 22.05 kHz reverb step. Phase 5 will additionally plumb mix-bus inputs
- * through vLIN/vRIN register writes BEFORE this chain_step call, so the
- * reverb body sees the FIR decimator outputs indirectly. For Phase 4,
- * spu94_tick runs with whatever register state the caller has set -- the
- * reverb_body reads zero mix-bus inputs (Phase 3 Plan 01 placeholder). */
+/* Forward decl: spu94_tick lives in spu94_tick.c. chain_step calls it as the
+ * 22.05 kHz reverb step. */
 void spu94_tick(spu94_state *state);
 
 static void chain_step_impl(spu94_state *state,

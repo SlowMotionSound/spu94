@@ -30,12 +30,10 @@
 #include <spu94/spu94_dac_fir.h>
 #include <spu94/spu94_dac_noise.h>
 #include <spu94/spu94_voice.h>
-#include <spu94/spu94_spu_ram.h>
 #include "spu94_fir_internal.h"
 #include "spu94_state_internal.h"
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 
 /* -----------------------------------------------------------------------
  * v1.8 Voice Engine — Phase 30: Full 24-voice mixer (MIX-01 through MIX-06).

@@ -200,17 +200,10 @@ void spu94_reverb_output_scale(spu94_state *state,
 }
 
 /* =====================================================================
- * Plan 02 / Plan 03 stage stubs
+ * Reverb stage functions (same_iir, diff_iir, comb, apf1, apf2)
  *
- * The header spu94_reverb_internal.h declares five more stage functions
- * (same_iir, diff_iir, comb, apf1, apf2) that Plans 02 and 03 flesh out.
- * Plan 01's reverb body does NOT call any of them. We define empty
- * bodies here so:
- *   - The shared library links cleanly if anything outside the plan
- *     references a declared-but-undefined symbol.
- *   - Plans 02 / 03 have concrete function bodies to replace rather
- *     than create.
- * Each stub is intentionally a no-op: no state mutation, no buffer I/O.
+ * Declared in spu94_reverb_internal.h; implemented below. Each stage is a
+ * per-tick transform over the reverb work buffer + register snapshot.
  * ===================================================================== */
 
 /* =====================================================================

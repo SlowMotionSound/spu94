@@ -6,8 +6,8 @@
  * spu94_reg_t. The _Static_assert below pins SPU94_REG__COUNT == 35 so any
  * future enum edit that drifts the count fails the build here.
  *
- * Snapshot stub body lives here too; Plan 03 will rewrite it to read the
- * `reg_values[]` storage Plan 01 already reserved in struct spu94_state.
+ * The register snapshot accessor lives here too; it reads the `reg_values[]`
+ * storage in struct spu94_state.
  */
 
 #include "spu94_state_internal.h"

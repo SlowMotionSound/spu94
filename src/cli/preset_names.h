@@ -24,10 +24,6 @@ extern "C" {
  * underscores: both "studio_a" and "Studio A" and "STUDIO_A" resolve to 2. */
 int spu94_cli_preset_id_by_name(const char *name);
 
-/* Return the canonical lowercase-underscore display name for a preset id,
- * or NULL if id is out of range. Example: 5 -> "hall"; 2 -> "studio_a". */
-const char *spu94_cli_preset_canonical_name(int preset_id);
-
 /* Print the 10 preset names, one per line, to `out`. Used by --list-presets. */
 void spu94_cli_list_presets(FILE *out);
 

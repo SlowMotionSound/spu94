@@ -63,14 +63,14 @@
 
 ## Tier 3 — Code hygiene
 
-- [ ] 22. Delete 2 stale includes `<string.h>` + `<spu94/spu94_spu_ram.h>` — `spu94_process.c:38,33` [4.8 ✓]
+- [x] 22. Delete 2 stale includes `<string.h>` + `<spu94/spu94_spu_ram.h>` — `spu94_process.c:38,33` [4.8 ✓]
 - [ ] 23. Move 3 includes used only in `.cpp` out of header — `PluginProcessor.h:6` (StateSerializer.h), `:16` (spu94_voice.h), `:17` (spu94_sample_loader.h) [4.6 ✓]
-- [ ] 24. (Judgment) Replace `spu94_zero_bytes` with `memset`, drop the private fn — `spu94_state.c:49-57`. It IS called; this is consolidation, not dead-code removal [4.6 ✓]
-- [ ] 25. Make `spu94_cli_preset_canonical_name` `static`, drop header decl — `preset_names.c:55` + `preset_names.h:29` (used internally only) [4.8 ✓]
+- [x] 24. (Judgment) Replace `spu94_zero_bytes` with `memset`, drop the private fn — `spu94_state.c:49-57`. **RESOLVED — kept as-is, not applied.** The hand-rolled byte loop is a *documented* no-libc invariant (`spu94_state.c:46-48`): it keeps the library free of libc symbol imports so it links on freestanding/MCU targets and satisfies `verify-no-heap-symbols.sh` / BUILD-07. Swapping in `memset` would regress hardware portability for a cosmetic gain. Do not re-attempt.
+- [x] 25. Make `spu94_cli_preset_canonical_name` `static`, drop header decl — `preset_names.c:55` + `preset_names.h:29` (used internally only) [4.8 ✓]
 - [ ] 26. Remove ~17 stale Python imports across 12 files (`api.py`, `fuzz_process.py`, `test_modulation_harness.py`, `modulation_harness.py`, `binding/conftest.py`, `test_binding_adpcm.py`, `test_binding_numpy_contract.py`, `test_cli_adpcm.py`, `test_cli_preset_hall_roundtrip.py`, `scripts/ci/test_check_coverage.py`) [Both ✓]
 - [ ] 27. Remove dead test helper `run_cli()` — `tests/cli/conftest.py:56-63` [Both ✓]
 - [ ] 28. Fix `reverb.py` `_reg_type` annotation `-> int` → `-> Tuple[int,int]` (returns a tuple) — `reverb.py:137` [4.8]
-- [ ] 29. Update ~6 stale "Phase N will…" comments describing already-shipped code — `spu94_process.c`(io comments), `spu94_reverb.c:202-214` (stub header), `spu94.h:163`, `spu94_registers.c:9`, `spu94_write_policy.c:18-22`, `spu94_io_chain.c:27-45` [Both ✓]
+- [x] 29. Update ~6 stale "Phase N will…" comments describing already-shipped code — `spu94_reverb.c:202-214` (stub header), `spu94.h:163`, `spu94_registers.c:9`, `spu94_write_policy.c:18-22`, `spu94_io_chain.c:27-45` (2 spots) updated. `spu94_process.c` io comments left as-is — verified accurate (historical "replaces Phase 27 scaffolding" fact, not a stale forward-looking claim). [Both ✓]
 - [ ] 30. Delete orphaned Phase-41 comment header (no members under it) — `PluginProcessor.h:463` [4.8]
 - [ ] 31. Renumber param comments to close the "7" gap (cosmetic — do NOT touch `addParameter` call order) — `PluginProcessor.cpp:256-266` [4.8]
 - [ ] 32. Rewrite/remove "DIAGNOSTIC" investigative comment + duplicate comment line — `PluginProcessor.cpp:555` and `:2391-2392` [4.6]

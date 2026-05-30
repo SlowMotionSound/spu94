@@ -15,11 +15,9 @@
  *   - 22 d-prefix/m-prefix delay/address regs    : TICK_LATCHED
  * Total: 13 IMMEDIATE + 22 TICK_LATCHED = 35.
  *
- * The mBASE side-effect handler is also defined in this file as a Plan-03
- * stub — defining the symbol here lets the library link cleanly while Plan
- * 04 owns the body. Move-the-stub note: Plan 04's <output> may relocate the
- * definition to src/spu94/spu94_buffer.c if that better isolates the
- * snap-on-write logic with the buffer-arithmetic surface.
+ * The mBASE write side-effect handler is implemented in
+ * src/spu94/spu94_buffer.c (alongside the BufferAddress wrap arithmetic it
+ * interacts with); see the note near the end of this file and ADR-0006.
  */
 
 #include "spu94_state_internal.h"

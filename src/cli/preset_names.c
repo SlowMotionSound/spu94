@@ -52,7 +52,7 @@ int spu94_cli_preset_id_by_name(const char *name) {
     return -1;
 }
 
-const char *spu94_cli_preset_canonical_name(int preset_id) {
+static const char *spu94_cli_preset_canonical_name(int preset_id) {
     /* Cache canonical names on first call — amortized O(1) lookup on
      * subsequent calls, which we do a lot (every --list-presets +
      * every error-message assembly). */
