@@ -258,9 +258,13 @@ void test_real_exponential_decay_proportional(void) {
 }
 
 /* ---------------------------------------------------------------
- * Test: sustain_level=0 produces target 0x800 (not zero — M2)
+ * Test: sustain_level=0 decays to true silence (level 0, phase OFF)
+ *   The lowest sustain setting reaches zero — see spu94_adsr.c decay
+ *   handler: a zero sustain target transitions to ADSR_OFF. Earlier
+ *   behavior floored at 0x800 ("never zero"); changed so the bottom
+ *   setting is genuinely silent.
  * --------------------------------------------------------------- */
-void test_sustain_level_zero_is_0x800(void) {
+void test_sustain_level_zero_is_silence(void) {
     spu94_adsr_state_t a;
     spu94_adsr_init(&a);
     a.enabled = 1;
@@ -268,8 +272,8 @@ void test_sustain_level_zero_is_0x800(void) {
     a.attack_step = 0;
     a.attack_exp = 0;
     a.decay_shift = 0;       /* fastest decay */
-    a.sustain_level = 0;     /* M2: target = (0+1)*0x800 = 0x800 */
-    a.sustain_shift = 31;    /* sustain holds forever */
+    a.sustain_level = 0;     /* lowest setting -> target 0 (silence) */
+    a.sustain_shift = 31;
     a.sustain_step = 0;
     a.sustain_exp = 0;
     a.sustain_dir = 0;
@@ -278,15 +282,16 @@ void test_sustain_level_zero_is_0x800(void) {
 
     spu94_adsr_key_on(&a);
 
-    /* Run until sustain */
+    /* With a zero sustain target, decay falls to 0 and transitions
+     * straight to OFF — it never enters the SUSTAIN hold. */
     for (int i = 0; i < 1000; i++) {
         spu94_adsr_tick(&a);
-        if (a.phase == ADSR_SUSTAIN) break;
+        if (a.phase == ADSR_OFF) break;
     }
 
-    TEST_ASSERT_EQUAL(ADSR_SUSTAIN, a.phase);
-    /* Level should be at sustain target 0x800, not 0 */
-    TEST_ASSERT_EQUAL_INT16(0x800, a.level);
+    /* Bottom sustain setting is true silence, not a residual floor. */
+    TEST_ASSERT_EQUAL(ADSR_OFF, a.phase);
+    TEST_ASSERT_EQUAL_INT16(0, a.level);
 }
 
 /* ---------------------------------------------------------------
@@ -497,7 +502,7 @@ int main(void) {
     RUN_TEST(test_counter_fires_slowly_at_high_shift);
     RUN_TEST(test_fake_exponential_knee_at_0x6000);
     RUN_TEST(test_real_exponential_decay_proportional);
-    RUN_TEST(test_sustain_level_zero_is_0x800);
+    RUN_TEST(test_sustain_level_zero_is_silence);
     RUN_TEST(test_sustain_level_15_is_max);
     RUN_TEST(test_key_off_from_attack_enters_release);
     RUN_TEST(test_key_off_from_decay_enters_release);

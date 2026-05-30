@@ -33,7 +33,7 @@
  *   C3: counter-accumulate mechanism (not fixed-rate ramp)
  *   T-28-01: int32_t intermediates for all multiply-accumulate
  *   T-28-03: level clamped to [0, 0x7FFF] after every step
- *   M2: sustain target = (sustain_level + 1) * 0x800 (never zero)
+ *   sustain target = (sustain_level + 1) * 0x800; sustain_level 0 -> 0 (true silence, decays to ADSR_OFF)
  */
 
 #include <spu94/spu94_adsr.h>
