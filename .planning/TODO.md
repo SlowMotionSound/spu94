@@ -13,6 +13,7 @@ Items that need to get done at some point. They live here instead of cluttering 
 | Hide preset Save/Load in plugin formats | v1.6 | 2026-05-11 |
 | 2 packaging tests time out (`test_packaging_editable_install`, `test_packaging_wheel_tag`) — pip/wheel build; likely environmental, verify | cleanup test run | 2026-05-30 |
 | Tier 4 dup-code optimization (deferred) — fold the 4 VCA-effect blocks (tremolo/auto-pan/ring-mod/AM) into one shared helper, ~460→120 ln; also #37 resample + #38 GUI dedup. Needs a dedicated **critical-listening session** (sound code, no test guard). See CODEBASE-AUDIT.md Tier 4. | post-v1.11.0 cleanup audit | 2026-05-30 |
+| Mono/Poly sampler toggle — Mono = voice 0 only (mirrors a single Eurorack module), Poly = all 24 voices round-robin (mirrors a full daisy-chained rig). Testing aid; also clarifies the single-voice GUI vs polyphony mismatch. | sampler design discussion | 2026-05-30 |
 
 ## Ideas
 
