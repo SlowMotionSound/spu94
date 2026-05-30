@@ -41,22 +41,22 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VCOUNT-01 | — | Pending |
-| VCOUNT-02 | — | Pending |
-| VCOUNT-03 | — | Pending |
-| VCOUNT-04 | — | Pending |
-| VCTRL-01 | — | Pending |
-| VCTRL-02 | — | Pending |
-| VCTRL-03 | — | Pending |
-| VALLOC-01 | — | Pending |
-| VALLOC-02 | — | Pending |
-| VALLOC-03 | — | Pending |
+| VCOUNT-01 | Phase 62 | Pending |
+| VCOUNT-02 | Phase 60 | Pending |
+| VCOUNT-03 | Phase 62 | Pending |
+| VCOUNT-04 | Phase 63 | Pending |
+| VCTRL-01 | Phase 61 | Pending |
+| VCTRL-02 | Phase 61 | Pending |
+| VCTRL-03 | Phase 61 | Pending |
+| VALLOC-01 | Phase 60 | Pending |
+| VALLOC-02 | Phase 60 | Pending |
+| VALLOC-03 | Phase 60 | Pending |
 
 **Coverage:**
 - v1.12.0 requirements: 10 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 10 ⚠️
+- Mapped to phases: 10 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-30*
-*Last updated: 2026-05-30 after initial definition*
+*Last updated: 2026-05-30 — traceability populated during roadmap creation (Phases 60-63)*

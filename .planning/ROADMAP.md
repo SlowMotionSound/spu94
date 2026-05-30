@@ -5,6 +5,7 @@
 
 ## Milestones
 
+- [ ] v1.12.0 Voice Count -- Phases 60-63 (current milestone)
 - [x] v1.11.0 Live Input Sampling -- Phases 56-59 (shipped 2026-05-30, tag `v1.11.0`)
 - [x] v1.10.0 Voice Dynamics & Stereo Effects -- Phases 43-55 (shipped 2026-05-28, tag `v1.10.0`)
 - [x] v1.9 Complete Voice -- Phases 33-42 (shipped 2026-05-24, tag `v1.9`)
@@ -18,6 +19,76 @@
 - [x] v1.1 ADPCM -- Phases 1-4 (shipped 2026-04-27, tag `v1.1`)
 - [x] v1.0 Product -- 8 phases (shipped 2026-04-26, standalone GUI)
 - [x] M1 Reverb Core -- 7 phases (shipped 2026-04-25, tag `m1-reverb-core`)
+
+## Current Milestone: v1.12.0 Voice Count
+
+**Goal:** Let the player choose how many of the 24 sampler voices are active, and make the whole sampler play correctly at that count.
+
+A voice-count selector (1–24) in the sampler window decides how many voices are live: 1 is the mono single-module voice, 24 is the full rig. The per-voice controls (Level, Pan, ADSR envelope, and the NON / PMON / phase-invert toggles) stop being voice-0-only and apply across every active voice. Note allocation respects the count — playing past the limit steals the oldest-sounding voice, and at count = 1 each new note takes over the single voice (last-note priority). The selector, the controls, and the allocation stay in sync as the count changes, and the count saves and restores with presets.
+
+### Phases
+
+- [ ] **Phase 60: Engine Voice-Count & Allocation** -- Engine knows an active-voice count and allocates notes within it, stealing the oldest-sounding voice past the limit
+- [ ] **Phase 61: Coherent Controls** -- Level, Pan, envelope, and per-voice toggles apply to every active voice instead of only voice 0
+- [ ] **Phase 62: Voice-Count Selector** -- A 1–24 voice control in the sampler window that takes effect immediately, with controls and allocation following the new count
+- [ ] **Phase 63: Voice-Count Persistence** -- The active voice count saves to and restores from presets / system state
+
+## Phase Details
+
+### Phase 60: Engine Voice-Count & Allocation
+**Goal**: The sampler engine knows how many voices are active and allocates played notes only among them, stealing the oldest-sounding voice when more notes play than the count allows.
+**Depends on**: Nothing new (builds on the v1.8 24-voice mixer `spu94_voice_mixer_t` and the existing round-robin `allocateVoice`)
+**Requirements**: VCOUNT-02, VALLOC-01, VALLOC-02, VALLOC-03
+**Success Criteria** (what must be TRUE):
+  1. With the count set to 1, playing notes only ever sounds one voice at a time — each new note takes over that single voice (last-note priority)
+  2. With the count set to N (1 < N < 24), playing up to N notes sounds them all simultaneously; no note is allocated to a voice beyond the active set
+  3. Playing an (N+1)th simultaneous note cuts the oldest-sounding note to make room, rather than dropping the new note or sounding a disabled voice
+  4. Raising the count adds polyphony (more notes sound together); lowering it reduces the number of simultaneous notes, up to the full 24 at maximum
+**Plans**: TBD
+
+### Phase 61: Coherent Controls
+**Goal**: The sampler's per-voice controls govern every active voice, so the whole rig sounds the way the controls are set — not just the first voice.
+**Depends on**: Phase 60 (allocation defines which voices are active)
+**Requirements**: VCTRL-01, VCTRL-02, VCTRL-03
+**Success Criteria** (what must be TRUE):
+  1. Adjusting the Level control changes the loudness of every sounding voice, not just one
+  2. Adjusting the Pan control places every sounding voice at the same stereo position
+  3. The ADSR envelope shape (attack/decay/sustain/release) applies to every voice that is triggered, so all notes share the same envelope
+  4. Toggling noise (NON), pitch-mod (PMON), or phase-invert changes the character of every active voice consistently
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 62: Voice-Count Selector
+**Goal**: The player sets the active voice count from a control in the sampler window, and the sampler immediately plays — and is controlled — at that count.
+**Depends on**: Phase 60 (engine count + allocation), Phase 61 (controls apply across active voices)
+**Requirements**: VCOUNT-01, VCOUNT-03
+**Success Criteria** (what must be TRUE):
+  1. The sampler window shows a control for the active voice count that can be set anywhere from 1 to 24
+  2. Moving the control to 1 makes the sampler monophonic and moving it up adds polyphony, audibly and immediately, without reloading or restarting playback
+  3. After changing the count, the per-voice controls and note allocation both follow the new count straight away (the controls reach exactly the newly-active voices, and allocation uses the new limit)
+  4. The selector and the engine stay in sync — the displayed count always matches how many voices the sampler is actually using
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 63: Voice-Count Persistence
+**Goal**: A saved preset remembers how many voices were active, so reopening or reloading it restores the same voice count.
+**Depends on**: Phase 62 (the count is a real, settable value to persist)
+**Requirements**: VCOUNT-04
+**Success Criteria** (what must be TRUE):
+  1. Saving a preset (or the plugin's system state) records the current active voice count
+  2. Loading that preset restores the saved voice count, and the selector shows the restored value
+  3. Presets saved before this feature still load cleanly, defaulting to the full 24 voices (back-compatible)
+**Plans**: TBD
+**UI hint**: yes
+
+## Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 60. Engine Voice-Count & Allocation | 0/? | Not started | - |
+| 61. Coherent Controls | 0/? | Not started | - |
+| 62. Voice-Count Selector | 0/? | Not started | - |
+| 63. Voice-Count Persistence | 0/? | Not started | - |
 
 ## Previous Milestone Archives
 
@@ -193,4 +264,4 @@ M1 reverb core + standalone JUCE GUI. Archived to `.planning/milestones/v1.0-pro
 </details>
 
 ---
-*Last updated: 2026-05-30 -- v1.11.0 Live Input Sampling shipped; between milestones*
+*Last updated: 2026-05-30 -- v1.12.0 Voice Count roadmap created (Phases 60-63)*
