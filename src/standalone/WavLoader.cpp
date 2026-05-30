@@ -16,7 +16,6 @@ std::optional<LoadedWav> WavLoader::load(const juce::File& file)
     const auto srcSR     = reader->sampleRate;
     const auto srcChans  = static_cast<int>(reader->numChannels);
     const auto srcFrames = static_cast<int64_t>(reader->lengthInSamples);
-    const auto srcBits   = static_cast<int>(reader->bitsPerSample);
 
     if (srcFrames <= 0 || srcSR <= 0.0)
         return std::nullopt;
@@ -85,9 +84,6 @@ std::optional<LoadedWav> WavLoader::load(const juce::File& file)
     out.numFrames = static_cast<uint64_t>(dstFrames);
     out.L.resize(static_cast<size_t>(dstFrames));
     out.R.resize(static_cast<size_t>(dstFrames));
-    out.originalSampleRate   = srcSR;
-    out.originalNumChannels  = srcChans;
-    out.originalBitsPerSample = srcBits;
 
     const auto* fL = dstBuf.getReadPointer(0);
     const auto* fR = dstBuf.getReadPointer(1);

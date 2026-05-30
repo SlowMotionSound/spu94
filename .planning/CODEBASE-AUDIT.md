@@ -50,16 +50,16 @@
 - [x] 11. Remove `spu94_slew_cancel` — `spu94_slew.c:75` + `spu94.h:655` [4.8 ✓]
 
 ### JUCE plugin / standalone
-- [ ] 12. Remove `checkModified()` + `PresetSnapshot`/`baseline`/`modifiedState` cluster — `PluginEditor.cpp:1933` + `PluginEditor.h:237`. (Half-wired feature: baseline captured, never compared. Alternative: finish it by wiring a title-bar modified indicator.) [4.6 ✓]
+- [x] 12. Remove `checkModified()` + `PresetSnapshot`/`baseline`/`modifiedState` cluster — `PluginEditor.cpp:1933` + `PluginEditor.h:237`. (Half-wired feature: baseline captured, never compared. Alternative: finish it by wiring a title-bar modified indicator.) [4.6 ✓]
 - [x] 13. Remove `adpcmEnabled` atomic + `getAdpcmEnabled()` — `PluginProcessor.h:174,325` (replaced by implicit fader-level activation) [4.6 ✓]
 - [x] 14. Remove `kInputGainDefault` / `kInputGainMax` consts — `PluginProcessor.h:315-316` (hardcoded inline instead) [4.6 ✓]
 - [x] 15. Remove `getGuiVoiceVolL()` / `getGuiVoiceVolR()` reference getters — `PluginProcessor.h:209-210` (setters are the live path) [Both ✓]
 - [x] 16. Remove `SrcChain::reset()` — `SrcChain.h:53` (never called) [4.6 ✓]
 - [x] 17. Remove `getSrcCallbacksThisBlock()` + `srcCallbacksThisBlock_` counter — `SrcChain.h:73` (dev debug accessor; keep `resetSrcCallbacksCounter()` which IS called) [Both ✓]
 - [x] 18. Remove `BoundaryConverter::saturationSelfCheck()` — `BoundaryConverter.h:97` (already `[[maybe_unused]]`; low priority) [Both ✓]
-- [ ] 19. Remove `WaveformDisplay::clear()`, `getTotalFrames()`, `getLoopMode()` — `WaveformDisplay.h` [4.6 ✓]
-- [ ] 20. Remove `WaveformDisplay::sRate` (write-only) + `onZoomChange` callback (never assigned, always null) — `WaveformDisplay.h:288,72` [4.6 ✓]
-- [ ] 21. Remove `LoadedWav::originalSampleRate`/`originalNumChannels`/`originalBitsPerSample` (write-only) — `WavLoader.h:14-16` + assignments `WavLoader.cpp:88-90`. (Alternative: surface in UI later.) [Both ✓]
+- [x] 19. Remove `WaveformDisplay::clear()`, `getTotalFrames()`, `getLoopMode()` — `WaveformDisplay.h` [4.6 ✓]
+- [x] 20. Remove `WaveformDisplay::sRate` (write-only) + `onZoomChange` callback (never assigned, always null) — `WaveformDisplay.h:288,72` [4.6 ✓]
+- [x] 21. Remove `LoadedWav::originalSampleRate`/`originalNumChannels`/`originalBitsPerSample` (write-only) — `WavLoader.h:14-16` + assignments `WavLoader.cpp:88-90`. (Alternative: surface in UI later.) [Both ✓]
 
 ## Tier 3 — Code hygiene
 

@@ -27,7 +27,6 @@ public:
         if (data == nullptr || numFrames == 0) return;
 
         totalFrames = numFrames;
-        sRate = sampleRate;
 
         juce::AudioBuffer<float> buffer(1, static_cast<int>(numFrames));
         auto* dest = buffer.getWritePointer(0);
@@ -47,13 +46,6 @@ public:
         repaint();
     }
 
-    void clear()
-    {
-        totalFrames = 0;
-        thumbnail.reset(0, 44100.0);
-        repaint();
-    }
-
     double getStartPos() const { return startPos; }
     double getEndPos() const { return endPos; }
     double getLoopPos() const { return loopPos; }
@@ -63,13 +55,10 @@ public:
     void setLoopPos(double pos)  { loopPos = pos; repaint(); }
 
     void setLoopMode(bool enabled) { loopMode = enabled; repaint(); }
-    bool getLoopMode() const { return loopMode; }
 
     void setPlayheadPos(double pos) { playheadPos = pos; repaint(); }
 
-    uint64_t getTotalFrames() const { return totalFrames; }
     double getViewSpan() const { return viewEnd - viewStart; }
-    std::function<void(double)> onZoomChange;
 
     void paint(juce::Graphics& g) override
     {
@@ -215,7 +204,6 @@ public:
         viewStart = newStart;
         viewEnd = newStart + newSpan;
         repaint();
-        if (onZoomChange) onZoomChange(viewEnd - viewStart);
     }
 
     void mouseDoubleClick(const juce::MouseEvent&) override
@@ -223,7 +211,6 @@ public:
         viewStart = 0.0;
         viewEnd = 1.0;
         repaint();
-        if (onZoomChange) onZoomChange(1.0);
     }
 
 private:
@@ -285,7 +272,6 @@ private:
     juce::AudioThumbnail thumbnail;
 
     uint64_t totalFrames = 0;
-    double sRate = 44100.0;
     double startPos = 0.0;
     double endPos = 1.0;
     double loopPos = 0.0;

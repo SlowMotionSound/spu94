@@ -1254,8 +1254,6 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
     lastShadowSyncCount = processorRef.getShadowSyncCount();
     startTimerHz(30);
 
-    captureBaseline();
-
     setResizable(false, false);
     setSize(900, 950);
 }
@@ -1308,7 +1306,6 @@ void SPU94AudioProcessorEditor::timerCallback()
     {
         lastFilePresetCount = fileCount;
         syncMixerKnobsFromProcessor();
-        captureBaseline();
     }
 
     // Detect shadow syncs from the audio thread. Fires on every morph
@@ -1910,50 +1907,6 @@ void SPU94AudioProcessorEditor::showPresetNamePrompt()
             if (text.isNotEmpty())
                 chosen.replaceWithText(text);
         });
-}
-
-void SPU94AudioProcessorEditor::captureBaseline()
-{
-    for (size_t i = 0; i < SPU94_REG__COUNT; ++i)
-        baseline.registers[i] = processorRef.getRegisterBridge().getShadowValue(i);
-    baseline.inputGain = processorRef.getParamInputGain()->get();
-    baseline.dry = processorRef.getParamDryLevel()->get();
-    baseline.adpcm = processorRef.getParamAdpcmLevel()->get();
-    baseline.reverb = processorRef.getParamReverbLevel()->get();
-    baseline.adpcmSend = processorRef.getParamAdpcmSend()->get();
-    baseline.drySend = processorRef.getParamDrySend()->get();
-    baseline.latencyComp = processorRef.getLatencyCompEnabled().load(std::memory_order_relaxed);
-    baseline.dac = processorRef.getDacEnabled().load(std::memory_order_relaxed);
-    baseline.dacFir = processorRef.getDacFirEnabled().load(std::memory_order_relaxed);
-    baseline.dacNoise = processorRef.getDacNoiseEnabled().load(std::memory_order_relaxed);
-    baseline.dacOversample = processorRef.getDacTrueOversample().load(std::memory_order_relaxed);
-    modifiedState = false;
-}
-
-bool SPU94AudioProcessorEditor::checkModified() const
-{
-    for (size_t i = 0; i < SPU94_REG__COUNT; ++i)
-    {
-        if (processorRef.getRegisterBridge().getShadowValue(i) != baseline.registers[i])
-            return true;
-    }
-    auto& p = processorRef;
-    // Float comparisons: these are slider-sourced values stored/loaded without
-    // arithmetic, so bitwise equality is the correct test. Use memcmp to
-    // avoid -Wfloat-equal warnings while preserving exact-match semantics.
-    auto feq = [](float a, float b) { return std::memcmp(&a, &b, sizeof(float)) == 0; };
-    if (!feq(p.getParamInputGain()->get(), baseline.inputGain)) return true;
-    if (!feq(p.getParamDryLevel()->get(), baseline.dry)) return true;
-    if (!feq(p.getParamAdpcmLevel()->get(), baseline.adpcm)) return true;
-    if (!feq(p.getParamReverbLevel()->get(), baseline.reverb)) return true;
-    if (!feq(p.getParamAdpcmSend()->get(), baseline.adpcmSend)) return true;
-    if (!feq(p.getParamDrySend()->get(), baseline.drySend)) return true;
-    if (p.getLatencyCompEnabled().load(std::memory_order_relaxed) != baseline.latencyComp) return true;
-    if (p.getDacEnabled().load(std::memory_order_relaxed) != baseline.dac) return true;
-    if (p.getDacFirEnabled().load(std::memory_order_relaxed) != baseline.dacFir) return true;
-    if (p.getDacNoiseEnabled().load(std::memory_order_relaxed) != baseline.dacNoise) return true;
-    if (p.getDacTrueOversample().load(std::memory_order_relaxed) != baseline.dacOversample) return true;
-    return false;
 }
 
 void SPU94AudioProcessorEditor::syncMixerKnobsFromProcessor()

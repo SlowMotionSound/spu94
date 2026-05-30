@@ -11,9 +11,6 @@ struct LoadedWav {
     std::vector<int16_t> L;    ///< left channel, 44.1 kHz int16
     std::vector<int16_t> R;    ///< right channel, 44.1 kHz int16
     uint64_t numFrames = 0;    ///< number of stereo frames
-    double originalSampleRate = 0.0;
-    int originalNumChannels = 0;
-    int originalBitsPerSample = 0;
 };
 
 namespace WavLoader {

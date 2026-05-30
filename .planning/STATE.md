@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-28)
 ## Current Position
 
 Milestone: v1.11.0 Live Input Sampling — complete (tagged)
-Status: Between milestones — cleanup in progress (Tier 1 + Tier 2 C-core #6-11 done; plug15 alloc bug fixed)
+Status: Between milestones — cleanup in progress (Tier 1 + Tier 2 complete; plug15/adsr/init-preset fixes done; Tier 3 next)
 Last activity: 2026-05-30
 
 Progress: [##########] 100%
@@ -64,6 +64,6 @@ See `.planning/TODO.md` -- to-do list. Not carried in STATE.md.
 ## Session Continuity
 
 Last session: 2026-05-30
-Stopped at: Tier 2 C-core #6-11 removed as one ABI-bump commit (6 dead public fns + orphaned DAC_NOISE_SHIFT_8X constant). Also fixed plug15 null-test self-recursive alloc (was hanging the whole suite ~25 min). Tier 1 (#1-5) done earlier.
+Stopped at: Tier 2 complete — C-core #6-11 (one ABI-bump commit) + JUCE #12-21 (two commits: plugin internals, then sampler-GUI/loader leftovers). Also this session: plug15 alloc-hang fix, adsr sustain-zero test fix, stale init-preset removal. Tier 1 (#1-5) done earlier.
 Resume file: .planning/CODEBASE-AUDIT.md
-Next action: Continue CODEBASE-AUDIT.md — Tier 2 JUCE #12-21 (10 GUI leftovers, one-at-a-time per build+verify), then Tier 3 hygiene (#22-32), Tier 4 dup-code (#33-38), and #39 test gap. Remaining pre-existing test reds in TODO.md (packaging timeouts only — environmental); adsr sustain-zero and the stale init-preset/CLI reds resolved this session. Full suite 117/117 green excluding packaging.
+Next action: Continue CODEBASE-AUDIT.md — Tier 3 hygiene (#22-32, mechanical: stale includes/comments/imports), then Tier 4 dup-code (#33-38), and #39 test gap (wire test_cli_mixer_dac.py). Remaining pre-existing test reds in TODO.md: packaging timeouts only (environmental). Full suite 117/117 green excluding packaging.

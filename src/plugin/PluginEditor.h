@@ -220,22 +220,6 @@ private:
     };
     std::unique_ptr<PitchKeyListener> pitchKeyListener;
 
-    // Modified-state tracking (D-11, D-12)
-    // Baseline snapshot captured on every preset load (factory or custom)
-    struct PresetSnapshot {
-        std::array<int16_t, SPU94_REG__COUNT> registers{};
-        float inputGain = 0.25f;
-        float dry = 1.0f, adpcm = 0.0f, reverb = 1.0f;
-        float adpcmSend = 0.0f, drySend = 1.0f;
-        bool latencyComp = true;
-        bool dac = false, dacFir = true, dacNoise = true, dacOversample = true;
-    };
-    PresetSnapshot baseline;
-    bool modifiedState = false;
-
-    void captureBaseline();
-    bool checkModified() const;
-
     // FileChooser must outlive the async callback (JUCE requirement).
     std::unique_ptr<juce::FileChooser> fileChooser;
 
