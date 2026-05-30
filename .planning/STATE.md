@@ -2,13 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.12.0
 milestone_name: Voice Count
-status: planning
-last_updated: "2026-05-30T22:09:16.245Z"
-last_activity: 2026-05-30
+status: executing
+stopped_at: v1.12.0 Voice Count roadmap created. 4 phases (60-63), all 10 requirements mapped (VCOUNT-01..04, VCTRL-01..03, VALLOC-01..03), 100% coverage. ROADMAP.md, REQUIREMENTS.md traceability, and STATE.md written. Phases 61/62/63 carry UI hints (sampler-window selector + control wiring).
+last_updated: "2026-05-30T23:05:13.271Z"
+last_activity: 2026-05-30 -- Phase 60 planning complete
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
+  total_plans: 1
   completed_plans: 0
   percent: 0
 ---
@@ -26,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-05-30)
 
 Phase: 60 — Engine Voice-Count & Allocation
 Plan: —
-Status: Roadmap created, ready to plan Phase 60
-Last activity: 2026-05-30 — Roadmap for v1.12.0 created (Phases 60-63)
+Status: Ready to execute
+Last activity: 2026-05-30 -- Phase 60 planning complete
 
 ## Milestone History
 
@@ -48,6 +49,7 @@ See `.planning/MILESTONES.md` for full history.
 Decisions are logged in PROJECT.md Key Decisions table.
 
 v1.12.0 phase-structure rationale (4-phase dependency chain):
+
 - Phase 60 (engine count + allocation) is the foundation — adds an active-voice-count concept and count-aware allocation with oldest-voice stealing + mono last-note priority. Today `allocateVoice` is a fixed `nextVoice = (nextVoice + 1) % 24` round-robin with no oldest-voice tracking (PluginProcessor.cpp ~line 2593).
 - Phase 61 (coherent controls) fixes the voice-0-only scoping: the GUI apply block writes `voices[0]` / `pending_config[0]` only (PluginProcessor.cpp ~lines 863-885), and MIDI-played voices take volume from velocity and ignore the per-voice controls (note-on ~line 1426). Controls must fan out across `[0, active_voices)`.
 - Phase 62 (selector GUI) is the user-facing 1–24 control + live re-sync; depends on 60 and 61 existing.
