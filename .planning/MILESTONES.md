@@ -1,5 +1,29 @@
 # Milestones
 
+## v1.11.0 Live Input Sampling (Shipped: 2026-05-30)
+
+**Phases completed:** 4 phases, 5 plans, 6 tasks (Phases 56-59)
+**Tag:** `v1.11.0`
+**Requirements:** REC-01..06, RATE-01..04, TRIG-01..04, EXP-01..03 — all verified
+
+**What shipped:**
+
+Real-time audio recording directly into the sampler's 512KB voice RAM, ADPCM-encoded on intake so the PS1 character is baked into the recording. A buffer-then-encode pipeline accumulates raw PCM during capture and batch-encodes to ADPCM on stop via the existing `spu94_sample_encode_to_ram` path (zero new dependencies). Manual record/stop plus threshold-triggered auto-record that captures from the exact transient sample. Four PS1 preset sample rates (44.1 / 22.05 / 11.025 / 5.5125 kHz) plus a continuous variable-rate knob across the full pitch register range, with a rate-aware recording-time display. Input peak meter and RAM usage display update live. Recorded samples export as trimmed WAV at the recording rate for building sample libraries. 48 commits, 77 files changed, +5,352 / -7,208 lines over 2 days.
+
+**Key accomplishments:**
+
+1. Buffer-then-encode recording pipeline: 3-state machine, mono-summed staging capture in processBlock, batch ADPCM encode on stop with waveform/state cache population
+2. Record button, input peak meter, and RAM stats display wired to the recording engine in the sampler window with coral visual feedback and encode-on-stop triggering
+3. Pitch knob wired as continuous sample rate control with Hz display, bidirectional dropdown sync, and rate-aware recording time visible before pressing Record
+4. Threshold trigger: 4-state machine with auto-start capturing from the exact transient sample, adjustable -60..0 dB threshold knob, tri-state record button (default / amber / coral)
+5. Sample export: save the recorded sample as a trimmed 16-bit mono WAV at the recording rate (not resampled to 44.1 kHz), respecting start/end markers
+
+**Verification:** All four phases verified; the Phase 58 (threshold trigger) and Phase 59 (sample export) human-verification items were confirmed working by the user at milestone close.
+
+**Archived to:** `.planning/milestones/v1.11.0-ROADMAP.md`, `.planning/milestones/v1.11.0-REQUIREMENTS.md`, `.planning/milestones/v1.11.0-phases/`
+
+---
+
 ## v1.10.0 Voice Dynamics & Stereo Effects (Shipped: 2026-05-28)
 
 **Phases completed:** 13 phases, 20 plans (Phases 43-55)

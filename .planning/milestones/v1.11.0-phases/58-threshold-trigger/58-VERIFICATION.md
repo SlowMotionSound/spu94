@@ -1,8 +1,9 @@
 ---
 phase: 58-threshold-trigger
 verified: 2026-05-28T22:15:00Z
-status: human_needed
+status: passed
 score: 4/4
+human_confirmed: 2026-05-30 (user-confirmed tested & working at v1.11.0 milestone close)
 overrides_applied: 0
 human_verification:
   - test: "Arm the recorder by pressing Record, verify button shows 'Armed' in amber"
@@ -23,7 +24,7 @@ human_verification:
 
 **Phase Goal:** User can arm the recorder to start automatically when the input signal exceeds a threshold, enabling hands-free capture
 **Verified:** 2026-05-28T22:15:00Z
-**Status:** human_needed
+**Status:** passed -- human verification confirmed by user at v1.11.0 milestone close (2026-05-30)
 **Re-verification:** No -- initial verification
 
 ## Goal Achievement
