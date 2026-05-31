@@ -239,13 +239,16 @@ bool test_level_reaches_all_active(VoiceControlsTest& t) {
 | A3 | The extracted `applyContinuousVoiceControls()` method is the right testability seam (vs. testing through `processBlock`) | Pattern 1, Validation Architecture | LOW — directly mirrors how `allocateVoice` is exposed and tested in Phase 60; the alternative (full processBlock) is gated by `voiceSampleLoaded` and far heavier. |
 | A4 | Per-note velocity belongs in a non-atomic `int16_t noteVelocity[24]` (audio-thread-only) | Pattern 2 | LOW — exact precedent `duckOrigLevel_l/r[24]` is non-atomic audio-thread-only; note-on and the apply loop both run on the audio thread, so no cross-thread hazard. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Exact velocity×Level curve** — *What we know:* CONTEXT delegates the Q15 math to discretion; A1 gives a defensible default (multiplicative, unified `0x3FFF`). *What's unclear:* whether Anthony wants velocity-127 to *exactly* equal Trigger-at-100% (A1's result) or to retain some headroom. *Recommendation:* the planner locks A1 as the default and notes it as a sound-affecting choice; if a listening session later disagrees, it's a one-line change to `combineVel`. (Do not surface as a user decision — it's developer math per CONTEXT and the "no dev choices in discuss" feedback.)
+   *RESOLVED:* Plan 61-02 Task 1 locks A1 — `combineVoiceVol` via `q15_mul_truncate` on the unified `0x3FFF` scale; velocity-127 × Level-100% ≈ `0x3FFE` = Trigger max.
 
 2. **Apply-loop vs. sidechain-duck ordering** — *What we know:* both write per-voice level on the audio thread; the duck snapshots `duckOrigLevel`. *What's unclear:* if the apply loop runs before or after the duck restore within `processBlock`, and whether a fanned voice under active duck behaves correctly. *Recommendation:* the planner adds an explicit ordering decision + a regression test (duck a fanned voice, move Level, assert duck depth preserved). Phase 46 duck code is at `PluginProcessor.cpp:1441+`.
+   *RESOLVED:* Plan 61-02 Task 3 fixes apply-before-duck ordering with a required comment at the call site, plus the `sweep_interaction` regression case.
 
 3. **Voice-0 Trigger velocity seeding** — *What we know:* D-08 says the Trigger button plays voice 0 at "full velocity × Level". *What's unclear:* the mechanism — set `noteVelocity[0] = 0x7FFF` whenever the Trigger fires (line 822-858 block) so the unified apply loop keeps voice 0 consistent. *Recommendation:* planner wires `noteVelocity[0] = full` in the Trigger key-on path; low risk, one line.
+   *RESOLVED:* Plan 61-02 Task 1 seeds `noteVelocity[0] = 0x7FFF` in the Trigger key-on path.
 
 ## Environment Availability
 
