@@ -14,9 +14,9 @@
 
 ### Coherent Controls
 
-- [ ] **VCTRL-01**: The Level control applies to all active voices, not just voice 0
-- [ ] **VCTRL-02**: The Pan control applies to all active voices
-- [ ] **VCTRL-03**: The envelope (ADSR) and per-voice toggles (noise/NON, pitch-mod/PMON, phase-invert) apply to all active voices
+- [x] **VCTRL-01**: The Level control applies to all active voices, not just voice 0
+- [x] **VCTRL-02**: The Pan control applies to all active voices
+- [x] **VCTRL-03**: The envelope (ADSR) and per-voice toggles (noise/NON, pitch-mod/PMON, phase-invert) apply to all active voices
 
 ### Note Allocation
 
@@ -45,9 +45,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 | VCOUNT-02 | Phase 60 | Complete |
 | VCOUNT-03 | Phase 62 | Pending |
 | VCOUNT-04 | Phase 63 | Pending |
-| VCTRL-01 | Phase 61 | Pending |
-| VCTRL-02 | Phase 61 | Pending |
-| VCTRL-03 | Phase 61 | Pending |
+| VCTRL-01 | Phase 61 | Complete |
+| VCTRL-02 | Phase 61 | Complete |
+| VCTRL-03 | Phase 61 | Complete |
 | VALLOC-01 | Phase 60 | Complete |
 | VALLOC-02 | Phase 60 | Complete |
 | VALLOC-03 | Phase 60 | Complete |

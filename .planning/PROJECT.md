@@ -38,6 +38,8 @@
 - Note allocation respects the count; playing past the limit steals the oldest-sounding voice
 - Selector and controls stay in sync as the count changes
 
+**Progress:** Phase 60 (engine voice-count + count-aware allocation) and Phase 61 (coherent per-voice controls — Level/Pan/INV/NON/PMON + shared ADSR fan out to every active voice, velocity-faithful) complete and verified. Phase 62 (voice-count selector GUI) and Phase 63 (count persistence) remaining.
+
 ## What This Is
 
 SPU-94 is a bit-faithful software reimplementation of the Sony PlayStation 1 SPU, built from the spec (nocash psx-spx) rather than ported from any existing emulator. It includes the complete reverb network, a 24-voice ADPCM sampler engine with PS1-faithful ADSR envelopes and loop mechanics, ADPCM codec coloration, AK4309 DAC modeling, and a preset interpolation engine. It ships as a plain C library with Python bindings, a native CLI, a DAW plugin (VST3/AU/LV2/CLAP), and a standalone application with a sampler GUI. SPU-94 is designed as a *living instrument*, not a static bank of presets — every parameter that moves in the original algorithm is designed to be controllable at runtime, smoothly and glitch-free, in service of performance, modulation, and CV control. The immediate audience is the author and a small circle of musicians who want the recognizable character of the PS1 sound available as a modern, playable tool.
@@ -215,4 +217,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-30 after v1.11.0 milestone completion*
+*Last updated: 2026-05-31 after Phase 61 (coherent controls) completion*

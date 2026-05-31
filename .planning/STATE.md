@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.12.0
 milestone_name: Voice Count
-status: executing
-stopped_at: Phase 61 both plans complete (GREEN fan-out landed) -- pending verification
-last_updated: "2026-05-31T03:20:00.000Z"
+status: ready_to_plan
+stopped_at: Phase 61 complete (2/2) — ready to discuss Phase 62
+last_updated: 2026-05-31T05:01:58.112Z
 last_activity: 2026-05-31 -- Phase 61 Plan 02 (GREEN fan-out) executed; 8/8 voice_controls + full suite + rt_safety green
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
   percent: 25
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-30)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 61 — coherent-controls
+**Current focus:** Phase 62 — voice count selector
 
 ## Current Position
 
-Phase: 61 (coherent-controls) — EXECUTING
-Plan: 2 of 2 (both complete)
-Status: Phase 61 implementation complete -- applyContinuousVoiceControls() fan-out landed; all 8 voice_controls cases GREEN, full suite 131/131 + rt_safety 6/6; pending phase verification
-Last activity: 2026-05-31 -- Phase 61 Plan 02 (GREEN fan-out) executed; VCTRL-01/02/03 delivered
+Phase: 62
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-31
 
 ## Milestone History
 
