@@ -53,6 +53,34 @@ namespace {
         }
         return { kSweepTable[bestIdx].shift, 0 };
     }
+
+    // Phase 61 (VCTRL-01/D-08): range-reconciliation helpers for the continuous
+    // control fan-out. MIDI velocity (0..127) and the GUI Level/Pan/INV value
+    // (signed +/-0x3FFF) historically lived on divergent full-scales (velocity used
+    // 0x7FFF, the GUI uses 0x3FFF -- 61-RESEARCH.md Pitfall 2). These unify both onto
+    // the engine's documented base_vol scale so velocity-127 converges with the
+    // Trigger button at Level=100%.
+    //
+    // velToQ15: MIDI velocity 0..127 -> Q15 scalar [0, 0x7FFF] (a multiplier, not a
+    // level). Full velocity (127) -> 0x7FFF == "scale by 1.0" in the combine below.
+    static inline int16_t velToQ15(int vel)
+    {
+        if (vel < 0)   vel = 0;
+        if (vel > 127) vel = 127;
+        return static_cast<int16_t>((vel * 0x7FFF) / 127);
+    }
+
+    // combineVoiceVol: fold the velocity scalar into the signed GUI base_vol.
+    // q15_mul_truncate(guiVol, velQ15) keeps the SIGN of its first argument, so INV's
+    // negative base_vol survives the multiply (61-RESEARCH.md Pitfall 2 / D-03). Full
+    // velocity (0x7FFF) x full Level (0x3FFF) -> q15_mul_truncate(0x3FFF, 0x7FFF) ==
+    // 0x3FFE -- the GUI's own max -- so a velocity-127 MIDI note and the Trigger
+    // audition at Level=100% land on the same base_vol (D-08).
+    static inline int16_t combineVoiceVol(int16_t guiVol, int16_t velQ15)
+    {
+        return q15_mul_truncate(guiVol, velQ15);
+    }
+
     // Phase 44: Hz-to-shift mapping for tremolo speed control.
     // Uses the counter-accumulate math from spu94_envelope_step to derive the
     // actual oscillation rate (Hz) for each shift/step pair. The sweep produces
@@ -831,6 +859,12 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                                          guiVoiceVolL.load(std::memory_order_relaxed),
                                          guiVoiceVolR.load(std::memory_order_relaxed),
                                          1, adsrCfg.enabled ? &adsrCfg : nullptr);
+                // Phase 61 (D-08): the on-screen Trigger has no velocity -- treat it
+                // as full velocity so the per-block fan-out keeps voice 0 at exactly
+                // the Level setting (combineVoiceVol(guiVol, 0x7FFF) == guiVol). The
+                // key_on above already passed guiVoiceVolL/R, so this only seeds what
+                // applyContinuousVoiceControls recomputes for voice 0 next block.
+                noteVelocity[0] = 0x7FFF;
                 uint32_t blockIdx = startAddr / SPU94_ADPCM_BLOCK_BYTES;
                 if (blockIdx < adpcmStateCache.size()) {
                     mx->voices[0].adpcm_state.old = adpcmStateCache[blockIdx].old;
@@ -1422,11 +1456,20 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                     int note = msg.getNoteNumber();
                     uint16_t pitch = midiNoteToPitch(note);
                     int vel = msg.getVelocity();
-                    int16_t vol = static_cast<int16_t>((vel * 0x7FFF) / 127);
                     int voice = allocateVoice(note);
+                    // Phase 61 (D-01): retain this note's velocity so the per-block
+                    // fan-out (applyContinuousVoiceControls) recomputes base_vol as
+                    // velocity x Level every block -- Level rides on TOP of velocity.
+                    // Key on with the unified velocity x Level/Pan/INV value (was
+                    // centered velocity-only `vol, vol` on the divergent 0x7FFF scale).
+                    int16_t velQ15 = velToQ15(vel);
+                    noteVelocity[voice] = velQ15;
                     spu94_adsr_state_t midiAdsr = buildAdsrConfig();
                     spu94_voice_mixer_key_on(spu94_get_voice_mixer(), voice,
-                        0, pitch, vol, vol, 1,
+                        0, pitch,
+                        combineVoiceVol(guiVoiceVolL.load(std::memory_order_relaxed), velQ15),
+                        combineVoiceVol(guiVoiceVolR.load(std::memory_order_relaxed), velQ15),
+                        1,
                         midiAdsr.enabled ? &midiAdsr : nullptr);
                 }
                 else if (msg.isNoteOff())
