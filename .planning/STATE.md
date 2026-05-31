@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.12.0
 milestone_name: Voice Count
-status: verifying
-stopped_at: Completed 60-01-PLAN.md (engine voice-count + bounded allocator, 5/5 voice_alloc green; full suite green except 2 unrelated packaging wheel-build timeouts)
-last_updated: "2026-05-31T00:20:23.654Z"
+status: ready_to_plan
+stopped_at: Phase 60 complete (1/1) — ready to discuss Phase 61
+last_updated: 2026-05-31T00:33:29.359Z
 last_activity: 2026-05-31
 progress:
   total_phases: 4
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-30)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 60 — engine-voice-count-allocation
+**Current focus:** Phase 61 — coherent controls
 
 ## Current Position
 
-Phase: 60 (engine-voice-count-allocation) — COMPLETE, ready for verification
-Plan: 1 of 1 complete
-Status: Phase complete — ready for verification
-Last activity: 2026-05-31 -- 60-01 executed (engine voice-count + bounded allocator)
+Phase: 61
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-31
 
 ## Milestone History
 

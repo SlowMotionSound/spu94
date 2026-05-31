@@ -86,7 +86,7 @@ A voice-count selector (1–24) in the sampler window decides how many voices ar
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 60. Engine Voice-Count & Allocation | 1/1 | Complete   | 2026-05-31 |
+| 60. Engine Voice-Count & Allocation | 1/1 | Complete    | 2026-05-31 |
 | 61. Coherent Controls | 0/? | Not started | - |
 | 62. Voice-Count Selector | 0/? | Not started | - |
 | 63. Voice-Count Persistence | 0/? | Not started | - |
