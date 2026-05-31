@@ -1856,6 +1856,9 @@ juce::String SPU94AudioProcessor::savePresetToString(
     std::snprintf(line, sizeof(line), "loop=%d\n", loopModeEnabled.load(std::memory_order_relaxed) ? 1 : 0); text += line;
     std::snprintf(line, sizeof(line), "anti_alias=%d\n", samplerAAEnabled.load(std::memory_order_relaxed) ? 1 : 0); text += line;
     std::snprintf(line, sizeof(line), "non=%d\n", guiVoiceNon.load(std::memory_order_relaxed) ? 1 : 0); text += line;
+    // Phase 63 (VCOUNT-04): active voice count, plain decimal int (relaxed snapshot
+    // read like the other [voice] lines; restore clamps on load via setActiveVoiceCount).
+    std::snprintf(line, sizeof(line), "active_voices=%d\n", activeVoiceCount.load(std::memory_order_relaxed)); text += line;
     std::snprintf(line, sizeof(line), "pmon=%d\n", guiVoicePmon.load(std::memory_order_relaxed) ? 1 : 0); text += line;
     std::snprintf(line, sizeof(line), "noise_shift=%d\n", noiseShift.load(std::memory_order_relaxed)); text += line;
     std::snprintf(line, sizeof(line), "fader=%.6f\n", samplerFader.load(std::memory_order_relaxed)); text += line;
@@ -1912,6 +1915,11 @@ bool SPU94AudioProcessor::loadPresetFromString(const juce::String& presetText)
     auto len = presetText.getNumBytesAsUTF8();
     if (len == 0 || len >= sizeof(pendingPresetBuf)) return false;
 
+    // Phase 63 (VCOUNT-04 / D-03): seed the restored count to the full rig (24).
+    // The parse loop only OVERRIDES this if the [voice] active_voices key is present,
+    // so a pre-feature preset (no key) forces 24 rather than leaving the live count.
+    int restoredCount = 24;
+
     // Parse plugin-layer sections before queuing for the audio thread.
     // The C core parser will skip these unknown sections harmlessly.
     enum { SEC_NONE, SEC_VOICE, SEC_ADSR, SEC_EFFECTS, SEC_MOD_BUS } sec = SEC_NONE;
@@ -1941,6 +1949,10 @@ bool SPU94AudioProcessor::loadPresetFromString(const juce::String& presetText)
             else if (key == "non")     guiVoiceNon.store(val.getIntValue() != 0, std::memory_order_relaxed);
             else if (key == "pmon")    guiVoicePmon.store(val.getIntValue() != 0, std::memory_order_relaxed);
             else if (key == "noise_shift") noiseShift.store(val.getIntValue(), std::memory_order_relaxed);
+            // Phase 63 (VCOUNT-04 / D-03): capture into the seeded local, do NOT store
+            // directly into activeVoiceCount — the seed-then-override applies it once
+            // after the loop via setActiveVoiceCount (clamp + ring-out).
+            else if (key == "active_voices") restoredCount = val.getIntValue();
             else if (key == "fader")   samplerFader.store(val.getFloatValue(), std::memory_order_relaxed);
             else if (key == "send")    samplerSend.store(val.getFloatValue(), std::memory_order_relaxed);
             else if (key == "drive")   samplerDrive.store(val.getFloatValue(), std::memory_order_relaxed);
@@ -1988,6 +2000,12 @@ bool SPU94AudioProcessor::loadPresetFromString(const juce::String& presetText)
         default: break;
         }
     }
+
+    // Phase 63 (VCOUNT-04 / D-04): apply the restored count through the clamped,
+    // RT-safe setter (jlimit 1-24, release store, held notes ring out on a decrease).
+    // Never a raw activeVoiceCount.store() — that would skip the clamp + ring-out.
+    // getIntValue() yields 0 on junk so malformed values land safely (0->1, 999->24).
+    setActiveVoiceCount(restoredCount);
 
     std::memcpy(pendingPresetBuf.data(), raw, len);
     pendingPresetBuf[len] = '\0';

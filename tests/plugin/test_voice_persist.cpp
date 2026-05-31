@@ -13,6 +13,12 @@
 // MUST stay byte-identical (63-RESEARCH Pitfall 4); the round-trip case below proves
 // it (save 7 -> reload -> assert 7).
 //
+// NOTE: loadPresetFromString early-returns false unless engines[0] is live, and
+// engines[0] is created in prepareToPlay (not the ctor). So every instance must be
+// prepared before save/load or the load is a silent no-op (the count never changes).
+// test_state_roundtrip.cpp doesn't need this because it exercises the BINARY
+// setStateInformation path, which doesn't gate on engines[0].
+//
 // Three CTest cases, one per argv selector (argv[1] == case name):
 //   voice_persist_roundtrip   VCOUNT-04 criterion 1 (+2 headless half)
 //   voice_persist_backcompat  VCOUNT-04 criterion 3 / Pitfall 1 (seed-then-override)
@@ -31,6 +37,15 @@
 
 namespace {
 
+// Construct a processor and bring its SPU engines online (prepareToPlay creates
+// engines[0]; without it loadPresetFromString early-returns and never restores).
+std::unique_ptr<SPU94AudioProcessor> makePreparedProcessor()
+{
+    auto p = std::make_unique<SPU94AudioProcessor>();
+    p->prepareToPlay(44100.0, 512);
+    return p;
+}
+
 // Round-trip (criterion 1 + the headless half of 2): instance A is set to a
 // non-default count, saved to text, then loaded into a fresh instance B; B must
 // report the same count. Two-instance style mirrors test_state_roundtrip.cpp.
@@ -39,11 +54,11 @@ bool test_roundtrip()
     std::printf("voice_persist_roundtrip... ");
     bool ok = true;
 
-    auto a = std::make_unique<SPU94AudioProcessor>();
+    auto a = makePreparedProcessor();
     a->setActiveVoiceCount(7);
     auto text = a->savePresetToString("t", "");
 
-    auto b = std::make_unique<SPU94AudioProcessor>();
+    auto b = makePreparedProcessor();
     b->loadPresetFromString(text);
     if (b->getActiveVoiceCount() != 7)
     {
@@ -64,7 +79,7 @@ bool test_backcompat()
     std::printf("voice_persist_backcompat... ");
     bool ok = true;
 
-    auto p = std::make_unique<SPU94AudioProcessor>();
+    auto p = makePreparedProcessor();
     p->setActiveVoiceCount(5);   // current count != 24
 
     // Minimal valid text with a [voice] section but NO active_voices key.
@@ -89,7 +104,7 @@ bool test_clamp()
     bool ok = true;
 
     {
-        auto p = std::make_unique<SPU94AudioProcessor>();
+        auto p = makePreparedProcessor();
         const juce::String low = "[preset]\nname=lo\n[voice]\nactive_voices=0\n";
         p->loadPresetFromString(low);
         if (p->getActiveVoiceCount() != 1)
@@ -99,7 +114,7 @@ bool test_clamp()
         }
     }
     {
-        auto p = std::make_unique<SPU94AudioProcessor>();
+        auto p = makePreparedProcessor();
         const juce::String high = "[preset]\nname=hi\n[voice]\nactive_voices=999\n";
         p->loadPresetFromString(high);
         if (p->getActiveVoiceCount() != 24)
