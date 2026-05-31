@@ -100,8 +100,12 @@ The build/link is GREEN throughout — the no-op stub resolves `applyContinuousV
 Each task committed atomically (all `test` type — this is a test-scaffold plan):
 
 1. **Task 1: Declare seam + velocity array + apply-method signature + no-op stub** — `8ae4358` (test)
-2. **Task 2: Write the 8-case headless test file (RED vs no-op stub)** — `3718f77` (test)
+2. **Task 2: Write the 8-case headless test file (RED vs no-op stub)** — `3718f77` (test), corrected in `882b255` (RED-sentinel fix, see Deviations)
 3. **Task 3: Wire the CMake target + 8 add_test entries; confirm RED** — `69d48fc` (test)
+
+**Plan metadata:** `c347717` (docs: complete plan — SUMMARY + STATE + ROADMAP)
+
+_RED-signature correction commit `882b255` landed after the metadata commit; the working tree and all build/ctest runs used the corrected file throughout._
 
 ## Files Created/Modified
 - `src/plugin/PluginProcessor.h` (+21) — friend seam, noteVelocity[24], method signature.
@@ -123,8 +127,8 @@ Each task committed atomically (all `test` type — this is a test-scaffold plan
 - **Issue:** `voice_controls_out_of_range_untouched` PASSED when it had to be RED. The plan's prose (and my first-draft assertions) assumed `spu94_voice_init` leaves `base_vol` at 0; I verified by reading `src/spu94/spu94_voice.c` that `spu94_voice_init` actually seeds `base_vol_l/r = 0x3FFF`. My in-range "was it updated?" check used `baseL(v) == 0` as the not-updated sentinel, which never fires against the real 0x3FFF init.
 - **Fix:** Reworked the in-range assertion to `baseL(v) > 0x1000 + 1` (RED while voices sit at the 0x3FFF init ceiling; GREEN once Plan 02 scales them to the lower Level). Also corrected three misleading "mixer-init 0" comments in cases 1, 2, and 6 to state the real 0x3FFF init ceiling — the assertions in those three were already correctly RED against 0x3FFF; only the comments were inaccurate.
 - **Files modified:** `tests/plugin/test_voice_controls.cpp`
-- **Verification:** Re-ran `ctest -R voice_controls` → exactly 6 RED + 2 guards, matching the plan's contract. Ground truth confirmed by reading the engine init code rather than assuming.
-- **Committed in:** `3718f77` correction folded into the Task 2/3 sequence (the fix landed before the Task 3 commit; the test file's final state in `3718f77` already reflects it via the in-flight edit cycle).
+- **Verification:** Re-ran `ctest -R voice_controls` → exactly 6 RED + 2 guards, matching the plan's contract. Ground truth confirmed by reading the engine init code (`src/spu94/spu94_voice.c`) rather than assuming.
+- **Committed in:** `882b255` (standalone correction commit). The initial flawed draft was in `3718f77`; the corrected RED logic that actually produces the 6/2 signature is `882b255`.
 
 ---
 
