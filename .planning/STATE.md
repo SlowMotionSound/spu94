@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.12.0
 milestone_name: Voice Count
 status: executing
-stopped_at: Phase 61 Plan 01 complete (RED scaffold)
-last_updated: "2026-05-31T02:45:03.085Z"
-last_activity: 2026-05-31 -- Phase 61 Plan 01 (RED test scaffold) executed
+stopped_at: Phase 61 both plans complete (GREEN fan-out landed) -- pending verification
+last_updated: "2026-05-31T03:20:00.000Z"
+last_activity: 2026-05-31 -- Phase 61 Plan 02 (GREEN fan-out) executed; 8/8 voice_controls + full suite + rt_safety green
 progress:
   total_phases: 4
   completed_phases: 1
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-05-30)
 ## Current Position
 
 Phase: 61 (coherent-controls) — EXECUTING
-Plan: 2 of 2
-Status: Plan 01 complete (RED scaffold landed); Plan 02 (GREEN fan-out) ready to execute
-Last activity: 2026-05-31 -- Phase 61 Plan 01 executed (8-case test scaffold, 6 RED baseline)
+Plan: 2 of 2 (both complete)
+Status: Phase 61 implementation complete -- applyContinuousVoiceControls() fan-out landed; all 8 voice_controls cases GREEN, full suite 131/131 + rt_safety 6/6; pending phase verification
+Last activity: 2026-05-31 -- Phase 61 Plan 02 (GREEN fan-out) executed; VCTRL-01/02/03 delivered
 
 ## Milestone History
 
@@ -59,6 +59,8 @@ v1.12.0 phase-structure rationale (4-phase dependency chain):
 - [Phase 61-01]: noteVelocity[24] declared non-atomic audio-thread-only (duckOrigLevel precedent). Plan 02 recomputes base_vol = q15_mul_truncate(guiVol, noteVelocity[v]) every block so the Level fader rides on TOP of velocity (D-01), not overwriting it.
 - [Phase 61-01]: spu94_voice_init seeds base_vol to 0x3FFF (NOT 0) -- this is the "not-yet-fanned-out" RED sentinel in test_voice_controls. Plan 02 GREEN target = flip the 6 count-sensitive cases (level/pan/non_pmon/velocity_rides/default24/out_of_range) while keeping guards adsr_shared + sweep_interaction green.
 - [Phase 61-01]: adsr_shared + sweep_interaction are regression GUARDS (already-correct behavior per D-07 / Pitfall 4); they pass pre-impl and must stay green.
+- [Phase 61-02]: applyContinuousVoiceControls() fan-out is a bounded [0,count) loop writing voices[v].base_vol_l/r = combineVoiceVol(guiVol, noteVelocity[v]) + set_non/set_pmon — atomic loads + O(1) setters only (RT-safe). Pitch stays voice-0-only; global noise_gen LFSR stays a single write. INV rides the sign of base_vol via q15_mul_truncate (D-03). Apply runs BEFORE the Phase 46 duck so the duck snapshots the Level-scaled ceiling (depth preserved); loop never touches sweep fields so in-flight sweep/duck survive.
+- [Phase 61-02]: velocity unified onto the 0x3FFF scale — velToQ15 (0..127 -> 0..0x7FFF) then combineVoiceVol = q15_mul_truncate(guiVol, velQ15); full vel x full Level = 0x3FFE, so velocity-127 == Trigger-at-100% (D-08). Trigger seeds noteVelocity[0]=0x7FFF.
 
 ### Blockers/Concerns
 
@@ -74,12 +76,12 @@ See `.planning/TODO.md` -- to-do list. Not carried in STATE.md.
 
 ## Session Continuity
 
-Last session: 2026-05-31T02:45:03.074Z
-Stopped at: Phase 61 Plan 01 complete (RED test scaffold; 6/8 cases RED as the Plan-02 baseline)
-Resume file: .planning/phases/61-coherent-controls/61-02-PLAN.md
-Next action: Execute Phase 61 Plan 02 (GREEN) -- implement applyContinuousVoiceControls() fan-out across [0, activeVoiceCount), flipping the 6 RED cases green.
+Last session: 2026-05-31T03:20:00Z
+Stopped at: Phase 61 both plans complete (GREEN fan-out landed; 8/8 voice_controls + full suite 131/131 + rt_safety 6/6 green) -- pending phase verification
+Resume file: .planning/phases/61-coherent-controls/61-02-SUMMARY.md
+Next action: Phase 61 verification (gsd-verifier) then phase completion; 2 non-blocking manual UAT ear-checks pending (D-06 voice-0 audition bit-identity; VCTRL-03 PMON-chain character).
 
 ## Operator Next Steps
 
-- Execute Phase 61 Plan 02 (GREEN): applyContinuousVoiceControls() fan-out + per-note velocity capture + range reconciliation + sweep/duck ordering
-- Plan 02 GREEN gate: `ctest --test-dir build -R voice_controls --output-on-failure` all 8 green (6 flipped + 2 guards held)
+- Phase 61 verification + completion in progress; then Phase 62 (selector GUI — user-facing 1-24 control + live re-sync)
+- Manual UAT (non-blocking, listening checks): voice-0/Trigger audition A/B vs v1.11.0 (D-06); PMON-chain character across active set with count>=3 (VCTRL-03)
