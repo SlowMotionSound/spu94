@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.12.0
 milestone_name: Voice Count
 status: executing
-stopped_at: Phase 63 context gathered
-last_updated: "2026-05-31T16:50:32.652Z"
-last_activity: 2026-05-31 -- Phase 63 planning complete
+stopped_at: Phase 63 plan 01 complete (VCOUNT-04 — voice-count persistence)
+last_updated: "2026-05-31T17:44:35Z"
+last_activity: 2026-05-31 -- Phase 63 plan 01 complete; all v1.12.0 requirements satisfied
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 5
-  completed_plans: 4
-  percent: 75
+  completed_plans: 5
+  percent: 100
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-30)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 63 — voice count persistence
+**Current focus:** Phase 63 — Voice-Count Persistence (COMPLETE — all v1.12.0 requirements satisfied)
 
 ## Current Position
 
-Phase: 63
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-31 -- Phase 63 planning complete
+Phase: 63 (Voice-Count Persistence) — COMPLETE
+Plan: 1 of 1 (complete)
+Status: Phase 63 complete; v1.12.0 Voice Count milestone requirements all satisfied
+Last activity: 2026-05-31 -- Phase 63 plan 01 complete (VCOUNT-04)
 
 ## Milestone History
 
@@ -63,6 +63,8 @@ v1.12.0 phase-structure rationale (4-phase dependency chain):
 - [Phase 61-02]: velocity unified onto the 0x3FFF scale — velToQ15 (0..127 -> 0..0x7FFF) then combineVoiceVol = q15_mul_truncate(guiVol, velQ15); full vel x full Level = 0x3FFE, so velocity-127 == Trigger-at-100% (D-08). Trigger seeds noteVelocity[0]=0x7FFF.
 - [Phase 62-01]: Voice Count ComboBox (1-24, default 24, dontSendNotification) added to the standalone sampler panel; onChange -> processorRef.setActiveVoiceCount(getSelectedId()) with itemId==count (no ID arithmetic). Standalone-only by construction (joins samplerWindow->getPanel() + bounded inside if(samplerWindow)), zero plugin-surface code (D-03). Code COMPLETE (9e46e4a, 26c0d9a; clean Release build).
 - [Phase 62-01]: Task 3 audible UAT (mono<->poly listening test) DEFERRED / pending human verification — no working MIDI controller on standalone under Linux (out of milestone scope), so the audible behavioral criteria (ROADMAP Phase 62 criteria 2-4) are NOT yet human-confirmed. Tracked as HUMAN-UAT for later. Code/build criteria pass; audible criteria unverified.
+- [Phase 63-01]: active voice count persisted into the .spu94 [voice] text section as `active_voices=N` (D-01); binary StateSerializer/getStateInformation path left untouched (D-02 — DAW/session-state persistence of the count is deferred). Restore uses seed-then-override: `restoredCount=24` seeded before the parse loop (D-03 back-compat), the `active_voices` clause captures into that local (NOT a direct atomic store), and one `setActiveVoiceCount(restoredCount)` after the loop applies it through the clamp 1-24 + ring-out (D-04). No parser-side validation — the setter's clamp absorbs 0->1, 999->24, junk->1.
+- [Phase 63-01]: getActiveVoiceCount() getter reads memory_order_acquire (pairs with setActiveVoiceCount's release store); the save line reads memory_order_relaxed (message-thread snapshot, matches sibling save lines); atomic stays private. Standalone voiceCountBox snaps to the restored count via setSelectedId(getActiveVoiceCount(), juce::dontSendNotification) appended to syncMixerKnobsFromProcessor (D-05 — flag suppresses the onChange feedback store). First headless coverage of the plugin text-preset round-trip (test_voice_persist 3/3); harness needed a prepareToPlay helper since loadPresetFromString early-returns until engines[0] is live. 24/24 regression green. VCOUNT-04 complete — last open v1.12.0 requirement. Commits 413a001, 6d4a9a4, 07f271b.
 
 ### Blockers/Concerns
 
@@ -78,12 +80,13 @@ See `.planning/TODO.md` -- to-do list. Not carried in STATE.md.
 
 ## Session Continuity
 
-Last session: 2026-05-31T16:21:07.773Z
-Stopped at: Phase 63 context gathered
-Resume file: .planning/phases/63-voice-count-persistence/63-CONTEXT.md
-Next action: Phase 61 verification (gsd-verifier) then phase completion; 2 non-blocking manual UAT ear-checks pending (D-06 voice-0 audition bit-identity; VCTRL-03 PMON-chain character).
+Last session: 2026-05-31T17:44:35Z
+Stopped at: Phase 63 plan 01 complete (VCOUNT-04 — voice-count persistence)
+Resume file: None
+Next action: v1.12.0 Voice Count milestone — all 10 requirements (VCOUNT-01..04, VCTRL-01..03, VALLOC-01..03) satisfied. Ready for milestone-completion / ship. Non-blocking manual UAT ear-checks still pending (carried, not gating).
 
 ## Operator Next Steps
 
-- Phase 61 verification + completion in progress; then Phase 62 (selector GUI — user-facing 1-24 control + live re-sync)
-- Manual UAT (non-blocking, listening checks): voice-0/Trigger audition A/B vs v1.11.0 (D-06); PMON-chain character across active set with count>=3 (VCTRL-03)
+- v1.12.0 Voice Count: all phases (60-63) complete. Ready to close out / ship the milestone.
+- Manual UAT (non-blocking, listening checks, carried): Phase 62 mono<->poly audible test (no Linux MIDI controller); voice-0/Trigger audition A/B vs v1.11.0 (D-06); PMON-chain character across active set with count>=3 (VCTRL-03).
+- Deferred (tracked, non-blocking): binary DAW/session-state persistence of the voice count (D-02 — .spu94 file persistence only for now).

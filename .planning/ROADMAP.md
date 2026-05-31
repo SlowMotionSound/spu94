@@ -83,7 +83,7 @@ A voice-count selector (1–24) in the sampler window decides how many voices ar
   2. Loading that preset restores the saved voice count, and the selector shows the restored value
   3. Presets saved before this feature still load cleanly, defaulting to the full 24 voices (back-compatible)
 **Plans**: 1 plan
-- [ ] 63-01-PLAN.md — persist active voice count into the `.spu94` [voice] section (save line + seed-then-override parse routed through setActiveVoiceCount), getActiveVoiceCount() acquire getter, post-load voiceCountBox resync, and first headless coverage of the plugin text-preset round-trip (round-trip / back-compat / clamp)
+- [x] 63-01-PLAN.md — persist active voice count into the `.spu94` [voice] section (save line + seed-then-override parse routed through setActiveVoiceCount), getActiveVoiceCount() acquire getter, post-load voiceCountBox resync, and first headless coverage of the plugin text-preset round-trip (round-trip / back-compat / clamp)
 **UI hint**: yes
 
 ## Progress
@@ -93,7 +93,7 @@ A voice-count selector (1–24) in the sampler window decides how many voices ar
 | 60. Engine Voice-Count & Allocation | 1/1 | Complete    | 2026-05-31 |
 | 61. Coherent Controls | 2/2 | Complete    | 2026-05-31 |
 | 62. Voice-Count Selector | 1/1 | Complete    | 2026-05-31 |
-| 63. Voice-Count Persistence | 0/1 | Not started | - |
+| 63. Voice-Count Persistence | 1/1 | Complete   | 2026-05-31 |
 
 ## Previous Milestone Archives
 
