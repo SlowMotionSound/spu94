@@ -319,6 +319,16 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
             thresholdLabel.setVisible(isThreshold);
         };
 
+        // Voice Count selection drives the engine's active-voice count live (D-06).
+        // getSelectedId() == the voice count (items added with itemId == count), so it
+        // passes straight through. Phase 60's setter clamps [1,24] + handles ring-out on
+        // decrease and count-bounded allocation; Phase 61's fan-out makes the per-voice
+        // controls follow the new count. No extra audio logic belongs here.
+        voiceCountBox.onChange = [this]()
+        {
+            processorRef.setActiveVoiceCount(voiceCountBox.getSelectedId());
+        };
+
         // RAM usage meter label — updated in timerCallback.
         ramMeterLabel.setText("RAM: 0 / 512 KB", juce::dontSendNotification);
         ramMeterLabel.setJustificationType(juce::Justification::centredLeft);
