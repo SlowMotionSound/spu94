@@ -70,7 +70,8 @@ A voice-count selector (1–24) in the sampler window decides how many voices ar
   2. Moving the control to 1 makes the sampler monophonic and moving it up adds polyphony, audibly and immediately, without reloading or restarting playback
   3. After changing the count, the per-voice controls and note allocation both follow the new count straight away (the controls reach exactly the newly-active voices, and allocation uses the new limit)
   4. The selector and the engine stay in sync — the displayed count always matches how many voices the sampler is actually using
-**Plans**: TBD
+**Plans**: 1 plan
+- [ ] 62-01-PLAN.md — Voice Count dropdown (1-24, default 24) in the standalone sampler panel, onChange -> setActiveVoiceCount; cloned recordModeBox idiom + Release build + audible-polyphony UAT
 **UI hint**: yes
 
 ### Phase 63: Voice-Count Persistence
@@ -90,7 +91,7 @@ A voice-count selector (1–24) in the sampler window decides how many voices ar
 |-------|----------------|--------|-----------|
 | 60. Engine Voice-Count & Allocation | 1/1 | Complete    | 2026-05-31 |
 | 61. Coherent Controls | 2/2 | Complete    | 2026-05-31 |
-| 62. Voice-Count Selector | 0/? | Not started | - |
+| 62. Voice-Count Selector | 0/1 | Not started | - |
 | 63. Voice-Count Persistence | 0/? | Not started | - |
 
 ## Previous Milestone Archives
