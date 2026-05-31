@@ -28,10 +28,10 @@ A voice-count selector (1–24) in the sampler window decides how many voices ar
 
 ### Phases
 
-- [ ] **Phase 60: Engine Voice-Count & Allocation** -- Engine knows an active-voice count and allocates notes within it, stealing the oldest-sounding voice past the limit
-- [ ] **Phase 61: Coherent Controls** -- Level, Pan, envelope, and per-voice toggles apply to every active voice instead of only voice 0
-- [ ] **Phase 62: Voice-Count Selector** -- A 1–24 voice control in the sampler window that takes effect immediately, with controls and allocation following the new count
-- [ ] **Phase 63: Voice-Count Persistence** -- The active voice count saves to and restores from presets / system state
+- [x] **Phase 60: Engine Voice-Count & Allocation** -- Engine knows an active-voice count and allocates notes within it, stealing the oldest-sounding voice past the limit
+- [x] **Phase 61: Coherent Controls** -- Level, Pan, envelope, and per-voice toggles apply to every active voice instead of only voice 0
+- [x] **Phase 62: Voice-Count Selector** -- A 1–24 voice control in the sampler window that takes effect immediately, with controls and allocation following the new count
+- [x] **Phase 63: Voice-Count Persistence** -- The active voice count saves to and restores from presets / system state
 
 ## Phase Details
 
@@ -93,7 +93,7 @@ A voice-count selector (1–24) in the sampler window decides how many voices ar
 | 60. Engine Voice-Count & Allocation | 1/1 | Complete    | 2026-05-31 |
 | 61. Coherent Controls | 2/2 | Complete    | 2026-05-31 |
 | 62. Voice-Count Selector | 1/1 | Complete    | 2026-05-31 |
-| 63. Voice-Count Persistence | 1/1 | Complete   | 2026-05-31 |
+| 63. Voice-Count Persistence | 1/1 | Complete    | 2026-05-31 |
 
 ## Previous Milestone Archives
 
