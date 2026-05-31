@@ -8,7 +8,7 @@
 ### Voice Count Selection
 
 - [ ] **VCOUNT-01**: User can set the number of active sampler voices (1–24) from a control in the sampler window
-- [ ] **VCOUNT-02**: Setting the count to 1 makes the sampler monophonic; higher counts add polyphony up to 24
+- [x] **VCOUNT-02**: Setting the count to 1 makes the sampler monophonic; higher counts add polyphony up to 24
 - [ ] **VCOUNT-03**: Changing the voice count takes effect immediately, with the controls and note allocation following the new count
 - [ ] **VCOUNT-04**: The active voice count is saved to and restored from presets/system state
 
@@ -20,9 +20,9 @@
 
 ### Note Allocation
 
-- [ ] **VALLOC-01**: Played notes are allocated only among the active voices
-- [ ] **VALLOC-02**: Playing more simultaneous notes than the active count steals the oldest-sounding voice
-- [ ] **VALLOC-03**: In monophonic mode (count = 1), each new note takes over the single active voice
+- [x] **VALLOC-01**: Played notes are allocated only among the active voices
+- [x] **VALLOC-02**: Playing more simultaneous notes than the active count steals the oldest-sounding voice
+- [x] **VALLOC-03**: In monophonic mode (count = 1), each new note takes over the single active voice
 
 ## Out of Scope
 
@@ -42,15 +42,15 @@ Which phases cover which requirements. Populated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | VCOUNT-01 | Phase 62 | Pending |
-| VCOUNT-02 | Phase 60 | Pending |
+| VCOUNT-02 | Phase 60 | Complete |
 | VCOUNT-03 | Phase 62 | Pending |
 | VCOUNT-04 | Phase 63 | Pending |
 | VCTRL-01 | Phase 61 | Pending |
 | VCTRL-02 | Phase 61 | Pending |
 | VCTRL-03 | Phase 61 | Pending |
-| VALLOC-01 | Phase 60 | Pending |
-| VALLOC-02 | Phase 60 | Pending |
-| VALLOC-03 | Phase 60 | Pending |
+| VALLOC-01 | Phase 60 | Complete |
+| VALLOC-02 | Phase 60 | Complete |
+| VALLOC-03 | Phase 60 | Complete |
 
 **Coverage:**
 - v1.12.0 requirements: 10 total

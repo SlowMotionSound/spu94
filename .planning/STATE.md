@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.12.0
 milestone_name: Voice Count
-status: executing
-stopped_at: v1.12.0 Voice Count roadmap created. 4 phases (60-63), all 10 requirements mapped (VCOUNT-01..04, VCTRL-01..03, VALLOC-01..03), 100% coverage. ROADMAP.md, REQUIREMENTS.md traceability, and STATE.md written. Phases 61/62/63 carry UI hints (sampler-window selector + control wiring).
-last_updated: "2026-05-30T23:05:13.271Z"
-last_activity: 2026-05-30 -- Phase 60 planning complete
+status: verifying
+stopped_at: Completed 60-01-PLAN.md (engine voice-count + bounded allocator, 5/5 voice_alloc green; full suite green except 2 unrelated packaging wheel-build timeouts)
+last_updated: "2026-05-31T00:20:23.654Z"
+last_activity: 2026-05-31
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 1
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 25
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-30)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** v1.12.0 Voice Count — Phase 60 (Engine Voice-Count & Allocation)
+**Current focus:** Phase 60 — engine-voice-count-allocation
 
 ## Current Position
 
-Phase: 60 — Engine Voice-Count & Allocation
-Plan: —
-Status: Ready to execute
-Last activity: 2026-05-30 -- Phase 60 planning complete
+Phase: 60 (engine-voice-count-allocation) — COMPLETE, ready for verification
+Plan: 1 of 1 complete
+Status: Phase complete — ready for verification
+Last activity: 2026-05-31 -- 60-01 executed (engine voice-count + bounded allocator)
 
 ## Milestone History
 
@@ -54,6 +54,8 @@ v1.12.0 phase-structure rationale (4-phase dependency chain):
 - Phase 61 (coherent controls) fixes the voice-0-only scoping: the GUI apply block writes `voices[0]` / `pending_config[0]` only (PluginProcessor.cpp ~lines 863-885), and MIDI-played voices take volume from velocity and ignore the per-voice controls (note-on ~line 1426). Controls must fan out across `[0, active_voices)`.
 - Phase 62 (selector GUI) is the user-facing 1–24 control + live re-sync; depends on 60 and 61 existing.
 - Phase 63 (persistence) serializes the count into the existing `[voice]` INI section of plugin state (PluginProcessor.cpp ~line 1795), matching the `vol_l=` / `non=` pattern; default 24 for back-compat with pre-feature presets.
+- [Phase 60]: active voice count stored as std::atomic<int> activeVoiceCount{24} (release/acquire), clamped [1,24] in setActiveVoiceCount; lazy % count bounding in allocateVoice (no nextVoice re-base) so a count decrease self-heals on the next allocation.
+- [Phase 60]: anti-click fade on voice steal DEFERRED (hard cut only); steal-click listening session not yet performed.
 
 ### Blockers/Concerns
 
@@ -69,11 +71,12 @@ See `.planning/TODO.md` -- to-do list. Not carried in STATE.md.
 
 ## Session Continuity
 
-Last session: 2026-05-30
-Stopped at: v1.12.0 Voice Count roadmap created. 4 phases (60-63), all 10 requirements mapped (VCOUNT-01..04, VCTRL-01..03, VALLOC-01..03), 100% coverage. ROADMAP.md, REQUIREMENTS.md traceability, and STATE.md written. Phases 61/62/63 carry UI hints (sampler-window selector + control wiring).
-Resume file: none.
-Next action: Plan Phase 60 (Engine Voice-Count & Allocation) with /gsd:plan-phase 60.
+Last session: 2026-05-31T00:20:23.643Z
+Stopped at: Completed 60-01-PLAN.md (engine voice-count + bounded allocator, 5/5 voice_alloc green; full suite green except 2 unrelated packaging wheel-build timeouts)
+Resume file: None
+Next action: Verify Phase 60 with /gsd:verify-work, then plan Phase 61 (coherent per-voice controls).
 
 ## Operator Next Steps
 
-- Plan Phase 60 with /gsd:plan-phase 60
+- Verify Phase 60 with /gsd:verify-work
+- Then plan Phase 61 (coherent controls: fan out per-voice GUI controls across [0, active_voices))

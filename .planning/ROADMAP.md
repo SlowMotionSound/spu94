@@ -45,7 +45,7 @@ A voice-count selector (1–24) in the sampler window decides how many voices ar
   3. Playing an (N+1)th simultaneous note cuts the oldest-sounding note to make room, rather than dropping the new note or sounding a disabled voice
   4. Raising the count adds polyphony (more notes sound together); lowering it reduces the number of simultaneous notes, up to the full 24 at maximum
 **Plans**: 1 plan
-- [ ] 60-01-PLAN.md — engine active-voice-count state + bounded round-robin allocator, proven by a 5-case CTest (mono/poly, only-active, steal-oldest, mono-takeover, default-24 regression)
+- [x] 60-01-PLAN.md — engine active-voice-count state + bounded round-robin allocator, proven by a 5-case CTest (mono/poly, only-active, steal-oldest, mono-takeover, default-24 regression)
 
 ### Phase 61: Coherent Controls
 **Goal**: The sampler's per-voice controls govern every active voice, so the whole rig sounds the way the controls are set — not just the first voice.
@@ -86,7 +86,7 @@ A voice-count selector (1–24) in the sampler window decides how many voices ar
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 60. Engine Voice-Count & Allocation | 0/1 | Planned | - |
+| 60. Engine Voice-Count & Allocation | 1/1 | Complete   | 2026-05-31 |
 | 61. Coherent Controls | 0/? | Not started | - |
 | 62. Voice-Count Selector | 0/? | Not started | - |
 | 63. Voice-Count Persistence | 0/? | Not started | - |
