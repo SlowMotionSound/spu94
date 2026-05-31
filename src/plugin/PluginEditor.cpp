@@ -66,6 +66,20 @@ SPU94AudioProcessorEditor::SPU94AudioProcessorEditor(SPU94AudioProcessor& p)
         recordModeLabel.setJustificationType(juce::Justification::centred);
         recordModeLabel.setFont(juce::Font(10.0f));
 
+        // Voice Count selector — 1-24 active sampler voices (Phase 62, VCOUNT-01/03).
+        // itemId == voice count so onChange can pass getSelectedId() straight through.
+        // Default 24 matches the engine default (activeVoiceCount{24}) — no audible
+        // change until lowered (D-05); dontSendNotification so construction skips onChange.
+        panel.addAndMakeVisible(voiceCountBox);
+        for (int n = 1; n <= 24; ++n)
+            voiceCountBox.addItem(juce::String(n), n);
+        voiceCountBox.setSelectedId(24, juce::dontSendNotification);
+        voiceCountBox.setTooltip("Active sampler voices (1-24). 1 = monophonic; raising adds polyphony live.");
+        panel.addAndMakeVisible(voiceCountLabel);
+        voiceCountLabel.setText("Voice Count", juce::dontSendNotification);
+        voiceCountLabel.setJustificationType(juce::Justification::centred);
+        voiceCountLabel.setFont(juce::Font(10.0f));
+
         // Record button — behavior depends on record mode selection
         panel.addAndMakeVisible(recordButton);
         recordButton.onClick = [this]()
@@ -1742,6 +1756,10 @@ void SPU94AudioProcessorEditor::resized()
             // Noise Color — right column below INV
             noiseColorLabel.setBounds(160, voly + 76, 100, 16);
             noiseColorKnob.setBounds(170, voly + 92, 80, 70);
+
+            // Voice Count — open slot right of the per-voice band (governs these controls, D-02)
+            voiceCountLabel.setBounds(270, voly, 100, 14);
+            voiceCountBox.setBounds(270, voly + 16, 100, 22);
 
             // === Unified VCA Effects section — below Level fader ===
             constexpr int fx_x = 15;

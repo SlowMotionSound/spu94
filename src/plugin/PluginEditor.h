@@ -145,6 +145,11 @@ private:
     juce::Label voiceModeLabel;
     juce::Slider noiseColorKnob;
     juce::Label noiseColorLabel;
+    // Voice Count selector (Phase 62, VCOUNT-01/03): 1-24 active voices, default 24.
+    // Governs the per-voice controls above (D-02). onChange drives
+    // processorRef.setActiveVoiceCount (Phase 60 setter).
+    juce::ComboBox voiceCountBox;
+    juce::Label voiceCountLabel;
     void updateVoiceVolumes();
 
     // Unified VCA Effects section (Phase 54: dropdown + adaptive controls)
