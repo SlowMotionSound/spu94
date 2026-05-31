@@ -280,6 +280,11 @@ public:
     // The future Phase 62 GUI selector calls this; Phase 60 tests call it directly.
     void setActiveVoiceCount(int n);
 
+    // Phase 63 (VCOUNT-04): GUI thread read of the active voice count for the
+    // standalone voiceCountBox resync after a preset load. acquire pairs with
+    // setActiveVoiceCount's release store (activeVoiceCount is private below).
+    int getActiveVoiceCount() const { return activeVoiceCount.load(std::memory_order_acquire); }
+
 private:
     // Phase 60 test seam: grants the headless allocation test (test_voice_alloc.cpp)
     // access to the private allocateVoice / findVoiceForNote / noteForVoice / nextVoice

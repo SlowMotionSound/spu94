@@ -285,6 +285,62 @@ add_test(NAME voice_alloc_mono_takeover
 add_test(NAME voice_alloc_default24_regression
          COMMAND test_voice_alloc voice_alloc_default24_regression)
 
+# Phase 63 (VCOUNT-04): voice-count text-preset persistence tests. First automated
+# coverage of the plugin-layer .spu94 round-trip (savePresetToString /
+# loadPresetFromString / getActiveVoiceCount). Headless SPU94AudioProcessor; one
+# CTest case per argv selector (argv[1] == case name).
+juce_add_console_app(test_voice_persist
+    PRODUCT_NAME "SPU-94 Voice Persist Test"
+)
+juce_generate_juce_header(test_voice_persist)
+
+target_sources(test_voice_persist PRIVATE
+    test_voice_persist.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/PluginProcessor.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/PluginEditor.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/ParameterBridge.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/RegisterPanel.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/MorphPanel.cpp
+    ${CMAKE_SOURCE_DIR}/src/plugin/SrcChain.cpp
+)
+
+if(EXISTS ${CMAKE_SOURCE_DIR}/src/standalone/WavLoader.cpp)
+    target_sources(test_voice_persist PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/standalone/WavLoader.cpp
+    )
+    target_include_directories(test_voice_persist PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/standalone
+    )
+endif()
+
+target_include_directories(test_voice_persist PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/plugin
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_compile_definitions(test_voice_persist PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_VST3_CAN_REPLACE_VST2=0
+)
+
+include(${CMAKE_SOURCE_DIR}/cmake/libsamplerate.cmake)
+
+target_link_libraries(test_voice_persist PRIVATE
+    spu94_static
+    samplerate
+    juce::juce_audio_utils
+    juce::juce_recommended_config_flags
+)
+
+# One add_test per case so `ctest -R voice_persist_<case>` resolves to exactly that case.
+add_test(NAME voice_persist_roundtrip
+         COMMAND test_voice_persist voice_persist_roundtrip)
+add_test(NAME voice_persist_backcompat
+         COMMAND test_voice_persist voice_persist_backcompat)
+add_test(NAME voice_persist_clamp
+         COMMAND test_voice_persist voice_persist_clamp)
+
 # Phase 61 (VCTRL-01/02/03 / D-01 / D-06 / Pitfall 4): coherent per-voice control
 # fan-out tests. Headless SPU94AudioProcessor; drives applyContinuousVoiceControls
 # via the friend struct VoiceControlsTest and observes the voice mixer's
