@@ -126,7 +126,8 @@ void isolate(VoiceControlsTest& t)
 
 // ---------------------------------------------------------------------------
 // VCTRL-01: Level scales the base_vol of EVERY active voice, not just voice 0.
-// RED pre-impl: the no-op stub leaves every base_vol at its mixer-init 0.
+// RED pre-impl: the no-op stub leaves every base_vol at its init ceiling 0x3FFF
+// (spu94_voice_init seeds 0x3FFF), which exceeds the 0x2000 Level set here.
 // ---------------------------------------------------------------------------
 bool test_level_all_active(VoiceControlsTest& t)
 {
@@ -158,7 +159,8 @@ bool test_level_all_active(VoiceControlsTest& t)
 // ---------------------------------------------------------------------------
 // VCTRL-02: a pan-left GUI value puts EVERY active voice at the SAME stereo
 // position (base_vol_l > base_vol_r on all of them).
-// RED pre-impl: the no-op stub leaves base_vol_l == base_vol_r == 0.
+// RED pre-impl: the no-op stub leaves base_vol_l == base_vol_r == 0x3FFF (the
+// init ceiling), so the L>R pan asymmetry never appears.
 // ---------------------------------------------------------------------------
 bool test_pan_all_active(VoiceControlsTest& t)
 {
@@ -309,8 +311,9 @@ bool test_velocity_rides_level(VoiceControlsTest& t)
 // D-06 regression: at count=24 the loop reaches all 24 voices, and voice 0 from
 // a full-velocity Trigger seed lands at the documented unified full-velocity x
 // full-Level value (~0x3FFE = q15_mul_truncate(0x3FFF, 0x7FFF)).
-// RED pre-impl: the no-op stub leaves base_vol at the mixer-init 0, so neither
-// the voice-0 value nor the voice-23 reach holds.
+// RED pre-impl: the no-op stub leaves base_vol at the init ceiling 0x3FFF (16383),
+// which is 1 LSB off the expected velocity x Level product 0x3FFE (16382), so the
+// voice-0 assertion fails; the voice-23 reach is likewise never written.
 // ---------------------------------------------------------------------------
 bool test_default24_regression(VoiceControlsTest& t)
 {
@@ -339,10 +342,14 @@ bool test_default24_regression(VoiceControlsTest& t)
 
 // ---------------------------------------------------------------------------
 // D-06 bound: a voice keyed on, then count lowered below its index, must NOT
-// receive a control update -- its base_vol stays at the key_on value.
-// RED pre-impl: the no-op stub never touches ANY voice, so the recorded value is
-// trivially unchanged -- BUT we also assert the in-range voices DID change, which
-// the stub cannot satisfy, making this case RED until Plan 02.
+// receive a control update -- its base_vol stays at the key_on value -- WHILE the
+// in-range voices DO take the new (lower) Level. The in-range half is what makes
+// this case count-sensitive RED: against the no-op stub the in-range voices keep
+// their init base_vol (0x3FFF, set by spu94_voice_init), so a low-Level apply
+// that should have pulled them down to ~0x1000 has not happened -> FAIL. Plan 02
+// fans Level across [0,3) and skips voice 5, flipping this to GREEN.
+// NOTE: spu94_voice_init seeds base_vol to 0x3FFF (NOT 0); the sentinel for
+// "not yet scaled by Level" is therefore the init ceiling 0x3FFF, not zero.
 // ---------------------------------------------------------------------------
 bool test_out_of_range_untouched(VoiceControlsTest& t)
 {
@@ -358,23 +365,26 @@ bool test_out_of_range_untouched(VoiceControlsTest& t)
     spu94_get_voice_mixer()->voices[5].base_vol_r = velToQ15(100);
     int16_t before = baseL(5);
 
+    // In-range voices carry full velocity so a low Level visibly scales them down.
+    for (int v = 0; v < 3; ++v) t.seedVelocity(v, 0x7FFF);
+
     t.setCount(3);                       // index 5 now OUT of range [0,3)
-    t.setGuiVolLR(0x1000, 0x1000);       // a new, different Level
+    t.setGuiVolLR(0x1000, 0x1000);       // a new, LOWER Level (~1/4 of the 0x3FFF init)
     t.applyControls();
 
-    // Voice 5 (out of range) must be untouched.
+    // Voice 5 (out of range) must be untouched -- still at its key_on value.
     if (baseL(5) != before)
     { std::printf("\n  FAIL: out-of-range voice 5 changed: 0x%X -> 0x%X",
                   (unsigned)(uint16_t)before, (unsigned)(uint16_t)baseL(5)); ok = false; }
-    // In-range voices [0,3) must have received the new Level (proves apply ran).
+
+    // In-range voices [0,3) MUST have been pulled down to the new Level ceiling.
+    // The not-yet-applied sentinel is the init ceiling 0x3FFF; a correct fan-out
+    // brings full-velocity x Level-0x1000 to ~0x1000. RED here because the no-op
+    // stub leaves them at 0x3FFF.
     for (int v = 0; v < 3; ++v)
-    {
-        t.seedVelocity(v, 0x7FFF);
-    }
-    t.applyControls();                   // re-apply now that [0,3) have velocity
-    for (int v = 0; v < 3; ++v)
-        if (baseL(v) == 0)
-        { std::printf("\n  FAIL: in-range voice %d not updated by apply (base_vol_l==0)", v); ok = false; }
+        if (baseL(v) > 0x1000 + 1)
+        { std::printf("\n  FAIL: in-range voice %d not scaled to new Level: base_vol_l=0x%X (> 0x1000)",
+                      v, (unsigned)(uint16_t)baseL(v)); ok = false; }
 
     std::printf("%s\n", ok ? "PASSED" : "\nFAILED");
     return ok;
