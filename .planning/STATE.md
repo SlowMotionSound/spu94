@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.12.0
 milestone_name: Voice Count
-status: ready_to_plan
-stopped_at: Phase 60 complete (1/1) — ready to discuss Phase 61
-last_updated: 2026-05-31T00:33:29.359Z
+status: planning
+stopped_at: Phase 61 context gathered
+last_updated: "2026-05-31T01:00:14.878Z"
 last_activity: 2026-05-31
 progress:
   total_phases: 4
@@ -71,9 +71,9 @@ See `.planning/TODO.md` -- to-do list. Not carried in STATE.md.
 
 ## Session Continuity
 
-Last session: 2026-05-31T00:20:23.643Z
-Stopped at: Completed 60-01-PLAN.md (engine voice-count + bounded allocator, 5/5 voice_alloc green; full suite green except 2 unrelated packaging wheel-build timeouts)
-Resume file: None
+Last session: 2026-05-31T01:00:14.865Z
+Stopped at: Phase 61 context gathered
+Resume file: .planning/phases/61-coherent-controls/61-CONTEXT.md
 Next action: Verify Phase 60 with /gsd:verify-work, then plan Phase 61 (coherent per-voice controls).
 
 ## Operator Next Steps
