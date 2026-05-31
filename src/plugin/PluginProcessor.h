@@ -285,6 +285,11 @@ private:
     // access to the private allocateVoice / findVoiceForNote / noteForVoice / nextVoice
     // without widening the public ABI (60-RESEARCH.md Pitfall 4).
     friend struct VoiceAllocTest;
+    // Phase 61 test seam: grants the headless coherent-controls test
+    // (test_voice_controls.cpp) access to applyContinuousVoiceControls, noteVelocity,
+    // noteForVoice, nextVoice, and setActiveVoiceCount — same no-public-ABI discipline
+    // as VoiceAllocTest (61-RESEARCH.md; mirrors the Phase 60 friend-seam pattern).
+    friend struct VoiceControlsTest;
 
     // --- Host-automatable AudioParameterFloat pointers (Phase 24 PLUG-28).
     //     Non-owning: JUCE owns the params after addParameter.
@@ -544,6 +549,15 @@ private:
     int16_t   duckOrigLevel_l[24] = {};    // volume level before duck started
     int16_t   duckOrigLevel_r[24] = {};
 
+    // Phase 61 (D-01 velocity retention): per-active-voice MIDI velocity, stored as a
+    // Q15 scalar in [0, 0x7FFF]. Audio-thread-only (NOT atomic) — the note-on handler
+    // and the applyContinuousVoiceControls fan-out loop both run on the audio thread,
+    // exactly the duckOrigLevel discipline above. Lets base_vol be recomputed as
+    // velocity x Level every block so the Level fader rides on top of velocity instead
+    // of erasing it (61-RESEARCH.md Pitfall 1). Plan 02 fills the apply loop; Plan 01
+    // only declares the storage home.
+    int16_t   noteVelocity[24] = {};
+
     // ADSR parameters (standalone sampler voice)
     std::atomic<bool>  adsrEnabled{true};
     std::atomic<float> adsrAttack{0.0f};
@@ -567,6 +581,13 @@ private:
     uint32_t posToBlockAddr(double pos) const;
     int allocateVoice(int note);
     int findVoiceForNote(int note);
+
+    // Phase 61 (VCTRL-01/02/03, D-06): extracted continuous control-apply method that
+    // fans Pan/Level/INV (via per-voice base_vol_l/r), NON, and PMON across the active
+    // set [0, activeVoiceCount). Called from processBlock and driven directly by the
+    // test friend seam. Pitch stays voice-0-only and is NOT part of this method.
+    // Plan 01 ships a no-op stub (RED baseline); Plan 02 implements the real fan-out.
+    void applyContinuousVoiceControls();
 
     // Phase 22: bidirectional libsamplerate SRC sandwich around the
     // SPU-94 core. Allocated in prepareToPlay (via srcChain_.prepare),

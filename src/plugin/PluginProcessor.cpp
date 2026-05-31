@@ -2615,6 +2615,14 @@ int SPU94AudioProcessor::allocateVoice(int note)
     return voice;
 }
 
+// Phase 61 (VCTRL-01/02/03): continuous control fan-out across [0, activeVoiceCount).
+// TODO(Plan 02): replace this no-op with the real fan-out across [0, activeVoiceCount).
+// Plan 01 ships it empty on purpose: base_vol stays at each voice's key-on values and
+// NON/PMON stay clear, so the count-sensitive test_voice_controls cases FAIL (the RED
+// baseline that pins the bug Plan 02 fixes). The stub exists so test_voice_controls
+// LINKS before Plan 02 supplies the loop.
+void SPU94AudioProcessor::applyContinuousVoiceControls() { }
+
 int SPU94AudioProcessor::findVoiceForNote(int note)
 {
     for (int i = 0; i < 24; ++i)
