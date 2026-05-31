@@ -15,10 +15,11 @@ control (Level, Pan, INV, NON, PMON, shared ADSR) fan out across
 synced display** — no new audio behavior.
 
 **In scope (VCOUNT-01, VCOUNT-03):** a 1–24 dropdown in the sampler's voice panel,
-wired to `setActiveVoiceCount`, present on both the standalone and the DAW-plugin
-surface, with the selected value as the live readout.
+wired to `setActiveVoiceCount`, on the **standalone app**, with the selected value
+as the live readout.
 
-**Out of scope:** voice-count persistence to presets/system state (VCOUNT-04 →
+**Out of scope:** the **DAW-plugin surface** (deferred until a plugin-beta milestone —
+user decision 2026-05-31); voice-count persistence to presets/system state (VCOUNT-04 →
 Phase 63); any change to allocation/fan-out/mono-poly behavior (already shipped in
 Phases 60/61); per-voice independent control values (deferred in Phase 61).
 
@@ -42,15 +43,14 @@ framing) — keep it simple.
   (pitch / level / pan) — it governs those controls, so it belongs with them.
 
 ### Surface
-- **D-03:** Present on **both the standalone app AND the DAW plugin** — both are
-  testing beds (user: "it can be in the plugin too, because that's another testing
-  bed"). NOT standalone-only.
-  - **Research flag:** the per-voice control panel carries a `// Voice engine panel
-    (standalone-only, Phase 31)` comment (`PluginEditor.cpp` ~line 88). The
-    researcher/planner must confirm where the per-voice controls render on the
-    plugin surface and place the Voice Count dropdown alongside them there too; if
-    the panel is currently standalone-gated, decide the minimal way to surface this
-    one control on the plugin.
+- **D-03:** _(revised 2026-05-31)_ **Standalone app only** for Phase 62. The DAW-plugin
+  surface is deferred until a plugin-beta milestone (user: "focus on the standalone
+  until we need a plugin beta version — it isn't pertinent yet"). This supersedes the
+  original "both standalone AND plugin" decision and removes the plugin-surface-parity
+  research question. The per-voice control panel is already standalone-gated
+  (`// Voice engine panel (standalone-only, Phase 31)`, `PluginEditor.cpp` ~line 88),
+  so the Voice Count dropdown simply joins that existing standalone panel — no plugin
+  wiring this phase.
 
 ### Label
 - **D-04:** Label the control **"Voice Count"** (user's pick over "Voices" /
@@ -70,9 +70,8 @@ framing) — keep it simple.
   No retrigger, no culling, no extra audio logic in this phase.
 
 ### Claude's Discretion
-- Exact widget layout/sizing, item-list construction (1..24), tooltip text, and
-  any `ComboBoxAttachment`/parameter plumbing needed to expose it on the plugin
-  surface — implementer's call, following the `recordModeBox` precedent.
+- Exact widget layout/sizing, item-list construction (1..24), and tooltip text —
+  implementer's call, following the `recordModeBox` precedent.
 
 </decisions>
 
@@ -93,7 +92,7 @@ framing) — keep it simple.
 
 ### Placement neighbors (the per-voice controls this sits beside)
 - `src/plugin/PluginEditor.h:85,136,138` — `voicePitchKnob`, `voicePanKnob`, `voiceLevelKnob`
-- `src/plugin/PluginEditor.cpp` ~line 88 — `// Voice engine panel (standalone-only, Phase 31)` (the surface-parity research flag for D-03)
+- `src/plugin/PluginEditor.cpp` ~line 88 — `// Voice engine panel (standalone-only, Phase 31)` (confirms the voice panel is already standalone-gated; the dropdown joins it there)
 
 ### Prior-phase decisions (locked inputs — do not re-open)
 - `.planning/phases/60-engine-voice-count-allocation/60-CONTEXT.md` — count state, allocation, ring-out-on-decrease
@@ -121,8 +120,7 @@ No external specs/ADRs beyond the above.
 
 ### Integration Points
 - `onChange` → `processor.setActiveVoiceCount(n)`.
-- Surface parity: ensure the control renders on the plugin editor as well as the
-  standalone (see D-03 research flag).
+- Standalone voice panel only (see revised D-03) — no plugin-surface work this phase.
 
 </code_context>
 
@@ -132,15 +130,18 @@ No external specs/ADRs beyond the above.
 - User framing: "select how many voices you need" — a discrete, deliberate testing
   control, not a swept performance gesture. Keep it minimal; don't over-engineer
   coherence or polish in this phase.
-- Both standalone and plugin are treated as testing beds for this control.
+- The standalone app is the testing bed for this control (plugin surface deferred — see revised D-03).
 
 </specifics>
 
 <deferred>
 ## Deferred Ideas
 
-None — discussion stayed within phase scope. (User noted any future polish of this
-control is "a given," not something to track here.)
+- **Voice Count on the DAW-plugin surface** (was D-03) — deferred until a plugin-beta
+  milestone (user decision 2026-05-31: "focus on the standalone until we need a plugin
+  beta version — it isn't pertinent yet"). When that milestone arrives, surface this
+  same control on the plugin editor alongside the per-voice controls.
+- Any future polish of this control is "a given," not tracked here (user note).
 
 </deferred>
 
