@@ -56,7 +56,9 @@ A voice-count selector (1–24) in the sampler window decides how many voices ar
   2. Adjusting the Pan control places every sounding voice at the same stereo position
   3. The ADSR envelope shape (attack/decay/sustain/release) applies to every voice that is triggered, so all notes share the same envelope
   4. Toggling noise (NON), pitch-mod (PMON), or phase-invert changes the character of every active voice consistently
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 61-01-PLAN.md — Wave-0 test scaffold: friend-seam headless test (8 cases pinning VCTRL-01/02/03, D-01, D-06), noteVelocity[24] seam, no-op apply stub (RED)
+- [ ] 61-02-PLAN.md — GREEN: applyContinuousVoiceControls() fan-out across [0,activeVoiceCount), per-note velocity capture, range reconciliation, sweep/duck ordering
 **UI hint**: yes
 
 ### Phase 62: Voice-Count Selector
@@ -87,7 +89,7 @@ A voice-count selector (1–24) in the sampler window decides how many voices ar
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 60. Engine Voice-Count & Allocation | 1/1 | Complete    | 2026-05-31 |
-| 61. Coherent Controls | 0/? | Not started | - |
+| 61. Coherent Controls | 0/2 | Planned     | - |
 | 62. Voice-Count Selector | 0/? | Not started | - |
 | 63. Voice-Count Persistence | 0/? | Not started | - |
 
