@@ -7,9 +7,9 @@
 
 ### Voice Count Selection
 
-- [ ] **VCOUNT-01**: User can set the number of active sampler voices (1–24) from a control in the sampler window
+- [x] **VCOUNT-01**: User can set the number of active sampler voices (1–24) from a control in the sampler window
 - [x] **VCOUNT-02**: Setting the count to 1 makes the sampler monophonic; higher counts add polyphony up to 24
-- [ ] **VCOUNT-03**: Changing the voice count takes effect immediately, with the controls and note allocation following the new count
+- [x] **VCOUNT-03**: Changing the voice count takes effect immediately, with the controls and note allocation following the new count
 - [ ] **VCOUNT-04**: The active voice count is saved to and restored from presets/system state
 
 ### Coherent Controls
@@ -41,9 +41,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VCOUNT-01 | Phase 62 | Pending |
+| VCOUNT-01 | Phase 62 | Complete |
 | VCOUNT-02 | Phase 60 | Complete |
-| VCOUNT-03 | Phase 62 | Pending |
+| VCOUNT-03 | Phase 62 | Complete |
 | VCOUNT-04 | Phase 63 | Pending |
 | VCTRL-01 | Phase 61 | Complete |
 | VCTRL-02 | Phase 61 | Complete |

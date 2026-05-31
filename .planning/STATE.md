@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.12.0
 milestone_name: Voice Count
-status: executing
-stopped_at: Phase 62 context gathered
-last_updated: "2026-05-31T15:07:32.595Z"
-last_activity: 2026-05-31 -- Phase 62 planning complete
+status: verifying
+stopped_at: Phase 62-01 code complete (Voice Count selector); Task 3 audible UAT deferred/pending human verification
+last_updated: "2026-05-31T15:42:28.253Z"
+last_activity: 2026-05-31
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 4
-  completed_plans: 3
-  percent: 50
+  completed_plans: 4
+  percent: 75
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-30)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 62 — voice count selector
+**Current focus:** Phase 62 — voice-count-selector
 
 ## Current Position
 
-Phase: 62
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-31 -- Phase 62 planning complete
+Phase: 62 (voice-count-selector) — READY FOR VERIFICATION
+Plan: 1 of 1
+Status: Code complete (Voice Count selector); Task 3 audible UAT deferred/pending human verification — orchestrator runs phase verification next
+Last activity: 2026-05-31 -- Phase 62-01 code complete
 
 ## Milestone History
 
@@ -61,6 +61,8 @@ v1.12.0 phase-structure rationale (4-phase dependency chain):
 - [Phase 61-01]: adsr_shared + sweep_interaction are regression GUARDS (already-correct behavior per D-07 / Pitfall 4); they pass pre-impl and must stay green.
 - [Phase 61-02]: applyContinuousVoiceControls() fan-out is a bounded [0,count) loop writing voices[v].base_vol_l/r = combineVoiceVol(guiVol, noteVelocity[v]) + set_non/set_pmon — atomic loads + O(1) setters only (RT-safe). Pitch stays voice-0-only; global noise_gen LFSR stays a single write. INV rides the sign of base_vol via q15_mul_truncate (D-03). Apply runs BEFORE the Phase 46 duck so the duck snapshots the Level-scaled ceiling (depth preserved); loop never touches sweep fields so in-flight sweep/duck survive.
 - [Phase 61-02]: velocity unified onto the 0x3FFF scale — velToQ15 (0..127 -> 0..0x7FFF) then combineVoiceVol = q15_mul_truncate(guiVol, velQ15); full vel x full Level = 0x3FFE, so velocity-127 == Trigger-at-100% (D-08). Trigger seeds noteVelocity[0]=0x7FFF.
+- [Phase 62-01]: Voice Count ComboBox (1-24, default 24, dontSendNotification) added to the standalone sampler panel; onChange -> processorRef.setActiveVoiceCount(getSelectedId()) with itemId==count (no ID arithmetic). Standalone-only by construction (joins samplerWindow->getPanel() + bounded inside if(samplerWindow)), zero plugin-surface code (D-03). Code COMPLETE (9e46e4a, 26c0d9a; clean Release build).
+- [Phase 62-01]: Task 3 audible UAT (mono<->poly listening test) DEFERRED / pending human verification — no working MIDI controller on standalone under Linux (out of milestone scope), so the audible behavioral criteria (ROADMAP Phase 62 criteria 2-4) are NOT yet human-confirmed. Tracked as HUMAN-UAT for later. Code/build criteria pass; audible criteria unverified.
 
 ### Blockers/Concerns
 
@@ -76,9 +78,9 @@ See `.planning/TODO.md` -- to-do list. Not carried in STATE.md.
 
 ## Session Continuity
 
-Last session: 2026-05-31T14:39:52.847Z
-Stopped at: Phase 62 context gathered
-Resume file: .planning/phases/62-voice-count-selector/62-CONTEXT.md
+Last session: 2026-05-31T15:42:28.241Z
+Stopped at: Phase 62-01 code complete (Voice Count selector); Task 3 audible UAT deferred/pending human verification
+Resume file: .planning/phases/62-voice-count-selector/62-01-SUMMARY.md
 Next action: Phase 61 verification (gsd-verifier) then phase completion; 2 non-blocking manual UAT ear-checks pending (D-06 voice-0 audition bit-identity; VCTRL-03 PMON-chain character).
 
 ## Operator Next Steps
