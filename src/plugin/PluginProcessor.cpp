@@ -917,16 +917,18 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // to every active voice [0, activeVoiceCount), replacing the old voice-0-only
         // writes. Voice 0 is covered by the loop (it is in [0,count) for any count>=1).
         //
-        // ORDERING (apply BEFORE the Phase 46 sidechain-duck block ~575 lines below):
+        // ORDERING (apply BEFORE the Phase 46 sidechain-duck block ~590 lines below):
         // base_vol is the sweep/duck CEILING that the C-core tick consumes on the same
-        // tick. Running the fan-out here -- before MIDI dispatch and before the duck's
-        // per-voice base_vol snapshot/ramp -- means (a) sweeps read the fresh
-        // Level-scaled ceiling, and (b) the duck snapshots duckOrigLevel from the
-        // already-Level-scaled base_vol, so moving Level on a ducked voice changes the
-        // ceiling while the duck depth (a ratio) is preserved -- not double-applied or
-        // erased (61-RESEARCH.md Pitfall 4 / Open Question 2). The loop writes ONLY
-        // base_vol_l/r + set_non/set_pmon, never any sweep field, so an in-flight
-        // tremolo/duck state machine survives the re-base intact.
+        // tick (spu94_voice.c STEP 0: vol = sweep.level * base_vol >> 15, or vol =
+        // base_vol when no sweep). Running the fan-out HERE -- before MIDI dispatch and
+        // before the duck -- means (a) the sweep reads the fresh Level-scaled ceiling,
+        // and (b) when the duck fires it snapshots duckOrigLevel from voices[v].vol_l/r,
+        // which is already downstream of the Level-scaled base_vol. So moving Level on a
+        // ducked voice moves the ceiling while the duck depth (a ratio it applies to the
+        // snapshot) is preserved -- not double-applied or erased (61-RESEARCH.md Pitfall
+        // 4 / Open Question 2). The loop writes ONLY base_vol_l/r + set_non/set_pmon,
+        // never any sweep field, so an in-flight tremolo/duck state machine survives the
+        // re-base intact (proven by voice_controls_sweep_interaction).
         applyContinuousVoiceControls();
 
         if (effectModeChanged.exchange(false, std::memory_order_acquire))
