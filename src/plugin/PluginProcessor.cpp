@@ -2600,11 +2600,18 @@ void SPU94AudioProcessor::setActiveVoiceCount(int n)
 
 int SPU94AudioProcessor::allocateVoice(int note)
 {
-    int voice = nextVoice;
+    // Phase 60: bound the round-robin to the active voice count via lazy modulo.
+    // count is clamped to [1,24] in setActiveVoiceCount, so % count never divides
+    // by zero; count=1 forces voice 0 every time (mono last-note priority). No
+    // re-base of nextVoice on count change -- the lazy modulo self-heals on the
+    // next allocation, which is CONTEXT's ring-out default for free. Default
+    // count=24 reproduces the exact pre-change 0..23 sequence.
+    const int count = activeVoiceCount.load(std::memory_order_acquire);
+    int voice = nextVoice % count;
     if (noteForVoice[voice] >= 0)
         spu94_voice_mixer_key_off(spu94_get_voice_mixer(), voice);
     noteForVoice[voice] = static_cast<int8_t>(note);
-    nextVoice = (nextVoice + 1) % 24;
+    nextVoice = (voice + 1) % count;
     return voice;
 }
 
