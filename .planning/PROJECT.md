@@ -38,7 +38,7 @@
 - Note allocation respects the count; playing past the limit steals the oldest-sounding voice
 - Selector and controls stay in sync as the count changes
 
-**Progress:** Phase 60 (engine voice-count + count-aware allocation) and Phase 61 (coherent per-voice controls — Level/Pan/INV/NON/PMON + shared ADSR fan out to every active voice, velocity-faithful) complete and verified. Phase 62 (voice-count selector GUI) and Phase 63 (count persistence) remaining.
+**Progress:** Phases 60 (engine voice-count + count-aware allocation), 61 (coherent per-voice controls — Level/Pan/INV/NON/PMON + shared ADSR fan out to every active voice, velocity-faithful), and 62 (voice-count selector GUI, standalone) complete. Phase 62's code is verified and the Release standalone builds clean; its audible polyphony UAT is deferred to a working Linux note-input path (tracked in `62-HUMAN-UAT.md`). Phase 63 (count persistence) remaining.
 
 ## What This Is
 
