@@ -1,5 +1,25 @@
 # Milestones
 
+## v1.12.0 Voice Count (Shipped: 2026-05-31)
+
+**Phases completed:** 4 phases, 5 plans, 15 tasks
+
+**Key accomplishments:**
+
+- Count-bounded (1..24) round-robin voice allocator via a realtime-safe atomic + clamped setter, proven by the first-ever automated test of allocateVoice — five headless CTest cases (mono/poly, only-active, steal-oldest, mono-takeover, default-24 regression) observing the voice mixer's pending_kon/pending_koff bitmasks.
+- RED half of a RED->GREEN TDD pair: declares the VoiceControlsTest friend seam, the noteVelocity[24] velocity-retention array, and a no-op applyContinuousVoiceControls() stub, plus 8 headless processor cases whose 6 count-sensitive members FAIL against the stub — the documented baseline Plan 02 flips to green.
+- GREEN half of the RED->GREEN pair: replaces the no-op stub with the real `applyContinuousVoiceControls()` fan-out so Level, Pan, INV, NON, and PMON govern every active voice `[0, activeVoiceCount)`, with per-note velocity retained so the Level fader rides on top of velocity (D-01) and the velocity/GUI full-scales reconciled onto the engine's 0x3FFF base_vol scale (D-08). All 8 `voice_controls` cases flip green; full suite + rt_safety stay green.
+- A standalone-only "Voice Count" ComboBox (1-24, default 24) whose onChange calls `setActiveVoiceCount(getSelectedId())`, driving the Phase 60 allocator and Phase 61 control fan-out live — code complete; the audible mono↔poly UAT is deferred pending a working MIDI controller on Linux.
+- Active sampler voice count (1-24) now saves into and restores from `.spu94` text presets via a seed-then-override parse routed through `setActiveVoiceCount`, with the standalone Voice Count selector snapping to the restored value and pre-feature presets defaulting to the full 24 voices.
+
+**Tag:** `v1.12.0`
+**Requirements:** VCOUNT-01..04, VCTRL-01..03, VALLOC-01..03 — all 10 satisfied (code + automated)
+**Verification:** Phases 60 & 63 passed; Phases 61 & 62 code-verified (automated suites green) with audible UAT deferred. Milestone audit: `tech_debt` (no blockers).
+**Known deferred at close (4):** audible polyphony + character UAT on Phases 61-62, blocked on a working Linux MIDI input — tracked in `61-HUMAN-UAT.md` / `62-HUMAN-UAT.md`. Also: Nyquist validation docs incomplete for Phases 60/62/63 (the tests themselves pass), and DAW binary session-state persistence of the count deferred by design (Phase 63 D-02).
+**Archived to:** `.planning/milestones/v1.12.0-ROADMAP.md`, `.planning/milestones/v1.12.0-REQUIREMENTS.md`, `.planning/milestones/v1.12.0-MILESTONE-AUDIT.md`, `.planning/milestones/v1.12.0-phases/`
+
+---
+
 ## v1.11.0 Live Input Sampling (Shipped: 2026-05-30)
 
 **Phases completed:** 4 phases, 5 plans, 6 tasks (Phases 56-59)

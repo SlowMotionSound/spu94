@@ -26,19 +26,13 @@
 
 **Shipped:** v1.11.0 — Live Input Sampling (2026-05-30, tag `v1.11.0`). Real-time audio recording directly into the sampler's 512KB voice RAM, ADPCM-encoded on intake. Buffer-then-encode pipeline (accumulate raw PCM, batch-encode on stop via `spu94_sample_encode_to_ram`). Manual + threshold-triggered auto-record, four PS1 preset sample rates plus a continuous variable-rate knob, input peak meter, RAM usage display, WAV export of the trimmed region at the recording rate. 4 phases, 5 plans, all requirements verified.
 
-**Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`, `v1.5`, `v1.6`, `v1.7`, `v1.8`, `v1.9`, `v1.10.0`, `v1.11.0`.
+**Shipped:** v1.12.0 — Voice Count (2026-05-31, tag `v1.12.0`). The player chooses how many of the 24 sampler voices are active (1–24). A voice-count selector in the sampler window (1 = the mono single-module voice, 24 = the full rig); per-voice controls (Level, Pan, ADSR, NON/PMON/phase-invert) apply across every active voice instead of only voice 0; count-aware allocation with oldest-voice steal and mono last-note priority; the count saves to / restores from `.spu94` presets (selector snaps to the restored value, pre-feature presets default to 24). All hangs off a single realtime-safe `activeVoiceCount` atomic. 4 phases, 5 plans, 10/10 requirements satisfied. Audit `tech_debt`: audible polyphony UAT (phases 61-62) deferred to a working Linux MIDI path.
 
-## Current Milestone: v1.12.0 Voice Count
+**Tagged:** `m1-reverb-core`, `v1.0`, `v1.1`, `v1.2`, `v1.3`, `v1.4`, `v1.5`, `v1.6`, `v1.7`, `v1.8`, `v1.9`, `v1.10.0`, `v1.11.0`, `v1.12.0`.
 
-**Goal:** Let the player choose how many of the 24 sampler voices are active, and make the whole sampler play correctly at that count.
+## Current Milestone: (between milestones)
 
-**Target features:**
-- Voice-count selector (1–24 active voices) in the sampler — 1 = the mono single-module voice, 24 = the full rig
-- Per-voice controls (Level, Pan, envelope, NON/PMON toggles) apply across all active voices, not just voice 0
-- Note allocation respects the count; playing past the limit steals the oldest-sounding voice
-- Selector and controls stay in sync as the count changes
-
-**Progress:** Complete — all four phases done and verified. Phase 60 (engine voice-count + count-aware allocation), 61 (coherent per-voice controls — Level/Pan/INV/NON/PMON + shared ADSR fan out to every active voice, velocity-faithful), 62 (voice-count selector GUI, standalone), and 63 (count persistence — `active_voices` saved to / restored from `.spu94` presets via the existing `[voice]` text section, restore routed through `setActiveVoiceCount` so it clamps 1–24 and lets held notes ring out, selector snaps to the restored value, pre-feature presets default to 24). VCOUNT-04 closed; all 10 milestone requirements satisfied. Phase 63's GUI-snap was human-verified; Phase 62's audible polyphony UAT remains deferred to a working Linux note-input path (tracked in `62-HUMAN-UAT.md`). v1.12.0 is functionally complete — ready for milestone close-out/tag.
+v1.12.0 Voice Count shipped 2026-05-31 (tag `v1.12.0`) — see Current State above. No active milestone; run `/gsd:new-milestone` to scope the next one.
 
 ## What This Is
 
@@ -217,4 +211,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-31 after Phase 63 (voice-count persistence) completion — v1.12.0 Voice Count milestone functionally complete*
+*Last updated: 2026-05-31 — v1.12.0 Voice Count milestone shipped (tag `v1.12.0`)*

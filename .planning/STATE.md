@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.12.0
 milestone_name: Voice Count
-status: milestone_complete
-stopped_at: Milestone complete (Phase 63 was final phase)
-last_updated: 2026-05-31T18:13:50.156Z
-last_activity: 2026-05-31 -- Phase 63 plan 01 complete; all v1.12.0 requirements satisfied
+status: Awaiting next milestone
+stopped_at: Phase 63 plan 01 complete (VCOUNT-04 — voice-count persistence)
+last_updated: "2026-05-31T19:30:21.561Z"
+last_activity: 2026-05-31 — Milestone v1.12.0 completed and archived
 progress:
   total_phases: 4
   completed_phases: 4
@@ -18,17 +18,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-30)
+See: .planning/PROJECT.md (updated 2026-05-31)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
 **Current focus:** Milestone complete
 
 ## Current Position
 
-Phase: 63
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-05-31
+Phase: Milestone v1.12.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-05-31 — Milestone v1.12.0 completed and archived
 
 ## Milestone History
 
@@ -87,6 +87,4 @@ Next action: v1.12.0 Voice Count milestone — all 10 requirements (VCOUNT-01..0
 
 ## Operator Next Steps
 
-- v1.12.0 Voice Count: all phases (60-63) complete. Ready to close out / ship the milestone.
-- Manual UAT (non-blocking, listening checks, carried): Phase 62 mono<->poly audible test (no Linux MIDI controller); voice-0/Trigger audition A/B vs v1.11.0 (D-06); PMON-chain character across active set with count>=3 (VCTRL-03).
-- Deferred (tracked, non-blocking): binary DAW/session-state persistence of the voice count (D-02 — .spu94 file persistence only for now).
+- Start the next milestone with /gsd-new-milestone
