@@ -894,20 +894,17 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         if (pendingGuiStop.exchange(false, std::memory_order_acquire))
             spu94_voice_mixer_key_off(spu94_get_voice_mixer(), 0);
 
+        // Pitch stays voice-0-only (CONTEXT scope: each MIDI note keeps its own
+        // pitch from the note number; the GUI knob is a voice-0/Trigger control).
+        // NOT fanned out.
         spu94_voice_mixer_set_pitch(spu94_get_voice_mixer(), 0,
             guiVoicePitch.load(std::memory_order_relaxed));
 
-        // Apply Pan/Level continuously — writes base_vol so sweep scales relative to pan position
+        // Global noise generator (LFSR) config -- a single global write, NOT per
+        // voice. The LFSR is shared by every NON-enabled voice; only the per-voice
+        // NON *enable* fans out (inside applyContinuousVoiceControls). Runs every
+        // block, as it did when it lived in the old voice-0 NON block.
         {
-            auto* mx = spu94_get_voice_mixer();
-            mx->voices[0].base_vol_l = guiVoiceVolL.load(std::memory_order_relaxed);
-            mx->voices[0].base_vol_r = guiVoiceVolR.load(std::memory_order_relaxed);
-        }
-
-        // Apply NON/PMON toggles on voice 0 (Phase 40: voice feature toggles)
-        {
-            bool nonOn = guiVoiceNon.load(std::memory_order_relaxed);
-            spu94_voice_mixer_set_non(spu94_get_voice_mixer(), 0, nonOn ? 1 : 0);
             auto* mx = spu94_get_voice_mixer();
             int shift = noiseShift.load(std::memory_order_relaxed);
             if (shift < 0) shift = 0;
@@ -915,8 +912,22 @@ void SPU94AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             mx->noise_gen.shift = (uint8_t)shift;
             mx->noise_gen.step = (uint8_t)(4 + (shift > 7 ? 3 : shift / 3));
         }
-        spu94_voice_mixer_set_pmon(spu94_get_voice_mixer(), 0,
-            guiVoicePmon.load(std::memory_order_relaxed) ? 1 : 0);
+
+        // Phase 61 (VCTRL-01/02/03): fan Pan/Level/INV (via base_vol) + NON/PMON out
+        // to every active voice [0, activeVoiceCount), replacing the old voice-0-only
+        // writes. Voice 0 is covered by the loop (it is in [0,count) for any count>=1).
+        //
+        // ORDERING (apply BEFORE the Phase 46 sidechain-duck block ~575 lines below):
+        // base_vol is the sweep/duck CEILING that the C-core tick consumes on the same
+        // tick. Running the fan-out here -- before MIDI dispatch and before the duck's
+        // per-voice base_vol snapshot/ramp -- means (a) sweeps read the fresh
+        // Level-scaled ceiling, and (b) the duck snapshots duckOrigLevel from the
+        // already-Level-scaled base_vol, so moving Level on a ducked voice changes the
+        // ceiling while the duck depth (a ratio) is preserved -- not double-applied or
+        // erased (61-RESEARCH.md Pitfall 4 / Open Question 2). The loop writes ONLY
+        // base_vol_l/r + set_non/set_pmon, never any sweep field, so an in-flight
+        // tremolo/duck state machine survives the re-base intact.
+        applyContinuousVoiceControls();
 
         if (effectModeChanged.exchange(false, std::memory_order_acquire))
         {
@@ -2659,12 +2670,39 @@ int SPU94AudioProcessor::allocateVoice(int note)
 }
 
 // Phase 61 (VCTRL-01/02/03): continuous control fan-out across [0, activeVoiceCount).
-// TODO(Plan 02): replace this no-op with the real fan-out across [0, activeVoiceCount).
-// Plan 01 ships it empty on purpose: base_vol stays at each voice's key-on values and
-// NON/PMON stay clear, so the count-sensitive test_voice_controls cases FAIL (the RED
-// baseline that pins the bug Plan 02 fixes). The stub exists so test_voice_controls
-// LINKS before Plan 02 supplies the loop.
-void SPU94AudioProcessor::applyContinuousVoiceControls() { }
+// Fans the GUI Level/Pan/INV (folded into base_vol) and the NON/PMON toggles out to
+// EVERY active voice -- not just voice 0. Runs every processBlock on the audio thread.
+//
+// Per-voice base_vol = combineVoiceVol(guiVol, noteVelocity[v]) recomputes velocity x
+// Level each block, so Level rides on TOP of each note's retained velocity (D-01) and a
+// full-velocity seed reproduces exactly the Level setting (D-06/D-08). Writing base_vol
+// every block is correct: it is the sweep/duck CEILING, which the C-core tick reads on
+// the SAME tick (spu94_voice.c STEP 0) -- so the sweep tracks the new ceiling without a
+// reset. The loop touches ONLY base_vol_l/r + set_non/set_pmon; it never writes any
+// sweep_l/sweep_r field (that would stomp an in-flight tremolo/duck -- 61-RESEARCH.md
+// Pitfall 4). Pitch (set_pitch on voice 0) and the global noise_gen config stay OUTSIDE
+// this method by design (CONTEXT scope: pitch is voice-0/Trigger-only; the LFSR is global).
+//
+// RT-safety: atomic loads + a bounded (count <= 24, clamped by setActiveVoiceCount) loop
+// of existing O(1) setters. No heap, no locks, no syscalls (T-61-04).
+void SPU94AudioProcessor::applyContinuousVoiceControls()
+{
+    auto* mx = spu94_get_voice_mixer();
+    const int count = activeVoiceCount.load(std::memory_order_acquire);   // Phase 60 acquire
+    const int16_t guiL = guiVoiceVolL.load(std::memory_order_relaxed);
+    const int16_t guiR = guiVoiceVolR.load(std::memory_order_relaxed);
+    const bool nonOn   = guiVoiceNon.load(std::memory_order_relaxed);
+    const bool pmonOn  = guiVoicePmon.load(std::memory_order_relaxed);
+
+    for (int v = 0; v < count; ++v)
+    {
+        // base_vol = velocity (x) (Level . Pan . INV). noteVelocity[v] is audio-thread-only.
+        mx->voices[v].base_vol_l = combineVoiceVol(guiL, noteVelocity[v]);
+        mx->voices[v].base_vol_r = combineVoiceVol(guiR, noteVelocity[v]);
+        spu94_voice_mixer_set_non(mx, v, nonOn ? 1 : 0);
+        spu94_voice_mixer_set_pmon(mx, v, pmonOn ? 1 : 0);
+    }
+}
 
 int SPU94AudioProcessor::findVoiceForNote(int note)
 {
