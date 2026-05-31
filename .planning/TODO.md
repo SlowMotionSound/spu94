@@ -14,6 +14,8 @@ Items that need to get done at some point. They live here instead of cluttering 
 | 2 packaging tests time out (`test_packaging_editable_install`, `test_packaging_wheel_tag`) — pip/wheel build; likely environmental, verify | cleanup test run | 2026-05-30 |
 | Tier 4 dup-code optimization (deferred) — fold the 4 VCA-effect blocks (tremolo/auto-pan/ring-mod/AM) into one shared helper, ~460→120 ln; also #37 resample + #38 GUI dedup. Needs a dedicated **critical-listening session** (sound code, no test guard). See CODEBASE-AUDIT.md Tier 4. | post-v1.11.0 cleanup audit | 2026-05-30 |
 | Mono/Poly sampler toggle — Mono = voice 0 only (mirrors a single Eurorack module), Poly = all 24 voices round-robin (mirrors a full daisy-chained rig). Testing aid; also clarifies the single-voice GUI vs polyphony mismatch. | sampler design discussion | 2026-05-30 |
+| WR-01: `noteVelocity[v]` not cleared on note-off/steal — a released-but-in-range voice keeps a "ghost velocity" the per-block Level fan-out keeps scaling. Latent today; **fix before Phase 62** (voice-count selector changes the active count live, which changes which indices the apply loop touches). | Phase 61 code review | 2026-05-31 |
+| WR-02: moving the Level fader **mid-sidechain-duck** can desync the duck's recovery target from the moved ceiling — the Phase 46 duck snapshots `duckOrigLevel` once at duck-start, but the Phase 61 fan-out rewrites `base_vol` every block. No "move Level mid-duck" test exists. Needs a listening check + likely a regression test. | Phase 61 code review | 2026-05-31 |
 
 ## Ideas
 
