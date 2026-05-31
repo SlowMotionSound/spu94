@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.12.0
 milestone_name: Voice Count
-status: ready_to_plan
-stopped_at: Phase 62 complete (1/1) — ready to discuss Phase 63
-last_updated: 2026-05-31T15:51:22.481Z
+status: planning
+stopped_at: Phase 63 context gathered
+last_updated: "2026-05-31T16:21:07.786Z"
 last_activity: 2026-05-31
 progress:
   total_phases: 4
@@ -78,9 +78,9 @@ See `.planning/TODO.md` -- to-do list. Not carried in STATE.md.
 
 ## Session Continuity
 
-Last session: 2026-05-31T15:42:28.241Z
-Stopped at: Phase 62-01 code complete (Voice Count selector); Task 3 audible UAT deferred/pending human verification
-Resume file: .planning/phases/62-voice-count-selector/62-01-SUMMARY.md
+Last session: 2026-05-31T16:21:07.773Z
+Stopped at: Phase 63 context gathered
+Resume file: .planning/phases/63-voice-count-persistence/63-CONTEXT.md
 Next action: Phase 61 verification (gsd-verifier) then phase completion; 2 non-blocking manual UAT ear-checks pending (D-06 voice-0 audition bit-identity; VCTRL-03 PMON-chain character).
 
 ## Operator Next Steps
