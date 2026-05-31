@@ -38,7 +38,7 @@
 - Note allocation respects the count; playing past the limit steals the oldest-sounding voice
 - Selector and controls stay in sync as the count changes
 
-**Progress:** Phases 60 (engine voice-count + count-aware allocation), 61 (coherent per-voice controls — Level/Pan/INV/NON/PMON + shared ADSR fan out to every active voice, velocity-faithful), and 62 (voice-count selector GUI, standalone) complete. Phase 62's code is verified and the Release standalone builds clean; its audible polyphony UAT is deferred to a working Linux note-input path (tracked in `62-HUMAN-UAT.md`). Phase 63 (count persistence) remaining.
+**Progress:** Complete — all four phases done and verified. Phase 60 (engine voice-count + count-aware allocation), 61 (coherent per-voice controls — Level/Pan/INV/NON/PMON + shared ADSR fan out to every active voice, velocity-faithful), 62 (voice-count selector GUI, standalone), and 63 (count persistence — `active_voices` saved to / restored from `.spu94` presets via the existing `[voice]` text section, restore routed through `setActiveVoiceCount` so it clamps 1–24 and lets held notes ring out, selector snaps to the restored value, pre-feature presets default to 24). VCOUNT-04 closed; all 10 milestone requirements satisfied. Phase 63's GUI-snap was human-verified; Phase 62's audible polyphony UAT remains deferred to a working Linux note-input path (tracked in `62-HUMAN-UAT.md`). v1.12.0 is functionally complete — ready for milestone close-out/tag.
 
 ## What This Is
 
@@ -217,4 +217,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-31 after Phase 61 (coherent controls) completion*
+*Last updated: 2026-05-31 after Phase 63 (voice-count persistence) completion — v1.12.0 Voice Count milestone functionally complete*
