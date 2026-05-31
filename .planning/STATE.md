@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.12.0
 milestone_name: Voice Count
-status: ready_to_plan
-stopped_at: Phase 61 complete (2/2) — ready to discuss Phase 62
-last_updated: 2026-05-31T05:01:58.112Z
-last_activity: 2026-05-31 -- Phase 61 Plan 02 (GREEN fan-out) executed; 8/8 voice_controls + full suite + rt_safety green
+status: planning
+stopped_at: Phase 62 context gathered
+last_updated: "2026-05-31T14:39:52.859Z"
+last_activity: 2026-05-31
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 3
   completed_plans: 3
-  percent: 25
+  percent: 50
 ---
 
 # Project State
@@ -76,9 +76,9 @@ See `.planning/TODO.md` -- to-do list. Not carried in STATE.md.
 
 ## Session Continuity
 
-Last session: 2026-05-31T03:20:00Z
-Stopped at: Phase 61 both plans complete (GREEN fan-out landed; 8/8 voice_controls + full suite 131/131 + rt_safety 6/6 green) -- pending phase verification
-Resume file: .planning/phases/61-coherent-controls/61-02-SUMMARY.md
+Last session: 2026-05-31T14:39:52.847Z
+Stopped at: Phase 62 context gathered
+Resume file: .planning/phases/62-voice-count-selector/62-CONTEXT.md
 Next action: Phase 61 verification (gsd-verifier) then phase completion; 2 non-blocking manual UAT ear-checks pending (D-06 voice-0 audition bit-identity; VCTRL-03 PMON-chain character).
 
 ## Operator Next Steps
