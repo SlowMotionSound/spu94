@@ -1983,6 +1983,11 @@ void SPU94AudioProcessorEditor::syncMixerKnobsFromProcessor()
         double hz = (double)pitch / (double)0x1000 * 44100.0;
         voicePitchKnob.setValue(hz, juce::dontSendNotification);
     }
+    // Phase 63 (VCOUNT-04 / D-05): reflect the restored active voice count after a
+    // preset load. voiceCountBox holds itemId == count, so the restored int maps 1:1.
+    // dontSendNotification is mandatory — without it setSelectedId re-fires
+    // voiceCountBox.onChange back into setActiveVoiceCount (redundant store + ordering hazard).
+    voiceCountBox.setSelectedId(processorRef.getActiveVoiceCount(), juce::dontSendNotification);
 }
 
 //==============================================================================
