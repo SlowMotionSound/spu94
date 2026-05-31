@@ -115,6 +115,7 @@ bool test_clamp()
     }
     {
         auto p = makePreparedProcessor();
+        p->setActiveVoiceCount(7);   // seed off-default: reaching 24 now proves parse+clamp ran, not a no-op load
         const juce::String high = "[preset]\nname=hi\n[voice]\nactive_voices=999\n";
         p->loadPresetFromString(high);
         if (p->getActiveVoiceCount() != 24)
