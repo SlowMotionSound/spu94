@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.12.0
 milestone_name: Voice Count
-status: verifying
-stopped_at: Phase 62-01 code complete (Voice Count selector); Task 3 audible UAT deferred/pending human verification
-last_updated: "2026-05-31T15:42:28.253Z"
+status: ready_to_plan
+stopped_at: Phase 62 complete (1/1) — ready to discuss Phase 63
+last_updated: 2026-05-31T15:51:22.481Z
 last_activity: 2026-05-31
 progress:
   total_phases: 4
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-30)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 62 — voice-count-selector
+**Current focus:** Phase 63 — voice count persistence
 
 ## Current Position
 
-Phase: 62 (voice-count-selector) — READY FOR VERIFICATION
-Plan: 1 of 1
-Status: Code complete (Voice Count selector); Task 3 audible UAT deferred/pending human verification — orchestrator runs phase verification next
-Last activity: 2026-05-31 -- Phase 62-01 code complete
+Phase: 63
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-31
 
 ## Milestone History
 
