@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.12.0
 milestone_name: Voice Count
 status: executing
-stopped_at: Phase 61 context gathered
-last_updated: "2026-05-31T01:35:18.330Z"
-last_activity: 2026-05-31 -- Phase 61 planning complete
+stopped_at: Phase 61 Plan 01 complete (RED scaffold)
+last_updated: "2026-05-31T02:45:03.085Z"
+last_activity: 2026-05-31 -- Phase 61 Plan 01 (RED test scaffold) executed
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
   percent: 25
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-30)
 
 **Core value:** Reproduce the PS1 SPU reverb algorithm from spec -- sample-accurate where the spec is explicit, deliberately and documentedly chosen where it isn't -- in a form that ports cleanly from desktop to hardware without a rewrite.
-**Current focus:** Phase 61 — coherent controls
+**Current focus:** Phase 61 — coherent-controls
 
 ## Current Position
 
-Phase: 61
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-31 -- Phase 61 planning complete
+Phase: 61 (coherent-controls) — EXECUTING
+Plan: 2 of 2
+Status: Plan 01 complete (RED scaffold landed); Plan 02 (GREEN fan-out) ready to execute
+Last activity: 2026-05-31 -- Phase 61 Plan 01 executed (8-case test scaffold, 6 RED baseline)
 
 ## Milestone History
 
@@ -56,6 +56,9 @@ v1.12.0 phase-structure rationale (4-phase dependency chain):
 - Phase 63 (persistence) serializes the count into the existing `[voice]` INI section of plugin state (PluginProcessor.cpp ~line 1795), matching the `vol_l=` / `non=` pattern; default 24 for back-compat with pre-feature presets.
 - [Phase 60]: active voice count stored as std::atomic<int> activeVoiceCount{24} (release/acquire), clamped [1,24] in setActiveVoiceCount; lazy % count bounding in allocateVoice (no nextVoice re-base) so a count decrease self-heals on the next allocation.
 - [Phase 60]: anti-click fade on voice steal DEFERRED (hard cut only); steal-click listening session not yet performed.
+- [Phase 61-01]: noteVelocity[24] declared non-atomic audio-thread-only (duckOrigLevel precedent). Plan 02 recomputes base_vol = q15_mul_truncate(guiVol, noteVelocity[v]) every block so the Level fader rides on TOP of velocity (D-01), not overwriting it.
+- [Phase 61-01]: spu94_voice_init seeds base_vol to 0x3FFF (NOT 0) -- this is the "not-yet-fanned-out" RED sentinel in test_voice_controls. Plan 02 GREEN target = flip the 6 count-sensitive cases (level/pan/non_pmon/velocity_rides/default24/out_of_range) while keeping guards adsr_shared + sweep_interaction green.
+- [Phase 61-01]: adsr_shared + sweep_interaction are regression GUARDS (already-correct behavior per D-07 / Pitfall 4); they pass pre-impl and must stay green.
 
 ### Blockers/Concerns
 
@@ -71,12 +74,12 @@ See `.planning/TODO.md` -- to-do list. Not carried in STATE.md.
 
 ## Session Continuity
 
-Last session: 2026-05-31T01:00:14.865Z
-Stopped at: Phase 61 context gathered
-Resume file: .planning/phases/61-coherent-controls/61-CONTEXT.md
-Next action: Verify Phase 60 with /gsd:verify-work, then plan Phase 61 (coherent per-voice controls).
+Last session: 2026-05-31T02:45:03.074Z
+Stopped at: Phase 61 Plan 01 complete (RED test scaffold; 6/8 cases RED as the Plan-02 baseline)
+Resume file: .planning/phases/61-coherent-controls/61-02-PLAN.md
+Next action: Execute Phase 61 Plan 02 (GREEN) -- implement applyContinuousVoiceControls() fan-out across [0, activeVoiceCount), flipping the 6 RED cases green.
 
 ## Operator Next Steps
 
-- Verify Phase 60 with /gsd:verify-work
-- Then plan Phase 61 (coherent controls: fan out per-voice GUI controls across [0, active_voices))
+- Execute Phase 61 Plan 02 (GREEN): applyContinuousVoiceControls() fan-out + per-note velocity capture + range reconciliation + sweep/duck ordering
+- Plan 02 GREEN gate: `ctest --test-dir build -R voice_controls --output-on-failure` all 8 green (6 flipped + 2 guards held)
